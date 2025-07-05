@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { usePage } from '@inertiajs/vue3';
-const appName = usePage().props.appName || 'Your App Name';
+const appName = usePage().props.appName || 'Buyalot';
 </script>
 
 <template>
@@ -26,7 +26,7 @@ const appName = usePage().props.appName || 'Your App Name';
                     <li><a href="#" class="text-white hover:underline">Returns</a></li>
                     <li><a href="#" class="text-white hover:underline">Personal Details</a></li>
                     <li><a href="#" class="text-white hover:underline">Invoices</a></li>
-                    <li><a href="#" class="text-white hover:underline">TakealotMORE</a></li>
+                    <li><a href="#" class="text-white hover:underline">BuyalotMORE</a></li>
                 </ul>
             </div>
 

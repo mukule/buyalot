@@ -66,7 +66,7 @@ const banners = page.props.banners ?? DEFAULT_BANNERS;
 <template>
     <MainLayout>
         <!-- Hero + Brands -->
-        <section class="mb-4 flex flex-col gap-6 bg-white lg:flex-row">
+        <section class="mt-4 mb-4 flex flex-col gap-6 bg-white lg:flex-row">
             <CategorySidebar :categories="categories" class="hidden lg:block" />
             <div class="w-full lg:w-[79.17%]">
                 <Hero :banners="banners" link="/your-link-here" />

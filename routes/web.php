@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\PermissionController;
+use App\Http\Controllers\SellController;
 
 
 Route::get('/', function () {
@@ -11,6 +12,11 @@ Route::get('/', function () {
         'title' => 'Online Shopping Store',
     ]);
 })->name('home');
+
+
+
+Route::get('/sell', [SellController::class, 'index'])->name('sell.index');
+
 
 
 Route::middleware(['auth', 'admin'])->group(function () {
