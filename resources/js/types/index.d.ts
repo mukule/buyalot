@@ -15,6 +15,7 @@ export interface NavItem {
     href: string;
     icon?: LucideIcon;
     isActive?: boolean;
+    children?: NavItem[];
 }
 
 export type AppPageProps<T extends Record<string, unknown> = Record<string, unknown>> = T & {
@@ -34,5 +35,23 @@ export interface User {
     created_at: string;
     updated_at: string;
 }
+
+export interface Permission {
+  id: number;
+  name: string;
+  guard_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Role {
+  id: number;
+  name: string;
+  guard_name: string;
+  created_at: string;
+  updated_at: string;
+  permissions: Permission[];
+}
+
 
 export type BreadcrumbItemType = BreadcrumbItem;

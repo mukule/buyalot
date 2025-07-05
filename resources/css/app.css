@@ -90,7 +90,7 @@
     --product-background: #f4f4f4;
     --primary-foreground: hsl(0 0% 98%);
     --secondary: #f5762a;
-    --secondary-foreground: hsl(0 0% 9%);
+    --secondary-foreground: #fff;
 
     --muted: hsl(0 0% 96.1%);
     --muted-foreground: hsl(0 0% 45.1%);
@@ -115,7 +115,7 @@
     --sidebar-accent: hsl(0 0% 94%);
     --sidebar-accent-foreground: hsl(0 0% 30%);
     --sidebar-border: hsl(0 0% 91%);
-    --sidebar-ring: hsl(217.2 91.2% 59.8%);
+    --sidebar-ring: #32b44a;
     --sidebar: hsl(0 0% 98%);
 }
 
@@ -152,3 +152,7 @@
     /* Safari and Chrome */
 }
 
+.icon-sm {
+  width: 18px;
+  height: 18px;
+}
