@@ -13,7 +13,7 @@ class Admin
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (auth()->check() && auth()->user()->hasAnyRole(['admin'])) {
+        if (auth()->check() && auth()->user()->hasAnyRole(['admin', 'seller'])) {
             return $next($request);
         }
 

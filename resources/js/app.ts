@@ -7,6 +7,9 @@ import { createApp, h } from 'vue';
 import { ZiggyVue } from 'ziggy-js';
 import { initializeTheme } from './composables/useAppearance';
 
+// Quill Editor
+import { QuillEditor } from '@vueup/vue-quill';
+import '@vueup/vue-quill/dist/vue-quill.snow.css'; // already included
 
 const appName = import.meta.env.VITE_APP_NAME || 'Buyalot';
 
@@ -14,15 +17,20 @@ createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
     resolve: (name) => resolvePageComponent(`./pages/${name}.vue`, import.meta.glob<DefineComponent>('./pages/**/*.vue')),
     setup({ el, App, props, plugin }) {
-        createApp({ render: () => h(App, props) })
-            .use(plugin)
-            .use(ZiggyVue)
-            .mount(el);
+        const vueApp = createApp({ render: () => h(App, props) });
+
+        vueApp.use(plugin);
+        vueApp.use(ZiggyVue);
+
+        // Register QuillEditor globally
+        vueApp.component('QuillEditor', QuillEditor);
+
+        vueApp.mount(el);
     },
     progress: {
         color: '#4B5563',
     },
 });
 
-// This will set light / dark mode on page load...
+// Set theme on load
 initializeTheme();

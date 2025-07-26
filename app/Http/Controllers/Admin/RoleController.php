@@ -13,7 +13,7 @@ class RoleController extends Controller
     public function index()
     {
         $roles = Role::with('permissions')->get()->map(function ($role) {
-            $role->hashid = $role->getRouteKey(); // uses Hashids::encode internally
+            $role->hashid = $role->getRouteKey(); 
             return $role;
         });
 

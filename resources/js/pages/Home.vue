@@ -55,7 +55,7 @@ const SAMPLE_PRODUCTS = [
 ].map((p) => ({
     ...p,
     onSale: Math.random() < 0.5,
-    rating: Math.floor(Math.random() * 3) + 3, // 3–5 stars
+    rating: Math.floor(Math.random() * 3) + 3, 
 }));
 
 const page = usePage<PageProps>();
@@ -65,7 +65,6 @@ const banners = page.props.banners ?? DEFAULT_BANNERS;
 
 <template>
     <MainLayout>
-        <!-- Hero + Brands -->
         <section class="mt-4 mb-4 flex flex-col gap-6 bg-white lg:flex-row">
             <CategorySidebar :categories="categories" class="hidden lg:block" />
             <div class="w-full lg:w-[79.17%]">
@@ -74,7 +73,6 @@ const banners = page.props.banners ?? DEFAULT_BANNERS;
             </div>
         </section>
 
-        <!-- Product Sections -->
         <section class="space-y-10 px-4">
             <ProductCarouselSection
                 v-for="(category, index) in categories.slice(0, 4)"

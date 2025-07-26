@@ -8,7 +8,7 @@ const appName = usePage().props.appName || 'Buyalot';
         <div class="mx-auto grid max-w-7xl grid-cols-2 gap-8 sm:grid-cols-3 md:grid-cols-5">
             
             <div>
-                <h4 class="mb-3 font-semibold">Shop</h4>
+                <h4 class="mb-3 font-semibold text-white">Shop</h4>
                 <ul class="space-y-1 text-sm">
                     <li><a href="#" class="text-white hover:underline">Daily Deals</a></li>
                     <li><a href="#" class="text-white hover:underline">App Only Deals</a></li>
@@ -19,7 +19,7 @@ const appName = usePage().props.appName || 'Buyalot';
 
             
             <div>
-                <h4 class="mb-3 font-semibold">Account</h4>
+                <h4 class="mb-3 font-semibold text-white">Account</h4>
                 <ul class="space-y-1 text-sm">
                     <li><a href="#" class="text-white hover:underline">My Account</a></li>
                     <li><a href="#" class="text-white hover:underline">Track Order</a></li>
@@ -32,7 +32,7 @@ const appName = usePage().props.appName || 'Buyalot';
 
            
             <div>
-                <h4 class="mb-3 font-semibold">Help</h4>
+                <h4 class="mb-3 font-semibold text-white">Help</h4>
                 <ul class="space-y-1 text-sm">
                     <li><a href="#" class="text-white hover:underline">Help Centre</a></li>
                     <li><a href="#" class="text-white hover:underline">Contact Us</a></li>
@@ -47,7 +47,7 @@ const appName = usePage().props.appName || 'Buyalot';
 
             <!-- Company -->
             <div>
-                <h4 class="mb-3 font-semibold">Company</h4>
+                <h4 class="mb-3 font-semibold text-white">Company</h4>
                 <ul class="space-y-1 text-sm">
                     <li><a href="#" class="text-white hover:underline">About Us</a></li>
                     <li><a href="#" class="text-white hover:underline">Careers</a></li>
@@ -62,7 +62,7 @@ const appName = usePage().props.appName || 'Buyalot';
 
             <!-- Policy -->
             <div>
-                <h4 class="mb-3 font-semibold">Policy</h4>
+                <h4 class="mb-3 font-semibold text-white">Policy</h4>
                 <ul class="space-y-1 text-sm">
                     <li><a href="#" class="text-white hover:underline">Returns Policy</a></li>
                     <li><a href="#" class="text-white hover:underline">Terms & Conditions</a></li>

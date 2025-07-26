@@ -36,8 +36,8 @@ class AuthenticatedSessionController extends Controller
 
     $user = $request->user();
 
-    if ($user->hasAnyRole(['admin', 'super-admin'])) {
-        return redirect()->intended(route('dashboard'))
+    if ($user->hasAnyRole(['admin', 'superadmin', 'seller'])) {
+        return redirect()->intended(route('admin.dashboard'))
             ->with('success', 'Welcome back, ' . $user->name . '!');
     }
 

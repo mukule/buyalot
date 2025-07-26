@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\SellerApplication;
+use App\Models\SellerDocument;
 use App\Notifications\UserRegistered;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -16,6 +18,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'seller_application_id',
     ];
 
     protected $hidden = [
@@ -31,11 +34,20 @@ class User extends Authenticatable
         ];
     }
 
-    
     protected static function booted(): void
     {
         static::created(function (User $user) {
             $user->notify(new UserRegistered());
         });
+    }
+
+    public function sellerApplication()
+    {
+        return $this->belongsTo(SellerApplication::class);
+    }
+
+    public function sellerDocuments()
+    {
+        return $this->hasMany(SellerDocument::class);
     }
 }

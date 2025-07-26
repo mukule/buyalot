@@ -41,6 +41,9 @@ return [
 
     'debug' => (bool) env('APP_DEBUG', false),
 
+    'Image' => Intervention\Image\Facades\Image::class,
+
+
     /*
     |--------------------------------------------------------------------------
     | Application URL
