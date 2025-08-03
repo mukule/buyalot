@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\SellController;
@@ -42,6 +43,14 @@ Route::middleware(['auth', 'role:admin|seller'])->prefix('admin')->name('admin.'
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
 
     require __DIR__ . '/roles_permissions.php';
+
+    Route::prefix('users')->name('users.')->group(function () {
+        Route::get('/', [UserController::class, 'index'])->name('index');
+        Route::get('/{sellerApplication}', [SellerApplicationController::class, 'show'])->name('show');
+        Route::delete('/{sellerApplication}', [SellerApplicationController::class, 'destroy'])->name('destroy');
+        Route::put('/{sellerApplication}/approve', [SellerApplicationController::class, 'approve'])->name('approve');
+        Route::put('/{sellerApplication}/reject', [SellerApplicationController::class, 'reject'])->name('reject');
+    });
 
     // Seller Applications
     Route::prefix('applications')->name('applications.')->group(function () {

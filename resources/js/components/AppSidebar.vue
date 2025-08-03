@@ -4,7 +4,19 @@ import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
-import { ClipboardList, FileCheck, KeyRound, LayoutGrid, ListChecks, Lock, RulerIcon, ShieldCheck, Tag, Users } from 'lucide-vue-next';
+import {
+    ClipboardList,
+    FileCheck,
+    FileUser,
+    KeyRound,
+    LayoutGrid,
+    ListChecks,
+    Lock,
+    RulerIcon,
+    ShieldCheck,
+    Tag, User2Icon,
+    Users
+} from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from './AppLogo.vue';
 
@@ -77,6 +89,11 @@ const allNavItems: NavItem[] = [
         ],
     },
     {
+      title: 'Users',
+      href: '/users',
+      icon: FileUser,
+    },
+    {
         title: 'Access Rights',
         href: '#',
         icon: Lock,
@@ -98,6 +115,7 @@ const allNavItems: NavItem[] = [
             },
         ],
     },
+
 ];
 
 const mainNavItems = computed(() => {

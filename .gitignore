@@ -28,3 +28,6 @@ yarn-error.log
 .prettierrc
 package-lock.json
 /logs
+
+pnpm-lock.yaml
+.npmrc
