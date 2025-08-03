@@ -158,7 +158,6 @@ watch([() => searchForm.search, () => searchForm.role, () => searchForm.status],
                             </option>
                         </select>
 
-                        <!-- Status Filter -->
                         <select
                             v-model="searchForm.status"
                             class="rounded-lg border border-gray-300 px-4 py-2 focus:border-primary focus:outline-none"
@@ -169,7 +168,6 @@ watch([() => searchForm.search, () => searchForm.role, () => searchForm.status],
                             <option value="inactive">Suspended</option>
                         </select>
 
-                        <!-- Clear Filters -->
                         <button
                             v-if="searchForm.search || searchForm.role || searchForm.status"
                             @click="clearFilters"
