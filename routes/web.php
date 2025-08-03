@@ -1,24 +1,21 @@
 <?php
 
-use App\Http\Controllers\UserController;
-use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
-use App\Http\Controllers\SellController;
-use App\Http\Controllers\Admin\SellerApplicationController;
-use App\Http\Controllers\Admin\DocumentTypeController;
-use App\Http\Controllers\SellerAccountController;
-use App\Http\Controllers\Admin\SellerVerificationController;
-use App\Models\SellerDocument;
-use App\Http\Controllers\Admin\WarehouseController;
-use App\Http\Controllers\Admin\CategoryController;
-use App\Http\Controllers\Admin\SubcategoryController;
 use App\Http\Controllers\Admin\BrandController;
+use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\DocumentTypeController;
+use App\Http\Controllers\Admin\ProductController;
+use App\Http\Controllers\Admin\SellerApplicationController;
+use App\Http\Controllers\Admin\SellerVerificationController;
+use App\Http\Controllers\Admin\SubcategoryController;
 use App\Http\Controllers\Admin\UnitController;
 use App\Http\Controllers\Admin\UnitTypeController;
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\VariantCategoryController;
-use App\Http\Controllers\Admin\ProductController;
-
-
+use App\Http\Controllers\Admin\WarehouseController;
+use App\Http\Controllers\SellController;
+use App\Http\Controllers\SellerAccountController;
+use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
 
 Route::get('/', function () {
@@ -46,6 +43,16 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
 
     Route::prefix('users')->name('users.')->group(function () {
         Route::get('/', [UserController::class, 'index'])->name('index');
+        Route::get('/{user}', [UserController::class, 'show']);
+        Route::post('/{user}/assign-roles', [UserController::class, 'assignRoles']);
+        Route::delete('/{user}/remove-role', [UserController::class, 'removeRole']);
+
+        Route::get('/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
+        Route::put('/{user}', [UserController::class, 'update'])->name('users.update');
+        Route::delete('/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+        Route::post('/{user}/update-status', [UserController::class, 'updateStatus'])->name('users.update-status');
+
+
         Route::get('/{sellerApplication}', [SellerApplicationController::class, 'show'])->name('show');
         Route::delete('/{sellerApplication}', [SellerApplicationController::class, 'destroy'])->name('destroy');
         Route::put('/{sellerApplication}/approve', [SellerApplicationController::class, 'approve'])->name('approve');
