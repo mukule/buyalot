@@ -90,7 +90,7 @@ const allNavItems: NavItem[] = [
     },
     {
       title: 'Users',
-      href: '/users',
+      href: '/admin/users',
       icon: FileUser,
     },
     {
