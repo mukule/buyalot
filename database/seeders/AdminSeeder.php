@@ -5,21 +5,30 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use App\Models\User;
 use Spatie\Permission\Models\Role;
+use Illuminate\Support\Facades\Hash;
 
 class AdminSeeder extends Seeder
 {
     public function run()
     {
-        
+        // Ensure the admin role exists
         $adminRole = Role::firstOrCreate(['name' => 'admin']);
 
-        
-        $user = User::factory()->create([
-            'name' => 'Masibo',
-            'email' => 'nelsonmasibo6@gmail.com',
-        ]);
+        // Create or update the admin user without sending emails
+        $admin = User::updateOrCreate(
+            ['email' => 'nelsonmasibo6@gmail.com'], // Find by email
+            [
+                'name' => 'Masibo',
+                'password' => Hash::make('NewSecurePassword123'), // Change to your desired password
+                'email_verified_at' => now(),
+            ]
+        );
 
-        
-        $user->assignRole('admin');
+        // Assign admin role if not already assigned
+        if (!$admin->hasRole('admin')) {
+            $admin->assignRole($adminRole);
+        }
+
+        // No email sending here — prevents SSL or SMTP errors
     }
 }
