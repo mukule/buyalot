@@ -70,6 +70,17 @@ function getRoleColor(roleName: string): string {
     };
     return colors[roleName] || 'bg-gray-100 text-gray-800 border-gray-200';
 }
+function getRoleDescription(roleName) {
+    const descriptions = {
+        'super-admin': 'Full system access with all permissions',
+        'admin': 'Administrative access to most system features',
+        'manager': 'Management access to assigned modules',
+        'staff': 'Basic operational access',
+        'seller': 'Seller-specific permissions for marketplace',
+        'user': 'Standard user permissions'
+    };
+    return descriptions[roleName] || 'Custom role with specific permissions';
+}
 
 function togglePasswordSection() {
     showPasswordSection.value = !showPasswordSection.value;
@@ -306,16 +317,3 @@ function togglePasswordSection() {
     </AppLayout>
 </template>
 
-<script>
-function getRoleDescription(roleName) {
-    const descriptions = {
-        'super-admin': 'Full system access with all permissions',
-        'admin': 'Administrative access to most system features',
-        'manager': 'Management access to assigned modules',
-        'staff': 'Basic operational access',
-        'seller': 'Seller-specific permissions for marketplace',
-        'user': 'Standard user permissions'
-    };
-    return descriptions[roleName] || 'Custom role with specific permissions';
-}
-</script>

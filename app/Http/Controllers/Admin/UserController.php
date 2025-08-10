@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -14,56 +15,46 @@ class UserController extends Controller
 {
     public function index(Request $request)
     {
-        $query = User::with('roles');
+        $query = User::query()->with('roles');
 
-        // Search functionality
-        if ($request->has('search') && $request->search) {
-            $query->where(function ($q) use ($request) {
-                $q->where('name', 'like', '%' . $request->search . '%')
-                    ->orWhere('email', 'like', '%' . $request->search . '%');
+        if ($request->filled('search')) {
+            $query->where(function ($searchQuery) use ($request) {
+                $searchQuery->where('name', 'like', '%' . $request->search . '%')
+                    ->orWhere('email', 'like', '%' . $request->search . '%')
+                    ->orWhere('phone', 'like', '%' . $request->search . '%');
             });
         }
 
-        // Role filter
-        if ($request->has('role') && $request->role) {
-            $query->whereHas('roles', function ($q) use ($request) {
-                $q->where('name', $request->role);
+        if ($request->filled('role')) {
+            $query->whereHas('roles', function ($roleQuery) use ($request) {
+                $roleQuery->where('name', $request->role);
+            });
+        } else {
+            $query->whereHas('roles', function ($roleQuery) {
+                $roleQuery->where('name', '!=', 'user');
             });
         }
 
-        // Status filter
-        if ($request->has('status') && $request->status) {
-            $query->where('status', $request->status);
+        if ($request->filled('status')) {
+            $statusValue = $request->status === true;
+            $query->where('status', $statusValue);
         }
 
-        // Exclude users with only 'user' role for admin interface
-        $users = $query->whereHas('roles', function ($q) {
-            $q->where('name', '<>', 'user');
-        })
-            ->orWhereDoesntHave('roles')
-            ->get()
-            ->filter(function ($user) {
-                return !($user->roles->count() === 1 && $user->roles->first()->name === 'user');
-            })
-            ->values();
-
+        $users = $query->latest()->get();
         $roles = Role::pluck('name');
-
         $userData = $users->map(fn($user) => [
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email ?? '',
-            'status' => $user->status ?? 'active',
+            'phone' => $user->phone ?? '',
+            'gender' => $user->gender ?? '',
+            'status' => (bool) $user->status,
             'created_at' => $user->created_at,
-            'roles' => $user->roles->map(function($role) {
-                return [
-                    'id' => $role->id,
-                    'name' => $role->name,
-                ];
-            }),
+            'roles' => $user->roles->map(fn($role) => [
+                'id' => $role->id,
+                'name' => $role->name,
+            ]),
         ]);
-
-        // Return JSON for API requests
         if ($request->wantsJson() || $request->is('api/*')) {
             return response()->json([
                 'users' => $userData,
@@ -71,15 +62,10 @@ class UserController extends Controller
             ]);
         }
 
-        // Return Inertia view for web requests
         return Inertia::render('Admin/Users/Index', [
             'users' => $userData,
             'roles' => $roles,
-            'filters' => [
-                'search' => $request->search,
-                'role' => $request->role,
-                'status' => $request->status,
-            ]
+            'filters' => $request->only(['search', 'role', 'status'])
         ]);
     }
 
@@ -91,7 +77,9 @@ class UserController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
-                'status' => $user->status ?? 'active',
+                'phone' => $user->phone,
+                'gender' => $user->gender,
+                'status' => $user->status ?? true,
                 'created_at' => $user->created_at,
                 'roles' => $user->roles->map(function($role) {
                     return [
@@ -119,7 +107,9 @@ class UserController extends Controller
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
-            'status' => $user->status ?? 'active',
+            'status' => $user->status ?? true,
+            'gender' => $user->gender,
+            'phone' => $user->phone,
             'created_at' => $user->created_at,
             'updated_at' => $user->updated_at,
             'email_verified_at' => $user->email_verified_at,
@@ -157,7 +147,9 @@ class UserController extends Controller
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
-            'status' => $user->status ?? 'active',
+            'gender' => $user->gender,
+            'phone' => $user->phone,
+            'status' => $user->status ?? true,
             'roles' => $user->roles->map(function($role) {
                 return [
                     'id' => $role->id,
@@ -172,39 +164,122 @@ class UserController extends Controller
         ]);
     }
 
+    public function updateRoles(Request $request, User $user): RedirectResponse
+    {
+        $validated = $request->validate([
+            'roles' => 'required|array|min:1',
+            'roles.*' => 'string|exists:roles,name',
+        ], [
+            'roles.required' => 'A user must have at least one role.',
+            'roles.min' => 'A user must have at least one role.',
+        ]);
+        if (empty($validated['roles'])) {
+            return redirect()->back()->withErrors(['roles' => 'A user must have at least one role.']);
+        }
+
+        $user->syncRoles($validated['roles']);
+
+        return redirect()->back()->with('success', 'User roles updated successfully.');
+    }
+
+
     public function update(Request $request, User $user)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
-            'status' => 'required|in:active,inactive,suspended',
-            'roles' => 'array',
-            'roles.*' => 'string|exists:roles,name',
-            'password' => 'nullable|min:8|confirmed',
+            'status' => 'required|boolean',
+            'phone' => 'nullable|min:10|max:15',
+            'gender'=>'nullable|in:male,female,other',
         ]);
 
         // Update user basic info
         $user->update([
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'status' => $validated['status'],
-            'password' => $validated['password'] ? bcrypt($validated['password']) : $user->password,
+            'gender' => $validated['gender'],
+            'phone' => $validated['phone'],
+            'status' => (bool) $validated['status'],
+//            'password' => $validated['password'] ? bcrypt($validated['password']) : $user->password,
         ]);
-
-        // Update roles if provided
-        if (isset($validated['roles'])) {
-            $rolesToKeep = $user->hasRole('user') ? ['user'] : [];
-            $user->syncRoles(array_merge($rolesToKeep, $validated['roles']));
-        }
 
         // Return JSON for API requests
         if ($request->wantsJson() || $request->is('api/*')) {
-            $user->load('roles', 'permissions');
             $userData = [
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
-                'status' => $user->status,
+                'phone' => $user->phone,
+                'gender' => $user->gender,
+                'status' => (bool) $user->status,
+//                'permissions' => $user->permissions->map(function($permission) {
+//                    return [
+//                        'id' => $permission->id,
+//                        'name' => $permission->name,
+//                    ];
+//                }),
+            ];
+            return response()->json($userData);
+        }
+
+        // Return redirect for web requests
+        return redirect()->route('admin.users.index')->with('success', 'User updated successfully.');
+    }
+
+    public function updateStatus(Request $request, User $user): JsonResponse
+    {
+        $validated = $request->validate([
+            'status' => 'required|boolean',
+        ]);
+        $user->update( ['status' => (bool) $validated['status']]);
+
+        return response()->json([
+            'message' => 'User status updated successfully',
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'status' => (bool) $user->status,
+            ]
+        ]);
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'phone' => 'nullable|string|min:10|max:15',
+            'gender' => 'nullable|in:male,female,other',
+            'password' => 'required|string|min:8|confirmed',
+            'status' => 'required|boolean',
+            'roles' => 'required|array|min:1',
+            'roles.*' => 'string|exists:roles,name',
+        ], [
+            'roles.required' => 'A user must have at least one role.',
+            'roles.min' => 'A user must have at least one role.',
+            'password.confirmed' => 'The password confirmation does not match.',
+        ]);
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'phone' => $validated['phone'] ?? null,
+            'gender' => $validated['gender'] ?? null,
+            'password' => bcrypt($validated['password']),
+            'status' => (bool) $validated['status'],
+            'email_verified_at' => now(),
+        ]);
+        $user->assignRole($validated['roles']);
+        if ($request->wantsJson() || $request->is('api/*')) {
+            $user->load('roles', 'permissions');
+
+            $userData = [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'gender' => $user->gender,
+                'status' => (bool) $user->status,
+                'created_at' => $user->created_at,
                 'roles' => $user->roles->map(function($role) {
                     return [
                         'id' => $role->id,
@@ -218,29 +293,13 @@ class UserController extends Controller
                     ];
                 }),
             ];
-            return response()->json($userData);
+
+            return response()->json([
+                'message' => 'User created successfully',
+                'user' => $userData
+            ], 201);
         }
-
-        // Return redirect for web requests
-        return redirect()->route('admin.users.index')->with('success', 'User updated successfully.');
-    }
-
-    public function updateStatus(Request $request, User $user): JsonResponse
-    {
-        $validated = $request->validate([
-            'status' => 'required|in:active,inactive,suspended'
-        ]);
-
-        $user->update(['status' => $validated['status']]);
-
-        return response()->json([
-            'message' => 'User status updated successfully',
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'status' => $user->status,
-            ]
-        ]);
+        return redirect()->route('admin.users.index')->with('success', 'User created successfully.');
     }
 
     public function destroy(Request $request, User $user)

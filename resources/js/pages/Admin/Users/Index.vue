@@ -4,10 +4,13 @@ import type { AppPageProps, User, Role } from '@/types';
 import { Head, router, usePage, useForm } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 
+type UserWithRoles = User & { roles: Role[] };
+
 const page = usePage<
     AppPageProps<{
         users: (User & {
             hashid: string;
+            phone?: string;
             roles: (Role & { hashid: string })[];
         })[];
         roles: string[];
@@ -32,11 +35,37 @@ const searchForm = useForm({
 const selectedUsers = ref<string[]>([]);
 const showBulkActions = computed(() => selectedUsers.value.length > 0);
 const showRoleModal = ref(false);
-const selectedUserForRoles = ref<(User & { roles: Role[] }) | null>(null);
+const showCreateModal = ref(false);
 
 const roleForm = useForm({
     roles: [] as string[],
 });
+
+const createForm = useForm({
+    name: '',
+    email: '',
+    phone: '',
+    gender: '',
+    password: '',
+    password_confirmation: '',
+    status: true,
+    roles: [] as string[],
+});
+
+const showViewModal = ref(false);
+const showEditModal = ref(false);
+const selectedUser = ref<UserWithRoles | null>(null);
+
+const editForm = useForm({
+    name: '',
+    email: '',
+    phone: '',
+    gender: '',
+    status: true,
+    errors: {},
+    processing: false
+});
+
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/admin/dashboard' },
@@ -69,24 +98,6 @@ function toggleSelectAll() {
     }
 }
 
-function openRoleModal(user: User & { roles: Role[] }) {
-    selectedUserForRoles.value = user;
-    roleForm.roles = user.roles.map(role => role.name);
-    showRoleModal.value = true;
-}
-
-function updateUserRoles() {
-    if (!selectedUserForRoles.value) return;
-
-    roleForm.put(route('admin.user-roles.update', selectedUserForRoles.value.id), {
-        onSuccess: () => {
-            showRoleModal.value = false;
-            selectedUserForRoles.value = null;
-            roleForm.reset();
-        },
-    });
-}
-
 function deleteUser(userId: string) {
     if (confirm('Are you sure you want to delete this user?')) {
         router.delete(route('admin.users.destroy', userId));
@@ -95,7 +106,7 @@ function deleteUser(userId: string) {
 
 function getRoleColor(roleName: string): string {
     const colors: Record<string, string> = {
-        'super-admin': 'bg-red-100 text-red-800',
+        'super-admin': 'bg-red-100 text-orange-800',
         'admin': 'bg-purple-100 text-purple-800',
         'manager': 'bg-blue-100 text-blue-800',
         'staff': 'bg-green-100 text-green-800',
@@ -104,7 +115,76 @@ function getRoleColor(roleName: string): string {
     };
     return colors[roleName] || 'bg-gray-100 text-gray-800';
 }
+function closeModals() {
+    showViewModal.value = false;
+    showEditModal.value = false;
+    showRoleModal.value = false;
+    showCreateModal.value = false;
+    selectedUser.value = null;
+    editForm.reset();
+    roleForm.reset();
+    createForm.reset();
+}
 
+
+function openCreateModal() {
+    createForm.reset();
+    createForm.status = true;
+    createForm.roles = ['user'];
+    showCreateModal.value = true;
+}
+
+function openViewModal(user: UserWithRoles) {
+    selectedUser.value = user;
+    showViewModal.value = true;
+}
+
+function openEditModal(user: UserWithRoles) {
+    selectedUser.value = user;
+    editForm.name = user.name;
+    editForm.email = user.email;
+    editForm.phone = user.phone ?? '';
+    editForm.gender = user.gender ?? '';
+    editForm.status = !!user.status;
+    showEditModal.value = true;
+}
+
+function openRoleModal(user: UserWithRoles) {
+    selectedUser.value = user;
+    roleForm.roles = user.roles.map(role => role.name);
+    showRoleModal.value = true;
+}
+
+// --- FORM SUBMISSION FUNCTIONS ---
+function createUser() {
+    createForm.post(route('admin.users.store'), {
+        preserveScroll: true,
+        onSuccess: () => {
+            closeModals();
+        },
+    });
+}
+function updateUser() {
+    if (!selectedUser.value) return;
+
+    editForm.put(route('admin.user-roles.update', selectedUser.value.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            closeModals();
+        },
+    });
+}
+
+function updateUserRoles() {
+    if (!selectedUser.value) return;
+
+    roleForm.put(route('admin.user.roles.update', selectedUser.value.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            closeModals();
+        },
+    });
+}
 // Watch for changes in search form
 watch([() => searchForm.search, () => searchForm.role, () => searchForm.status], () => {
     search();
@@ -123,8 +203,14 @@ watch([() => searchForm.search, () => searchForm.role, () => searchForm.status],
                         <h1 class="text-2xl font-semibold">Users</h1>
                         <p class="text-sm text-gray-600 mt-1">Manage user accounts and role assignments</p>
                     </div>
+<!--                    <button-->
+<!--                        @click="router.get(route('admin.users.create'))"-->
+<!--                        class="hover:bg-primary-dark rounded-xl bg-primary px-4 py-2 text-white"-->
+<!--                    >-->
+<!--                        + New User-->
+<!--                    </button>-->
                     <button
-                        @click="router.get(route('admin.users.create'))"
+                        @click="openCreateModal"
                         class="hover:bg-primary-dark rounded-xl bg-primary px-4 py-2 text-white"
                     >
                         + New User
@@ -158,21 +244,16 @@ watch([() => searchForm.search, () => searchForm.role, () => searchForm.status],
                             </option>
                         </select>
 
-                        <select
-                            v-model="searchForm.status"
-                            class="rounded-lg border border-gray-300 px-4 py-2 focus:border-primary focus:outline-none"
-                        >
+                        <select v-model="searchForm.status"
+                            class="rounded-lg border border-gray-300 px-4 py-2 focus:border-primary focus:outline-none">
                             <option value="">All Status</option>
-                            <option value="active">Active</option>
-<!--                            <option value="inactive">Inactive</option>-->
-                            <option value="inactive">Suspended</option>
+                            <option :value="true">Active</option>
+                            <option :value="false">Suspended</option>
                         </select>
 
-                        <button
-                            v-if="searchForm.search || searchForm.role || searchForm.status"
+                        <button v-if="searchForm.search || searchForm.role || searchForm.status"
                             @click="clearFilters"
-                            class="text-sm text-gray-600 hover:text-gray-800"
-                        >
+                            class="text-sm text-gray-600 hover:text-gray-800">
                             Clear Filters
                         </button>
                     </div>
@@ -240,11 +321,15 @@ watch([() => searchForm.search, () => searchForm.role, () => searchForm.status],
                                     </div>
                                     <div>
                                         <div class="font-medium">{{ user.name }}</div>
-                                        <div class="text-xs text-gray-500">
+                                        <div class="text-xs text-gray-500 flex items-center gap-1">
                                             <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                      d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z">
+                                                </path>
                                             </svg>
-                                            {{ user.phone }}</div>
+                                            {{ user.phone }}
+                                        </div>
+
                                     </div>
                                 </div>
                             </td>
@@ -278,31 +363,18 @@ watch([() => searchForm.search, () => searchForm.role, () => searchForm.status],
                                     Suspended
                                 </span>
                             </td>
-
                             <td class="px-4 py-3">
-                                <div class="flex items-center gap-2">
-                                    <button
-                                        @click="router.get(route('admin.users.show', user.id))"
-                                        class="text-sm text-blue-600 hover:underline"
-                                    >
+                                <div class="flex items-center gap-3">
+                                    <button @click="openViewModal(user)" class="text-sm text-blue-600 hover:underline">
                                         View
                                     </button>
-                                    <button
-                                        @click="openRoleModal(user)"
-                                        class="text-sm text-primary hover:underline"
-                                    >
-                                        Manage Roles
-                                    </button>
-                                    <button
-                                        @click="router.get(route('admin.users.edit', user.id))"
-                                        class="text-sm text-yellow-600 hover:underline"
-                                    >
+                                    <button @click="openEditModal(user)" class="text-sm text-yellow-600 hover:underline">
                                         Edit
                                     </button>
-                                    <button
-                                        @click="deleteUser(user.id.toString())"
-                                        class="text-sm text-red-600 hover:underline"
-                                    >
+                                    <button @click="openRoleModal(user)" class="text-sm text-purple-600 hover:underline">
+                                        Roles
+                                    </button>
+                                    <button @click="deleteUser(user.id.toString())" class="text-sm text-red-600 hover:underline">
                                         Delete
                                     </button>
                                 </div>
@@ -325,6 +397,152 @@ watch([() => searchForm.search, () => searchForm.role, () => searchForm.status],
             </div>
         </div>
 
+        <!-- Create User Modal -->
+        <div v-if="showCreateModal" class="fixed inset-0 z-50 overflow-y-auto">
+            <div class="flex min-h-screen items-center justify-center px-4 pt-4 pb-20 text-center">
+                <div class="fixed inset-0 bg-gray-500/75 transition-opacity" @click="closeModals"></div>
+
+                <div class="relative z-10 inline-block w-full max-w-lg transform overflow-hidden rounded-lg bg-white text-left align-middle shadow-xl transition-all">
+                    <form @submit.prevent="createUser">
+                        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                            <h3 class="text-xl font-semibold leading-6 text-gray-900 mb-4">
+                                Create New User
+                            </h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="create-name" class="block text-sm font-medium text-gray-700">Full Name *</label>
+                                    <input
+                                        v-model="createForm.name"
+                                        type="text"
+                                        id="create-name"
+                                        required
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                                    />
+                                    <div v-if="createForm.errors.name" class="text-xs text-red-500 mt-1">{{ createForm.errors.name }}</div>
+                                </div>
+
+                                <div>
+                                    <label for="create-email" class="block text-sm font-medium text-gray-700">Email *</label>
+                                    <input
+                                        v-model="createForm.email"
+                                        type="email"
+                                        id="create-email"
+                                        required
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                                    />
+                                    <div v-if="createForm.errors.email" class="text-xs text-red-500 mt-1">{{ createForm.errors.email }}</div>
+                                </div>
+
+                                <div>
+                                    <label for="create-phone" class="block text-sm font-medium text-gray-700">Phone</label>
+                                    <input
+                                        v-model="createForm.phone"
+                                        type="tel"
+                                        id="create-phone"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                                    />
+                                    <div v-if="createForm.errors.phone" class="text-xs text-red-500 mt-1">{{ createForm.errors.phone }}</div>
+                                </div>
+
+                                <div>
+                                    <label for="create-gender" class="block text-sm font-medium text-gray-700">Gender</label>
+                                    <select
+                                        v-model="createForm.gender"
+                                        id="create-gender"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                                    >
+                                        <option value="">Select Gender</option>
+                                        <option value="male">Male</option>
+                                        <option value="female">Female</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                    <div v-if="createForm.errors.gender" class="text-xs text-red-500 mt-1">{{ createForm.errors.gender }}</div>
+                                </div>
+
+                                <div>
+                                    <label for="create-password" class="block text-sm font-medium text-gray-700">Password *</label>
+                                    <input
+                                        v-model="createForm.password"
+                                        type="password"
+                                        id="create-password"
+                                        required
+                                        minlength="8"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                                    />
+                                    <div v-if="createForm.errors.password" class="text-xs text-red-500 mt-1">{{ createForm.errors.password }}</div>
+                                </div>
+
+                                <div>
+                                    <label for="create-password-confirmation" class="block text-sm font-medium text-gray-700">Confirm Password *</label>
+                                    <input
+                                        v-model="createForm.password_confirmation"
+                                        type="password"
+                                        id="create-password-confirmation"
+                                        required
+                                        minlength="8"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                                    />
+                                    <div v-if="createForm.errors.password_confirmation" class="text-xs text-red-500 mt-1">{{ createForm.errors.password_confirmation }}</div>
+                                </div>
+
+                                <div>
+                                    <label for="create-status" class="block text-sm font-medium text-gray-700">Status</label>
+                                    <select
+                                        v-model="createForm.status"
+                                        id="create-status"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                                    >
+                                        <option :value="true">Active</option>
+                                        <option :value="false">Suspended</option>
+                                    </select>
+                                    <div v-if="createForm.errors.status" class="text-xs text-red-500 mt-1">{{ createForm.errors.status }}</div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Assign Roles</label>
+                                    <div class="space-y-2">
+                                        <div v-for="role in availableRoles" :key="role" class="flex items-center">
+                                            <input
+                                                v-model="createForm.roles"
+                                                :value="role"
+                                                :id="`create-role-${role}`"
+                                                type="checkbox"
+                                                class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                            />
+                                            <label :for="`create-role-${role}`" class="ml-3 text-sm font-medium text-gray-700 capitalize">
+                                                {{ role.replace('-', ' ') }}
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div v-if="createForm.errors.roles" class="text-xs text-red-500 mt-1">{{ createForm.errors.roles }}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                            <button
+                                type="submit"
+                                :disabled="createForm.processing"
+                                :class="[
+                                    'inline-flex w-full justify-center rounded-md px-4 py-2 text-sm font-semibold text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 sm:ml-3 sm:w-auto',
+                                    createForm.processing ? 'bg-gray-400 cursor-not-allowed' : 'bg-primary hover:bg-primary-dark focus:ring-primary'
+                                ]"
+                            >
+                                {{ createForm.processing ? 'Creating...' : 'Create User' }}
+                            </button>
+                            <button
+                                type="button"
+                                @click="closeModals"
+                                class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
         <!-- Role Management Modal -->
         <div v-if="showRoleModal" class="fixed inset-0 z-50 overflow-y-auto">
             <div class="flex min-h-screen items-center justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
@@ -332,13 +550,13 @@ watch([() => searchForm.search, () => searchForm.role, () => searchForm.status],
                     <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
                 </div>
 
-                <div class="inline-block transform overflow-hidden rounded-lg bg-white text-left align-bottom shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:align-middle">
+                   <div class="relative z-10 inline-block transform overflow-hidden rounded-lg bg-white text-left align-bottom shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:align-middle">
                     <form @submit.prevent="updateUserRoles">
                         <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                             <div class="sm:flex sm:items-start">
                                 <div class="mt-3 text-center sm:mt-0 sm:text-left w-full">
                                     <h3 class="text-lg font-medium leading-6 text-gray-900 mb-4">
-                                        Manage Roles for {{ selectedUserForRoles?.name }}
+                                        Manage Roles for {{ selectedUser?.name }}
                                     </h3>
 
                                     <div class="space-y-3">
@@ -381,5 +599,129 @@ watch([() => searchForm.search, () => searchForm.role, () => searchForm.status],
                 </div>
             </div>
         </div>
+
+
+        <div v-if="showViewModal && selectedUser" class="fixed inset-0 z-50 overflow-y-auto">
+            <div class="flex min-h-screen items-center justify-center px-4 text-center">
+                <div class="fixed inset-0 bg-gray-500/75 transition-opacity" @click="closeModals"></div>
+
+                <div class="relative z-10 inline-block w-full max-w-lg transform overflow-hidden rounded-lg bg-white p-6 text-left align-middle shadow-xl transition-all">
+                    <div class="flex items-start justify-between">
+                        <h3 class="text-xl font-semibold leading-6 text-gray-900">
+                            User Details
+                        </h3>
+                        <button @click="closeModals" class="text-gray-400 hover:text-gray-600">&times;</button>
+                    </div>
+                    <div class="mt-4 border-t border-gray-200">
+                        <dl class="divide-y divide-gray-200">
+                            <div class="py-4 sm:grid sm:grid-cols-3 sm:gap-4">
+                                <dt class="text-sm font-medium text-gray-500">Full Name</dt>
+                                <dd class="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">{{ selectedUser.name }}</dd>
+                            </div>
+                            <div class="py-4 sm:grid sm:grid-cols-3 sm:gap-4">
+                                <dt class="text-sm font-medium text-gray-500">Phone</dt>
+                                <dd class="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">{{ selectedUser.phone }}</dd>
+                            </div>
+                            <div class="py-4 sm:grid sm:grid-cols-3 sm:gap-4">
+                                <dt class="text-sm font-medium text-gray-500">Email Address</dt>
+                                <dd class="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">{{ selectedUser.email }}</dd>
+                            </div>
+                            <div class="py-4 sm:grid sm:grid-cols-3 sm:gap-4">
+                                <dt class="text-sm font-medium text-gray-500">Gender</dt>
+                                <dd class="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">{{ selectedUser.gender }}</dd>
+                            </div>
+                            <div class="py-4 sm:grid sm:grid-cols-3 sm:gap-4">
+                                <dt class="text-sm font-medium text-gray-500">Status</dt>
+                                <dd class="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
+                                     <span :class="['rounded-full px-2 py-1 text-xs font-medium', selectedUser.status ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800']">
+                                        {{ selectedUser.status ? 'true' : 'false' }}
+                                    </span>
+                                </dd>
+                            </div>
+                            <div class="py-4 sm:grid sm:grid-cols-3 sm:gap-4">
+                                <dt class="text-sm font-medium text-gray-500">Roles</dt>
+                                <dd class="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
+                                    <div class="flex flex-wrap gap-1">
+                                         <span v-for="role in selectedUser.roles" :key="role.id" :class="['rounded-full px-2 py-1 text-xs font-medium', getRoleColor(role.name)]">
+                                            {{ role.name.replace('-', ' ') }}
+                                        </span>
+                                        <span v-if="!selectedUser.roles.length" class="text-xs text-gray-500">No roles assigned</span>
+                                    </div>
+                                </dd>
+                            </div>
+                            <div class="py-4 sm:grid sm:grid-cols-3 sm:gap-4">
+                                <dt class="text-sm font-medium text-gray-500">Joined On</dt>
+                                <dd class="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">{{ new Date(selectedUser.created_at).toLocaleDateString() }}</dd>
+                            </div>
+                        </dl>
+                    </div>
+                    <div class="mt-5 sm:mt-6">
+                        <button type="button" @click="closeModals" class="inline-flex w-full justify-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="showEditModal && selectedUser" class="fixed inset-0 z-50 overflow-y-auto">
+            <div class="flex min-h-screen items-center justify-center px-4 pt-4 pb-20 text-center">
+                <div class="fixed inset-0 bg-gray-500/75 transition-opacity" @click="closeModals"></div>
+
+                <div class="relative z-10 inline-block w-full max-w-lg transform overflow-hidden rounded-lg bg-white text-left align-middle shadow-xl transition-all">
+                    <form @submit.prevent="updateUser">
+                        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                            <h3 class="text-xl font-semibold leading-6 text-gray-900">
+                                Edit User
+                            </h3>
+                            <div class="mt-4 space-y-4">
+                                <div>
+                                    <label for="name" class="block text-sm font-medium text-gray-700">Full Name</label>
+                                    <input v-model="editForm.name" type="text" id="name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" />
+                                    <div v-if="editForm.errors.name" class="text-xs text-red-500 mt-1">{{ editForm.errors.name }}</div>
+                                </div>
+                                <div>
+                                    <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+                                    <input v-model="editForm.email" type="email" id="email" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" />
+                                    <div v-if="editForm.errors.email" class="text-xs text-red-500 mt-1">{{ editForm.errors.email }}</div>
+                                </div>
+                                <div>
+                                    <label for="email" class="block text-sm font-medium text-gray-700">Phone</label>
+                                    <input v-model="editForm.phone" type="tel" id="phone" name="phone" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" />
+                                    <div v-if="editForm.errors.phone" class="text-xs text-red-500 mt-1">{{ editForm.errors.phone }}</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="gender" class="block text-sm font-medium text-gray-700">Gender</label>
+                                    <select v-model="editForm.gender" id="gender" name="gender" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm">
+                                        <option value="male">Male</option>
+                                        <option value="female">Female</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                    <div v-if="editForm.errors.gender" class="text-xs text-red-500 mt-1">{{ editForm.errors.gender }}</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="status" class="block text-sm font-medium text-gray-700">Status</label>
+                                    <select v-model="editForm.status" id="status" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm">
+                                        <option :value="true">Active</option>
+                                        <option :value="false">Suspended</option>
+                                    </select>
+                                    <div v-if="editForm.errors.status" class="text-xs text-red-500 mt-1">{{ editForm.errors.status }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                            <button :disabled="editForm.processing" type="submit" class="inline-flex w-full justify-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-50 sm:ml-3 sm:w-auto">
+                                {{ editForm.processing ? 'Saving...' : 'Save Changes' }}
+                            </button>
+                            <button type="button" @click="closeModals" class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
     </AppLayout>
 </template>
