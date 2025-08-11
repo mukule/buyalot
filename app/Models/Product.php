@@ -12,7 +12,7 @@ class Product extends Model
 {
     use HasSlug, HasHashid;
 
-    // If your slug source field differs from 'name', set it here:
+    
     protected static string $slugSource = 'name';
 
     protected $fillable = [
@@ -33,7 +33,7 @@ class Product extends Model
         'unit_id',
         'price',
         'discount',
-        'stock'
+        'stock',
     ];
 
     protected $appends = [
@@ -42,14 +42,25 @@ class Product extends Model
         'primary_image_url',
         'discounted_price',
         'has_discount',
+        'in_stock',
+        'is_out_of_stock',
         'status_label',
         'company_legal_name',
     ];
 
+    protected $casts = [
+        'price' => 'float',
+        'discount' => 'float',
+        'stock' => 'integer',
+        'status' => 'integer',
+    ];
+
+    
+
     public function getImageUrlsAttribute(): array
     {
         if ($this->relationLoaded('images') && $this->images->isNotEmpty()) {
-            return $this->images->map(fn($image) => asset('storage/' . $image->image_path))->toArray();
+            return $this->images->map(fn ($image) => asset('storage/' . $image->image_path))->toArray();
         }
 
         return [];
@@ -62,46 +73,6 @@ class Product extends Model
         }
 
         return null;
-    }
-
-    public function owner(): MorphTo
-    {
-        return $this->morphTo();
-    }
-
-    public function brand(): BelongsTo
-    {
-        return $this->belongsTo(Brand::class);
-    }
-
-    public function subcategory(): BelongsTo
-    {
-        return $this->belongsTo(Subcategory::class);
-    }
-
-    public function unit(): BelongsTo
-    {
-        return $this->belongsTo(Unit::class);
-    }
-
-    public function images()
-    {
-        return $this->hasMany(ProductImage::class);
-    }
-
-    public function primaryImage()
-    {
-        return $this->hasOne(ProductImage::class)->where('is_primary', true);
-    }
-
-    public function variantValues()
-    {
-        return $this->hasMany(ProductVariantValue::class);
-    }
-
-    public function variants()
-    {
-        return $this->belongsToMany(Variant::class, 'product_variant_values');
     }
 
     public function getHasDiscountAttribute(): bool
@@ -153,5 +124,52 @@ class Product extends Model
         }
 
         return null;
+    }
+
+    // Relationships
+
+    public function owner(): MorphTo
+    {
+        return $this->morphTo();
+    }
+
+    public function brand(): BelongsTo
+    {
+        return $this->belongsTo(Brand::class);
+    }
+
+    public function subcategory(): BelongsTo
+    {
+        return $this->belongsTo(Subcategory::class);
+    }
+
+    public function unit(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class);
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(Category::class);
+    }
+
+    public function images()
+    {
+        return $this->hasMany(ProductImage::class);
+    }
+
+    public function primaryImage()
+    {
+        return $this->hasOne(ProductImage::class)->where('is_primary', true);
+    }
+
+    public function variantValues()
+    {
+        return $this->hasMany(ProductVariantValue::class);
+    }
+
+    public function variants()
+    {
+        return $this->belongsToMany(Variant::class, 'product_variant_values');
     }
 }

@@ -18,7 +18,7 @@ class Category extends Model
 
     protected $appends = ['hashid'];
 
-    // Specify the slug source field if different from 'name'
+    
     protected static string $slugSource = 'name';
 
     public function subcategories()

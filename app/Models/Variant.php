@@ -17,7 +17,7 @@ class Variant extends Model
     protected $appends = ['hashid'];
 
     protected $casts = [
-        'is_active' => 'boolean', // ✅ Automatically cast to true/false
+        'is_active' => 'boolean', 
     ];
 
     public function getHashidAttribute(): string

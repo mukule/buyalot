@@ -16,18 +16,18 @@ use App\Http\Controllers\SellController;
 use App\Http\Controllers\SellerAccountController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Http\Controllers\Admin\VariantController;
+use App\Http\Controllers\HomeController;
 
 
-Route::get('/', function () {
-    return Inertia::render('Home', [
-        'title' => 'Online Shopping Store',
-    ]);
-})->name('home');
+require __DIR__.'/settings.php';
+require __DIR__.'/auth.php';
 
-Route::prefix('sell')->name('sell.')->controller(SellController::class)->group(function () {
-    Route::get('/', 'index')->name('index');
-    Route::get('/apply', 'applyForm')->name('apply');
-});
+
+Route::get('/', [HomeController::class, 'index'])->name('home');
+
+
+
 
 Route::middleware(['auth','role:admin|seller'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', function () {
@@ -134,6 +134,6 @@ Route::prefix('seller')->middleware(['auth', 'role:seller'])->name('seller.')->g
 
 });
 
-
+Route::get('/{slug}', [HomeController::class, 'productDetails'])->name('product.details');
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

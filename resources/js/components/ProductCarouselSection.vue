@@ -40,12 +40,12 @@
 </template>
 
 <script setup lang="ts">
-import ProductCard from './ProductCard.vue';
-
 import { ChevronLeft, ChevronRight } from 'lucide-vue-next';
 import { ref } from 'vue';
+import ProductCard from './ProductCard.vue';
 
-interface Product {
+// Use a renamed interface to avoid type conflicts
+interface SimplifiedProduct {
     id: number;
     name: string;
     image: string;
@@ -56,18 +56,19 @@ interface Product {
 
 defineProps<{
     title: string;
-    products: Product[];
+    products: SimplifiedProduct[];
 }>();
 
 const container = ref<HTMLElement | null>(null);
 
 const scroll = (direction: 'left' | 'right') => {
-    if (container.value) {
-        const scrollAmount = container.value.offsetWidth * 0.9;
-        container.value.scrollBy({
-            left: direction === 'left' ? -scrollAmount : scrollAmount,
-            behavior: 'smooth',
-        });
-    }
+    const el = container.value;
+    if (!el) return;
+
+    const scrollAmount = el.offsetWidth * 0.9;
+    el.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth',
+    });
 };
 </script>
