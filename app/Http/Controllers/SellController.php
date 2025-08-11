@@ -16,12 +16,15 @@ use App\Mail\NewSellerApplicationAdminAlert;
 class SellController extends Controller
 {
     // Landing Page
-    public function index()
-    {
-        return Inertia::render('Sell/Index', [
-            'title' => 'Sell your products online',
-        ]);
-    }
+   public function index()
+{
+    \Log::info('SellController@index was called');
+
+    return Inertia::render('Sell/Index', [
+        'title' => 'Sell your products online',
+    ]);
+}
+
 
     // Show Application Form
     public function applyForm()

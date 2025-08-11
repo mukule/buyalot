@@ -1,24 +1,20 @@
 <script setup lang="ts">
 import logo from '@/assets/images/logo.png';
-import { Link, router } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import { Heart, Menu, Search, ShoppingCart, X } from 'lucide-vue-next';
-import { ref, computed } from 'vue';
-import { usePage } from '@inertiajs/vue3';
-import type { PageProps as InertiaPageProps } from '@inertiajs/core';
-
-
+import { computed, ref } from 'vue';
 
 import type { AppPageProps } from '@/types';
 const page = usePage<AppPageProps>();
 const user = computed(() => page.props.auth?.user);
 
 const userInitials = computed(() => {
-  if (!user.value?.name) return '';
-  return user.value.name
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .toUpperCase();
+    if (!user.value?.name) return '';
+    return user.value.name
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .toUpperCase();
 });
 
 const browseDropdownOpen = ref(false);
@@ -35,20 +31,19 @@ const topLinks = [
 ];
 
 const authLinks = computed(() => {
-  if (user.value) {
-    return [
-     
-      { name: 'My Account', href: '/account', isUser: true },
-       { name: 'Orders', href: '/orders' },
-      { name: 'Logout', href: '/logout', isLogout: true },
-    ];
-  } else {
-    return [
-         { name: 'Orders', href: '/orders' },
-      { name: 'Login', href: '/login' },
-      { name: 'Register', href: '/register' },
-    ];
-  }
+    if (user.value) {
+        return [
+            { name: 'My Account', href: '/account', isUser: true },
+            { name: 'Orders', href: '/orders' },
+            { name: 'Logout', href: '/logout', isLogout: true },
+        ];
+    } else {
+        return [
+            { name: 'Orders', href: '/orders' },
+            { name: 'Login', href: '/login' },
+            { name: 'Register', href: '/register' },
+        ];
+    }
 });
 
 const categoryLinks = [
@@ -130,39 +125,24 @@ function logout() {
             <nav class="hidden items-center space-x-4 text-sm md:flex">
                 <!-- Auth Links -->
                 <template v-for="(link, index) in authLinks" :key="link.name">
-                    <button
-                      v-if="link.isLogout"
-                      @click.prevent="logout"
-                      class="text-gray-500 hover:underline cursor-pointer"
-                    >
-                      {{ link.name }}
+                    <button v-if="link.isLogout" @click.prevent="logout" class="cursor-pointer text-gray-500 hover:underline">
+                        {{ link.name }}
                     </button>
 
-                    <Link
-                      v-else-if="!link.isUser"
-                      :href="link.href"
-                      class="text-gray-500 hover:underline"
-                    >
-                      {{ link.name }}
+                    <Link v-else-if="!link.isUser" :href="link.href" class="text-gray-500 hover:underline">
+                        {{ link.name }}
                     </Link>
 
-                    <Link
-                      v-else
-                      :href="link.href"
-                      class="flex items-center space-x-2 text-gray-700 hover:underline"
-                    >
-                      <div
-                        class="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-white text-xs font-semibold"
-                        :title="user?.name"
-                      >
-                        {{ userInitials }}
-                      </div>
-                      <span>My Account</span>
+                    <Link v-else :href="link.href" class="flex items-center space-x-2 text-gray-700 hover:underline">
+                        <div
+                            class="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white"
+                            :title="user?.name"
+                        >
+                            {{ userInitials }}
+                        </div>
+                        <span>My Account</span>
                     </Link>
-                    <span
-                      v-if="index < authLinks.length - 1"
-                      class="text-gray-400"
-                    >|</span>
+                    <span v-if="index < authLinks.length - 1" class="text-gray-400">|</span>
                 </template>
 
                 <!-- Icons -->
@@ -219,38 +199,38 @@ function logout() {
                     <div class="flex flex-col space-y-2 border-b border-gray-200 pb-3">
                         <template v-for="link in authLinks" :key="'mobile-auth-' + link.name">
                             <template v-if="link.isLogout">
-                              <button
-                                @click.prevent="logout"
-                                class="block w-full rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:underline text-left"
-                              >
-                                {{ link.name }}
-                              </button>
+                                <button
+                                    @click.prevent="logout"
+                                    class="block w-full rounded-md px-3 py-2 text-left text-gray-700 hover:bg-gray-100 hover:underline"
+                                >
+                                    {{ link.name }}
+                                </button>
                             </template>
 
                             <template v-else-if="!link.isUser">
-                              <Link
-                                :href="link.href"
-                                class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:underline"
-                                @click="mobileMenuOpen = false"
-                              >
-                                {{ link.name }}
-                              </Link>
+                                <Link
+                                    :href="link.href"
+                                    class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:underline"
+                                    @click="mobileMenuOpen = false"
+                                >
+                                    {{ link.name }}
+                                </Link>
                             </template>
 
                             <template v-else>
-                              <Link
-                                :href="link.href"
-                                class="flex items-center space-x-2 rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:underline"
-                                @click="mobileMenuOpen = false"
-                              >
-                                <div
-                                  class="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-white text-xs font-semibold"
-                                  :title="user?.name"
+                                <Link
+                                    :href="link.href"
+                                    class="flex items-center space-x-2 rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:underline"
+                                    @click="mobileMenuOpen = false"
                                 >
-                                  {{ userInitials }}
-                                </div>
-                                <span>My Account</span>
-                              </Link>
+                                    <div
+                                        class="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white"
+                                        :title="user?.name"
+                                    >
+                                        {{ userInitials }}
+                                    </div>
+                                    <span>My Account</span>
+                                </Link>
                             </template>
                         </template>
                     </div>

@@ -243,35 +243,59 @@ export interface Product {
     features: string | null;
     specifications: string | null;
     whats_in_the_box: string | null;
+
+    price: number;
+    discount: number | null;
+    discounted_price: number; // From accessor
+    has_discount: boolean;
+
+    stock: number;
+    in_stock: boolean;
+    is_out_of_stock: boolean;
+
     meta_title: string | null;
     meta_keywords: string | null;
     meta_description: string | null;
-    status: 'active' | 'inactive';
+
+    status: 0 | 1 | 3; // Match database values
+    status_label: 'Pending' | 'Public' | 'Private' | 'Unknown'; // From accessor
+
     owner_type: string;
-    owner_id: number;
-    brand_id: number;
-    subcategory_id: number;
-    unit_id: number;
-    price: number;
-    discount: number; // percentage discount (0 means no discount)
-    created_at: string;
-    updated_at: string;
-    stock: number;
-    status_label: string;
-    company_legal_name: string;
+    owner_id: number | null;
 
-    // Appended attributes
+    brand_id: number | null;
+    unit_id: number | null;
+    subcategory_id: number | null;
+
+    created_at: string | null;
+    updated_at: string | null;
+
+    company_legal_name: string | null;
+
+    // Appended media
     primary_image_url: string | null;
-    image_urls?: string[];
+    image_urls: string[];
 
-    // Discount related (appended)
-    discounted_price: number;
-    has_discount: boolean;
-
-    // Relationships
+    // Relationships (optional if not always loaded)
     brand?: Brand;
     subcategory?: Subcategory;
     unit?: Unit;
+    variants?: Variant[];
+    images: {
+        id: number;
+        image_path: string;
+        is_primary: boolean;
+    }[];
+}
+
+export interface SimplifiedProduct {
+    id: number;
+    name: string;
+    price: number;
+    discount: number;
+    image: string;
+    onSale?: boolean;
+    rating?: number;
 }
 
 export interface Brand {

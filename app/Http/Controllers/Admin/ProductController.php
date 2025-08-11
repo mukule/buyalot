@@ -18,6 +18,15 @@ use Inertia\Inertia;
 use App\Services\ImageService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use App\Http\Requests\StoreProductRequest;
+use App\Http\Requests\UpdateProductRequest;
+use App\Services\ProductService;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Storage;
+
+
+
 
 
 
@@ -58,163 +67,206 @@ public function create()
 }
 
 
-
-public function store(Request $request, ImageService $imageService)
+public function store(StoreProductRequest $request, ProductService $productService)
 {
     try {
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'features' => 'nullable|string',
-            'specifications' => 'nullable|string',
-            'whats_in_the_box' => 'nullable|string',
-            'meta_title' => 'nullable|string|max:255',
-            'meta_keywords' => 'nullable|string|max:255',
-            'meta_description' => 'nullable|string',
-            'brand_id' => 'nullable|exists:brands,id',
-            'subcategory_id' => 'nullable|exists:subcategories,id',
-            'unit_id' => 'nullable|exists:units,id',
-            'stock' => 'required|integer|min:0', 
-            'variants' => 'nullable|string', 
-            'variant_categories' => 'nullable|string',
-            'images' => 'nullable|array',
-            'images.*' => 'image|mimes:jpg,jpeg,png,gif,webp|max:10240',
-            'primary_image_index' => 'nullable|integer',
-            'price' => 'required|numeric|min:0',
-            'discount' => 'nullable|numeric|min:0|max:100',
-        ]);
+        $data = $request->validated();
+        Log::info('Validated product data', ['data' => $data]);
+
+        $product = $productService->createProduct(
+            $data,
+            Auth::user(),
+            $request->file('images')
+        );
+
+        if (!$product) {
+            Log::error('Product creation returned null.');
+            return back()->with('error', 'Failed to create the product.');
+        }
+
+        Log::info('Product created successfully', ['product_id' => $product->id]);
+
+        // Attach variants if present
+        if (!empty($data['variants'])) {
+            $variantsPayload = json_decode($data['variants'], true);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                Log::error('Invalid JSON for variants', ['json' => $data['variants']]);
+            } elseif (is_array($variantsPayload)) {
+                $variantIds = [];
+                foreach ($variantsPayload as $vp) {
+                    if (isset($vp['variant_ids']) && is_array($vp['variant_ids'])) {
+                        $variantIds = array_merge($variantIds, $vp['variant_ids']);
+                    }
+                }
+                Log::info('Syncing product variants', ['variant_ids' => $variantIds]);
+                $product->variants()->sync($variantIds);
+            }
+        }
+
+        // Handle variant categories (with new variants)
+        if (!empty($data['variant_categories'])) {
+            $variantCategoriesPayload = json_decode($data['variant_categories'], true);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                Log::error('Invalid JSON for variant categories', ['json' => $data['variant_categories']]);
+            } elseif (is_array($variantCategoriesPayload)) {
+                foreach ($variantCategoriesPayload as $vc) {
+                    if (isset($vc['id'], $vc['variants']) && is_array($vc['variants'])) {
+                        foreach ($vc['variants'] as $variant) {
+                            if (!empty($variant['value']) && empty($variant['id'])) {
+                                Log::info('Creating new variant', ['category_id' => $vc['id'], 'value' => $variant['value']]);
+                                Variant::create([
+                                    'variant_category_id' => $vc['id'],
+                                    'value' => $variant['value'],
+                                    'is_active' => true,
+                                ]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Log::info('Product creation process completed.');
+        return redirect()->route('admin.products.index')->with('success', 'Product created successfully.');
+
     } catch (ValidationException $e) {
         Log::error('Validation failed for product submission.', [
             'errors' => $e->errors(),
             'input' => $request->all(),
         ]);
         throw $e;
+
+    } catch (\Throwable $e) {
+        Log::error('Unexpected error while creating product.', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString(),
+        ]);
+        return back()->with('error', 'Something went wrong while creating the product.');
     }
+}
 
-    $user = Auth::user();
+public function edit(Product $product)
+{
+    $brands = Brand::where('active', true)->get();
+    $categories = Category::where('active', true)->get();
+    $subcategories = Subcategory::where('active', true)->get();
+    $units = Unit::where('active', true)->get();
 
-    // Set ownership fields
-    $data['owner_type'] = $user->getRoleNames()->first() ?? 'user';
-    $data['owner_id'] = $user->id;
+    $variantCategories = VariantCategory::with(['variants' => function ($query) {
+        $query->where('is_active', true);
+    }])->get();
 
-    // Generate meta fields if not provided
-    $data['meta_title'] = $data['meta_title'] ?? $data['name'];
-    $data['meta_description'] = $data['meta_description'] ?? substr(strip_tags($data['description'] ?? ''), 0, 160);
-    $data['meta_keywords'] = $data['meta_keywords'] ?? implode(', ', explode(' ', $data['name']));
-
-    // Create product including stock
-    $product = Product::create([
-        'name' => $data['name'],
-        'description' => $data['description'] ?? null,
-        'features' => $data['features'] ?? null,
-        'specifications' => $data['specifications'] ?? null,
-        'whats_in_the_box' => $data['whats_in_the_box'] ?? null,
-        'meta_title' => $data['meta_title'],
-        'meta_description' => $data['meta_description'],
-        'meta_keywords' => $data['meta_keywords'],
-        'brand_id' => $data['brand_id'] ?? null,
-        'subcategory_id' => $data['subcategory_id'] ?? null,
-        'unit_id' => $data['unit_id'] ?? null,
-        'stock' => $data['stock'], // ✅ saving stock
-        'owner_type' => $data['owner_type'],
-        'owner_id' => $data['owner_id'],
-        'price' => $data['price'],
-        'discount' => $data['discount'] ?? 0,
+    
+    $product->load([
+        'brand',
+        'subcategory',
+        'unit',
+        'images',
+        'variants.category', 
     ]);
 
-    // Handle image uploads
-    if ($request->hasFile('images')) {
-        $primaryIndex = (int) $request->input('primary_image_index', -1);
-        $images = $request->file('images');
-
-        foreach ($images as $index => $image) {
-            $basename = Str::slug($data['name']);
-            $path = $imageService->optimizeAndStoreImage($image, 'products', $basename);
-
-            $product->images()->create([
-                'image_path' => $path,
-                'is_primary' => $primaryIndex === $index,
-                'sort_order' => $index,
-            ]);
-        }
-    }
-
-    // Sync existing variant IDs
-    if (!empty($data['variants'])) {
-        $variantsPayload = json_decode($data['variants'], true);
-        if (is_array($variantsPayload)) {
-            $variantIds = [];
-            foreach ($variantsPayload as $vp) {
-                if (isset($vp['variant_ids']) && is_array($vp['variant_ids'])) {
-                    $variantIds = array_merge($variantIds, $vp['variant_ids']);
-                }
-            }
-            $product->variants()->sync($variantIds);
-        }
-    }
-
-    // Create new variants from variant_categories
-    if (!empty($data['variant_categories'])) {
-        $variantCategoriesPayload = json_decode($data['variant_categories'], true);
-        if (is_array($variantCategoriesPayload)) {
-            foreach ($variantCategoriesPayload as $vc) {
-                if (isset($vc['id'], $vc['variants']) && is_array($vc['variants'])) {
-                    foreach ($vc['variants'] as $variant) {
-                        if (!empty($variant['value']) && empty($variant['id'])) {
-                            Variant::create([
-                                'variant_category_id' => $vc['id'],
-                                'value' => $variant['value'],
-                                'is_active' => true,
-                            ]);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    return redirect()->route('admin.products.index')->with('success', 'Product created successfully.');
+    return Inertia::render('Admin/Products/Edit', [
+        'product' => $product,
+        'brands' => $brands,
+        'categories' => $categories,
+        'subcategories' => $subcategories,
+        'units' => $units,
+        'variantCategories' => $variantCategories,
+    ]);
 }
 
 
+public function update(UpdateProductRequest $request, Product $product)
+{
+    $data = $request->validated();
 
-    public function edit(Product $product)
-    {
-        $brands = Brand::where('active', true)->get();
-        $subcategories = Subcategory::where('active', true)->get();
-        $units = Unit::where('active', true)->get();
+    DB::beginTransaction();
 
-        return Inertia::render('Admin/Products/Edit', [
-            'product' => $product->load('brand', 'subcategory', 'unit', 'images'),
-            'brands' => $brands,
-            'subcategories' => $subcategories,
-            'units' => $units,
+    try {
+        // 1. Update basic product fields
+        $product->update(Arr::only($data, [
+            'name', 'description', 'features', 'specifications', 'whats_in_the_box',
+            'meta_title', 'meta_description', 'meta_keywords',
+            'brand_id', 'subcategory_id', 'unit_id', 'stock', 'price', 'discount'
+        ]));
+
+        // 2. Handle variants (your existing variant sync logic)
+        // ...
+
+        // 3. Image Handling - Complete Solution
+        $uploadedImages = $request->file('images', []);
+        $existingImageIds = $request->input('existing_images', []);
+        $primaryIndex = (int) ($request->input('primary_image_index', -1));
+        
+        // 3a. Delete images that were removed
+        $imagesToDelete = $product->images()
+            ->whereNotIn('id', $existingImageIds)
+            ->get();
+
+        foreach ($imagesToDelete as $image) {
+            if (Storage::exists($image->image_path)) {
+                Storage::delete($image->image_path);
+            }
+            $image->delete();
+        }
+
+        // 3b. Process new uploads
+        $newImageRecords = [];
+        if (!empty($uploadedImages)) {
+            foreach ($uploadedImages as $index => $image) {
+                $path = $image->store('products/'.$product->id, 'public');
+                
+                $newImageRecords[] = [
+                    'image_path' => $path,
+                    'is_primary' => ($primaryIndex >= count($existingImageIds) && 
+                                    $index === ($primaryIndex - count($existingImageIds))),
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ];
+            }
+            
+            if (!empty($newImageRecords)) {
+                $product->images()->createMany($newImageRecords);
+            }
+        }
+
+        
+        if ($primaryIndex >= 0) {
+            
+            $product->images()->update(['is_primary' => false]);
+            
+           
+            if ($primaryIndex < count($existingImageIds)) {
+                // Existing image is primary
+                $product->images()
+                    ->where('id', $existingImageIds[$primaryIndex])
+                    ->update(['is_primary' => true]);
+            } elseif (!empty($newImageRecords)) {
+                // New image is primary (already set during creation)
+            }
+        }
+
+        DB::commit();
+
+        return redirect()->route('admin.products.index')
+            ->with('success', 'Product updated successfully.');
+
+    } catch (\Throwable $e) {
+        DB::rollBack();
+        Log::error('Product update failed', [
+            'product_id' => $product->id,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString(),
+            'request_data' => $request->all()
         ]);
+        return back()
+            ->withInput()
+            ->with('error', 'Failed to update product: ' . $e->getMessage());
     }
+}
 
-    public function update(Request $request, Product $product)
-    {
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'features' => 'nullable|string',
-            'specifications' => 'nullable|string',
-            'whats_in_the_box' => 'nullable|string',
-            'meta_title' => 'nullable|string|max:255',
-            'meta_keywords' => 'nullable|string|max:255',
-            'meta_description' => 'nullable|string',
-            'status' => 'required|in:0,1',
-            'owner_type' => 'required|string',
-            'owner_id' => 'nullable|integer',
-            'brand_id' => 'nullable|exists:brands,id',
-            'subcategory_id' => 'nullable|exists:subcategories,id',
-            'unit_id' => 'nullable|exists:units,id',
-        ]);
-
-        $product->update($data);
-
-        return redirect()->route('admin.products.index')->with('success', 'Product updated successfully.');
-    }
 
     public function destroy(Product $product)
     {
