@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('abbreviation')->nullable();
             $table->text('description')->nullable();
             $table->string('status')->default('active');
-
+            
             // Foreign key constraints for user tracking
             $table->foreignId('added_by')->nullable()->constrained('users');
             $table->foreignId('updated_by')->nullable()->constrained('users');

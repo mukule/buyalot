@@ -230,11 +230,12 @@ const removeImage = (index: number) => {
 
 // Constants for form options, categories, etc.
 const BUSINESS_TYPES = [
-    { id: 'individual', label: 'An individual (Sole Proprietor)' },
-    { id: 'business', label: 'A registered business' },
-    { id: 'international', label: 'International seller' },
+    { id: 'retailer', label: 'Retailer' },
+    { id: 'wholesaler', label: 'Wholesaler' },
+    { id: 'manufacturer', label: 'Manufacturer' },
+    { id: 'distributor', label: 'Distributor' },
+    { id: 'importer', label: 'Importer' }
 ];
-
 const IDENTIFICATION_TYPES = [
     { id: 'id_number', label: 'National ID Number' },
     { id: 'passport', label: 'Passport' },
