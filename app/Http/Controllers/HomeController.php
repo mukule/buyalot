@@ -5,16 +5,19 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use App\Models\Brand;
 use App\Models\Product;
+use App\Traits\HasPermissionCheck;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Log;
 
 class HomeController extends Controller
 {
-    
-    
-
+    use HasPermissionCheck;
 public function index()
 {
+//    $permissionCheck = $this->checkPermissionOrFail('view-dashboard');
+//    if ($permissionCheck) {
+//        return $permissionCheck;
+//    }
     $categories = Category::with('subcategories')->get();
     $brands = Brand::all();
 
@@ -28,6 +31,7 @@ public function index()
 
         return [$category->id => $products];
     });
+
 
     return Inertia::render('Frontend/Index', [
         'title'              => 'Online Shopping Store',
@@ -43,13 +47,13 @@ public function productDetails(string $slug)
     $product = Product::with([
         'brand',
         'primaryImage',
-        'subcategory.category', 
+        'subcategory.category',
         'images',
     ])
     ->where('slug', $slug)
     ->firstOrFail();
 
-    
+
     $relatedProducts = Product::with('primaryImage')
         ->where('subcategory_id', $product->subcategory_id)
         ->where('id', '!=', $product->id)

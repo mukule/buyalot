@@ -22,6 +22,7 @@ use App\Http\Controllers\HomeController;
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';
+require __DIR__.'/payment.php';
 
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -29,7 +30,7 @@ Route::get('/', [HomeController::class, 'index'])->name('home');
 
 
 
-Route::middleware(['auth','role:admin|seller'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', function () {
         return Inertia::render('Dashboard');
     })->name('dashboard');
@@ -42,63 +43,64 @@ Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group
     require __DIR__ . '/roles_permissions.php';
 
     Route::prefix('users')->name('users.')->group(function () {
-        Route::middleware(['permission:view-users'])->group(function () {
-            Route::get('/', [UserController::class, 'index'])->name('index');
+
+        Route::middleware(['check_permission:view-users'])->group(function () {
             Route::get('/{user}', [UserController::class, 'show']);
+            Route::get('/', [UserController::class, 'index'])->name('index');
         });
-        Route::middleware(['permission:manage-user-roles'])->group(function () {
+        Route::middleware(['check_permission:manage-user-roles'])->group(function () {
             Route::post('/{user}/assign-roles', [UserController::class, 'assignRoles']);
             Route::delete('/{user}/remove-role', [UserController::class, 'removeRole']);
         });
-        Route::middleware(['permission:edit-users'])->group(function () {
+        Route::middleware(['check_permission:edit-users'])->group(function () {
             Route::get('/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
             Route::put('/{user}', [UserController::class, 'update'])->name('users.update');
         });
-        Route::middleware(['permission:delete-users'])->group(function () {
+        Route::middleware(['check_permission:delete-users'])->group(function () {
             Route::delete('/{user}', [UserController::class, 'destroy'])->name('users.destroy');
         });
-        Route::middleware(['permission:activate-deactivate-users'])->group(function () {
+        Route::middleware(['check_permission:activate-deactivate-users'])->group(function () {
         Route::post('/{user}/update-status', [UserController::class, 'updateStatus'])->name('users.update-status');
         });
 
-        Route::middleware(['permission:view-seller-applications'])->group(function () {
+        Route::middleware(['check_permission:view-seller-applications'])->group(function () {
             Route::get('/{sellerApplication}', [SellerApplicationController::class, 'show'])->name('show');
         });
-        Route::middleware(['permission:delete-seller-applications'])->group(function () {
+        Route::middleware(['check_permission:delete-seller-applications'])->group(function () {
             Route::delete('/{sellerApplication}', [SellerApplicationController::class, 'destroy'])->name('destroy');
         });
-        Route::middleware(['permission:approve-seller-applications'])->group(function () {
+        Route::middleware(['check_permission:approve-seller-applications'])->group(function () {
             Route::put('/{sellerApplication}/approve', [SellerApplicationController::class, 'approve'])->name('approve');
         });
-        Route::middleware(['permission:reject-seller-applications'])->group(function () {
+        Route::middleware(['check_permission:reject-seller-applications'])->group(function () {
             Route::put('/{sellerApplication}/reject', [SellerApplicationController::class, 'reject'])->name('reject');
         });
     });
 
     // Seller Applications
     Route::prefix('applications')->name('applications.')->group(function () {
-        Route::middleware(['permission:view-seller-applications'])->group(function () {
+        Route::middleware(['check_permission:view-seller-applications'])->group(function () {
             Route::get('/', [SellerApplicationController::class, 'index'])->name('index');
             Route::get('/{sellerApplication}', [SellerApplicationController::class, 'show'])->name('show');
         });
-        Route::middleware(['permission:delete-seller-applications'])->group(function () {
+        Route::middleware(['check_permission:delete-seller-applications'])->group(function () {
             Route::delete('/{sellerApplication}', [SellerApplicationController::class, 'destroy'])->name('destroy');
         });
-        Route::middleware(['permission:approve-seller-applications'])->group(function () {
+        Route::middleware(['check_permission:approve-seller-applications'])->group(function () {
             Route::put('/{sellerApplication}/approve', [SellerApplicationController::class, 'approve'])->name('approve');
         });
-        Route::middleware(['permission:reject-seller-applications'])->group(function () {
+        Route::middleware(['check_permission:reject-seller-applications'])->group(function () {
             Route::put('/{sellerApplication}/reject', [SellerApplicationController::class, 'reject'])->name('reject');
         });
     });
     Route::resource('document-types', DocumentTypeController::class);
-    Route::middleware(['permission:view-verification-documents'])->group(function () {
+    Route::middleware(['check_permission:view-verification-documents'])->group(function () {
         Route::get('/seller-verification/{sellerApplication}', [SellerVerificationController::class, 'show'])
             ->name('seller-verification.show');
         Route::put('/seller-documents/{sellerDocument}/review', [SellerVerificationController::class, 'review'])
             ->name('admin.seller-documents.review');
     });
-    Route::middleware(['permission:approve-verification-documents'])->group(function () {
+    Route::middleware(['check_permission:approve-verification-documents'])->group(function () {
         Route::put('/seller-applications/{sellerApplication}/verify', [SellerVerificationController::class, 'verify'])
             ->name('seller-applications.verify');
     });
@@ -135,5 +137,3 @@ Route::prefix('seller')->middleware(['auth', 'role:seller'])->name('seller.')->g
 });
 
 Route::get('/{slug}', [HomeController::class, 'productDetails'])->name('product.details');
-require __DIR__.'/settings.php';
-require __DIR__.'/auth.php';

@@ -68,9 +68,11 @@ class RoleController extends Controller
 
     public function show(Request $request, Role $role)
     {
-        $role->load('permissions');
-        $role->hashid = $role->getRouteKey();
+        $role->load(['permissions' => function ($query) {
+            $query->orderBy('module')->orderBy('name');
+        }]);
 
+        $role->hashid = $role->getRouteKey();
         if ($request->wantsJson() || $request->is('api/*')) {
             return response()->json($role);
         }
@@ -87,7 +89,10 @@ class RoleController extends Controller
 
         return Inertia::render('Admin/Roles/Edit', [
             'role' => $role,
-            'permissions' => Permission::all(),
+            'permissions' => Permission::query()
+                ->orderBy('module')
+                ->orderBy('name')
+                ->get(),
         ]);
     }
 

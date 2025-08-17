@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\ShareUserPermissions;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -26,6 +27,9 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
             ShareSellerVerificationStatus::class,
+            ShareUserPermissions::class,
+            \App\Http\Middleware\HandleInertiaRequests::class,
+            \App\Http\Middleware\ShareUserPermissions::class,
         ]);
 
          $middleware->alias([
@@ -34,6 +38,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'verified' => ShareSellerVerificationStatus::class,
              'permission' => PermissionMiddleware::class,
              'role_or_permission' => RoleOrPermissionMiddleware::class,
+             'check_permission' => \App\Http\Middleware\CheckPermission::class,
          ]);
 
     })

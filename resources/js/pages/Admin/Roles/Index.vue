@@ -16,6 +16,8 @@ const page = usePage<
 
 const roles = computed(() => page.props.roles);
 const permissions = computed(() => page.props.permissions);
+import { usePermissions } from '@/composables/usePermissions';
+const { hasPermission } = usePermissions();
 
 const selectedRoles = ref<string[]>([]);
 const showBulkActions = computed(() => selectedRoles.value.length > 0);
@@ -59,14 +61,6 @@ function goToRoleEdit(hashid: string) {
 function deleteRole(hashid: string) {
     if (confirm('Are you sure you want to delete this role?')) {
         router.delete(route('admin.roles.destroy', hashid));
-    }
-}
-
-function toggleSelectAll() {
-    if (selectedRoles.value.length === roles.value.length) {
-        selectedRoles.value = [];
-    } else {
-        selectedRoles.value = roles.value.map(r => r.id.toString());
     }
 }
 
@@ -157,7 +151,9 @@ function bulkDeleteRoles() {
                         <h1 class="text-2xl font-semibold">Roles</h1>
                         <p class="text-sm text-gray-600 mt-1">Manage user roles and their permissions</p>
                     </div>
-                    <button @click="goToCreatePage" class="hover:bg-primary-dark rounded-xl bg-primary px-4 py-2 text-white">
+                    <button
+                        v-if="hasPermission('create-roles')"
+                        @click="goToCreatePage" class="hover:bg-primary-dark rounded-xl bg-primary px-4 py-2 text-white">
                         + New Role
                     </button>
                 </div>
@@ -217,6 +213,7 @@ function bulkDeleteRoles() {
                 <div v-if="showBulkActions" class="flex items-center gap-4 rounded-lg bg-blue-50 p-4">
                     <span class="text-sm text-blue-800">{{ selectedRoles.length }} roles selected</span>
                     <button
+                        v-if="hasPermission('delete-roles')"
                         @click="bulkDeleteRoles"
                         class="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
                     >
@@ -270,7 +267,7 @@ function bulkDeleteRoles() {
                             <p class="text-sm font-medium text-gray-700 mb-2">Key Permissions:</p>
                             <div class="flex flex-wrap gap-1">
                                 <span
-                                    v-for="(permission, index) in role.permissions.slice(0, 3)"
+                                    v-for="(permission) in role.permissions.slice(0, 3)"
                                     :key="permission.id"
                                     class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-800"
                                 >
@@ -295,6 +292,7 @@ function bulkDeleteRoles() {
                                     View
                                 </button>
                                 <button
+                                v-if="hasPermission('edit-roles')"
                                     @click="goToRoleEdit(role.hashid)"
                                     class="text-sm text-primary hover:underline"
                                 >
@@ -303,13 +301,14 @@ function bulkDeleteRoles() {
                             </div>
                             <div class="flex items-center gap-2">
                                 <button
+                                    v-if="hasPermission('assign-permissions-to-roles')"
                                     @click="openPermissionModal(role)"
                                     class="rounded bg-primary px-3 py-1 text-xs text-white hover:bg-primary-dark"
                                 >
                                     Permissions
                                 </button>
                                 <button
-                                    v-if="role.name !== 'super-admin'"
+                                    v-if="hasPermission('delete-roles')"
                                     @click="deleteRole(role.hashid)"
                                     class="text-sm text-red-600 hover:underline"
                                 >
@@ -328,6 +327,7 @@ function bulkDeleteRoles() {
                     <h3 class="mt-2 text-sm font-medium text-gray-900">No roles found</h3>
                     <p class="mt-1 text-sm text-gray-500">Get started by creating a new role.</p>
                     <div class="mt-6">
+                        v-if="hasPermission('create-roles')"
                         <button @click="goToCreatePage" class="inline-flex items-center rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark">
                             + New Role
                         </button>
@@ -339,11 +339,14 @@ function bulkDeleteRoles() {
         <!-- Permission Assignment Modal -->
         <div v-if="showPermissionModal" class="fixed inset-0 z-50 overflow-y-auto">
             <div class="flex min-h-screen items-center justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-                <div class="fixed inset-0 transition-opacity" @click="showPermissionModal = false">
-                    <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
-                </div>
+                <!-- Backdrop with proper opacity -->
+                <div
+                    class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity backdrop-blur-sm"
+                    @click="showPermissionModal = false"
+                ></div>
 
-                <div class="inline-block transform overflow-hidden rounded-lg bg-white text-left align-bottom shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-4xl sm:align-middle">
+                <!-- Modal content with proper positioning -->
+                <div class="relative inline-block transform overflow-hidden rounded-lg bg-white text-left align-bottom shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-4xl sm:align-middle">
                     <form @submit.prevent="updateRolePermissions">
                         <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                             <div class="sm:flex sm:items-start">
@@ -397,9 +400,9 @@ function bulkDeleteRoles() {
                             <button
                                 type="submit"
                                 :class="[
-                                    'w-full justify-center rounded-md border border-transparent px-4 py-2 text-base font-medium text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 sm:ml-3 sm:w-auto sm:text-sm',
-                                    permissionForm.processing ? 'bg-gray-400 cursor-not-allowed' : 'bg-primary hover:bg-primary-dark focus:ring-primary'
-                                ]"
+                                'w-full justify-center rounded-md border border-transparent px-4 py-2 text-base font-medium text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 sm:ml-3 sm:w-auto sm:text-sm',
+                                permissionForm.processing ? 'bg-gray-400 cursor-not-allowed' : 'bg-primary hover:bg-primary-dark focus:ring-primary'
+                            ]"
                                 :disabled="permissionForm.processing"
                             >
                                 {{ permissionForm.processing ? 'Updating...' : 'Update Permissions' }}

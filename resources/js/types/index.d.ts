@@ -4,6 +4,7 @@ import type { Config } from 'ziggy-js';
 export interface Auth {
     user: User;
     roles: $roles;
+    permissions: string[];
 }
 
 export interface BreadcrumbItem {
@@ -17,6 +18,25 @@ export interface NavItem {
     icon?: LucideIcon;
     isActive?: boolean;
     children?: NavItem[];
+    permissions?: string[];
+    requireAllPermissions?: boolean;
+    roles?: string[];
+    customCheck?: (auth: Auth) => boolean;
+}
+
+export interface NavItemWithPermissions extends NavItem {
+    permissions: string[];
+    requireAllPermissions?: boolean;
+    roles?: string[];
+    customCheck?: (auth: Auth) => boolean;
+}
+
+export interface PermissionChecker {
+    hasPermission: (permission: string) => boolean;
+    hasAnyPermission: (permissions: string[]) => boolean;
+    hasAllPermissions: (permissions: string[]) => boolean;
+    hasRole: (role: string) => boolean;
+    hasAnyRole: (roles: string[]) => boolean;
 }
 
 export type AppPageProps<T extends Record<string, unknown> = Record<string, unknown>> = T & {
