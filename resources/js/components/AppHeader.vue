@@ -145,7 +145,7 @@ const rightNavItems: NavItem[] = [
                                                 </a>
                                             </Button>
                                         </TooltipTrigger>
-                                        <TooltipContent>
+                                        <TooltipContent side="top" align="end">
                                             <p>{{ item.title }}</p>
                                         </TooltipContent>
                                     </Tooltip>

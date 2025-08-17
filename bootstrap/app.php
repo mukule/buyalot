@@ -7,8 +7,10 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use App\Http\Middleware\Admin;
+use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
 use App\Http\Middleware\ShareSellerVerificationStatus;
+use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
 
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -30,7 +32,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin' => Admin::class,
             'role' => RoleMiddleware::class,
             'verified' => ShareSellerVerificationStatus::class,
-        ]);
+             'permission' => PermissionMiddleware::class,
+             'role_or_permission' => RoleOrPermissionMiddleware::class,
+         ]);
+
     })
     ->withExceptions(function (Exceptions $exceptions) {
 
