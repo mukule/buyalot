@@ -6,10 +6,7 @@ import { computed, ref } from 'vue';
 
 const page = usePage<
     AppPageProps<{
-        roles: (Role & {
-            hashid: string;
-            permissions: Permission[];
-        })[];
+        roles: (Role & {permissions: Permission[];  hashid: string;})[];
         permissions: (Permission & { module?: string })[];
     }>
 >();
@@ -72,8 +69,8 @@ function openPermissionModal(role: Role & { permissions: Permission[] }) {
 
 function updateRolePermissions() {
     if (!selectedRoleForPermissions.value) return;
-
-    router.post(route('admin.api.roles.assign-permissions', selectedRoleForPermissions.value.id), {
+    // console.log(Ziggy);
+    router.put(route('admin.roles.update', selectedRoleForPermissions.value.hashid), {
         permissions: permissionForm.permissions.map(id => parseInt(id))
     }, {
         onSuccess: () => {
@@ -337,11 +334,11 @@ function bulkDeleteRoles() {
         </div>
 
         <!-- Permission Assignment Modal -->
-        <div v-if="showPermissionModal" class="fixed inset-0 z-50 overflow-y-auto">
+        <div v-if="showPermissionModal" class="fixed z-50 inset-0 overflow-y-auto">
             <div class="flex min-h-screen items-center justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
                 <!-- Backdrop with proper opacity -->
                 <div
-                    class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity backdrop-blur-sm"
+                    class="fixed inset-0 bg-gray-50 bg-opacity-75 transition-opacity backdrop-blur-sm"
                     @click="showPermissionModal = false"
                 ></div>
 

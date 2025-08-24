@@ -17,11 +17,11 @@ const groupedPermissions = computed(() => {
         return {};
     }
     return props.role.permissions.reduce((groups, permission) => {
-        const groupName = permission.module || 'general';
-        if (!groups[groupName]) {
-            groups[groupName] = [];
+        const modelName = permission.module || 'general';
+        if (!groups[modelName]) {
+            groups[modelName] = [];
         }
-        groups[groupName].push(permission);
+        groups[modelName].push(permission);
         return groups;
     }, {} as Record<string, Permission[]>);
 });
@@ -71,6 +71,7 @@ function goToEditRole() {
                                 <li v-for="permission in permissionsInGroup" :key="permission.id" class="flex items-center">
                                     <svg class="mr-2 h-4 w-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                     <span class="text-sm text-gray-600">{{ permission.name }}</span>
+                                    <span class="text-sm text-gray-600">{{ permission.module }}</span>
                                 </li>
                             </ul>
                         </div>

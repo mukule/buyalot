@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Models\SellerApplication;
 use App\Models\SellerDocument;
 use App\Notifications\UserRegistered;
+use App\Traits\CalculatesCommissions;
+use App\Traits\HasCommissions;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -12,7 +14,7 @@ use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, HasRoles;
+    use HasFactory, Notifiable, HasRoles, HasCommissions, CalculatesCommissions;
 
     protected $fillable = [
         'name',

@@ -99,16 +99,17 @@ class RoleController extends Controller
     public function update(Request $request, Role $role)
     {
         $validated = $request->validate([
-            'name' => 'required|string|unique:roles,name,' . $role->id,
+            'name' => 'sometimes|string|unique:roles,name,' . $role->id,
             'guard_name' => 'nullable|string',
             'permissions' => 'array',
             'permissions.*' => 'exists:permissions,id',
         ]);
-
-        $role->update([
-            'name' => $validated['name'],
-            'guard_name' => $validated['guard_name'] ?? $role->guard_name
-        ]);
+        if (isset($validated['name'])) {
+            $role->update([
+                'name' => $validated['name'],
+                'guard_name' => $validated['guard_name'] ?? $role->guard_name,
+            ]);
+        }
 
         if (isset($validated['permissions'])) {
             $permissions = Permission::whereIn('id', $validated['permissions'])->get();

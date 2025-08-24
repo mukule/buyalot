@@ -12,6 +12,16 @@ use App\Http\Controllers\Admin\UnitTypeController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\VariantCategoryController;
 use App\Http\Controllers\Admin\WarehouseController;
+use App\Http\Controllers\Commission\CommissionCalculationController;
+use App\Http\Controllers\Commission\CommissionInvoiceController;
+use App\Http\Controllers\Commission\CommissionPlanController;
+use App\Http\Controllers\Customer\CustomerAddressController;
+use App\Http\Controllers\Customer\CustomerController;
+use App\Http\Controllers\Customer\CustomerLoyaltyPointController;
+use App\Http\Controllers\Customer\CustomerReferralController;
+use App\Http\Controllers\Customer\CustomerSupportTicketController;
+use App\Http\Controllers\Customer\CustomerWishlistsController;
+use App\Http\Controllers\Payments\PaymentController;
 use App\Http\Controllers\SellController;
 use App\Http\Controllers\SellerAccountController;
 use Illuminate\Support\Facades\Route;
@@ -115,6 +125,27 @@ Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group
     Route::resource('variant-categories', VariantCategoryController::class);
 
 
+    Route::resource('payments', PaymentController::class);
+
+    Route::resource('commission-plans', CommissionPlanController::class);
+    Route::post('commission-plans/{plan}/toggle', [CommissionPlanController::class, 'toggle'])
+        ->name('commission-plans.toggle');
+
+    // Commission Calculations
+    Route::resource('commission-calculations', CommissionCalculationController::class)
+        ->only(['index', 'show']);
+    Route::post('commission-calculations/{calculation}/confirm', [CommissionCalculationController::class, 'confirm'])
+        ->name('commission-calculations.confirm');
+    Route::post('commission-calculations/{calculation}/dispute', [CommissionCalculationController::class, 'dispute'])
+        ->name('commission-calculations.dispute');
+    Route::post('commission-calculations/{calculation}/recalculate', [CommissionCalculationController::class, 'recalculate'])
+        ->name('commission-calculations.recalculate');
+
+    // Commission Invoices
+    Route::resource('commission-invoices', CommissionInvoiceController::class);
+    Route::post('commission-invoices/{invoice}/mark-paid', [CommissionInvoiceController::class, 'markPaid'])
+        ->name('commission-invoices.mark-paid');
+
 });
 
 
@@ -137,3 +168,21 @@ Route::prefix('seller')->middleware(['auth', 'role:seller'])->name('seller.')->g
 });
 
 Route::get('/{slug}', [HomeController::class, 'productDetails'])->name('product.details');
+
+
+
+
+Route::resource('customers', CustomerController::class);
+Route::get('customers/{customer}/dashboard', [CustomerController::class, 'dashboard'])->name('customers.dashboard');
+
+Route::resource('customers.addresses', CustomerAddressController::class)->except(['index']);
+Route::get('customers/{customer}/addresses', [CustomerAddressController::class, 'index'])->name('customers.addresses.index');
+Route::post('customers/{customer}/addresses/{address}/make-default', [CustomerAddressController::class, 'makeDefault'])->name('customers.addresses.make-default');
+
+Route::resource('customers.loyalty-points', CustomerLoyaltyPointController::class)->only(['index']);
+Route::post('customers/{customer}/loyalty-points/award', [CustomerLoyaltyPointController::class, 'award'])->name('customers.loyalty-points.award');
+Route::post('customers/{customer}/loyalty-points/redeem', [CustomerLoyaltyPointController::class, 'redeem'])->name('customers.loyalty-points.redeem');
+
+Route::resource('customers.referrals', CustomerReferralController::class)->except(['edit', 'update', 'destroy']);
+Route::resource('customers.support-tickets', CustomerSupportTicketController::class)->except(['edit', 'destroy']);
+Route::resource('customers.wishlist', CustomerWishlistsController::class)->only(['index', 'store', 'update', 'destroy']);

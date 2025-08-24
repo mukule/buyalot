@@ -3,8 +3,11 @@
 use App\Http\Controllers\Payments\PaymentController;
 use Illuminate\Support\Facades\Route;
 
-Route::post('/payments/{order}', [PaymentController::class, 'process'])
-    ->name('payments.process');
+Route::prefix('payments')->name('payments.')->group(function () {
+    Route::get('providers', [PaymentController::class, 'providers'])->name('providers');
+    Route::post('initiate', [PaymentController::class, 'initiate'])->name('initiate');
+    Route::get('{payment}/status', [PaymentController::class, 'status'])->name('status');
 
-Route::post('/payments/callback/{gateway}', [PaymentController::class, 'callback'])
-    ->name('payments.callback');
+    // Callbacks
+    Route::post('callback/{provider}', [PaymentController::class, 'callback'])->name('callback');
+});

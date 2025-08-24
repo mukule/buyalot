@@ -5,7 +5,24 @@ import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, Sid
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/vue3';
 import { usePermissions } from '@/composables/usePermissions';
-import { ClipboardList, FileCheck, FileUser, KeyRound, LayoutGrid, ListChecks, Lock, RulerIcon, ShieldCheck, Tag, Users } from 'lucide-vue-next';
+import {
+    BookUserIcon,
+    ClipboardList,
+    FileCheck,
+    FileUser,
+    KeyRound,
+    LayoutGrid,
+    ListChecks,
+    Lock,
+    LucideListOrdered,
+    RulerIcon,
+    ShieldCheck,
+    Tag,
+    UserCog2Icon,
+    Users,
+    Wallet2Icon,
+    WalletCards,
+} from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from './AppLogo.vue';
 const { canAccess } = usePermissions();
@@ -39,6 +56,12 @@ const allNavItems: NavItem[] = [
             'approve-seller-applications',
         ],
         children: [
+            {
+                title: 'Sellers List',
+                href: '/admin/sellers',
+                icon: BookUserIcon,
+                permissions: ['view-sellers', 'manage-sellers'],
+            },
             {
                 title: 'Sellers Applications',
                 href: '/admin/applications',
@@ -78,61 +101,63 @@ const allNavItems: NavItem[] = [
                 title: 'Warehouses',
                 href: '/admin/warehouses',
                 icon: LayoutGrid,
-                permissions: [
-                    'view-warehouses',
-                    'manage-warehouse-staff',
-                ],
+                permissions: ['view-warehouses', 'manage-warehouse-staff'],
             },
             {
                 title: 'Categories',
                 href: '/admin/categories',
                 icon: LayoutGrid,
-                permissions: [
-                    'view-brands',
-                ],
+                permissions: ['view-brands'],
             },
             {
                 title: 'Brands',
                 href: '/admin/brands',
                 icon: Tag,
-                permissions: [
-                    'view-brands',
-                ],
+                permissions: ['view-brands'],
             },
             {
                 title: 'Units',
                 href: '/admin/unit-types',
                 icon: RulerIcon,
-                permissions: [
-                    'view-units',
-                ],
+                permissions: ['view-units'],
             },
             {
                 title: 'Variants',
                 href: '/admin/variant-categories',
                 icon: ListChecks,
-                permissions: [
-                    'view-variants',
-                ],
+                permissions: ['view-variants'],
             },
             {
                 title: 'Products',
                 href: '/admin/products',
                 icon: ClipboardList,
-                permissions: [
-                    'view-products',
-                    'manage-product-inventory',
-                ],
+                permissions: ['view-products', 'manage-product-inventory'],
             },
         ],
     },
     {
+        title: 'Orders',
+        href: '/admin/orders',
+        icon: LucideListOrdered,
+        permissions: ['view-orders'],
+    },
+    {
+        title: 'Payments',
+        href: '/admin/payments',
+        icon: Wallet2Icon,
+        permissions: ['view-payments'],
+    },
+    {
+        title: 'Customers',
+        href: '/admin/customers',
+        icon: BookUserIcon,
+        permissions: ['view-users'],
+    },
+    {
         title: 'Users',
         href: '/admin/users',
-        icon: FileUser,
-        permissions: [
-            'view-users',
-        ],
+        icon: UserCog2Icon,
+        permissions: ['view-users'],
     },
     {
         title: 'Access Rights',
