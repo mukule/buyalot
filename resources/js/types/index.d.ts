@@ -15,6 +15,7 @@ export interface Auth {
         cart: number;
     };
     wishlistProductIds: number[];
+    permissions: string[];
 }
 
 export interface BreadcrumbItem {
@@ -28,6 +29,25 @@ export interface NavItem {
     icon?: LucideIcon;
     isActive?: boolean;
     children?: NavItem[];
+    permissions?: string[];
+    requireAllPermissions?: boolean;
+    roles?: string[];
+    customCheck?: (auth: Auth) => boolean;
+}
+
+export interface NavItemWithPermissions extends NavItem {
+    permissions: string[];
+    requireAllPermissions?: boolean;
+    roles?: string[];
+    customCheck?: (auth: Auth) => boolean;
+}
+
+export interface PermissionChecker {
+    hasPermission: (permission: string) => boolean;
+    hasAnyPermission: (permissions: string[]) => boolean;
+    hasAllPermissions: (permissions: string[]) => boolean;
+    hasRole: (role: string) => boolean;
+    hasAnyRole: (roles: string[]) => boolean;
 }
 
 export type AppPageProps<T extends Record<string, unknown> = Record<string, unknown>> = T & {
@@ -42,6 +62,8 @@ export interface User {
     id: number;
     name: string;
     email: string;
+    phone: string;
+    status: boolean;
     avatar?: string;
     email_verified_at: string | null;
     created_at: string;
@@ -52,6 +74,7 @@ export interface Permission {
     id: number;
     name: string;
     guard_name: string;
+    module: string;
     created_at: string;
     updated_at: string;
 }

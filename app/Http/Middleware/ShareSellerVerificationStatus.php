@@ -15,7 +15,6 @@ class ShareSellerVerificationStatus
 
             Inertia::share('auth.isVerifiedSeller', $isVerified);
         }
-
         return $next($request);
     }
 }

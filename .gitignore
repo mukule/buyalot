@@ -22,3 +22,12 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+.editorconfig
+.gitattributes
+.prettierignore
+.prettierrc
+package-lock.json
+/logs
+
+pnpm-lock.yaml
+.npmrc

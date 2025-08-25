@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use App\Models\Brand;
 use App\Models\Product;
+use App\Traits\HasPermissionCheck;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Log;
 
@@ -47,6 +48,7 @@ public function index()
 
         return [$category->id => $products];
     });
+
 
     return Inertia::render('Frontend/Index', [
         'title'              => 'Online Shopping Store',

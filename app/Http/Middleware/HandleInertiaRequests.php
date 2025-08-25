@@ -48,6 +48,7 @@ class HandleInertiaRequests extends Middleware
                 'message' => trim($message),
                 'author'  => trim($author),
             ],
+<<<<<<< HEAD
 
             'auth' => $user ? [
                 'user' => [
@@ -69,6 +70,13 @@ class HandleInertiaRequests extends Middleware
                     'cart'     => 0,
                 ],
                 'wishlistProductIds' => [],
+=======
+            'auth' => [
+                'user' => $user,
+//                'roles' => $roles,
+                'roles' => $request->user() ? $request->user()->getRoleNames()->toArray() : [],
+                'permissions' => $request->user() ? $request->user()->getAllPermissions()->pluck('name')->toArray() : [],
+>>>>>>> cecde29de6fdc31c5db6806769b4290c30b9ac5d
             ],
 
             'flash' => [
