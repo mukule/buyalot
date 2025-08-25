@@ -1,79 +1,66 @@
 <script setup lang="ts">
 import ProductCarouselSection from '@/components/ProductCarouselSection.vue';
 import MainLayout from '@/layouts/MainLayout.vue';
+import type { SimplifiedProduct } from '@/types';
 import { Expand, Plus, ShoppingCart, Star } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
-interface Product {
-    id: number;
-    name: string;
-    slug: string;
-    price: number;
-    discounted_price: number;
-    has_discount: boolean;
-    discount?: number;
-    description?: string;
-    features?: string;
-    whats_in_the_box?: string;
-    specifications?: string;
-    primary_image_url?: string | null;
-    image_urls?: string[];
-    brand?: { name: string };
-    subcategory?: {
-        name: string;
-        slug?: string;
-        category?: {
-            name: string;
-            slug?: string;
-        };
-    };
-}
-
-interface SimplifiedProduct {
-    id: number;
-    name: string;
-    slug: string;
-    price: number;
-    discountedPrice: number;
-    hasDiscount: boolean;
-    discount?: number;
-    image: string;
-    onSale?: boolean;
-    rating?: number;
-}
-
+// Props using the normalized structure
 const props = defineProps<{
-    product: Product;
-    relatedProducts?: Product[];
+    product: {
+        id: number;
+        slug: string;
+        name: string;
+        description?: string;
+        features?: string;
+        specifications?: string;
+        whats_in_the_box?: string;
+        primary_image_url?: string | null;
+        images: string[];
+        brand?: { name: string };
+        category_hierarchy?: { id: number; name: string; slug: string }[];
+        variants: {
+            id: number;
+            regular_price: number;
+            selling_price: number;
+            discount?: number | null;
+            stock: number;
+        }[];
+    };
+    relatedProducts?: SimplifiedProduct[];
 }>();
 
-const formatPrice = (amount: number): string => `KSh ${amount.toLocaleString()}`;
-
-const slugify = (text: string): string =>
-    text
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)+/g, '');
-
-const mainImage = ref(props.product.primary_image_url || props.product.image_urls?.[0] || '');
+// Image preview
+const mainImage = ref(props.product.primary_image_url || props.product.images?.[0] || '');
 const showPreview = ref(false);
-
 const openPreview = () => (showPreview.value = true);
 const closePreview = () => (showPreview.value = false);
 const selectImage = (img: string) => (mainImage.value = img);
 
+// Price formatting
+const formatPrice = (amount: number | null): string => `KSh ${amount?.toLocaleString() ?? 0}`;
+
+// Compute min selling price and discount
+const productPrice = computed(() => {
+    if (!props.product.variants.length) return 0;
+    return Math.min(...props.product.variants.map((v) => v.selling_price));
+});
+
+const productDiscount = computed(() => {
+    if (!props.product.variants.length) return null;
+    const minRegular = Math.min(...props.product.variants.map((v) => v.regular_price));
+    const minSelling = Math.min(...props.product.variants.map((v) => v.selling_price));
+    if (minRegular > 0 && minRegular > minSelling) {
+        return Math.round(((minRegular - minSelling) / minRegular) * 100);
+    }
+    return null;
+});
+
 const simplifiedRelatedProducts = computed<SimplifiedProduct[]>(() =>
     (props.relatedProducts ?? []).map((p) => ({
-        id: p.id,
-        name: p.name,
-        slug: p.slug,
-        price: p.price,
-        discountedPrice: p.discounted_price ?? p.price,
-        hasDiscount: p.has_discount ?? false,
-        discount: p.discount ?? 0,
-        image: p.primary_image_url || (p.image_urls && p.image_urls[0]) || '/fallback-image.png',
-        onSale: (p.has_discount ?? false) && (p.discounted_price ?? 0) < p.price,
-        rating: 3,
+        ...p,
+        image: (p as any).primary_image_url || (p as any).image_urls?.[0] || '/fallback-image.png',
+        onSale: p.discount ? true : false,
     })),
 );
 </script>
@@ -81,36 +68,26 @@ const simplifiedRelatedProducts = computed<SimplifiedProduct[]>(() =>
 <template>
     <MainLayout>
         <section class="px-4 py-6">
-            <!-- Breadcrumb -->
             <nav class="mb-6 text-sm text-gray-600" aria-label="Breadcrumb">
                 <ol class="flex flex-wrap items-center gap-1">
-                    <li><a href="/" class="text-primary hover:underline">Home</a><span class="mx-1">/</span></li>
-                    <li v-if="product.subcategory?.category?.name">
-                        <a
-                            :href="`/category/${product.subcategory.category.slug ?? slugify(product.subcategory.category.name)}`"
-                            class="text-primary hover:underline"
-                        >
-                            {{ product.subcategory.category.name }}
-                        </a>
+                    <li>
+                        <a href="/" class="text-primary hover:underline">Home</a>
                         <span class="mx-1">/</span>
                     </li>
-                    <li v-if="product.subcategory?.name">
-                        <a
-                            :href="`/subcategory/${product.subcategory.slug ?? slugify(product.subcategory.name)}`"
-                            class="text-primary hover:underline"
-                        >
-                            {{ product.subcategory.name }}
+
+                    <li v-for="(cat, index) in product.category_hierarchy ?? []" :key="cat.id" class="flex items-center">
+                        <a :href="`/category/${cat.slug}`" class="text-primary hover:underline">
+                            {{ cat.name }}
                         </a>
-                        <span class="mx-1">/</span>
+                        <span v-if="index < (product.category_hierarchy?.length ?? 0) - 1" class="mx-1">/</span>
                     </li>
-                    <li class="truncate font-semibold text-gray-800">{{ product.name }}</li>
+                    <li class="truncate font-semibold text-gray-800">/{{ product.name }}</li>
                 </ol>
             </nav>
 
             <div class="flex flex-col gap-6 lg:flex-row">
                 <div class="flex w-full flex-col gap-6 lg:w-10/12">
-                    <!-- Product details card -->
-                    <div class="rounded-xl bg-white p-6 shadow">
+                    <div class="rounded-xl bg-white p-6 shadow transition hover:shadow-md">
                         <div class="flex flex-col gap-6 md:flex-row">
                             <div class="w-full md:w-1/2">
                                 <div class="relative">
@@ -125,7 +102,7 @@ const simplifiedRelatedProducts = computed<SimplifiedProduct[]>(() =>
                                 </div>
                                 <div class="mt-4 flex gap-2 overflow-x-auto">
                                     <img
-                                        v-for="(img, idx) in product.image_urls ?? []"
+                                        v-for="(img, idx) in product.images"
                                         :key="idx"
                                         :src="img"
                                         @click="selectImage(img)"
@@ -142,16 +119,13 @@ const simplifiedRelatedProducts = computed<SimplifiedProduct[]>(() =>
                                 <p class="text-sm text-gray-600">Brand: {{ product.brand?.name }}</p>
                                 <hr />
                                 <p class="text-lg font-semibold text-primary">
-                                    {{ formatPrice(product.discounted_price) }}
-                                    <span v-if="product.has_discount" class="ml-2 text-sm text-gray-400 line-through">
-                                        {{ formatPrice(product.price) }}
-                                    </span>
-                                    <span v-if="product.discount" class="ml-2 rounded bg-secondary/75 px-2 py-1 text-xs font-bold text-white">
-                                        {{ product.discount }}% OFF
+                                    {{ formatPrice(productPrice) }}
+                                    <span v-if="productDiscount" class="ml-2 rounded bg-secondary/75 px-2 py-1 text-xs font-bold text-white">
+                                        {{ productDiscount }}% OFF
                                     </span>
                                 </p>
                                 <div class="flex gap-[2px] text-yellow-400">
-                                    <Star v-for="i in 5" :key="i" :class="i <= 3 ? 'fill-yellow-400' : 'fill-gray-200'" class="h-5 w-5" />
+                                    <Star v-for="i in 5" :key="i" class="h-5 w-5 fill-yellow-400" />
                                 </div>
                                 <button
                                     class="mt-4 flex w-full items-center justify-center gap-2 rounded bg-primary px-4 py-2 text-white hover:bg-primary/90"
@@ -164,7 +138,7 @@ const simplifiedRelatedProducts = computed<SimplifiedProduct[]>(() =>
                         </div>
                     </div>
 
-                    <div v-if="simplifiedRelatedProducts.length" class="rounded-xl bg-white p-4 shadow">
+                    <div v-if="simplifiedRelatedProducts.length">
                         <ProductCarouselSection title="Related Products" :products="simplifiedRelatedProducts" />
                     </div>
 
@@ -175,13 +149,11 @@ const simplifiedRelatedProducts = computed<SimplifiedProduct[]>(() =>
 
                     <div v-if="product.features || product.specifications" class="rounded-xl bg-white p-4 text-sm leading-relaxed shadow">
                         <div class="flex flex-col gap-6 md:flex-row">
-                            <!-- Features -->
-                            <div v-if="product.features" class="rounded border border-gray-300 bg-transparent p-4 md:w-1/2">
+                            <div v-if="product.features" class="rounded bg-transparent p-4 md:w-1/2">
                                 <h4 class="mb-2 font-semibold text-gray-700">Features</h4>
                                 <div v-html="product.features"></div>
                             </div>
-
-                            <div v-if="product.specifications" class="rounded border border-gray-300 bg-transparent p-4 md:w-1/2">
+                            <div v-if="product.specifications" class="rounded bg-transparent p-4 md:w-1/2">
                                 <h4 class="mb-2 font-semibold text-gray-700">Specifications</h4>
                                 <div v-html="product.specifications"></div>
                             </div>

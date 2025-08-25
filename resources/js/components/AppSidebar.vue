@@ -4,7 +4,7 @@ import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
-import { ClipboardList, FileCheck, KeyRound, LayoutGrid, ListChecks, Lock, RulerIcon, ShieldCheck, Tag, Users } from 'lucide-vue-next';
+import { ClipboardList, FileCheck, KeyRound, LayoutGrid, ListChecks, Lock, RulerIcon, ShieldCheck, Tag, Users, Workflow } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from './AppLogo.vue';
 
@@ -74,6 +74,12 @@ const allNavItems: NavItem[] = [
                 href: '/admin/products',
                 icon: ClipboardList,
             },
+
+            {
+                title: 'Product Statuses',
+                href: '/admin/product-statuses',
+                icon: Workflow, // or Flag
+            },
         ],
     },
     {
@@ -102,9 +108,18 @@ const allNavItems: NavItem[] = [
 
 const mainNavItems = computed(() => {
     if (roles.value.includes('seller')) {
-        return allNavItems.filter((item) => ['Dashboard', 'Account'].includes(item.title));
+        // Show Dashboard, Account, and Inventory->Products only for sellers
+        return allNavItems
+            .filter((item) => ['Dashboard', 'Account', 'Inventory'].includes(item.title))
+            .map((item) => {
+                if (item.title === 'Inventory') {
+                    return { ...item, children: item.children?.filter((child) => child.title === 'Products') };
+                }
+                return item;
+            });
     }
 
+    // Admins see everything except 'Account'
     return allNavItems.filter((item) => item.title !== 'Account');
 });
 </script>

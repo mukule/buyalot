@@ -7,49 +7,8 @@ import MainLayout from '@/layouts/MainLayout.vue';
 import type { PageProps as InertiaPageProps } from '@inertiajs/core';
 import { usePage } from '@inertiajs/vue3';
 
-interface Subcategory {
-    id: number;
-    name: string;
-}
-
-interface Category {
-    id: number;
-    name: string;
-    subcategories?: Subcategory[];
-}
-
-interface Brand {
-    id: number;
-    hashid: string;
-    name: string;
-    slug: string;
-    logo_url: string | null;
-}
-
-interface Product {
-    id: number;
-    name: string;
-    slug: string;
-    price: number;
-    discount?: number;
-    discounted_price?: number;
-    has_discount?: boolean;
-    primary_image_url?: string | null;
-    image_urls?: string[];
-}
-
-interface SimplifiedProduct {
-    id: number;
-    name: string;
-    slug: string;
-    price: number;
-    discountedPrice: number;
-    hasDiscount: boolean;
-    discount?: number;
-    image: string;
-    onSale?: boolean;
-    rating?: number;
-}
+// ✅ Shared types
+import type { Brand, Category, Product, SimplifiedProduct } from '@/types';
 
 interface PageProps extends InertiaPageProps {
     categories?: Category[];
@@ -66,24 +25,25 @@ const DEFAULT_BANNERS = [
 ];
 
 const page = usePage<PageProps>();
+
+// ✅ Extract props safely
 const categories = page.props.categories ?? [];
 const banners = page.props.banners ?? DEFAULT_BANNERS;
 const brands = page.props.brands ?? [];
 const productsByCategory = page.props.productsByCategory ?? {};
 
+// ✅ Normalize backend → SimplifiedProduct
 const simplifiedProductsByCategory: Record<number, SimplifiedProduct[]> = Object.fromEntries(
     Object.entries(productsByCategory).map(([categoryId, products]) => [
         Number(categoryId),
         (products as Product[]).map((p) => ({
             id: p.id,
-            name: p.name,
             slug: p.slug,
-            price: p.price,
-            discountedPrice: p.discounted_price ?? p.price,
-            hasDiscount: p.has_discount ?? false,
-            discount: p.discount ?? 0,
-            image: p.primary_image_url || (p.image_urls && p.image_urls[0]) || '/fallback-image.png',
-            onSale: (p.has_discount ?? false) && (p.discounted_price ?? 0) < p.price,
+            name: p.name,
+            image: p.primary_image_url || '/fallback-image.png', // ✅ FIXED
+            regular_price: p.regular_price ?? null,
+            selling_price: p.selling_price ?? null,
+            discount: p.discount ?? null,
             rating: 3,
         })),
     ]),
@@ -94,6 +54,7 @@ const filteredCategories = categories.filter((category) => (simplifiedProductsBy
 
 <template>
     <MainLayout>
+        <!-- Sidebar + Hero + Brands -->
         <section class="mt-4 mb-4 flex flex-col gap-6 bg-white lg:flex-row">
             <CategorySidebar :categories="categories" class="hidden lg:block" />
             <div class="w-full lg:w-[79.17%]">
@@ -102,6 +63,7 @@ const filteredCategories = categories.filter((category) => (simplifiedProductsBy
             </div>
         </section>
 
+        <!-- Product Carousels -->
         <section class="space-y-10 px-4">
             <ProductCarouselSection
                 v-for="category in filteredCategories"

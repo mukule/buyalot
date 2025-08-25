@@ -3,22 +3,25 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use App\Models\Traits\HasSlug;
 use App\Models\Traits\HasHashid;
+use App\Models\Warranty;
 
 class Product extends Model
 {
     use HasSlug, HasHashid;
 
-    
     protected static string $slugSource = 'name';
 
     protected $fillable = [
         'name',
         'slug',
         'description',
+        'product_code',
         'features',
         'specifications',
         'whats_in_the_box',
@@ -29,108 +32,152 @@ class Product extends Model
         'owner_type',
         'owner_id',
         'brand_id',
-        'subcategory_id',
+        'category_id',   
+        'current_step',
         'unit_id',
-        'price',
-        'discount',
-        'stock',
+        'max_step_completed',
+        'status_id'
     ];
 
     protected $appends = [
         'hashid',
         'image_urls',
         'primary_image_url',
-        'discounted_price',
-        'has_discount',
-        'in_stock',
-        'is_out_of_stock',
         'status_label',
         'company_legal_name',
+        'min_price',
+        'max_price',
+        'in_stock',
+        'pricing', 
     ];
 
     protected $casts = [
-        'price' => 'float',
-        'discount' => 'float',
-        'stock' => 'integer',
         'status' => 'integer',
     ];
 
-    
+    // ----------------------
+    // Status constants
+    // ----------------------
+    const STATUS_DRAFT    = 0; // Created but not submitted
+    const STATUS_PENDING  = 1; // Submitted for review
+    const STATUS_APPROVED = 2; // Approved and public
+    const STATUS_REJECTED = 3; // Rejected / Not approved
 
-    public function getImageUrlsAttribute(): array
+    // ----------------------
+    // Attributes
+    // ----------------------
+
+    protected function imageUrls(): Attribute
     {
-        if ($this->relationLoaded('images') && $this->images->isNotEmpty()) {
-            return $this->images->map(fn ($image) => asset('storage/' . $image->image_path))->toArray();
-        }
-
-        return [];
+        return Attribute::get(fn () =>
+            $this->relationLoaded('images')
+                ? $this->images->map(fn ($img) => asset('storage/' . $img->image_path))->toArray()
+                : []
+        );
     }
 
-    public function getPrimaryImageUrlAttribute(): ?string
+    protected function primaryImageUrl(): Attribute
     {
-        if ($this->relationLoaded('primaryImage') && $this->primaryImage) {
-            return asset('storage/' . $this->primaryImage->image_path);
-        }
-
-        return null;
+        return Attribute::get(fn () =>
+            $this->relationLoaded('primaryImage') && $this->primaryImage
+                ? asset('storage/' . $this->primaryImage->image_path)
+                : null
+        );
     }
 
-    public function getHasDiscountAttribute(): bool
+    protected function statusLabel(): Attribute
     {
-        return $this->discount > 0;
+        return Attribute::get(fn () => match ((int) $this->status) {
+            self::STATUS_DRAFT    => 'Draft',
+            self::STATUS_PENDING  => 'Pending Review',
+            self::STATUS_APPROVED => 'Public',
+            self::STATUS_REJECTED => 'Rejected',
+            default                => 'Unknown',
+        });
     }
 
-    public function getDiscountedPriceAttribute(): float
+    protected function companyLegalName(): Attribute
     {
-        if ($this->has_discount) {
-            return round($this->price * (1 - ($this->discount / 100)), 2);
-        }
+        return Attribute::get(function () {
+            if ($this->owner_type === 'admin') {
+                return 'Buyalot';
+            }
 
-        return $this->price;
+            if (
+                $this->owner_type === 'seller' &&
+                $this->owner instanceof \App\Models\User &&
+                $this->owner->sellerApplication
+            ) {
+                return $this->owner->sellerApplication->company_legal_name;
+            }
+
+            return null;
+        });
+    }
+
+    public function getMinPriceAttribute(): ?float
+    {
+        return $this->productVariants()->min('selling_price');
+    }
+
+    public function getMaxPriceAttribute(): ?float
+    {
+        return $this->productVariants()->max('selling_price');
     }
 
     public function getInStockAttribute(): bool
     {
-        return $this->stock > 0;
+        return $this->productVariants()->sum('stock') > 0;
     }
 
-    public function getIsOutOfStockAttribute(): bool
+    protected function pricing(): Attribute
     {
-        return $this->stock === 0;
+        return Attribute::get(function () {
+            $min = $this->min_price;
+            $max = $this->max_price;
+
+            if ($min === null) {
+                return [
+                    'price'           => null,
+                    'discountedPrice' => null,
+                    'hasDiscount'     => false,
+                    'discount'        => null,
+                    'label'           => 'N/A',
+                ];
+            }
+
+            // Pick the cheapest variant
+            $minVariant = $this->productVariants()->orderBy('selling_price')->first();
+
+            $price           = $minVariant?->selling_price;
+            $discountedPrice = $minVariant && $minVariant->discount_price
+                ? $minVariant->discount_price
+                : $price;
+
+            $hasDiscount = $discountedPrice !== null && $discountedPrice < $price;
+            $discount    = $hasDiscount
+                ? round((1 - ($discountedPrice / $price)) * 100)
+                : null;
+
+            return [
+                'price'           => $price,
+                'discountedPrice' => $discountedPrice,
+                'hasDiscount'     => $hasDiscount,
+                'discount'        => $discount,
+                'label'           => $min !== $max
+                    ? 'KSh ' . number_format($min) . ' - ' . number_format($max)
+                    : 'KSh ' . number_format($min),
+            ];
+        });
     }
 
-    public function getStatusLabelAttribute(): string
-    {
-        return match ((int) $this->status) {
-            0 => 'Pending',
-            1 => 'Public',
-            3 => 'Private',
-            default => 'Unknown',
-        };
-    }
-
-    public function getCompanyLegalNameAttribute(): ?string
-    {
-        if ($this->owner_type === 'admin') {
-            return 'Buyalot';
-        }
-
-        if (
-            $this->owner_type === 'seller' &&
-            $this->owner instanceof \App\Models\User &&
-            $this->owner->sellerApplication
-        ) {
-            return $this->owner->sellerApplication->company_legal_name;
-        }
-
-        return null;
-    }
-
+    // ----------------------
     // Relationships
+    // ----------------------
 
-    public function owner(): MorphTo
+    public function owner(): BelongsTo
     {
-        return $this->morphTo();
+        return $this->belongsTo(User::class, 'owner_id');
     }
 
     public function brand(): BelongsTo
@@ -138,9 +185,9 @@ class Product extends Model
         return $this->belongsTo(Brand::class);
     }
 
-    public function subcategory(): BelongsTo
+    public function category(): BelongsTo
     {
-        return $this->belongsTo(Subcategory::class);
+        return $this->belongsTo(Category::class);
     }
 
     public function unit(): BelongsTo
@@ -148,28 +195,70 @@ class Product extends Model
         return $this->belongsTo(Unit::class);
     }
 
-    public function category(): BelongsTo
-    {
-        return $this->belongsTo(Category::class);
-    }
-
-    public function images()
+    public function images(): HasMany
     {
         return $this->hasMany(ProductImage::class);
     }
 
-    public function primaryImage()
+    public function primaryImage(): HasOne
     {
         return $this->hasOne(ProductImage::class)->where('is_primary', true);
     }
 
-    public function variantValues()
+    // ----------------------
+    // Variant relationships
+    // ----------------------
+
+    public function productVariants(): HasMany
+    {
+        return $this->hasMany(ProductVariant::class);
+    }
+
+    public function variants(): HasMany
+    {
+        return $this->hasMany(ProductVariant::class);
+    }
+
+    public function variantValues(): HasMany
     {
         return $this->hasMany(ProductVariantValue::class);
     }
 
-    public function variants()
+    // ----------------------
+    // Scopes
+    // ----------------------
+
+    public function scopeLatestDraft($query)
     {
-        return $this->belongsToMany(Variant::class, 'product_variant_values');
+        return $query->where('max_step_completed', '<', 4)
+                     ->latest('created_at');
     }
+
+    public function updateStatus(int $statusId): bool
+    {
+        $statusExists = \App\Models\ProductStatus::where('id', $statusId)->exists();
+        if (! $statusExists) {
+            return false;
+        }
+        $this->status_id = $statusId;
+        $this->save();
+        return true;
+    }
+
+
+public function warranties(): HasMany
+{
+    return $this->hasMany(Warranty::class);
+}
+
+public function hasWarranty(): bool
+{
+    return $this->warranties()->exists();
+}
+
+public function activeWarranty(): ?Warranty
+{
+    return $this->warranties()->where('active', true)->first();
+}
+
 }

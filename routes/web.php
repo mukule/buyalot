@@ -22,6 +22,10 @@ use App\Http\Controllers\Admin\VariantCategoryController;
 use App\Http\Controllers\Admin\VariantController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\Admin\BrandCategoryController;
+use App\Http\Controllers\Admin\ProductStatusController;
+use App\Http\Controllers\Admin\WarrantyController;
+use App\Http\Controllers\WishlistController;
 
 
 require __DIR__.'/settings.php';
@@ -31,14 +35,30 @@ require __DIR__.'/auth.php';
 Route::get('/', [HomeController::class, 'index'])->name('home');
 
 
-
-
 Route::middleware(['auth', 'role:admin|seller'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', function () {
         return Inertia::render('Dashboard');
     })->name('dashboard');
+
+    Route::delete('products/destroy-all', [ProductController::class, 'destroyAll'])
+        ->name('products.destroyAll');
+        
     Route::resource('products', ProductController::class);
+
+    // Delete a single product image
+    Route::delete('products/{product}/images/{imageId}', [ProductController::class, 'destroyImage'])
+        ->name('products.images.destroy');
+    Route::resource('products.warranties', WarrantyController::class)->except(['index']);
+
+    // Update product status
+    Route::patch('products/{product}/status', [ProductController::class, 'updateStatus'])
+        ->name('products.updateStatus');
+
+    Route::patch('warranties/{warranty}/toggle-active', [WarrantyController::class, 'toggleActive'])
+    ->name('warranties.toggleActive');
+
 });
+
 
 
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
@@ -82,9 +102,13 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
         ->name('seller-applications.verify');
 
     Route::resource('warehouses', WarehouseController::class);
+    Route::resource('product-statuses', ProductStatusController::class);
     Route::resource('categories', CategoryController::class);
+    Route::get('/categories/{category}/children', [CategoryController::class, 'children'])
+        ->name('categories.children');
     Route::resource('categories.subcategories', SubcategoryController::class)->except(['index']);
     Route::resource('brands', BrandController::class);
+    Route::resource('brand-categories', BrandCategoryController::class);
     Route::resource('units', UnitController::class);
     Route::resource('unit-types', UnitTypeController::class);
     Route::resource('unit-types.units', UnitController::class)->except(['index', 'show']);
@@ -114,3 +138,8 @@ Route::prefix('seller')->middleware(['auth', 'role:seller'])->name('seller.')->g
 
 
 Route::get('/{slug}', [HomeController::class, 'productDetails'])->name('product.details');
+
+Route::middleware(['auth', 'role:user'])->group(function () {
+    Route::resource('wishlist', WishlistController::class)
+        ->only(['index', 'store', 'destroy']);
+});

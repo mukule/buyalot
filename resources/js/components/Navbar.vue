@@ -5,8 +5,16 @@ import { Heart, Menu, Search, ShoppingCart, X } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
 import type { AppPageProps } from '@/types';
+
+// Page props
 const page = usePage<AppPageProps>();
+
+// User object
 const user = computed(() => page.props.auth?.user);
+
+const wishlistCount = computed<number>(() => page.props.auth?.counts?.wishlist ?? 0);
+
+const cartCount = computed<number>(() => page.props.auth?.counts?.cart ?? 0);
 
 const userInitials = computed(() => {
     if (!user.value?.name) return '';
@@ -17,13 +25,8 @@ const userInitials = computed(() => {
         .toUpperCase();
 });
 
-const browseDropdownOpen = ref(false);
-const userDropdownOpen = ref(false);
 const mobileMenuOpen = ref(false);
 const showCategories = ref(false);
-
-const browseCloseTimeout = ref<number | null>(null);
-const userCloseTimeout = ref<number | null>(null);
 
 const topLinks = [
     { name: 'Help Center', href: '/help' },
@@ -63,33 +66,6 @@ const categoryLinks = [
     'Games',
     'Music',
 ];
-
-function openDropdown(dropdown: 'browse' | 'user') {
-    const timeoutRef = dropdown === 'browse' ? browseCloseTimeout : userCloseTimeout;
-    clearTimeout(timeoutRef.value!);
-
-    if (dropdown === 'browse') {
-        browseDropdownOpen.value = true;
-    } else {
-        userDropdownOpen.value = true;
-    }
-}
-
-function closeDropdownWithDelay(dropdown: 'browse' | 'user') {
-    const timeout = window.setTimeout(() => {
-        if (dropdown === 'browse') {
-            browseDropdownOpen.value = false;
-        } else {
-            userDropdownOpen.value = false;
-        }
-    }, 300);
-
-    if (dropdown === 'browse') {
-        browseCloseTimeout.value = timeout;
-    } else {
-        userCloseTimeout.value = timeout;
-    }
-}
 
 function toggleMobileMenu() {
     mobileMenuOpen.value = !mobileMenuOpen.value;
@@ -145,21 +121,39 @@ function logout() {
                     <span v-if="index < authLinks.length - 1" class="text-gray-400">|</span>
                 </template>
 
-                <!-- Icons -->
-                <button class="relative flex items-center justify-center rounded-full bg-secondary p-2">
+                <Link href="/wishlist" class="relative flex items-center justify-center rounded-full bg-secondary p-2">
                     <Heart class="h-4 w-4 text-white" />
-                </button>
+                    <span
+                        v-if="wishlistCount > 0"
+                        class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white"
+                    >
+                        {{ wishlistCount }}
+                    </span>
+                </Link>
 
+                <!-- Cart Icon -->
                 <button class="relative">
                     <ShoppingCart class="h-6 w-6 text-primary" />
                     <span class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white">
-                        0
+                        {{ cartCount }}
                     </span>
                 </button>
             </nav>
 
             <!-- Mobile Right Controls -->
             <div class="flex items-center space-x-4 md:hidden">
+                <!-- Wishlist -->
+                <Link href="/wishlist" class="relative flex items-center justify-center rounded-full bg-secondary p-2">
+                    <Heart class="h-5 w-5 text-white" />
+                    <span
+                        v-if="wishlistCount > 0"
+                        class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white"
+                    >
+                        {{ wishlistCount }}
+                    </span>
+                </Link>
+
+                <!-- Cart -->
                 <button class="relative" aria-label="Shopping cart">
                     <ShoppingCart class="h-6 w-6 text-primary" />
                     <span class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white">
@@ -167,6 +161,7 @@ function logout() {
                     </span>
                 </button>
 
+                <!-- Mobile Menu Toggle -->
                 <button
                     @click="toggleMobileMenu"
                     class="inline-flex items-center justify-center rounded-md p-2 text-gray-700 hover:bg-gray-100 focus:ring-2 focus:ring-secondary focus:outline-none focus:ring-inset"
@@ -253,22 +248,6 @@ function logout() {
                                 {{ category }}
                             </button>
                         </div>
-                    </div>
-
-                    <!-- Icons -->
-                    <div class="flex space-x-6 px-3">
-                        <button class="flex items-center justify-center rounded-full bg-secondary p-2" aria-label="Favorites">
-                            <Heart class="h-5 w-5 text-white" />
-                        </button>
-
-                        <button class="relative" aria-label="Shopping cart">
-                            <ShoppingCart class="h-6 w-6 text-primary" />
-                            <span
-                                class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white"
-                            >
-                                0
-                            </span>
-                        </button>
                     </div>
                 </div>
             </nav>
