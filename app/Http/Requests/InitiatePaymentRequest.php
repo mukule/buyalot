@@ -14,10 +14,10 @@ use Illuminate\Validation\Rule;
  */
 class InitiatePaymentRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
+//    public function authorize(): bool
+//    {
+//        return true;
+//    }
 
     public function rules(): array
     {

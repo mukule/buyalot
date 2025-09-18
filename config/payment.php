@@ -46,7 +46,7 @@ return [
     'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
     ],
 
-    // TODO Add other providers here
+    // TODO Add other providers
 ],
 ];
 

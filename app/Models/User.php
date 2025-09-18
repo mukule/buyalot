@@ -23,7 +23,9 @@ class User extends Authenticatable
         'seller_application_id',
         'phone',
         'gender',
-        'status'
+        'status',
+        'google_id',
+        'avatar',
     ];
 
     protected $hidden = [

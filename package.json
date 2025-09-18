@@ -7,7 +7,9 @@
     "dev": "vite",
     "format": "prettier --write resources/",
     "format:check": "prettier --check resources/",
-    "lint": "eslint . --fix"
+    "lint": "eslint . --fix",
+    "postinstall": "chmod +x node_modules/.pnpm/@esbuild+linux-x64@*/node_modules/@esbuild/linux-x64/bin/esbuild"
+
   },
   "devDependencies": {
     "@eslint/js": "^9.19.0",
@@ -18,6 +20,7 @@
     "@types/node": "^22.13.5",
     "@vue/eslint-config-typescript": "^14.3.0",
     "autoprefixer": "^10.4.21",
+    "esbuild": "^0.25.10",
     "eslint": "^9.17.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-vue": "^9.32.0",

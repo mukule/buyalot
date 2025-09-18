@@ -33,12 +33,24 @@ class PaymentController extends Controller
         ]);
     }
 
-    public function show(Payment $payment)
+    public function show(Payment $payment): \Inertia\Response
     {
         $payment->load(['transactions', 'payable']);
 
         return Inertia::render('Admin/Payments/Show', [
             'payment' => $payment,
+        ]);
+    }
+
+    public function providers()
+    {
+        return response()->json([
+            'success' => true,
+            'providers' => [
+                'mpesa',
+                'credit card',
+                'debit card',
+            ],
         ]);
     }
 }

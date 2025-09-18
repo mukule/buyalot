@@ -3,9 +3,12 @@
 namespace App\Exceptions;
 
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Spatie\Permission\Exceptions\UnauthorizedException;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Throwable;
 
 class Handler extends ExceptionHandler
@@ -140,5 +143,28 @@ class Handler extends ExceptionHandler
         }
 
         return $suggestedActions;
+    }
+
+    public function render($request, Throwable $e): JsonResponse|Response
+    {
+        if ($request->is('api/*')) {
+            $status = $e instanceof HttpExceptionInterface
+                ? $e->getStatusCode()
+                : 500;
+
+            $response = [
+                'success' => false,
+                'message' => $e->getMessage() ?: 'Server Error',
+            ];
+
+            if ($e instanceof ValidationException) {
+                $response['errors'] = $e->errors();
+                $status = $e->status;
+            }
+
+            return new JsonResponse($response, $status);
+        }
+
+        return parent::render($request, $e);
     }
 }

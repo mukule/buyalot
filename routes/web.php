@@ -21,6 +21,7 @@ use App\Http\Controllers\Customer\CustomerLoyaltyPointController;
 use App\Http\Controllers\Customer\CustomerReferralController;
 use App\Http\Controllers\Customer\CustomerSupportTicketController;
 use App\Http\Controllers\Customer\CustomerWishlistsController;
+use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\Payments\PaymentController;
 use App\Http\Controllers\SellController;
 use App\Http\Controllers\SellerAccountController;
@@ -46,7 +47,6 @@ Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard']
     })->name('dashboard');
     Route::resource('products', ProductController::class);
 });
-
 
 Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group(function () {
 
