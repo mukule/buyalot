@@ -15,12 +15,25 @@ use App\Http\Controllers\Admin\WarehouseController;
 use App\Http\Controllers\Commission\CommissionCalculationController;
 use App\Http\Controllers\Commission\CommissionInvoiceController;
 use App\Http\Controllers\Commission\CommissionPlanController;
+use App\Http\Controllers\Customer\CustomerAddressController;
+use App\Http\Controllers\Customer\CustomerController;
+use App\Http\Controllers\Customer\CustomerLoyaltyPointController;
+use App\Http\Controllers\Customer\CustomerReferralController;
+use App\Http\Controllers\Customer\CustomerSupportTicketController;
+use App\Http\Controllers\Customer\CustomerWishlistsController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Payments\PaymentController;
 use App\Http\Controllers\SellController;
 use App\Http\Controllers\SellerAccountController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Http\Controllers\Admin\VariantController;
+use App\Http\Controllers\Admin\BrandCategoryController;
+use App\Http\Controllers\Admin\ProductStatusController;
+use App\Http\Controllers\Admin\WarrantyController;
+use App\Http\Controllers\WishlistController;
+use App\Http\Controllers\CartController;
+use App\Http\Controllers\Admin\RegionController;
 
 
 require __DIR__.'/settings.php';
@@ -32,16 +45,31 @@ require __DIR__.'/customer.php';
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
 
-
 Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', function () {
         return Inertia::render('Dashboard');
     })->name('dashboard');
+
+    Route::delete('products/destroy-all', [ProductController::class, 'destroyAll'])
+        ->name('products.destroyAll');
+
     Route::resource('products', ProductController::class);
+
+    // Delete a single product image
+    Route::delete('products/{product}/images/{imageId}', [ProductController::class, 'destroyImage'])
+        ->name('products.images.destroy');
+    Route::resource('products.warranties', WarrantyController::class)->except(['index']);
+
+    // Update product status
+    Route::patch('products/{product}/status', [ProductController::class, 'updateStatus'])
+        ->name('products.updateStatus');
+
+    Route::patch('warranties/{warranty}/toggle-active', [WarrantyController::class, 'toggleActive'])
+    ->name('warranties.toggleActive');
+
 });
 
 Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group(function () {
-
     require __DIR__ . '/roles_permissions.php';
 
     Route::prefix('users')->name('users.')->group(function () {
@@ -108,13 +136,18 @@ Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group
     });
 
     Route::resource('warehouses', WarehouseController::class);
+    Route::resource('product-statuses', ProductStatusController::class);
     Route::resource('categories', CategoryController::class);
+    Route::get('/categories/{category}/children', [CategoryController::class, 'children'])
+        ->name('categories.children');
     Route::resource('categories.subcategories', SubcategoryController::class)->except(['index']);
     Route::resource('brands', BrandController::class);
+    Route::resource('brand-categories', BrandCategoryController::class);
     Route::resource('units', UnitController::class);
     Route::resource('unit-types', UnitTypeController::class);
     Route::resource('unit-types.units', UnitController::class)->except(['index', 'show']);
     Route::resource('variant-categories', VariantCategoryController::class);
+    Route::resource('regions', RegionController::class);
 
 
     Route::resource('payments', PaymentController::class);
@@ -159,8 +192,46 @@ Route::prefix('seller')->middleware(['auth', 'role:seller'])->name('seller.')->g
 
 });
 
-
-
 Route::get('/{slug}', [HomeController::class, 'productDetails'])->name('product.details');
 
 
+Route::get('products/{slug}', [HomeController::class, 'productDetails'])->name('product.details');
+
+
+
+Route::resource('wishlist', WishlistController::class)
+    ->only(['index', 'store', 'destroy']);
+
+
+
+Route::resource('customers', CustomerController::class);
+Route::get('customers/{customer}/dashboard', [CustomerController::class, 'dashboard'])->name('customers.dashboard');
+
+Route::resource('customers.addresses', CustomerAddressController::class)->except(['index']);
+Route::get('customers/{customer}/addresses', [CustomerAddressController::class, 'index'])->name('customers.addresses.index');
+Route::post('customers/{customer}/addresses/{address}/make-default', [CustomerAddressController::class, 'makeDefault'])->name('customers.addresses.make-default');
+
+Route::resource('customers.loyalty-points', CustomerLoyaltyPointController::class)->only(['index']);
+Route::post('customers/{customer}/loyalty-points/award', [CustomerLoyaltyPointController::class, 'award'])->name('customers.loyalty-points.award');
+Route::post('customers/{customer}/loyalty-points/redeem', [CustomerLoyaltyPointController::class, 'redeem'])->name('customers.loyalty-points.redeem');
+
+Route::resource('customers.referrals', CustomerReferralController::class)->except(['edit', 'update', 'destroy']);
+Route::resource('customers.support-tickets', CustomerSupportTicketController::class)->except(['edit', 'destroy']);
+Route::resource('customers.wishlist', CustomerWishlistsController::class)->only(['index', 'store', 'update', 'destroy']);
+
+
+
+Route::prefix('cart')->name('cart.')->group(function () {
+
+    Route::get('/', [CartController::class, 'index'])->name('index');
+
+
+    Route::post('/', [CartController::class, 'store'])->name('store');
+    Route::delete('', [CartController::class, 'clear'])->name('clear');
+});
+
+
+
+
+Route::get('/category/{slug}', [HomeController::class, 'category'])
+    ->name('category.show');

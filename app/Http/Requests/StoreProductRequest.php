@@ -6,41 +6,87 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class StoreProductRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
+    
     public function authorize(): bool
     {
-        return true; // Allow the request to proceed
+        return true; 
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
-     */
+   
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('variant_categories') && is_string($this->variant_categories)) {
+            $this->merge([
+                'variant_categories' => json_decode($this->variant_categories, true) ?? [],
+            ]);
+        }
+
+        if ($this->has('variant_rows') && is_string($this->variant_rows)) {
+            $this->merge([
+                'variant_rows' => json_decode($this->variant_rows, true) ?? [],
+            ]);
+        }
+    }
+
+   
     public function rules(): array
     {
+        $step = (int) $this->input('step', 1);
+
+        return match ($step) {
+           
+            1 => [
+                'product_code'   => 'nullable|string|max:100|unique:products,product_code',
+                'name'           => 'required|string|max:255',
+                'brand_id'       => 'required|exists:brands,id',
+                'category_id'    => 'required|exists:categories,id', 
+                'unit_id'        => 'required|exists:units,id',
+            ],
+
+           
+            2 => [
+                'description'       => 'nullable|string',
+                'features'          => 'nullable|string',
+                'specifications'    => 'nullable|string',
+                'whats_in_the_box'  => 'nullable|string',
+                'meta_title'        => 'nullable|string|max:255',
+                'meta_keywords'     => 'nullable|string|max:255',
+                'meta_description'  => 'nullable|string',
+            ],
+
+            // Step 3: Variants
+            3 => [
+                'variant_categories' => 'required|array|min:1',
+                'variant_categories.*.id'   => 'required|integer|exists:variant_categories,id',
+                'variant_categories.*.name' => 'required|string|max:255',
+
+                'variant_rows' => 'required|array|min:1',
+                'variant_rows.*.values'        => 'required|array',
+                'variant_rows.*.regular_price' => 'required|numeric|min:0',
+                'variant_rows.*.selling_price' => 'required|numeric|min:0',
+                'variant_rows.*.stock'         => 'required|integer|min:0',
+            ],
+
+            // Step 4: Images
+            4 => [
+                'images'   => 'nullable|array',
+                'images.*' => 'image|mimes:jpg,jpeg,png,gif,webp|max:10240',
+                'primary_image_index' => 'nullable|integer|min:0',
+            ],
+
+            // Default: no validation
+            default => [],
+        };
+    }
+
+    
+    public function messages(): array
+    {
         return [
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'features' => 'nullable|string',
-            'specifications' => 'nullable|string',
-            'whats_in_the_box' => 'nullable|string',
-            'meta_title' => 'nullable|string|max:255',
-            'meta_keywords' => 'nullable|string|max:255',
-            'meta_description' => 'nullable|string',
-            'brand_id' => 'nullable|exists:brands,id',
-            'subcategory_id' => 'nullable|exists:subcategories,id',
-            'unit_id' => 'nullable|exists:units,id',
-            'stock' => 'required|integer|min:0',
-            'variants' => 'nullable|string',
-            'variant_categories' => 'nullable|string',
-            'images' => 'nullable|array',
-            'images.*' => 'image|mimes:jpg,jpeg,png,gif,webp|max:10240',
-            'primary_image_index' => 'nullable|integer',
-            'price' => 'required|numeric|min:0',
-            'discount' => 'nullable|numeric|min:0|max:100',
+            'variant_rows.*.values.required'        => 'Each variant row must have values.',
+            'variant_rows.*.regular_price.required' => 'Each variant row must have a regular price.',
+            'variant_rows.*.selling_price.required' => 'Each variant row must have a selling price.',
+            'variant_rows.*.stock.required'         => 'Each variant row must have a stock quantity.',
         ];
     }
 }

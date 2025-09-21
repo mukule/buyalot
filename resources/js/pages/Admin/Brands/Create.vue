@@ -3,12 +3,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link } from '@inertiajs/vue3';
 import axios from 'axios';
-import { computed, ref, watch } from 'vue';
-
-const props = defineProps<{
-    categories: { id: number; name: string }[];
-    subcategories: { id: number; name: string; category_id: number }[];
-}>();
+import { ref } from 'vue';
 
 const title = 'Create Brand';
 
@@ -20,18 +15,11 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 const logoFile = ref<File | null>(null);
 const logoPreview = ref<string | null>(null);
+const submitting = ref(false); // track submission state
 
 const form = ref({
     name: '',
     active: true,
-    category_id: '' as string | number,
-    subcategory_id: '' as string | number,
-});
-
-// Filter subcategories based on selected category
-const filteredSubcategories = computed(() => {
-    if (!form.value.category_id) return [];
-    return props.subcategories.filter((sub) => sub.category_id === Number(form.value.category_id));
 });
 
 function onLogoChange(event: Event) {
@@ -46,23 +34,14 @@ function onLogoChange(event: Event) {
     }
 }
 
-// Clear subcategory when category changes
-watch(
-    () => form.value.category_id,
-    () => {
-        form.value.subcategory_id = '';
-    },
-);
-
 async function submit() {
+    if (submitting.value) return; // prevent double submission
+    submitting.value = true;
+
     const formData = new FormData();
     formData.append('name', form.value.name);
     formData.append('active', form.value.active ? '1' : '0');
-    if (form.value.category_id) formData.append('category_id', String(form.value.category_id));
-    if (form.value.subcategory_id) formData.append('subcategory_id', String(form.value.subcategory_id));
-    if (logoFile.value) {
-        formData.append('logo_path', logoFile.value);
-    }
+    if (logoFile.value) formData.append('logo_path', logoFile.value);
 
     try {
         await axios.post('/admin/brands', formData, {
@@ -75,6 +54,8 @@ async function submit() {
         } else {
             console.error('Unexpected error:', error);
         }
+    } finally {
+        submitting.value = false; // reset submission state
     }
 }
 </script>
@@ -105,42 +86,6 @@ async function submit() {
                         />
                     </div>
 
-                    <!-- Category Select -->
-                    <div class="flex gap-4">
-                        <!-- Category Select -->
-                        <div class="flex-1">
-                            <label for="category" class="mb-1 block font-semibold">Category*</label>
-                            <select
-                                id="category"
-                                v-model="form.category_id"
-                                required
-                                class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:ring-2 focus:ring-[color:var(--primary)] focus:outline-none"
-                            >
-                                <option value="" disabled>Select a category</option>
-                                <option v-for="category in props.categories" :key="category.id" :value="category.id">
-                                    {{ category.name }}
-                                </option>
-                            </select>
-                        </div>
-
-                        <!-- Subcategory Select -->
-                        <div class="flex-1">
-                            <label for="subcategory" class="mb-1 block font-semibold">Subcategory*</label>
-                            <select
-                                id="subcategory"
-                                v-model="form.subcategory_id"
-                                required
-                                :disabled="!form.category_id"
-                                class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:ring-2 focus:ring-[color:var(--primary)] focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100"
-                            >
-                                <option value="" disabled>Select a subcategory</option>
-                                <option v-for="subcategory in filteredSubcategories" :key="subcategory.id" :value="subcategory.id">
-                                    {{ subcategory.name }}
-                                </option>
-                            </select>
-                        </div>
-                    </div>
-
                     <!-- Logo Upload -->
                     <div>
                         <label for="logo" class="mb-1 block font-semibold">Brand Logo (optional)</label>
@@ -158,11 +103,22 @@ async function submit() {
                         </div>
                     </div>
 
+                    <div class="flex items-center space-x-2">
+                        <input
+                            type="checkbox"
+                            id="active"
+                            v-model="form.active"
+                            class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                        />
+                        <label for="active" class="font-semibold">Active</label>
+                    </div>
+
                     <button
                         type="submit"
-                        class="rounded bg-[color:var(--primary)] px-4 py-2 text-white transition-colors duration-200 hover:bg-[color:var(--secondary)] hover:text-[color:var(--secondary-foreground)]"
+                        :disabled="submitting"
+                        class="rounded bg-[color:var(--primary)] px-4 py-2 text-white transition-colors duration-200 hover:bg-[color:var(--secondary)] hover:text-[color:var(--secondary-foreground)] disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                        Submit
+                        {{ submitting ? 'Submitting...' : 'Submit' }}
                     </button>
                 </form>
             </div>

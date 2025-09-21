@@ -2,26 +2,27 @@
 import NavMain from '@/components/NavMain.vue';
 import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
+import { usePermissions } from '@/composables/usePermissions';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/vue3';
-import { usePermissions } from '@/composables/usePermissions';
 import {
     BookUserIcon,
     ClipboardList,
     FileCheck,
-    FileUser,
     KeyRound,
     LayoutGrid,
     ListChecks,
     Lock,
     LucideListOrdered,
+    MapPin,
+    MapPinCheck,
     RulerIcon,
     ShieldCheck,
     Tag,
     UserCog2Icon,
     Users,
     Wallet2Icon,
-    WalletCards,
+    Workflow,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from './AppLogo.vue';
@@ -133,6 +134,12 @@ const allNavItems: NavItem[] = [
                 icon: ClipboardList,
                 permissions: ['view-products', 'manage-product-inventory'],
             },
+
+            {
+                title: 'Product Statuses',
+                href: '/admin/product-statuses',
+                icon: Workflow, // or Flag
+            },
         ],
     },
     {
@@ -185,15 +192,22 @@ const allNavItems: NavItem[] = [
             },
         ],
     },
-];
 
-// const mainNavItems = computed(() => {
-//     if (roles.value.includes('seller')) {
-//         return allNavItems.filter((item) => ['Dashboard', 'Account'].includes(item.title));
-//     }
-//
-//     return allNavItems.filter((item) => item.title !== 'Account');
-// });
+    {
+        title: 'Delivery Address',
+        href: 'null',
+        icon: MapPinCheck,
+        permissions: ['view-regions'],
+        children: [
+            {
+                title: 'Regions',
+                href: '/admin/regions',
+                icon: MapPin,
+                permissions: ['view-regions'],
+            },
+        ],
+    },
+];
 
 const filterNavItems = (items: NavItem[]): NavItem[] => {
     return items.filter((item) => {
