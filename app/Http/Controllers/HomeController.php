@@ -18,6 +18,7 @@ public function index()
 //    if ($permissionCheck) {
 //        return $permissionCheck;
 //    }
+    try{
     $categories = Category::with('subcategories')->get();
     $brands = Brand::all();
 
@@ -39,6 +40,21 @@ public function index()
         'brands'             => $brands,
         'productsByCategory' => $productsByCategory,
     ]);
+    } catch (\Exception $e) {
+        \Log::error('Error in index method', [
+            'message' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+        ]);
+
+        // Return a simple fallback
+        return Inertia::render('Frontend/Index', [
+            'title' => 'Online Shopping Store',
+            'categories' => [],
+            'brands' => [],
+            'productsByCategory' => [],
+        ]);
+    }
 }
 
 

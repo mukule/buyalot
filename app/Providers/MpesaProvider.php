@@ -11,6 +11,7 @@ use App\Models\Payment\PaymentTransaction;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Mockery\Exception;
 
 class MpesaProvider implements PaymentProviderInterface
 {
@@ -224,41 +225,54 @@ class MpesaProvider implements PaymentProviderInterface
             $this->config['passkey'] .
             $timestamp
         );
+        info("initiated stk push: " .$timestamp);
+        info("M-Pesa payment id: " . $payment->id);
+        info("business_short_code ".$this->config['business_short_code']);
 
-        $response = Http::withToken($this->accessToken)
-            ->timeout(30)
-            ->post($this->config['stk_push_url'], [
-                'BusinessShortCode' => $this->config['business_short_code'],
-                'Password' => $password,
-                'Timestamp' => $timestamp,
-                'TransactionType' => 'CustomerPayBillOnline',
-                'Amount' => (int) $payment->amount,
-                'PartyA' => $phone,
-                'PartyB' => $this->config['business_short_code'],
-                'PhoneNumber' => $phone,
-                'CallBackURL' => $this->config['callback_url'],
-                'AccountReference' => $payment->ulid,
-                'TransactionDesc' => $this->config['transaction_desc'] ?? "Payment for {$payment->ulid}",
-            ]);
-
-        if ($response->successful()) {
-            $data = $response->json();
-            if (isset($data['ResponseCode']) && $data['ResponseCode'] == '0') {
-                return ['success' => true, 'data' => $data];
-            } else {
-                return [
-                    'success' => false,
-                    'message' => $data['errorMessage'] ?? 'STK push failed',
-                    'data' => $data
-                ];
+        try {
+            $response = Http::withToken($this->accessToken)
+                ->timeout(60)
+                ->post($this->config['stk_push_url'], [
+                    'BusinessShortCode' => $this->config['business_short_code'],
+                    'Password' => $password,
+                    'Timestamp' => $timestamp,
+                    'TransactionType' => 'CustomerPayBillOnline',
+                    'Amount' => (int)$payment->amount,
+                    'PartyA' => $phone,
+                    'PartyB' => $this->config['business_short_code'],
+                    'PhoneNumber' => $phone,
+                    'CallBackURL' => $this->config['callback_url'],
+                    'AccountReference' => $payment->ulid,
+                    'TransactionDesc' => $this->config['transaction_desc'] ?? "Payment for {$payment->ulid}",
+                ]);
+            info("initiated stk push response");
+            info($response->body());
+            if ($response->successful()) {
+                $data = $response->json();
+                if (isset($data['ResponseCode']) && $data['ResponseCode'] == '0') {
+                    return ['success' => true, 'data' => $data];
+                } else {
+                    return [
+                        'success' => false,
+                        'message' => $data['errorMessage'] ?? 'STK push failed',
+                        'data' => $data
+                    ];
+                }
             }
-        }
 
-        return [
-            'success' => false,
-            'message' => 'Failed to connect to M-Pesa',
-            'data' => $response->json()
-        ];
+            return [
+                'success' => false,
+                'message' => 'Failed to connect to M-Pesa',
+                'data' => $response->body()
+            ];
+        }catch (Exception $ex){
+            \Illuminate\Log\log($ex);
+            return [
+                'success' => false,
+                'message' => 'Failed to connect to M-Pesa',
+                'data' => $ex->getMessage()
+            ];
+    }
     }
 
     private function queryTransaction(string $checkoutRequestId): array

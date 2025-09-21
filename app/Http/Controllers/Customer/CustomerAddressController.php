@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Customer;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CustomerAddressRequest;
 use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerAddress;
 

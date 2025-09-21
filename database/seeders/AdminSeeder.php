@@ -20,9 +20,22 @@ class AdminSeeder extends Seeder
             'phone' =>'0704122212',
             'password' => bcrypt('123456'),
             'email_verified_at' => now(),
+            'status' => true,
+            'gender' => 'male'
+        ]);
+        $user->assignRole('admin');
+
+        $user2 = User::factory()->create([
+            'name' => 'Steven Maina',
+            'email' => 'stevenmaina17@gmail.com',
+            'phone' =>'0710767015',
+            'password' => bcrypt('password'),
+            'email_verified_at' => now(),
+            'status' => true,
+            'gender' => 'male'
         ]);
 
 
-        $user->assignRole('admin');
+        $user2->assignRole('admin');
     }
 }

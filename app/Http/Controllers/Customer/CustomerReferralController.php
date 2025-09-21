@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Customer;
 use App\Http\Controllers\Controller;
 use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerReferral;
+use App\Services\ReferralService;
 use Illuminate\Http\Request;
 
 class CustomerReferralController extends Controller

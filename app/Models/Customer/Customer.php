@@ -2,45 +2,145 @@
 
 namespace App\Models\Customer;
 
+use App\Events\CustomerRegistered;
 use App\Models\Commission\CommissionCalculation;
 use App\Models\Orders\Order;
 use App\Models\Traits\HasHashid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-class Customer extends Model
+class Customer extends Authenticatable
 {
-    use HasFactory, SoftDeletes, HasApiTokens, HasHashid;
+    use Notifiable, SoftDeletes, HasApiTokens, HasHashid;
+
+    use HasFactory, Notifiable, SoftDeletes;
+
+    protected $guard = 'customer';
 
     protected $fillable = [
-        'first_name', 'last_name', 'email', 'phone', 'date_of_birth',
-        'gender', 'customer_type', 'status', 'email_verified_at',
-        'phone_verified_at', 'avatar', 'language', 'timezone',
-        'marketing_consent', 'last_login_at', 'registration_source',
-        'customer_since', 'notes'
-    ];
-
-    protected $casts = [
-        'date_of_birth' => 'date',
-        'email_verified_at' => 'datetime',
-        'phone_verified_at' => 'datetime',
-        'marketing_consent' => 'boolean',
-        'last_login_at' => 'datetime',
-        'customer_since' => 'datetime',
+        'customer_code', 'first_name', 'last_name', 'email', 'phone',
+        'date_of_birth', 'gender', 'profile_photo', 'customer_type', 'status',
+        'acquisition_source', 'referrer_url', 'password', 'email_verified_at',
+        'remember_token', 'last_login_at', 'google_id', 'avatar', 'provider',
+        'provider_verified_at'
     ];
 
     protected $hidden = [
-        'remember_token',
+        'password', 'remember_token',
     ];
 
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+        'last_login_at' => 'datetime',
+        'date_of_birth' => 'date',
+        'provider_verified_at' => 'datetime',
+    ];
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($customer) {
+            if (empty($customer->customer_code)) {
+                $customer->customer_code = self::generatecustomerCode();
+            }
+        });
+
+        static::created(function ($customer) {
+            event(new CustomerRegistered($customer));
+        });
+    }
+
+    public static function generatecustomerCode(): string
+    {
+        $lastCustomer = self::withTrashed()
+            ->whereNotNull('customer_code')
+            ->orderByRaw('CAST(SUBSTRING(customer_code, 3) AS UNSIGNED) DESC')
+            ->first();
+
+        if (!$lastCustomer) {
+            return 'CU001';
+        }
+
+        $lastNumber = (int) substr($lastCustomer->customer_code, 2);
+        $nextNumber = $lastNumber + 1;
+
+        return 'CU' . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
+    }
+
     // Relationships
-    public function addresses(): HasMany
+    public function businessInfo()
+    {
+        return $this->hasOne(CustomerBusinessInfo::class);
+    }
+
+    public function segments()
+    {
+        return $this->belongsToMany(CustomerSegment::class, 'customer_segment_assignments')
+            ->withPivot('assigned_at', 'expires_at')
+            ->withTimestamps();
+    }
+
+    public function tags()
+    {
+        return $this->belongsToMany(CustomerTag::class, 'customer_tag_assignments')
+            ->withTimestamps();
+    }
+
+    public function marketingPreferences()
+    {
+        return $this->hasOne(CustomerMarketingPreferences::class);
+    }
+
+    public function statistics()
+    {
+        return $this->hasOne(CustomerStatistics::class);
+    }
+
+    public function acquisitionData()
+    {
+        return $this->hasOne(CustomerAcquisitionData::class);
+    }
+
+    public function metadata()
+    {
+        return $this->hasMany(CustomerMetadata::class);
+    }
+
+    public function addresses()
     {
         return $this->hasMany(CustomerAddress::class);
+    }
+
+    // Helper methods
+    public function getFullNameAttribute(): string
+    {
+        return trim($this->first_name . ' ' . $this->last_name);
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status === 'active';
+    }
+
+    public function isBusiness(): bool
+    {
+        return $this->customer_type === 'business';
+    }
+
+    public function getDefaultAddress()
+    {
+        return $this->addresses()->where('is_default', true)->first();
+    }
+
+    public function acceptsMarketing(): bool
+    {
+        return $this->marketingPreferences?->accepts_marketing ?? false;
     }
 
     public function defaultAddress(): HasOne
@@ -78,28 +178,11 @@ class Customer extends Model
         return $this->hasMany(CustomerSupportTicket::class);
     }
 
-    public function wishlistItems(): HasMany
-    {
-        return $this->hasMany(CustomerWishlistItem::class);
-    }
-
     public function commissionCalculations(): HasMany
     {
         return $this->hasMany(CommissionCalculation::class);
     }
 
-    // Accessors & Mutators
-    public function getFullNameAttribute(): string
-    {
-        return trim($this->first_name . ' ' . $this->last_name);
-    }
-
-    public function getInitialsAttribute(): string
-    {
-        return strtoupper(substr($this->first_name, 0, 1) . substr($this->last_name, 0, 1));
-    }
-
-    // Scopes
     public function scopeActive($query)
     {
         return $query->where('status', 'active');

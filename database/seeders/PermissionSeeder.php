@@ -334,5 +334,11 @@ class PermissionSeeder extends Seeder
             'edit-user-profile',
         ])->get();
         $user->givePermissionTo($userPermissions);
+
+        $customer = Role::firstOrCreate([
+            'name' => 'customer',
+            'guard_name' => 'web'
+        ]);
+        $customerPermissions = Permission::whereIn('name', ['view-user-profile','edit-user-profile']);
     }
 }

@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Customer;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CustomerRequest;
 use App\Models\Customer\Customer;
+use App\Services\CustomerService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -29,7 +31,7 @@ class CustomerController extends Controller
             ->latest()
             ->paginate(20);
 
-        return Inertia::render('customers.index', compact('customers'));
+        return Inertia::render('customers/index', compact('customers'));
     }
 
     public function show(Customer $customer)
@@ -41,12 +43,12 @@ class CustomerController extends Controller
 
         $stats = $this->customerService->getCustomerStats($customer);
 
-        return Inertia::render('customers.show', compact('customer', 'stats'));
+        return Inertia::render('customers/show', compact('customer', 'stats'));
     }
 
     public function create()
     {
-        return Inertia::render('customers.create');
+        return Inertia::render('customers/create');
     }
 
     public function store(CustomerRequest $request)
@@ -59,7 +61,7 @@ class CustomerController extends Controller
 
     public function edit(Customer $customer)
     {
-        return Inertia::render('customers.edit', compact('customer'));
+        return Inertia::render('customers/edit', compact('customer'));
     }
 
     public function update(CustomerRequest $request, Customer $customer)
@@ -81,6 +83,6 @@ class CustomerController extends Controller
     public function dashboard(Customer $customer)
     {
         $stats = $this->customerService->getDashboardStats($customer);
-        return Inertia::render('customers.dashboard', compact('customer', 'stats'));
+        return Inertia::render('customers/dashboard', compact('customer', 'stats'));
     }
 }

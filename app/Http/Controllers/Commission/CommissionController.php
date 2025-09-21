@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Commission;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CommissionPlanRequest;
 use App\Models\Commission\CommissionPlan;
 
 class CommissionController extends Controller

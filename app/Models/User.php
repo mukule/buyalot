@@ -2,8 +2,7 @@
 
 namespace App\Models;
 
-use App\Models\SellerApplication;
-use App\Models\SellerDocument;
+
 use App\Notifications\UserRegistered;
 use App\Traits\CalculatesCommissions;
 use App\Traits\HasCommissions;

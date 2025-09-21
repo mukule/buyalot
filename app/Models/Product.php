@@ -12,7 +12,7 @@ class Product extends Model
 {
     use HasSlug, HasHashid;
 
-    
+
     protected static string $slugSource = 'name';
 
     protected $fillable = [
@@ -55,7 +55,7 @@ class Product extends Model
         'status' => 'integer',
     ];
 
-    
+
 
     public function getImageUrlsAttribute(): array
     {
@@ -82,11 +82,14 @@ class Product extends Model
 
     public function getDiscountedPriceAttribute(): float
     {
-        if ($this->has_discount) {
-            return round($this->price * (1 - ($this->discount / 100)), 2);
+        $price = (float) ($this->price ?? 0);
+        $discount = (float) ($this->discount ?? 0);
+
+        if ($this->has_discount && $discount > 0) {
+            return round($price * (1 - ($discount / 100)), 2);
         }
 
-        return $this->price;
+        return $price;
     }
 
     public function getInStockAttribute(): bool

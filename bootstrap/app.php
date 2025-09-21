@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Middleware\CheckPermission;
+use App\Http\Middleware\ForceJsonResponse;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ShareUserPermissions;
@@ -33,8 +35,6 @@ return Application::configure(basePath: dirname(__DIR__))
             AddLinkHeadersForPreloadedAssets::class,
             ShareSellerVerificationStatus::class,
             ShareUserPermissions::class,
-            \App\Http\Middleware\HandleInertiaRequests::class,
-            \App\Http\Middleware\ShareUserPermissions::class,
         ]);
 
          $middleware->alias([
@@ -43,11 +43,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'verified' => ShareSellerVerificationStatus::class,
              'permission' => PermissionMiddleware::class,
              'role_or_permission' => RoleOrPermissionMiddleware::class,
-             'check_permission' => \App\Http\Middleware\CheckPermission::class,
+             'check_permission' => CheckPermission::class,
          ]);
 
         $middleware->group('api', [
-            \App\Http\Middleware\ForceJsonResponse::class,
+            ForceJsonResponse::class,
         ]);
 
     })

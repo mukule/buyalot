@@ -27,7 +27,7 @@ class PaymentService
 
     public function createPayment(Model $payable, PaymentRequest $request): Payment
     {
-        return Payment::create([
+        $payment= Payment::create([
             'payable_type' => get_class($payable),
             'payable_id' => $payable->id,
             'amount' => $request->amount,
@@ -39,6 +39,9 @@ class PaymentService
             'metadata' => $request->metadata,
             'expires_at' => now()->addMinutes(config('payment.expiry_minutes', 15)),
         ]);
+        \Illuminate\Log\log($payment);
+
+        return $payment;
     }
 
     public function initializePayment(Payment $payment, PaymentRequest $request): PaymentResponse

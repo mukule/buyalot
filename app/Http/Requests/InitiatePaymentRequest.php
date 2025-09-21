@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\Orders\Order;
 use App\Models\Payment\PaymentProvider;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
@@ -12,7 +13,7 @@ use Illuminate\Validation\Rule;
  * @method merge(array $array)
  * @method validated()
  */
-class InitiatePaymentRequest
+class InitiatePaymentRequest  extends FormRequest
 {
 //    public function authorize(): bool
 //    {

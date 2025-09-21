@@ -13,7 +13,6 @@ return new class extends Migration
     {
         Schema::create('orders', function (Blueprint $table) {
             $table->id();
-            $table->ulid('ulid')->unique();
             $table->string('order_code')->unique();
             $table->foreignId('customer_id')->constrained('customers')->onDelete('cascade');
             // Order Status
@@ -28,8 +27,8 @@ return new class extends Migration
             $table->decimal('discount_amount', 10, 2)->default(0);
             $table->decimal('total_amount', 10, 2);
             $table->string('currency', 3)->default('KES');
-            $table->json('billing_address')->nullable();
-            $table->json('shipping_address')->nullable();
+            $table->foreignId('billing_address_id')->nullable();
+            $table->foreignId('shipping_address_id')->nullable();
 
             $table->text('notes')->nullable();
             $table->json('metadata')->nullable(); // Custom fields, tracking info

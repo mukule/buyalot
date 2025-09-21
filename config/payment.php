@@ -7,14 +7,16 @@ return [
     | Default Currency
     |--------------------------------------------------------------------------
     */
-'default_currency' => env('PAYMENT_DEFAULT_CURRENCY', 'KES'),
+    'default_currency' => env('PAYMENT_DEFAULT_CURRENCY', 'KES'),
 
     /*
     |--------------------------------------------------------------------------
     | Payment Expiry (in minutes)
     |--------------------------------------------------------------------------
     */
-'expiry_minutes' => env('PAYMENT_EXPIRY_MINUTES', 15),
+    'expiry_minutes' => (int) env('PAYMENT_EXPIRY_MINUTES', 15),
+
+
 
     /*
     |--------------------------------------------------------------------------

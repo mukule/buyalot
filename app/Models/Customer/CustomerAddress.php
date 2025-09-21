@@ -7,8 +7,6 @@ use Illuminate\Database\Eloquent\Model;
 
 class CustomerAddress extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
         'customer_id', 'type', 'label', 'first_name', 'last_name',
         'company', 'address_line_1', 'address_line_2', 'city',
@@ -20,8 +18,29 @@ class CustomerAddress extends Model
         'is_default' => 'boolean',
         'coordinates' => 'array',
     ];
+    protected static function boot()
+    {
+        parent::boot();
 
-    // Relationships
+        static::creating(function ($address) {
+            if ($address->is_default) {
+                // Remove default from other addresses of the same customer and type
+                static::where('customer_id', $address->customer_id)
+                    ->where('type', $address->type)
+                    ->update(['is_default' => false]);
+            }
+        });
+
+        static::updating(function ($address) {
+            if ($address->is_default && $address->isDirty('is_default')) {
+                static::where('customer_id', $address->customer_id)
+                    ->where('type', $address->type)
+                    ->where('id', '!=', $address->id)
+                    ->update(['is_default' => false]);
+            }
+        });
+    }
+
     public function customer(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Customer::class);
@@ -61,4 +80,18 @@ class CustomerAddress extends Model
         $this->customer->addresses()->update(['is_default' => false]);
         $this->update(['is_default' => true]);
     }
+
+    public function getFormattedAddressAttribute(): string
+    {
+        $parts = [
+            $this->address_line_1,
+            $this->address_line_2,
+            $this->city,
+            $this->state,
+            $this->postal_code,
+            $this->country
+        ];
+        return implode(', ', array_filter($parts));
+    }
+
 }

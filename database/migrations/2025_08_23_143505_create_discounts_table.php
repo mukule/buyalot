@@ -19,8 +19,8 @@ return new class extends Migration
             $table->enum('type', ['percentage', 'fixed', 'bogo', 'free_shipping'])->default('percentage');
             $table->decimal('value', 10, 2)->nullable();
             $table->decimal('max_discount_amount', 10, 2)->nullable();
-            $table->enum('applies_to', ['all_products', 'specific_products', 'categories', 'orders', 'customers'])
-                ->default('all_products');
+            $table->enum('applies_to', ['all_variants', 'specific_products', 'categories', 'orders', 'customers','brand','region','category'])
+                ->default('all_variants');
             $table->dateTime('start_date')->nullable();
             $table->dateTime('end_date')->nullable();
             $table->integer('usage_limit')->nullable();

@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Customer;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\SupportTicketRequest;
 use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerSupportTicket;
+use App\Services\SupportTicketService;
 use Illuminate\Http\Request;
 
 class CustomerSupportTicketController extends Controller

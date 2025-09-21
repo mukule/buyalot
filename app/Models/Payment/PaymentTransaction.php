@@ -12,15 +12,7 @@ class PaymentTransaction extends Model
 {
     use HasUlid;
 
-    protected $fillable = [
-        'payment_id',
-        'type',
-        'status',
-        'request_data',
-        'response_data',
-        'provider_transaction_id',
-        'error_message',
-    ];
+    protected $guarded = [];
 
     protected $casts = [
         'request_data' => 'array',
