@@ -26,21 +26,20 @@ const DEFAULT_BANNERS = [
 
 const page = usePage<PageProps>();
 
-// ✅ Extract props safely
 const categories = page.props.categories ?? [];
 const banners = page.props.banners ?? DEFAULT_BANNERS;
 const brands = page.props.brands ?? [];
 const productsByCategory = page.props.productsByCategory ?? {};
 
-// ✅ Normalize backend → SimplifiedProduct
 const simplifiedProductsByCategory: Record<number, SimplifiedProduct[]> = Object.fromEntries(
     Object.entries(productsByCategory).map(([categoryId, products]) => [
         Number(categoryId),
-        (products as Product[]).map((p) => ({
+        (products as any[]).map((p) => ({
             id: p.id,
-            slug: p.slug,
+            hashid: p.variant_hashid,
+            product_slug: p.product_slug,
             name: p.name,
-            image: p.primary_image_url || '/fallback-image.png', // ✅ FIXED
+            image: p.primary_image_url || '/fallback-image.png',
             regular_price: p.regular_price ?? null,
             selling_price: p.selling_price ?? null,
             discount: p.discount ?? null,
@@ -49,6 +48,7 @@ const simplifiedProductsByCategory: Record<number, SimplifiedProduct[]> = Object
     ]),
 );
 
+// ✅ Filter out categories with fewer than 2 products
 const filteredCategories = categories.filter((category) => (simplifiedProductsByCategory[category.id]?.length ?? 0) >= 2);
 </script>
 

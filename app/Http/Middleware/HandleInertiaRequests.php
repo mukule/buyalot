@@ -6,6 +6,8 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use Tighten\Ziggy\Ziggy;
+use App\Services\CartService;
+use App\Models\Wishlist;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -36,6 +38,26 @@ class HandleInertiaRequests extends Middleware
         $user  = $request->user();
         $roles = $user ? $user->getRoleNames() : collect();
 
+        // ------------------------
+        // Cart (works for auth + guests)
+        // ------------------------
+        $cartService = app(CartService::class);
+        $cart = $cartService
+            ->getCart($request)
+            ->load('items.productVariant.product'); // eager load product + variant
+
+        // ------------------------
+        // Wishlist (works for auth + guests)
+        // ------------------------
+        $wishlistQuery = Wishlist::query();
+        if ($user) {
+            $wishlistQuery->forOwner($user->id, null);
+        } else {
+            $token = $request->cookie('wishlist_token');
+            $wishlistQuery->forOwner(null, $token);
+        }
+        $wishlistItems = $wishlistQuery->pluck('product_variant_id');
+
         return [
             ...parent::share($request),
 
@@ -48,36 +70,27 @@ class HandleInertiaRequests extends Middleware
                 'message' => trim($message),
                 'author'  => trim($author),
             ],
-<<<<<<< HEAD
 
-            'auth' => $user ? [
-                'user' => [
+            'auth' => [
+                'user' => $user ? [
                     'id'    => $user->id,
                     'name'  => $user->name,
                     'email' => $user->email,
-                ],
-                'roles' => $roles,
+                ] : null,
+                'roles' => $user ? $roles : [],
                 'counts' => [
-                    'wishlist' => $user->wishlists()->count(),
-                    'cart'     => 1, 
+                    'wishlist' => $wishlistItems->count(),
+                    'cart'     => $cart->items->count(),
                 ],
-                'wishlistProductIds' => $user->wishlists()->pluck('product_id'),
-            ] : [
-                'user' => null,
-                'roles' => [],
-                'counts' => [
-                    'wishlist' => 0,
-                    'cart'     => 0,
-                ],
-                'wishlistProductIds' => [],
-=======
-            'auth' => [
-                'user' => $user,
-//                'roles' => $roles,
-                'roles' => $request->user() ? $request->user()->getRoleNames()->toArray() : [],
-                'permissions' => $request->user() ? $request->user()->getAllPermissions()->pluck('name')->toArray() : [],
->>>>>>> cecde29de6fdc31c5db6806769b4290c30b9ac5d
+                'wishlistVariantIds' => $wishlistItems,
+                'cartItems' => $cart->items->map(fn($item) => [
+                    'product_variant_id' => $item->product_variant_id,
+                    'quantity'           => $item->quantity,
+                ]),
             ],
+
+            // 🔑 Full cart shared globally
+            'cart' => $cart,
 
             'flash' => [
                 'success'    => (string) $request->session()->get('success'),

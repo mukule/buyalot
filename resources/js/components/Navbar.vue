@@ -12,10 +12,11 @@ const page = usePage<AppPageProps>();
 // User object
 const user = computed(() => page.props.auth?.user);
 
+// Counts
 const wishlistCount = computed<number>(() => page.props.auth?.counts?.wishlist ?? 0);
-
 const cartCount = computed<number>(() => page.props.auth?.counts?.cart ?? 0);
 
+// User initials
 const userInitials = computed(() => {
     if (!user.value?.name) return '';
     return user.value.name
@@ -25,14 +26,17 @@ const userInitials = computed(() => {
         .toUpperCase();
 });
 
+// Menu state
 const mobileMenuOpen = ref(false);
 const showCategories = ref(false);
 
+// Top links
 const topLinks = [
     { name: 'Help Center', href: '/help' },
     { name: 'Sell on Buyalot', href: '/sell' },
 ];
 
+// Auth links
 const authLinks = computed(() => {
     if (user.value) {
         return [
@@ -49,6 +53,7 @@ const authLinks = computed(() => {
     }
 });
 
+// Categories
 const categoryLinks = [
     'Electronics',
     'Apparel',
@@ -67,6 +72,7 @@ const categoryLinks = [
     'Music',
 ];
 
+// Methods
 function toggleMobileMenu() {
     mobileMenuOpen.value = !mobileMenuOpen.value;
 }
@@ -77,38 +83,28 @@ function logout() {
 </script>
 
 <template>
-    <!-- Top Navigation Bar -->
     <header class="fixed top-0 left-0 z-50 w-full bg-white shadow-md">
         <div class="container mx-auto flex items-center justify-between px-4 py-3 sm:px-6">
-            <!-- Logo and Left Links -->
+            <!-- Logo & Top Links -->
             <div class="flex items-center space-x-6">
                 <Link href="/">
                     <img :src="logo" alt="App Logo" class="h-10 w-auto" />
                 </Link>
-
-                <!-- Desktop Top Links -->
                 <nav class="hidden space-x-4 text-sm md:flex">
                     <template v-for="(link, index) in topLinks" :key="link.name">
-                        <Link :href="link.href" class="text-gray-500 hover:underline">
-                            {{ link.name }}
-                        </Link>
+                        <Link :href="link.href" class="text-gray-500 hover:underline">{{ link.name }}</Link>
                         <span v-if="index < topLinks.length - 1" class="text-gray-400">|</span>
                     </template>
                 </nav>
             </div>
 
-            <!-- Desktop Right Side Navigation -->
+            <!-- Desktop Right Nav -->
             <nav class="hidden items-center space-x-4 text-sm md:flex">
-                <!-- Auth Links -->
                 <template v-for="(link, index) in authLinks" :key="link.name">
                     <button v-if="link.isLogout" @click.prevent="logout" class="cursor-pointer text-gray-500 hover:underline">
                         {{ link.name }}
                     </button>
-
-                    <Link v-else-if="!link.isUser" :href="link.href" class="text-gray-500 hover:underline">
-                        {{ link.name }}
-                    </Link>
-
+                    <Link v-else-if="!link.isUser" :href="link.href" class="text-gray-500 hover:underline">{{ link.name }}</Link>
                     <Link v-else :href="link.href" class="flex items-center space-x-2 text-gray-700 hover:underline">
                         <div
                             class="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white"
@@ -121,7 +117,8 @@ function logout() {
                     <span v-if="index < authLinks.length - 1" class="text-gray-400">|</span>
                 </template>
 
-                <Link href="/wishlist" class="relative flex items-center justify-center rounded-full bg-secondary p-2">
+                <!-- Wishlist -->
+                <Link :href="route('wishlist.index')" class="relative flex items-center justify-center rounded-full bg-secondary p-2">
                     <Heart class="h-4 w-4 text-white" />
                     <span
                         v-if="wishlistCount > 0"
@@ -131,19 +128,21 @@ function logout() {
                     </span>
                 </Link>
 
-                <!-- Cart Icon -->
-                <button class="relative">
+                <!-- Cart -->
+                <Link :href="route('cart.index')" class="relative flex items-center justify-center">
                     <ShoppingCart class="h-6 w-6 text-primary" />
-                    <span class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white">
+                    <span
+                        v-if="cartCount > 0"
+                        class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white"
+                    >
                         {{ cartCount }}
                     </span>
-                </button>
+                </Link>
             </nav>
 
             <!-- Mobile Right Controls -->
             <div class="flex items-center space-x-4 md:hidden">
-                <!-- Wishlist -->
-                <Link href="/wishlist" class="relative flex items-center justify-center rounded-full bg-secondary p-2">
+                <Link :href="route('wishlist.index')" class="relative flex items-center justify-center rounded-full bg-secondary p-2">
                     <Heart class="h-5 w-5 text-white" />
                     <span
                         v-if="wishlistCount > 0"
@@ -152,20 +151,18 @@ function logout() {
                         {{ wishlistCount }}
                     </span>
                 </Link>
-
-                <!-- Cart -->
-                <button class="relative" aria-label="Shopping cart">
+                <Link :href="route('cart.index')" class="relative flex items-center justify-center">
                     <ShoppingCart class="h-6 w-6 text-primary" />
-                    <span class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white">
-                        0
+                    <span
+                        v-if="cartCount > 0"
+                        class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white"
+                    >
+                        {{ cartCount }}
                     </span>
-                </button>
-
-                <!-- Mobile Menu Toggle -->
+                </Link>
                 <button
                     @click="toggleMobileMenu"
                     class="inline-flex items-center justify-center rounded-md p-2 text-gray-700 hover:bg-gray-100 focus:ring-2 focus:ring-secondary focus:outline-none focus:ring-inset"
-                    aria-label="Toggle mobile menu"
                 >
                     <Menu v-if="!mobileMenuOpen" class="h-6 w-6" />
                     <X v-else class="h-6 w-6" />
@@ -193,44 +190,25 @@ function logout() {
                     <!-- Auth Links -->
                     <div class="flex flex-col space-y-2 border-b border-gray-200 pb-3">
                         <template v-for="link in authLinks" :key="'mobile-auth-' + link.name">
-                            <template v-if="link.isLogout">
-                                <button
-                                    @click.prevent="logout"
-                                    class="block w-full rounded-md px-3 py-2 text-left text-gray-700 hover:bg-gray-100 hover:underline"
-                                >
-                                    {{ link.name }}
-                                </button>
-                            </template>
-
-                            <template v-else-if="!link.isUser">
-                                <Link
-                                    :href="link.href"
-                                    class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:underline"
-                                    @click="mobileMenuOpen = false"
-                                >
-                                    {{ link.name }}
-                                </Link>
-                            </template>
-
-                            <template v-else>
-                                <Link
-                                    :href="link.href"
-                                    class="flex items-center space-x-2 rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:underline"
-                                    @click="mobileMenuOpen = false"
-                                >
-                                    <div
-                                        class="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white"
-                                        :title="user?.name"
-                                    >
-                                        {{ userInitials }}
-                                    </div>
-                                    <span>My Account</span>
-                                </Link>
-                            </template>
+                            <button
+                                v-if="link.isLogout"
+                                @click.prevent="logout"
+                                class="block w-full rounded-md px-3 py-2 text-left text-gray-700 hover:bg-gray-100 hover:underline"
+                            >
+                                {{ link.name }}
+                            </button>
+                            <Link
+                                v-else
+                                :href="link.href"
+                                class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:underline"
+                                @click="mobileMenuOpen = false"
+                            >
+                                {{ link.name }}
+                            </Link>
                         </template>
                     </div>
 
-                    <!-- Search by Categories Toggle -->
+                    <!-- Categories -->
                     <div class="border-b border-gray-200 pb-3">
                         <button
                             class="w-full rounded-md px-3 py-2 text-left text-gray-700 hover:bg-gray-100 hover:underline"
@@ -238,7 +216,6 @@ function logout() {
                         >
                             Search by Categories
                         </button>
-
                         <div v-if="showCategories" class="mt-2 max-h-60 space-y-1 overflow-y-auto pr-2 pl-3">
                             <button
                                 v-for="(category, index) in categoryLinks"

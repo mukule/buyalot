@@ -7,14 +7,20 @@ declare module '*.vue' {
     export default component;
 }
 
+export interface CartItem {
+    product_variant_id: number;
+    quantity: number;
+}
+
 export interface Auth {
-    user: User;
+    user: User | null;
     roles: $roles;
     counts: {
         wishlist: number;
         cart: number;
     };
-    wishlistProductIds: number[];
+    wishlistVariantIds: number[];
+    cartItems: CartItem[]; // 👈 store items instead of only the count
     permissions: string[];
 }
 
@@ -325,16 +331,16 @@ export interface Product {
 }
 
 export interface SimplifiedProduct {
-    id: number;
-    slug: string;
+    id: number; // variant id
+    hashid: string; // variant hashid
+    product_slug: string; // product slug for detail link
     name: string;
     image: string | null;
     regular_price: number | null;
     selling_price: number | null;
     discount?: number | null;
-    rating?: number;
     onSale?: boolean;
-    hashid: string;
+    rating?: number;
 }
 
 export interface VariantCategory {

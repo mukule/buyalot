@@ -32,6 +32,8 @@ use App\Http\Controllers\Admin\BrandCategoryController;
 use App\Http\Controllers\Admin\ProductStatusController;
 use App\Http\Controllers\Admin\WarrantyController;
 use App\Http\Controllers\WishlistController;
+use App\Http\Controllers\CartController;
+use App\Http\Controllers\Admin\RegionController;
 
 
 require __DIR__.'/settings.php';
@@ -144,6 +146,7 @@ Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group
     Route::resource('unit-types', UnitTypeController::class);
     Route::resource('unit-types.units', UnitController::class)->except(['index', 'show']);
     Route::resource('variant-categories', VariantCategoryController::class);
+    Route::resource('regions', RegionController::class);
 
 
     Route::resource('payments', PaymentController::class);
@@ -188,14 +191,12 @@ Route::prefix('seller')->middleware(['auth', 'role:seller'])->name('seller.')->g
 
 });
 
-Route::get('/{slug}', [HomeController::class, 'productDetails'])->name('product.details');
+Route::get('products/{slug}', [HomeController::class, 'productDetails'])->name('product.details');
 
-Route::get('/{slug}', [HomeController::class, 'productDetails'])->name('product.details');
 
-Route::middleware(['auth', 'role:user'])->group(function () {
-    Route::resource('wishlist', WishlistController::class)
-        ->only(['index', 'store', 'destroy']);
-});
+
+Route::resource('wishlist', WishlistController::class)
+    ->only(['index', 'store', 'destroy']);
 
 
 
@@ -213,3 +214,20 @@ Route::post('customers/{customer}/loyalty-points/redeem', [CustomerLoyaltyPointC
 Route::resource('customers.referrals', CustomerReferralController::class)->except(['edit', 'update', 'destroy']);
 Route::resource('customers.support-tickets', CustomerSupportTicketController::class)->except(['edit', 'destroy']);
 Route::resource('customers.wishlist', CustomerWishlistsController::class)->only(['index', 'store', 'update', 'destroy']);
+
+
+
+Route::prefix('cart')->name('cart.')->group(function () {
+   
+    Route::get('/', [CartController::class, 'index'])->name('index');
+
+    
+    Route::post('/', [CartController::class, 'store'])->name('store');
+    Route::delete('', [CartController::class, 'clear'])->name('clear');
+});
+
+
+
+
+Route::get('/category/{slug}', [HomeController::class, 'category'])
+    ->name('category.show');

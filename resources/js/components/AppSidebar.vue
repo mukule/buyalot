@@ -14,6 +14,8 @@ import {
     ListChecks,
     Lock,
     LucideListOrdered,
+    MapPin,
+    MapPinCheck,
     RulerIcon,
     ShieldCheck,
     Tag,
@@ -190,31 +192,22 @@ const allNavItems: NavItem[] = [
             },
         ],
     },
+
+    {
+        title: 'Delivery Address',
+        href: 'null',
+        icon: MapPinCheck,
+        permissions: ['view-regions'],
+        children: [
+            {
+                title: 'Regions',
+                href: '/admin/regions',
+                icon: MapPin,
+                permissions: ['view-regions'],
+            },
+        ],
+    },
 ];
-
-// const mainNavItems = computed(() => {
-//     if (roles.value.includes('seller')) {
-//         return allNavItems.filter((item) => ['Dashboard', 'Account'].includes(item.title));
-//     }
-//
-//     return allNavItems.filter((item) => item.title !== 'Account');
-// });
-
-// const mainNavItems = computed(() => {
-// if (roles.value.includes('seller')) {
-//     // Show Dashboard, Account, and Inventory->Products only for sellers
-//     return allNavItems
-//         .filter((item) => ['Dashboard', 'Account', 'Inventory'].includes(item.title))
-//         .map((item) => {
-//             if (item.title === 'Inventory') {
-//                 return { ...item, children: item.children?.filter((child) => child.title === 'Products') };
-//             }
-//             return item;
-//         });
-// }
-
-// // Admins see everything except 'Account'
-// return allNavItems.filter((item) => item.title !== 'Account');
 
 const filterNavItems = (items: NavItem[]): NavItem[] => {
     return items.filter((item) => {

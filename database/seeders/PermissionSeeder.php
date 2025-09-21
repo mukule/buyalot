@@ -243,7 +243,16 @@ class PermissionSeeder extends Seeder
                 'reorder-commissions',
                 'view-commission-reports',
                 'manage-commission-reports',
-            ]
+            ],
+
+            // Regions Management
+            'regions' => [
+                'view-regions',
+                'create-regions',
+                'edit-regions',
+                'delete-regions',
+            ],
+
         ];
 
         // Create all permissions
