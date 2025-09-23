@@ -189,7 +189,6 @@ Route::prefix('seller')->middleware(['auth', 'role:seller'])->name('seller.')->g
     Route::post('/documents', [SellerAccountController::class, 'submitDocument']);
 
 
-
 });
 
 Route::get('/{slug}', [HomeController::class, 'productDetails'])->name('product.details');

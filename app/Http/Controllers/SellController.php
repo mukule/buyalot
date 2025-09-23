@@ -20,7 +20,7 @@ class SellController extends Controller
 {
     \Log::info('SellController@index was called');
 
-    return Inertia::render('Sell/Index', [
+    return Inertia::render('/Home', [
         'title' => 'Sell your products online',
     ]);
 }
@@ -36,7 +36,7 @@ class SellController extends Controller
         ]);
     }
 
-    
+
 public function saveProgress(Request $request)
 {
     $data = array_filter(
@@ -54,7 +54,7 @@ public function saveProgress(Request $request)
 
 
 
-  
+
 public function clearProgress(Request $request)
 {
     Log::info('Clearing session progress', $request->all());
@@ -77,8 +77,8 @@ public function clearProgress(Request $request)
         return response()->json(['path' => Storage::url($path)]);
     }
 
-   
-   
+
+
 
 public function submit(Request $request)
 {
@@ -167,11 +167,11 @@ public function submit(Request $request)
         }
 
             try {
-            
+
             Mail::to($application->contact_email)
                 ->send(new SellerApplicationReceived($application));
 
-           
+
             $adminEmails = explode(',', config('mail.admin_address'));
             Mail::to($adminEmails)
                 ->send(new NewSellerApplicationAdminAlert($application));
@@ -181,7 +181,7 @@ public function submit(Request $request)
             Log::error("Email sending failed for application ID {$application->id}", [
                 'error' => $e->getMessage()
             ]);
-            
+
         }
 
 

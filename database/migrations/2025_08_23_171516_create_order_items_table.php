@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('order_items', function (Blueprint $table) {
             $table->id();
             $table->foreignId('order_id')->constrained()->onDelete('cascade');
-            $table->foreignId('product_variant_values_id')->constrained()->onDelete('cascade');
+            $table->foreignId('product_variant_id')->constrained('product_variants')->onDelete('cascade');
             $table->foreignId('seller_id')->constrained('sellers')->onDelete('cascade');
 
             $table->integer('quantity');
@@ -38,7 +38,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['order_id', 'seller_id']);
-            $table->index('product_variant_values');
+            $table->index('product_variant_id');
         });
     }
 

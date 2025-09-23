@@ -87,6 +87,7 @@ function logout() {
         <div class="container mx-auto flex items-center justify-between px-4 py-3 sm:px-6">
             <!-- Logo & Top Links -->
             <div class="flex items-center space-x-6">
+
                 <Link href="/">
                     <img :src="logo" alt="App Logo" class="h-10 w-auto" />
                 </Link>

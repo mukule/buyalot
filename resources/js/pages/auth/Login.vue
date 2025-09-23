@@ -174,6 +174,11 @@ import AuthBase from '@/layouts/AuthLayout.vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import { LoaderCircle } from 'lucide-vue-next';
 
+console.log("Available routes from Ziggy:", route().routes);
+console.log("Has login:", route().has('login'));
+console.log("Has register:", route().has('register'));
+console.log("Has password.request:", route().has('password.request'));
+
 defineProps<{
     status?: string;
     canResetPassword: boolean;
@@ -190,6 +195,8 @@ const submit = () => {
         onFinish: () => form.reset('password'),
     });
 };
+
+
 </script>
 
 <template>

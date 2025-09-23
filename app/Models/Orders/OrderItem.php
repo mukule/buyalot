@@ -3,6 +3,7 @@
 namespace App\Models\Orders;
 
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\ProductVariantValue;
 use App\Models\Seller\Seller;
 use App\Models\Variant;
@@ -18,7 +19,7 @@ class OrderItem extends Model
     protected $fillable = [
         'ulid',
         'order_id',
-        'product_variant_values_id',
+        'product_variant_id',
         'seller_id',
         'quantity',
         'unit_price',
@@ -53,19 +54,19 @@ class OrderItem extends Model
         return $this->belongsTo(Order::class);
     }
 
-    public function productVariantValue(): BelongsTo
+    public function productVariant(): BelongsTo
     {
-        return $this->belongsTo(ProductVariantValue::class, 'product_variant_values_id');
+        return $this->belongsTo(ProductVariant::class, 'product_variant_id');
     }
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'product_id')
-            ->through(ProductVariantValue::class, 'product_variant_values_id');
+            ->through(ProductVariant::class, 'product_variant_id');
     }
     public function variant(): BelongsTo
     {
         return $this->belongsTo(Variant::class, 'variant_id')
-            ->through(ProductVariantValue::class, 'product_variant_values_id');
+            ->through(ProductVariant::class, 'product_variant_id');
     }
 
     public function seller(): BelongsTo

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Orders\Order;
 use App\Models\Orders\OrderItem;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\ProductVariantValue;
 use DB;
 use Illuminate\Http\JsonResponse;
@@ -47,7 +48,7 @@ class OrderController extends Controller
         }
 
         try {
-            $query = Order::with(['customer:id,first_name,last_name', 'orderItems.productVariantValue.product:id,name', 'orderItems.seller:id,name','shippingAddress','billingAddress'])
+            $query = Order::with(['customer:id,first_name,last_name', 'orderItems.productVariant.product:id,name', 'orderItems.seller:id,name','shippingAddress','billingAddress'])
                 ->when($request->status, fn($q) => $q->where('status', $request->status))
                 ->when($request->payment_status, fn($q) => $q->where('payment_status', $request->payment_status))
                 ->when($request->fulfillment_status, fn($q) => $q->where('fulfillment_status', $request->fulfillment_status))
@@ -124,7 +125,7 @@ class OrderController extends Controller
         $validator = Validator::make($request->all(), [
             'customer_id' => 'required|integer|exists:customers,id',
             'items' => 'required|array|min:1',
-            'items.*.product_variant_values_id' => 'required|integer|exists:product_variant_values,id',
+            'items.*.product_variant_id' => 'required|integer|exists:product_variants,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
 //            'billing_address' => 'required|array',
@@ -191,15 +192,16 @@ class OrderController extends Controller
 
             // Create order items
             foreach ($request->items as $item) {
-                $productVariantValue = ProductVariantValue::find($item['product_variant_values_id']);
-                if (!$productVariantValue) {
+                $productVariant = ProductVariant::find($item['product_variant_id']);
+
+                if (!$productVariant) {
                     return response()->json([
                         'success' => false,
                         'status' => 'error',
-                        'message' => 'Product variant value not found',
+                        'message' => 'Product variant not found',
                     ]);
                 }
-                $product = Product::find($productVariantValue->product_id);
+                $product = Product::find($productVariant->product_id);
                 if (!$product) {
                     return response()->json([
                         'success' => false,
@@ -207,12 +209,21 @@ class OrderController extends Controller
                         'message' => 'Product not found',
                     ]);
                 }
+                if ($item['quantity']>$productVariant->stock) {
+                    $productname=$productVariant->product->name;
+                    DB::rollBack();
+                    return response()->json([
+                        "message" => "Item $productname out of stock. Remaining stock: $productVariant->stock",
+                        "success"=> false
+                    ]);
+                }
+
                 $totalPrice = $item['quantity'] * $item['unit_price'];
 
                 OrderItem::create([
                     'ulid' => Str::ulid(),
                     'order_id' => $order->id,
-                    'product_variant_values_id' => $item['product_variant_values_id'],
+                    'product_variant_id' => $item['product_variant_id'],
                     'seller_id' => $product->owner_id,
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['unit_price'],
@@ -220,9 +231,9 @@ class OrderController extends Controller
                     'discount_amount' => 0,
                     'tax_amount' => 0,
                     'product_snapshot' => [
-                        'name' => $product->name,
-                        'sku' => $product->sku,
-                        'current_stock' => $product->stock,
+                        'id' => $product->id,
+                        'sku' => $productVariant->sku,
+                        'current_stock' => $productVariant->stock,
                     ]
                 ]);
             }
@@ -359,7 +370,6 @@ class OrderController extends Controller
             }
             return back()->withErrors($validator)->withInput();
         }
-
         DB::beginTransaction();
 
         try {
@@ -395,7 +405,15 @@ class OrderController extends Controller
                         $item = OrderItem::where('order_id', $order->id)
                             ->where('id', $itemData['id'])
                             ->first();
-
+                        $productvariant=ProductVariant::find($itemData['product_id_variant']);
+                        if ($itemData['quantity']>$productvariant->stock) {
+                            $productname=$productvariant->product->name;
+                            DB::rollBack();
+                            return response()->json([
+                               "message" => "Item $productname out of stock. Remaining stock: $productvariant->stock",
+                               "success"=> false
+                            ]);
+                        }
                         if ($item) {
                             $item->update([
                                 'quantity' => $itemData['quantity'] ?? $item->quantity,
