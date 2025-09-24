@@ -2,7 +2,7 @@
 import logo from '@/assets/images/logo.png';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { Heart, Menu, Search, ShoppingCart, X } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, ref, inject } from 'vue';
 
 import type { AppPageProps } from '@/types';
 
@@ -72,6 +72,15 @@ const categoryLinks = [
     'Music',
 ];
 
+// Ziggy route helper (if available)
+const route = inject<((name: string, params?: any) => string) | undefined>('route');
+
+// Safe URLs with fallbacks
+const wishlistUrl = computed<string>(() => (route ? route('wishlist.index') : '/wishlist'));
+const cartUrl = computed<string>(() => (route ? route('cart.index') : '/cart'));
+
+console.log(wishlistUrl.value);
+console.log(cartUrl.value);
 // Methods
 function toggleMobileMenu() {
     mobileMenuOpen.value = !mobileMenuOpen.value;
@@ -119,7 +128,7 @@ function logout() {
                 </template>
 
                 <!-- Wishlist -->
-                <Link :href="route('wishlist.index')" class="relative flex items-center justify-center rounded-full bg-secondary p-2">
+                <Link :href="wishlistUrl" class="relative flex items-center justify-center rounded-full bg-secondary p-2">
                     <Heart class="h-4 w-4 text-white" />
                     <span
                         v-if="wishlistCount > 0"
@@ -130,7 +139,7 @@ function logout() {
                 </Link>
 
                 <!-- Cart -->
-                <Link :href="route('cart.index')" class="relative flex items-center justify-center">
+                <Link :href="cartUrl" class="relative flex items-center justify-center">
                     <ShoppingCart class="h-6 w-6 text-primary" />
                     <span
                         v-if="cartCount > 0"
@@ -143,7 +152,7 @@ function logout() {
 
             <!-- Mobile Right Controls -->
             <div class="flex items-center space-x-4 md:hidden">
-                <Link :href="route('wishlist.index')" class="relative flex items-center justify-center rounded-full bg-secondary p-2">
+                <Link :href="wishlistUrl" class="relative flex items-center justify-center rounded-full bg-secondary p-2">
                     <Heart class="h-5 w-5 text-white" />
                     <span
                         v-if="wishlistCount > 0"
@@ -152,7 +161,7 @@ function logout() {
                         {{ wishlistCount }}
                     </span>
                 </Link>
-                <Link :href="route('cart.index')" class="relative flex items-center justify-center">
+                <Link :href="cartUrl" class="relative flex items-center justify-center">
                     <ShoppingCart class="h-6 w-6 text-primary" />
                     <span
                         v-if="cartCount > 0"

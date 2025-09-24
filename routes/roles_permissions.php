@@ -13,7 +13,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/users/{user}', [UserController::class, 'show'])->name('users.show');
     });
     Route::middleware(['check_permission:create-users'])->group(function () {
-        Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
+//        Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
         Route::post('/users', [UserController::class, 'store'])->name('users.store');
     });
     Route::middleware(['check_permission:edit-users'])->group(function () {

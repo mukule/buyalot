@@ -16,6 +16,7 @@ class WishlistController extends Controller
      */
     public function index(Request $request)
     {
+        info("wishlist index");
         $userId = Auth::id();
         $token  = $request->cookie('wishlist_token');
 

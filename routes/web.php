@@ -39,7 +39,7 @@ use App\Http\Controllers\Admin\RegionController;
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';
 require __DIR__.'/payment.php';
-require __DIR__.'/order.php';
+//require __DIR__.'/order.php';
 require __DIR__.'/customer.php';
 
 
@@ -191,12 +191,10 @@ Route::prefix('seller')->middleware(['auth', 'role:seller'])->name('seller.')->g
 
 });
 
-Route::get('/{slug}', [HomeController::class, 'productDetails'])->name('product.details');
+//Route::get('/{slug}', [HomeController::class, 'productDetails'])->name('product.details');
 
 
 Route::get('products/{slug}', [HomeController::class, 'productDetails'])->name('product.details');
-
-
 
 Route::resource('wishlist', WishlistController::class)
     ->only(['index', 'store', 'destroy']);
@@ -223,14 +221,9 @@ Route::resource('customers.wishlist', CustomerWishlistsController::class)->only(
 Route::prefix('cart')->name('cart.')->group(function () {
 
     Route::get('/', [CartController::class, 'index'])->name('index');
-
-
     Route::post('/', [CartController::class, 'store'])->name('store');
     Route::delete('', [CartController::class, 'clear'])->name('clear');
 });
-
-
-
 
 Route::get('/category/{slug}', [HomeController::class, 'category'])
     ->name('category.show');

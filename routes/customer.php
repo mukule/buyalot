@@ -13,8 +13,8 @@ Route::resource('orders', OrderController::class);
 
 Route::resource('customers', CustomerController::class);
 Route::get('customers/{customer}/dashboard', [CustomerController::class, 'dashboard'])->name('customers.dashboard');
-Route::get('customer/profile', [CustomerController::class, 'profile'])->name('customer.profile.show');
-Route::get('customer/welcome', [CustomerController::class, 'welcome'])->name('emails.customer.welcome');
+//Route::get('customer/profile', [CustomerController::class, 'profile'])->name('customer.profile.show');
+//Route::get('customer/welcome', [CustomerController::class, 'welcome'])->name('emails.customer.welcome');
 
 Route::resource('customers.addresses', CustomerAddressController::class)->except(['index']);
 Route::get('customers/{customer}/addresses', [CustomerAddressController::class, 'index'])->name('customers.addresses.index');
