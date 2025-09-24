@@ -9,7 +9,6 @@
     "format:check": "prettier --check resources/",
     "lint": "eslint . --fix",
     "postinstall": "chmod +x node_modules/.pnpm/@esbuild+linux-x64@*/node_modules/@esbuild/linux-x64/bin/esbuild"
-
   },
   "devDependencies": {
     "@eslint/js": "^9.19.0",
@@ -38,7 +37,7 @@
     "@ckeditor/ckeditor5-vue": "^7.3.0",
     "@inertiajs/core": "^2.1.2",
     "@inertiajs/progress": "^0.2.7",
-    "@inertiajs/vue3": "^2.0.0",
+    "@inertiajs/vue3": "^2.1.10",
     "@vitejs/plugin-vue": "^5.2.1",
     "@vueup/vue-quill": "^1.2.0",
     "@vueuse/core": "^12.8.2",
@@ -61,7 +60,7 @@
     "vue": "^3.5.13",
     "vue-tel-input": "^6.0.5",
     "vue3-tel-input": "^1.0.4",
-    "ziggy-js": "^2.4.2"
+    "ziggy-js": "^2.6.0"
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "4.9.5",

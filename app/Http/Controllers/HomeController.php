@@ -7,7 +7,7 @@ use App\Models\Brand;
 use App\Models\Product;
 use App\Services\FrontendProductService;
 use Inertia\Inertia;
-use Illuminate\Support\Facades\Log;
+
 
 class HomeController extends Controller
 {
@@ -43,6 +43,7 @@ class HomeController extends Controller
      */
     public function productDetails(string $slug)
     {
+        info("product details "+$slug);
         $product = Product::with([
             'brand',
             'primaryImage',

@@ -20,7 +20,7 @@
         "safaricom/mpesa": "^1.0",
         "spatie/laravel-data": "^4.17",
         "spatie/laravel-permission": "^6.20",
-        "tightenco/ziggy": "^2.4",
+        "tightenco/ziggy": "^2.6",
         "vinkla/hashids": "^13.0"
     },
     "require-dev": {

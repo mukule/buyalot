@@ -31,7 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
         $middleware->web(append: [
             HandleAppearance::class,
-            HandleInertiaRequests::class,
+//            HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
             ShareSellerVerificationStatus::class,
             ShareUserPermissions::class,
