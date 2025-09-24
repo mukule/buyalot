@@ -46,7 +46,7 @@ const showPassword = ref(false);
 const showPasswordConfirm = ref(false);
 
 const handleGoogleRegister = () => {
-    window.location.href = route('google.redirect');
+    window.location.href = route('google.register');
 };
 </script>
 

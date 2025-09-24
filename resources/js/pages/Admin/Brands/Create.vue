@@ -47,7 +47,7 @@ async function submit() {
         await axios.post('/admin/brands', formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
         });
-        window.location.href = '/admin/brands';
+        window.location.href = '../../../../../public/storage/brands';
     } catch (error: unknown) {
         if (axios.isAxiosError(error)) {
             console.error('Submit error:', error.response?.data || error.message);
