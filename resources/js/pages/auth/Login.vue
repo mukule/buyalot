@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
-// import TextLink from '@/components/TextLink.vue';
+import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -140,7 +140,7 @@ const handleGoogleLogin = () => {
 
             <div class="text-center text-sm text-muted-foreground">
                 Don't have an account?
-<!--                <TextLink :href="route('register')" :tabindex="6">Sign up</TextLink>-->
+                <TextLink :href="route('register')" :tabindex="6">Sign up</TextLink>
             </div>
         </div>
     </AuthBase>

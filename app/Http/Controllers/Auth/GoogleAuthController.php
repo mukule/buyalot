@@ -12,23 +12,38 @@ class GoogleAuthController extends Controller
 {
     public function redirect()
     {
+        // Debug: Check what redirect URI is being used
+        $redirectUri = route('google.callback');
+        \Log::info('Google OAuth Redirect URI: ' . $redirectUri);
+        \Log::info('APP_URL: ' . config('app.url'));
+
         return Socialite::driver('google')
-            ->redirectUrl(route('google.callback'))
+            ->redirectUrl($redirectUri)
             ->redirect();
     }
 
     public function register()
     {
+        // Store a session flag to indicate this is a registration flow
         session(['google_auth_intent' => 'register']);
 
+        $redirectUri = route('google.callback');
+        \Log::info('Google OAuth Register Redirect URI: ' . $redirectUri);
+
         return Socialite::driver('google')
-            ->redirectUrl(route('google.callback'))
+            ->redirectUrl($redirectUri)
             ->redirect();
     }
+
     public function callback()
     {
         try {
-            $googleUser = Socialite::driver('google')->user();
+            $redirectUri = route('google.callback');
+            \Log::info('Google OAuth Callback URI: ' . $redirectUri);
+
+            $googleUser = Socialite::driver('google')
+                ->redirectUrl($redirectUri)
+                ->user();
 
             // Validate required data from Google
             if (!$googleUser->email) {
@@ -39,10 +54,22 @@ class GoogleAuthController extends Controller
 
             DB::beginTransaction();
 
+            // Check the auth intent from session
+            $authIntent = session('google_auth_intent', 'login');
+            session()->forget('google_auth_intent'); // Clean up session
+
             // Check for existing customer with Google ID
             $customer = Customer::where('google_id', $googleUser->id)->first();
 
             if ($customer) {
+                if ($authIntent === 'register') {
+                    // User tried to register but already has an account
+                    DB::rollBack();
+                    return redirect()->route('login')->withErrors([
+                        'google' => 'An account with this Google account already exists. Please log in instead.'
+                    ]);
+                }
+
                 $this->updateExistingCustomerFromGoogle($customer, $googleUser);
                 DB::commit();
 
@@ -54,6 +81,14 @@ class GoogleAuthController extends Controller
             $existingCustomer = Customer::where('email', $googleUser->email)->first();
 
             if ($existingCustomer) {
+                if ($authIntent === 'register') {
+                    // User tried to register but email already exists
+                    DB::rollBack();
+                    return redirect()->route('login')->withErrors([
+                        'google' => 'An account with this email already exists. Please log in instead.'
+                    ]);
+                }
+
                 $this->linkGoogleToExistingCustomer($existingCustomer, $googleUser);
                 DB::commit();
 
@@ -61,12 +96,17 @@ class GoogleAuthController extends Controller
                 return $this->successRedirect($existingCustomer, 'Google account linked successfully');
             }
 
-            // Create new customer
+            // Create new customer (works for both login and register flows)
             $newCustomer = $this->createCustomerFromGoogle($googleUser);
             DB::commit();
 
             Auth::guard('customer')->login($newCustomer);
-            return $this->successRedirect($newCustomer, 'Account created successfully');
+
+            $message = $authIntent === 'register'
+                ? 'Account created successfully'
+                : 'Account created successfully';
+
+            return $this->successRedirect($newCustomer, $message);
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -76,10 +116,31 @@ class GoogleAuthController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            return redirect()->route('login')->withErrors([
+            $redirectRoute = session('google_auth_intent') === 'register' ? 'register' : 'login';
+
+            return redirect()->route($redirectRoute)->withErrors([
                 'google' => 'Authentication failed. Please try again.'
             ]);
         }
+    }
+
+    //check current configuration
+    public function debugConfig()
+    {
+        if (!app()->environment('local')) {
+            abort(403, 'Debug endpoint only available in local environment');
+        }
+
+        $config = [
+            'APP_URL' => config('app.url'),
+            'Google Client ID' => config('services.google.client_id'),
+            'Google Redirect' => config('services.google.redirect'),
+            'Route Callback' => route('google.callback'),
+            'Full URL' => url()->full(),
+            'Current Domain' => request()->getHost(),
+        ];
+
+        return response()->json($config);
     }
 
     private function updateExistingCustomerFromGoogle(Customer $customer, $googleUser): void
@@ -104,13 +165,14 @@ class GoogleAuthController extends Controller
 
     private function createCustomerFromGoogle($googleUser): Customer
     {
+        info('Creating new customer from Google');
         $nameParts = $this->parseGoogleName($googleUser->name);
-
-        $customer= Customer::create([
+        $customer = Customer::create([
             'first_name' => $nameParts['first_name'],
             'last_name' => $nameParts['last_name'],
             'email' => $googleUser->email,
             'google_id' => $googleUser->id,
+            'phone' => $googleUser->phone_number,
             'avatar' => $googleUser->avatar,
             'provider' => 'google',
             'provider_verified_at' => now(),
@@ -120,7 +182,7 @@ class GoogleAuthController extends Controller
             'acquisition_source' => 'google_oauth',
             'last_login_at' => now(),
         ]);
-        $customer->assignRole('customer');
+//        $customer->syncRoles('customer');
         return $customer;
     }
 
@@ -139,5 +201,4 @@ class GoogleAuthController extends Controller
         return redirect()->intended(route('home'))
             ->with('success', $message . ', ' . $customer->first_name . '!');
     }
-
 }

@@ -8,13 +8,16 @@ use App\Http\Controllers\Customer\CustomerWishlistsController;
 use App\Http\Controllers\Orders\OrderController;
 
 
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth:customer'])->group(function () {
 Route::resource('orders', OrderController::class);
 
 Route::resource('customers', CustomerController::class);
 Route::get('customers/{customer}/dashboard', [CustomerController::class, 'dashboard'])->name('customers.dashboard');
-//Route::get('customer/profile', [CustomerController::class, 'profile'])->name('customer.profile.show');
-//Route::get('customer/welcome', [CustomerController::class, 'welcome'])->name('emails.customer.welcome');
+    Route::get('customer/profile', [CustomerController::class, 'profile'])->name('customer.profile.show');
+    Route::put('customer/profile', [CustomerController::class, 'updateProfile'])->name('customer.profile.update');
+    Route::put('customer/password', [CustomerController::class, 'updatePassword'])->name('customer.password.update');
+    Route::delete('customer/account', [CustomerController::class, 'deleteAccount'])->name('customer.account.delete');
+    Route::get('customer/welcome', [CustomerController::class, 'welcome'])->name('customer.welcome');
 
 Route::resource('customers.addresses', CustomerAddressController::class)->except(['index']);
 Route::get('customers/{customer}/addresses', [CustomerAddressController::class, 'index'])->name('customers.addresses.index');
