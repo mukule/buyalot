@@ -1,5 +1,5 @@
 <template>
-    <div class="relative">
+    <div class="relative rounded-lg bg-white p-4 shadow-sm">
         <!-- Header -->
         <div class="mb-4 flex items-center justify-between px-2">
             <h2 class="text-xl font-bold text-gray-800">{{ title }}</h2>
@@ -11,63 +11,54 @@
             </button>
         </div>
 
-        <!-- Carousel -->
         <div class="relative">
-            <!-- Prev Button -->
+            <!-- Left Scroll Button -->
             <button
                 @click="scroll('left')"
-                class="absolute top-1/2 left-0 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow-md hover:bg-gray-100"
+                class="absolute top-1/2 left-0 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-secondary shadow-md hover:bg-primary hover:text-white"
                 aria-label="Scroll Left"
             >
-                <ChevronLeft class="h-5 w-5 text-gray-700" />
+                <ChevronLeft class="h-5 w-5 text-white" />
             </button>
 
-            <!-- Scrollable Row -->
-            <div ref="container" class="scrollbar-hide flex snap-x gap-4 overflow-x-auto scroll-smooth px-2 py-2">
+            <!-- Product Cards -->
+            <div ref="container" class="scrollbar-hide flex snap-x gap-4 overflow-x-auto scroll-smooth px-2 py-4">
                 <ProductCard v-for="product in products" :key="product.id" :product="product" />
             </div>
 
-            <!-- Next Button -->
+            <!-- Right Scroll Button -->
             <button
                 @click="scroll('right')"
-                class="absolute top-1/2 right-0 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow-md hover:bg-gray-100"
+                class="absolute top-1/2 right-0 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-secondary shadow-md hover:bg-primary hover:text-white"
                 aria-label="Scroll Right"
             >
-                <ChevronRight class="h-5 w-5 text-gray-700" />
+                <ChevronRight class="h-5 w-5 text-white" />
             </button>
         </div>
     </div>
 </template>
 
 <script setup lang="ts">
-import ProductCard from './ProductCard.vue';
-
+import type { SimplifiedProduct } from '@/types';
 import { ChevronLeft, ChevronRight } from 'lucide-vue-next';
 import { ref } from 'vue';
+import ProductCard from './ProductCard.vue';
 
-interface Product {
-    id: number;
-    name: string;
-    image: string;
-    price: number;
-    onSale?: boolean;
-    rating?: number;
-}
-
-defineProps<{
+const props = defineProps<{
     title: string;
-    products: Product[];
+    products: SimplifiedProduct[];
 }>();
 
 const container = ref<HTMLElement | null>(null);
 
 const scroll = (direction: 'left' | 'right') => {
-    if (container.value) {
-        const scrollAmount = container.value.offsetWidth * 0.9;
-        container.value.scrollBy({
-            left: direction === 'left' ? -scrollAmount : scrollAmount,
-            behavior: 'smooth',
-        });
-    }
+    const el = container.value;
+    if (!el) return;
+
+    const scrollAmount = el.offsetWidth * 0.9;
+    el.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth',
+    });
 };
 </script>

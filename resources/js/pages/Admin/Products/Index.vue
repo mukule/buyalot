@@ -1,24 +1,46 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
-import type { AppPageProps, Brand, Product, Subcategory, Unit } from '@/types';
+import type { AppPageProps, ProductStatus } from '@/types';
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { ChevronLeftIcon, ChevronRightIcon, FilterIcon, PlusIcon, SearchIcon } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { debounce } from 'lodash';
+import { ArrowLeft, FilterIcon, PlusIcon, SearchIcon } from 'lucide-vue-next';
+import { computed, reactive, ref, watch } from 'vue';
 
-interface ProductWithRelations extends Product {
-    brand: Brand;
-    unit: Unit;
-    subcategory: Subcategory;
+// Product type
+interface ProductWithRelations {
+    id: number;
+    name: string;
+    product_code: string;
     primary_image_url: string | null;
-    image_urls?: string[];
+    stock?: number;
+    hashid: string;
+    status_label: string;
+    status_id?: number | null;
+    owner?: {
+        id: number;
+        name: string;
+    } | null;
+    warranties?: {
+        id: number;
+        hashid: string;
+        product_hashid: string;
+        duration: number;
+        description?: string;
+        active: boolean;
+    }[];
 }
 
+// Product status type
+interface ProductStatusWithHashid extends ProductStatus {
+    hashid: string;
+}
+
+// Pagination interfaces
 interface PaginationLink {
     url: string | null;
     label: string;
     active: boolean;
 }
-
 interface PaginationMeta {
     current_page: number;
     from: number;
@@ -28,271 +50,283 @@ interface PaginationMeta {
     to: number;
     total: number;
 }
-
 interface PaginatedResponse<T> {
     data: T[];
     links: PaginationLink[];
     meta: PaginationMeta;
 }
 
-// Accessing page props
+// Inertia page props
 const page = usePage<
     AppPageProps<{
         products: PaginatedResponse<ProductWithRelations>;
+        productStatuses: ProductStatusWithHashid[];
     }>
 >();
 
-// Reactive state
+// Status options
+const statuses = computed(() => page.props.productStatuses ?? []);
+
+// Compute Draft status ID for fallback
+const draftStatusId = computed(() => {
+    const draft = statuses.value.find((s) => s.name.toLowerCase() === 'draft');
+    return draft?.id ?? null;
+});
+
+// Make a reactive copy of products so v-model works
+const reactiveProducts = reactive(
+    page.props.products.data.map((p) => ({
+        ...p,
+        status_id: p.status_id ?? draftStatusId.value,
+    })),
+);
+
+// Search
 const searchQuery = ref('');
+const debouncedQuery = ref(searchQuery.value);
 
-// Computed: Search filtered products
+watch(
+    searchQuery,
+    debounce((val: string) => {
+        debouncedQuery.value = val;
+    }, 300),
+);
+
 const filteredProducts = computed(() => {
-    const products = page.props.products?.data ?? [];
-    const query = searchQuery.value.trim().toLowerCase();
-
-    if (!query) return products;
-
-    return products.filter((p) => {
+    const query = debouncedQuery.value.trim().toLowerCase();
+    return reactiveProducts.filter((p) => {
+        if (!query) return true;
         return (
             p.name.toLowerCase().includes(query) ||
-            (p.description?.toLowerCase().includes(query) ?? false) ||
-            p.brand.name.toLowerCase().includes(query)
+            (p.product_code?.toLowerCase().includes(query) ?? false) ||
+            (p.owner?.name.toLowerCase().includes(query) ?? false)
         );
     });
 });
 
-// Computed: Pagination
-const pagination = computed(() => {
-    const { links, meta } = page.props.products;
-    return { links, meta };
-});
-
 // Breadcrumbs
-const breadcrumbs = [
+const breadcrumbs = reactive([
     { title: 'Dashboard', href: route('admin.dashboard') },
     { title: 'Products', href: route('admin.products.index') },
-];
+]);
 
-// Methods
+// Actions
 function createProduct() {
     router.get(route('admin.products.create'));
 }
-
-function viewProduct(hashid: string) {
-    router.get(route('admin.products.show', { product: hashid }));
-}
-
 function editProduct(hashid: string) {
+    console.log('Editing product:', hashid);
     router.get(route('admin.products.edit', { product: hashid }));
 }
-
-function deleteProduct(hashid: string) {
-    if (confirm('Are you sure you want to delete this product?')) {
-        router.delete(route('admin.products.destroy', { product: hashid }), {
-            preserveScroll: true,
-            onSuccess: () => {
-                // Optional: notify success
-            },
-        });
-    }
+function goBack() {
+    router.get(route('admin.dashboard'));
 }
 
-const statusClasses = (status: number | string) => ({
-    'bg-yellow-100 text-yellow-800': Number(status) === 0,
-    'bg-green-100 text-green-800': Number(status) === 1,
-    'bg-red-200 text-gray-800': Number(status) === 3,
-});
+// Truncate helper
+function truncateName(name: string, length: number) {
+    if (name.length <= length) return name;
+    return name.slice(0, length - 3) + '...';
+}
 
-function getInitials(name: string | null): string {
-    if (!name) return '';
-    const words = name.split(' ');
-    return words.length >= 2 ? words[0][0].toUpperCase() + words[1][0].toUpperCase() : words[0][0].toUpperCase();
+function updateStatus(productHashid: string, statusId: number) {
+    router.patch(route('admin.products.updateStatus', { product: productHashid }), {
+        status_id: statusId,
+    });
+}
+
+// Warranty modal state
+const showWarrantyModal = ref(false);
+const selectedProduct = ref<ProductWithRelations | null>(null);
+
+function openWarrantyModal(product: ProductWithRelations) {
+    console.log('Opening warranty modal for product:', product);
+
+    // Unwrap Proxy objects and attach product_hashid to each warranty
+    selectedProduct.value = {
+        ...product,
+        warranties: product.warranties
+            ? product.warranties.map((w) => ({
+                  ...w,
+                  product_hashid: product.hashid,
+              }))
+            : [],
+    };
+    showWarrantyModal.value = true;
+}
+
+function closeWarrantyModal() {
+    showWarrantyModal.value = false;
+    selectedProduct.value = null;
+}
+
+// Open Add Warranty page for a product
+function addWarranty(productHashid: string) {
+    console.log('Navigating to add warranty page for:', productHashid);
+    router.get(route('admin.products.warranties.create', { product: productHashid }));
+}
+
+function toggleWarrantyActive(warranty: { id: number; hashid: string; active: boolean }) {
+    const currentStatus = warranty.active;
+    const newStatus = !currentStatus;
+
+    // Log the warranty info before sending
+    console.log('🔹 Toggling warranty:', warranty);
+    console.log('🔹 Warranty hashid:', warranty.hashid);
+
+    // Generate the route using simplified route (no product hashid)
+    const url = route('admin.warranties.toggleActive', {
+        warranty: warranty.hashid,
+    });
+    console.log('🔹 Generated route URL:', url);
+
+    // Optimistic UI update
+    warranty.active = newStatus;
+
+    router.patch(
+        url,
+        {}, // no payload needed
+        {
+            onStart: () => {
+                console.log('🚀 Sending PATCH request to:', url);
+            },
+            onSuccess: (page) => {
+                console.log('✅ Success response:', page);
+
+                // Make other warranties inactive in the modal
+                if (newStatus && selectedProduct.value?.warranties) {
+                    selectedProduct.value.warranties.forEach((w) => {
+                        if (w.hashid !== warranty.hashid) w.active = false;
+                    });
+                }
+            },
+            onError: (errors) => {
+                console.error('❌ Backend error:', errors);
+                warranty.active = currentStatus; // revert UI if fail
+            },
+            onFinish: () => {
+                console.log('🔚 Request finished');
+            },
+        },
+    );
+}
+
+// Edit warranty
+function editWarranty(warranty: { hashid: string; product_hashid: string }) {
+    console.log('Editing warranty:', warranty);
+
+    if (!warranty.hashid || !warranty.product_hashid) {
+        console.error('Warranty hashid or product hashid is missing!');
+        return;
+    }
+
+    router.get(
+        route('admin.products.warranties.edit', {
+            product: warranty.product_hashid,
+            warranty: warranty.hashid,
+        }),
+    );
 }
 </script>
 
 <template>
     <Head title="Products" />
-
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="p-4">
-            <div class="card flex flex-col gap-6 rounded-lg bg-white p-4 shadow-sm">
+            <div class="card rounded-lg bg-white p-4 shadow-sm">
                 <!-- Header -->
-                <div class="flex items-center justify-between">
-                    <h1 class="text-2xl font-semibold text-gray-800">Products</h1>
-                    <button @click="createProduct" class="hover:bg-primary-dark rounded-xl bg-primary px-4 py-2 text-white">+ New Product</button>
-                </div>
-
-                <!-- Search and Filters -->
-                <div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center">
-                    <div class="flex-1">
-                        <label for="search" class="sr-only">Search products</label>
-                        <div class="relative rounded-md shadow-sm">
-                            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                                <SearchIcon class="h-5 w-5 text-gray-400" />
-                            </div>
-                            <input
-                                id="search"
-                                v-model="searchQuery"
-                                type="text"
-                                placeholder="Search products..."
-                                class="focus:border-primary-500 focus:ring-primary-500 block w-full rounded-md border border-gray-300 py-2 pl-10 text-sm"
-                            />
-                        </div>
-                    </div>
-                    <button
-                        type="button"
-                        class="focus:ring-primary-500 inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:ring-2 focus:outline-none sm:ml-4"
-                    >
-                        <FilterIcon class="h-4 w-4" />
-                        Filters
+                <div class="relative mb-4 flex items-center justify-between">
+                    <button @click="goBack" class="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                        <ArrowLeft class="h-4 w-4" /> Back
+                    </button>
+                    <h1 class="absolute left-1/2 -translate-x-1/2 transform text-2xl font-semibold">Products</h1>
+                    <button @click="createProduct" class="hover:bg-primary-dark ml-auto rounded-xl bg-primary px-4 py-2 text-white">
+                        + New Product
                     </button>
                 </div>
 
-                <!-- Table -->
+                <!-- Search & Filter -->
+                <div class="mb-4 flex items-center gap-4">
+                    <div class="relative flex-1">
+                        <input
+                            v-model="searchQuery"
+                            type="text"
+                            placeholder="Search products..."
+                            class="focus:ring-primary-500 focus:border-primary-500 block w-full rounded-md border py-2 pl-10 text-sm"
+                        />
+                        <SearchIcon class="absolute top-2.5 left-3 h-5 w-5 text-gray-400" />
+                    </div>
+                    <button class="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm hover:bg-gray-50">
+                        <FilterIcon class="h-4 w-4" /> Filters
+                    </button>
+                </div>
+
+                <!-- Products Table -->
                 <div v-if="filteredProducts.length" class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
+                    <table class="w-full table-auto border-collapse border border-gray-200">
+                        <thead class="bg-gray-100">
                             <tr>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vendor</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Brand</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                <th class="border px-4 py-2 text-left">Image</th>
+                                <th class="border px-4 py-2 text-left">Name</th>
+                                <th class="border px-4 py-2 text-left">Code</th>
+                                <th class="border px-4 py-2 text-left">Stock</th>
+                                <th class="border px-4 py-2 text-left">Store</th>
+                                <th class="border px-4 py-2 text-left">Warranty</th>
+                                <th class="border px-4 py-2 text-left">Status</th>
+                                <th class="border px-4 py-2 text-left">Actions</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-200 bg-white">
-                            <tr v-for="(product, index) in filteredProducts" :key="product.hashid" class="hover:bg-gray-50">
-                                <td class="px-4 py-4 text-sm text-gray-500">{{ index + 1 }}</td>
-                                <td class="px-4 py-4 text-sm text-gray-500">
-                                    <span
-                                        class="group relative inline-flex h-8 w-8 cursor-default items-center justify-center rounded-full bg-primary font-semibold text-white select-none"
-                                    >
-                                        {{ getInitials(product.company_legal_name) }}
-
-                                        <!-- Tooltip -->
-                                        <div
-                                            class="absolute top-full left-1/2 z-10 mt-1 -translate-x-1/2 rounded bg-primary px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition group-hover:opacity-100"
-                                        >
-                                            {{ product.company_legal_name }}
-                                        </div>
-                                    </span>
+                        <tbody>
+                            <tr v-for="product in filteredProducts" :key="product.id" class="hover:bg-gray-50">
+                                <td class="border px-4 py-2">
+                                    <img
+                                        v-if="product.primary_image_url"
+                                        :src="product.primary_image_url"
+                                        alt="Product"
+                                        class="h-12 w-12 rounded object-cover"
+                                    />
+                                    <div v-else class="flex h-12 w-12 items-center justify-center rounded bg-gray-200 text-gray-400">No Image</div>
                                 </td>
-
-                                <td class="px-4 py-4 text-sm font-medium text-primary">
-                                    <a
-                                        :href="route('admin.products.show', { product: product.hashid })"
-                                        class="flex items-center space-x-3 hover:underline"
-                                    >
-                                        <img
-                                            v-if="product.primary_image_url"
-                                            :src="product.primary_image_url"
-                                            alt="Product Image"
-                                            class="h-10 w-10 rounded bg-white object-contain"
-                                        />
-                                        <span>{{ product.name.length > 30 ? product.name.slice(0, 30) + '…' : product.name }}</span>
+                                <td class="border px-4 py-2">
+                                    <a :href="route('admin.products.show', { product: product.hashid })" class="text-blue-600 hover:underline">
+                                        {{ truncateName(product.name, 30) }}
                                     </a>
                                 </td>
-                                <td class="flex items-center space-x-2 px-4 py-4 text-sm text-gray-700">
-                                    <img
-                                        v-if="product.brand.logo_url"
-                                        :src="product.brand.logo_url"
-                                        :alt="product.brand.name"
-                                        class="h-12 w-12 rounded-full object-contain"
-                                    />
-                                </td>
-                                <td class="px-4 py-4 text-sm text-gray-700">{{ product.subcategory.name }}</td>
+                                <td class="border px-4 py-2">{{ product.product_code }}</td>
+                                <td class="border px-4 py-2">{{ product.stock ?? 0 }}</td>
+                                <td class="border px-4 py-2">{{ product.owner?.name ?? '-' }}</td>
 
-                                <!-- Price with discount applied -->
-                                <td class="px-4 py-4 text-sm font-semibold text-gray-700">
-                                    <span v-if="Number(product.discount) > 0">
-                                        <span class="mr-2 text-gray-400 line-through">
-                                            {{ Number(product.price).toFixed(2) }}
-                                        </span>
-                                        <span class="text-red-600">
-                                            {{ (Number(product.price) * (1 - Number(product.discount) / 100)).toFixed(2) }}
-                                        </span>
-                                    </span>
-                                    <span v-else>
-                                        {{ Number(product.price).toFixed(2) }}
-                                    </span>
+                                <!-- Warranty column -->
+                                <td class="border px-4 py-2">
+                                    <button @click="openWarrantyModal(product)" class="text-sm text-blue-600 hover:underline">
+                                        {{ product.warranties?.length ? `View (${product.warranties.length})` : 'Click to Add' }}
+                                    </button>
                                 </td>
 
-                                <!-- Stock symbol instead of unit name -->
-                                <td class="px-4 py-4 text-sm text-gray-700">{{ product.stock }} {{ product.unit.symbol }}</td>
-
-                                <td class="px-4 py-4 text-sm">
-                                    <span
-                                        :class="statusClasses(product.status)"
-                                        class="inline-block rounded-full px-2 py-0.5 text-xs font-medium capitalize"
+                                <td class="border px-4 py-2">
+                                    <select
+                                        v-model="product.status_id"
+                                        @change="updateStatus(product.hashid, Number(product.status_id))"
+                                        :class="[statuses.find((s) => s.id === product.status_id)?.color_class || 'bg-gray-100 text-gray-800']"
                                     >
-                                        {{ product.status_label }}
-                                    </span>
+                                        <option :value="product.status_id" v-if="product.status_id" hidden>
+                                            {{ statuses.find((s) => s.id === product.status_id)?.label }}
+                                        </option>
+                                        <option
+                                            v-for="status in statuses.filter((s) => s.id !== product.status_id)"
+                                            :key="status.id"
+                                            :value="status.id"
+                                        >
+                                            {{ status.name }}
+                                        </option>
+                                    </select>
                                 </td>
 
-                                <td class="px-4 py-4 text-right text-sm font-medium">
-                                    <button @click.stop="editProduct(product.hashid)" class="mr-3 text-blue-600 hover:underline">Edit</button>
-                                    <button @click.stop="deleteProduct(product.hashid)" class="text-red-600 hover:underline">Delete</button>
+                                <td class="flex gap-2 border px-4 py-2">
+                                    <button @click="editProduct(product.hashid)" class="text-sm text-blue-600 hover:underline">Edit</button>
                                 </td>
                             </tr>
                         </tbody>
                     </table>
-
-                    <!-- Pagination -->
-                    <div v-if="pagination.links?.length > 3" class="mt-4 flex items-center justify-between">
-                        <div class="flex flex-1 justify-between sm:hidden">
-                            <a
-                                v-if="pagination.links[0].url"
-                                :href="pagination.links[0].url"
-                                class="inline-flex items-center rounded-md border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                            >
-                                <ChevronLeftIcon class="mr-1 h-5 w-5" />
-                                Previous
-                            </a>
-                            <a
-                                v-if="pagination.links.length && pagination.links[pagination.links.length - 1].url"
-                                :href="pagination.links[pagination.links.length - 1].url || undefined"
-                                class="ml-3 inline-flex items-center rounded-md border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                            >
-                                Next
-                                <ChevronRightIcon class="ml-1 h-5 w-5" />
-                            </a>
-                        </div>
-
-                        <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                            <p class="text-sm text-gray-700">
-                                Showing <span class="font-medium">{{ pagination.meta?.from }}</span> to
-                                <span class="font-medium">{{ pagination.meta?.to }}</span> of
-                                <span class="font-medium">{{ pagination.meta?.total }}</span> results
-                            </p>
-
-                            <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-                                <template v-for="(link, index) in pagination.links" :key="index">
-                                    <a
-                                        :href="link.url ?? undefined"
-                                        class="inline-flex items-center px-4 py-2 text-sm font-medium"
-                                        :class="{
-                                            'z-10 bg-primary text-white': link.active,
-                                            'text-gray-900 ring-1 ring-gray-300 hover:bg-gray-50': !link.active,
-                                            'rounded-l-md': index === 0,
-                                            'rounded-r-md': index === pagination.links.length - 1,
-                                            'pointer-events-none opacity-50': !link.url,
-                                        }"
-                                    >
-                                        <component
-                                            :is="index === 0 ? ChevronLeftIcon : index === pagination.links.length - 1 ? ChevronRightIcon : 'span'"
-                                            class="h-5 w-5"
-                                            v-if="index === 0 || index === pagination.links.length - 1"
-                                        />
-                                        <span v-else v-html="link.label"></span>
-                                    </a>
-                                </template>
-                            </nav>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- Empty State -->
@@ -302,9 +336,79 @@ function getInitials(name: string | null): string {
                     <p class="mt-1 text-sm text-gray-500">
                         {{ searchQuery ? 'Try adjusting your search' : 'Get started by creating a new product.' }}
                     </p>
-                    <div class="mt-6">
-                        <button @click="createProduct" class="hover:bg-primary-dark rounded-xl bg-primary px-4 py-2 text-white">+ New Product</button>
-                    </div>
+                    <button @click="createProduct" class="hover:bg-primary-dark mt-4 rounded-xl bg-primary px-4 py-2 text-white">
+                        + New Product
+                    </button>
+                </div>
+            </div>
+
+            <!-- Warranty Modal -->
+            <div
+                v-if="showWarrantyModal"
+                @click.self="closeWarrantyModal"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            >
+                <div class="w-full max-w-lg rounded-lg bg-white p-6 shadow-lg">
+                    <h2 class="mb-4 text-xl font-semibold text-gray-800">Product Warranties</h2>
+
+                    <ul class="max-h-96 space-y-2 overflow-y-auto">
+                        <template v-if="selectedProduct?.warranties?.length">
+                            <li
+                                v-for="warranty in selectedProduct.warranties"
+                                :key="warranty.id"
+                                class="flex flex-col gap-2 rounded border px-4 py-2"
+                            >
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <span class="font-semibold">Duration:</span> {{ warranty.duration }} months
+                                        <span
+                                            v-if="warranty.active"
+                                            class="ml-2 rounded bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700"
+                                        >
+                                            Active
+                                        </span>
+                                        <span v-else class="ml-2 rounded bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
+                                            Inactive
+                                        </span>
+                                    </div>
+
+                                    <div class="flex gap-2">
+                                        <!-- Toggle Active -->
+                                        <button
+                                            @click="toggleWarrantyActive(warranty)"
+                                            class="rounded bg-blue-500 px-2 py-1 text-xs text-white hover:bg-blue-600"
+                                        >
+                                            {{ warranty.active ? 'Deactivate' : 'Activate' }}
+                                        </button>
+
+                                        <!-- Edit -->
+                                        <button
+                                            @click="editWarranty(warranty)"
+                                            class="rounded bg-yellow-500 px-2 py-1 text-xs text-white hover:bg-yellow-600"
+                                        >
+                                            Edit
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div v-if="warranty.description" class="mt-1 text-sm text-gray-600">
+                                    {{ warranty.description }}
+                                </div>
+                            </li>
+                        </template>
+
+                        <li v-else class="text-sm text-gray-500">No warranties available.</li>
+                    </ul>
+
+                    <button
+                        v-if="selectedProduct"
+                        @click="addWarranty(selectedProduct.hashid)"
+                        class="mt-4 w-full rounded bg-primary px-4 py-2 text-white hover:bg-primary/90"
+                    >
+                        {{ selectedProduct?.warranties?.length ? 'Add Another Warranty' : 'Add New Warranty' }}
+                    </button>
+
+                    <button @click="closeWarrantyModal" class="mt-2 w-full rounded border px-4 py-2 text-gray-700 hover:bg-gray-100">Close</button>
                 </div>
             </div>
         </div>

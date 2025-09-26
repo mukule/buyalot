@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import {
   SidebarGroup,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem
@@ -10,7 +9,10 @@ import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
 import { ChevronDown, ChevronRight } from 'lucide-vue-next';
 import { ref } from 'vue';
-
+console.log("Available routes from Ziggy:", route().routes);
+console.log("Has login:", route().has('login'));
+console.log("Has register:", route().has('register'));
+console.log("Has password.request:", route().has('password.request'));
 defineProps<{
   items: NavItem[];
 }>();

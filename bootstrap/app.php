@@ -1,14 +1,19 @@
 <?php
 
+use App\Http\Middleware\CheckPermission;
+use App\Http\Middleware\ForceJsonResponse;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\ShareUserPermissions;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use App\Http\Middleware\Admin;
+use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
 use App\Http\Middleware\ShareSellerVerificationStatus;
+use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
 
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -16,21 +21,35 @@ return Application::configure(basePath: dirname(__DIR__))
         web: __DIR__.'/../routes/web.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+
+        api: __DIR__.'/../routes/api.php',
+        then: function () {
+            require base_path('routes/payment.php');
+        },
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
         $middleware->web(append: [
             HandleAppearance::class,
-            HandleInertiaRequests::class,
+//            HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
             ShareSellerVerificationStatus::class,
+            ShareUserPermissions::class,
         ]);
 
          $middleware->alias([
             'admin' => Admin::class,
             'role' => RoleMiddleware::class,
             'verified' => ShareSellerVerificationStatus::class,
+             'permission' => PermissionMiddleware::class,
+             'role_or_permission' => RoleOrPermissionMiddleware::class,
+             'check_permission' => CheckPermission::class,
+         ]);
+
+        $middleware->group('api', [
+            ForceJsonResponse::class,
         ]);
+
     })
     ->withExceptions(function (Exceptions $exceptions) {
 

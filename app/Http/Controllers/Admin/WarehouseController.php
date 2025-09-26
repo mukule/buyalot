@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Warehouse;
+use App\Traits\HasPermissionCheck;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -13,17 +14,22 @@ use Illuminate\Support\Facades\Log;
 
 class WarehouseController extends Controller
 {
+    use HasPermissionCheck;
     /**
      * Display a listing of warehouses.
      */
-  
+
   public function index()
 {
+    $permissionCheck = $this->checkPermissionOrFail('view-warehouses');
+    if ($permissionCheck) {
+        return $permissionCheck;
+    }
     $warehouses = Warehouse::orderBy('created_at', 'desc')
         ->paginate(15);
 
     return Inertia::render('Admin/Warehouses/Index', [
-        'warehouses' => $warehouses, 
+        'warehouses' => $warehouses,
     ]);
 }
 
@@ -34,6 +40,10 @@ class WarehouseController extends Controller
      */
     public function create()
     {
+        $permissionCheck = $this->checkPermissionOrFail('create-warehouses');
+        if ($permissionCheck) {
+            return $permissionCheck;
+        }
         return Inertia::render('Admin/Warehouses/Create');
     }
 
@@ -42,6 +52,10 @@ class WarehouseController extends Controller
      */
     public function store(Request $request)
     {
+        $permissionCheck = $this->checkPermissionOrFail('create-warehouses');
+        if ($permissionCheck) {
+            return $permissionCheck;
+        }
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:warehouses,name',
             'location' => 'nullable|string|max:255',
@@ -68,9 +82,13 @@ class WarehouseController extends Controller
     /**
      * Show the form for editing the specified warehouse.
      */
-   
+
 public function edit(Warehouse $warehouse)
 {
+    $permissionCheck = $this->checkPermissionOrFail('update-warehouses');
+    if ($permissionCheck) {
+        return $permissionCheck;
+    }
     Log::info('Edit method called for warehouse:', ['id' => $warehouse->id, 'name' => $warehouse->name]);
 
     return Inertia::render('Admin/Warehouses/Edit', [
@@ -84,6 +102,10 @@ public function edit(Warehouse $warehouse)
      */
     public function update(Request $request, Warehouse $warehouse)
     {
+        $permissionCheck = $this->checkPermissionOrFail('update-warehouses');
+        if ($permissionCheck) {
+            return $permissionCheck;
+        }
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:warehouses,name,' . $warehouse->id,
             'location' => 'nullable|string|max:255',
@@ -115,6 +137,10 @@ public function edit(Warehouse $warehouse)
      */
     public function destroy(Warehouse $warehouse)
     {
+        $permissionCheck = $this->checkPermissionOrFail('delete-warehouses');
+        if ($permissionCheck) {
+            return $permissionCheck;
+        }
         $warehouse->delete();
 
         return redirect()->route('admin.warehouses.index')->with('success', 'Warehouse deleted successfully.');
