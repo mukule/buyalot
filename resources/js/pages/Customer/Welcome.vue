@@ -202,7 +202,6 @@ const props = defineProps({
     customer: Object
 })
 
-// Computed properties
 const avatarUrl = computed(() => {
     if (props.customer.avatar) return props.customer.avatar
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(props.customer.first_name + ' ' + props.customer.last_name)}&size=128&background=3B82F6&color=ffffff`
@@ -218,7 +217,6 @@ const providerName = computed(() => {
     return props.customer.provider.charAt(0).toUpperCase() + props.customer.provider.slice(1)
 })
 
-// Methods
 const openSupport = () => {
     console.log('Opening support...')
 }

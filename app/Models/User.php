@@ -23,7 +23,6 @@ class User extends Authenticatable
         'password',
         'seller_application_id',
         'phone',
-        'gender',
         'status',
         'google_id',
         'avatar',

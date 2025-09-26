@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\UserDetail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -193,17 +194,18 @@ class UserController extends Controller
             'gender'=>'nullable|in:male,female,other',
         ]);
 
-        // Update user basic info
+        $user_details=UserDetail::find($user->id);
+        if ($user_details){
+            $user_details->update([
+                "gender"=>$validated['gender'],
+            ]);
+        }
         $user->update([
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'gender' => $validated['gender'],
             'phone' => $validated['phone'],
             'status' => (bool) $validated['status'],
-//            'password' => $validated['password'] ? bcrypt($validated['password']) : $user->password,
         ]);
-
-        // Return JSON for API requests
         if ($request->wantsJson() || $request->is('api/*')) {
             $userData = [
                 'id' => $user->id,
@@ -212,17 +214,9 @@ class UserController extends Controller
                 'phone' => $user->phone,
                 'gender' => $user->gender,
                 'status' => (bool) $user->status,
-//                'permissions' => $user->permissions->map(function($permission) {
-//                    return [
-//                        'id' => $permission->id,
-//                        'name' => $permission->name,
-//                    ];
-//                }),
             ];
             return response()->json($userData);
         }
-
-        // Return redirect for web requests
         return redirect()->route('admin.users.index')->with('success', 'User updated successfully.');
     }
 
@@ -263,12 +257,20 @@ class UserController extends Controller
             'name' => $validated['name'],
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
-            'gender' => $validated['gender'] ?? null,
             'password' => bcrypt($validated['password']),
             'status' => (bool) $validated['status'],
             'email_verified_at' => now(),
         ]);
         $user->assignRole($validated['roles']);
+
+        if (!$user->hasAnyRole(['customer', 'seller'])) {
+            UserDetail::create([
+                'user_id' => $user->id,
+                'gender' => $validated['gender'] ?? null,
+                'phone'  => $validated['phone'] ?? null,
+            ]);
+        }
+
         if ($request->wantsJson() || $request->is('api/*')) {
             $user->load('roles', 'permissions');
 
@@ -276,22 +278,7 @@ class UserController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
-                'phone' => $user->phone,
-                'gender' => $user->gender,
-                'status' => (bool) $user->status,
-                'created_at' => $user->created_at,
-                'roles' => $user->roles->map(function($role) {
-                    return [
-                        'id' => $role->id,
-                        'name' => $role->name,
-                    ];
-                }),
-                'permissions' => $user->permissions->map(function($permission) {
-                    return [
-                        'id' => $permission->id,
-                        'name' => $permission->name,
-                    ];
-                }),
+                'created_at' => $user->created_at
             ];
 
             return response()->json([

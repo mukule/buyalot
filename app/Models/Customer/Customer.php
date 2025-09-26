@@ -6,6 +6,7 @@ use App\Events\CustomerRegistered;
 use App\Models\Commission\CommissionCalculation;
 use App\Models\Orders\Order;
 use App\Models\Traits\HasHashid;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -25,20 +26,11 @@ class Customer extends Authenticatable
     protected $fillable = [
         'customer_code', 'first_name', 'last_name', 'email', 'phone',
         'date_of_birth', 'gender', 'profile_photo', 'customer_type', 'status',
-        'acquisition_source', 'referrer_url', 'password', 'email_verified_at',
-        'remember_token', 'last_login_at', 'google_id', 'avatar', 'provider',
-        'provider_verified_at'
-    ];
-
-    protected $hidden = [
-        'password', 'remember_token',
+        'acquisition_source', 'referrer_url','avatar','user_id'
     ];
 
     protected $casts = [
-        'email_verified_at' => 'datetime',
-        'last_login_at' => 'datetime',
         'date_of_birth' => 'date',
-        'provider_verified_at' => 'datetime',
     ];
 
     protected static function boot()
@@ -217,5 +209,10 @@ class Customer extends Authenticatable
     public function isVip(): bool
     {
         return $this->customer_type === 'vip' || $this->getTotalSpent() > 10000;
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 }
