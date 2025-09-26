@@ -11,21 +11,21 @@ use Laravel\Socialite\Facades\Socialite;
 
 class GoogleAuthController extends Controller
 {
-//    public function redirect()
-//    {
-//        $redirectUri = route('google.callback');
-//        \Log::info('Google OAuth Redirect URI: ' . $redirectUri);
-//
-//        return Socialite::driver('google')
-//            ->redirectUrl($redirectUri)
-//            ->redirect();
-//    }
     public function redirect()
     {
+        $redirectUri = route('google.callback');
+        \Log::info('Google OAuth Redirect URI: ' . $redirectUri);
+
         return Socialite::driver('google')
-            ->redirectUrl(route('google.callback'))
+            ->redirectUrl($redirectUri)
             ->redirect();
     }
+//    public function redirect()
+//    {
+//        return Socialite::driver('google')
+//            ->redirectUrl(route('google.callback'))
+//            ->redirect();
+//    }
     public function register()
     {
         session(['google_auth_intent' => 'register']);

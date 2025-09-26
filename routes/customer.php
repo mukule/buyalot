@@ -8,7 +8,7 @@ use App\Http\Controllers\Customer\CustomerWishlistsController;
 use App\Http\Controllers\Orders\OrderController;
 
 
-Route::middleware(['auth:customer'])->group(function () {
+Route::middleware(['auth'])->group(function () {
 Route::resource('orders', OrderController::class);
 
 Route::resource('customers', CustomerController::class);
