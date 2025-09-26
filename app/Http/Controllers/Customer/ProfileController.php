@@ -17,7 +17,7 @@ class ProfileController extends Controller
 
     public function show()
     {
-        $customer = Auth::guard('customer')->user();
+        $customer = Auth::guard('web')->user();
         $customer->load(['businessInfo', 'marketingPreferences', 'addresses']);
 
         return view('customers.profile', compact('customer'));
@@ -25,7 +25,7 @@ class ProfileController extends Controller
 
     public function edit()
     {
-        $customer = Auth::guard('customer')->user();
+        $customer = Auth::guard('web')->user();
         $customer->load(['businessInfo', 'marketingPreferences']);
 
         return view('customer.edit_profile', compact('customer'));
@@ -33,7 +33,7 @@ class ProfileController extends Controller
 
     public function update(Request $request)
     {
-        $customer = Auth::guard('customer')->user();
+        $customer = Auth::guard('web')->user();
 
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
@@ -57,7 +57,7 @@ class ProfileController extends Controller
             'password' => 'required|min:8|confirmed',
         ]);
 
-        $customer = Auth::guard('customer')->user();
+        $customer = Auth::guard('web')->user();
 
         if (!Hash::check($request->current_password, $customer->password)) {
             return back()->withErrors([

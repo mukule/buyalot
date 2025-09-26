@@ -92,7 +92,7 @@ class CustomerController extends Controller
 
     public function profile()
     {
-        $customer = Auth::guard('customer')->user();
+        $customer = Auth::guard('web')->user();
 
         if (!$customer) {
             return redirect()->route('login')->with('error', 'Please log in to access your profile.');
@@ -110,10 +110,6 @@ class CustomerController extends Controller
                 'avatar' => $customer->avatar ? Storage::url($customer->avatar) : null,
                 'customer_type' => $customer->customer_type,
                 'status' => $customer->status,
-                'provider' => $customer->provider,
-                'email_verified_at' => $customer->email_verified_at,
-                'created_at' => $customer->created_at->format('M d, Y'),
-                'has_password' => !empty($customer->password),
             ]
         ]);
     }
@@ -123,7 +119,7 @@ class CustomerController extends Controller
      */
     public function welcome(Request $request)
     {
-        $customer = Auth::guard('customer')->user();
+        $customer = Auth::guard('web')->user();
 
         // If no authenticated customer, use a sample customer for email preview
         if (!$customer) {
@@ -132,7 +128,6 @@ class CustomerController extends Controller
                 'last_name' => $request->get('last_name', 'Doe'),
                 'email' => $request->get('email', 'john.doe@example.com'),
                 'customer_type' => 'individual',
-                'provider' => null,
                 'avatar' => null,
                 'created_at' => now(),
             ];
@@ -156,7 +151,7 @@ class CustomerController extends Controller
      */
     public function updateProfile(Request $request)
     {
-        $customer = Auth::guard('customer')->user();
+        $customer = Auth::guard('web')->user();
 
         if (!$customer) {
             return redirect()->route('login');
@@ -192,7 +187,7 @@ class CustomerController extends Controller
     }
     public function updatePassword(Request $request)
     {
-        $customer = Auth::guard('customer')->user();
+        $customer = Auth::guard('web')->user();
 
         if (!$customer) {
             return redirect()->route('login');
@@ -214,7 +209,7 @@ class CustomerController extends Controller
     }
     public function deleteAccount(Request $request)
     {
-        $customer = Auth::guard('customer')->user();
+        $customer = Auth::guard('web')->user();
 
         if (!$customer) {
             return redirect()->route('login');
@@ -236,7 +231,7 @@ class CustomerController extends Controller
         }
 
         // Log out and delete account
-        Auth::guard('customer')->logout();
+        Auth::guard('web')->logout();
         $customer->delete();
 
         return redirect()->route('home')->with('success', 'Your account has been deleted successfully.');

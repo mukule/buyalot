@@ -21,8 +21,6 @@ class Customer extends Authenticatable
 
     use HasFactory, Notifiable, SoftDeletes;
 
-    protected $guard = 'customer';
-
     protected $fillable = [
         'customer_code', 'first_name', 'last_name', 'email', 'phone',
         'date_of_birth', 'gender', 'profile_photo', 'customer_type', 'status',

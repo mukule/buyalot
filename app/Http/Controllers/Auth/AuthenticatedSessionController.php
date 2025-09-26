@@ -93,36 +93,4 @@ protected function mergeGuestWishlist(Request $request, $user): void
 
         return redirect('/');
     }
-    public function customerLogin(Request $request)
-    {
-        $credentials = $request->validate([
-            'email' => 'required|email',
-            'password' => 'required',
-        ]);
-
-        if (Auth::guard('customer')->attempt($credentials, $request->filled('remember'))) {
-            $request->session()->regenerate();
-
-            // Update last login
-            Auth::guard('customer')->user()->update([
-                'last_login_at' => now(),
-            ]);
-
-            return redirect()->intended(route('home'))
-                ->with('success', 'Welcome back, ' . Auth::guard('customer')->user()->name . '!');
-        }
-
-        return back()->withErrors([
-            'email' => 'The provided credentials do not match our records.',
-        ]);
-    }
-
-    public function logoutCustomer(Request $request)
-    {
-        Auth::guard('customer')->logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
-
-        return redirect('/');
-    }
 }
