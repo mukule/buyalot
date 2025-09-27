@@ -41,12 +41,12 @@ const authLinks = computed(() => {
     if (user.value) {
         return [
             { name: 'My Account', href: '/account', isUser: true },
-            { name: 'Orders', href: '/orders' },
+            { name: 'Orders', href: '/orders/my-orders' },
             { name: 'Logout', href: '/logout', isLogout: true },
         ];
     } else {
         return [
-            { name: 'Orders', href: '/orders' },
+            { name: 'Orders', href: '/orders/my-orders' },
             { name: 'Login', href: '/login' },
             { name: 'Register', href: '/register' },
         ];

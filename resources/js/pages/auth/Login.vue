@@ -1,4 +1,5 @@
 <script setup lang="ts">
+console.log("login page started...");
 import InputError from '@/components/InputError.vue';
 import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import AuthBase from '@/layouts/AuthLayout.vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import { LoaderCircle } from 'lucide-vue-next';
+console.log('Available routes:', route().routes);
 
 defineProps<{
     status?: string;
@@ -28,8 +30,13 @@ const submit = () => {
 };
 
 const handleGoogleLogin = () => {
-    window.location.href = route('google.redirect');
+    if (route().has('google.redirect')) {
+        window.location.href = route('google.redirect');
+    } else {
+        console.log("google auth url not found");
+    }
 };
+
 </script>
 
 <template>
@@ -140,7 +147,7 @@ const handleGoogleLogin = () => {
 
             <div class="text-center text-sm text-muted-foreground">
                 Don't have an account?
-                <TextLink :href="route('register')" :tabindex="6">Sign up</TextLink>
+<!--                <TextLink :href="route('register')" :tabindex="6">Sign up</TextLink>-->
             </div>
         </div>
     </AuthBase>

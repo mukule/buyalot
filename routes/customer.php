@@ -9,8 +9,6 @@ use App\Http\Controllers\Orders\OrderController;
 
 
 Route::middleware(['auth:customer'])->group(function () {
-Route::resource('orders', OrderController::class);
-
 Route::resource('customers', CustomerController::class);
 Route::get('customers/{customer}/dashboard', [CustomerController::class, 'dashboard'])->name('customers.dashboard');
     Route::get('customer/profile', [CustomerController::class, 'profile'])->name('customer.profile.show');

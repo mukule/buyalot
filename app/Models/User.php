@@ -26,11 +26,17 @@ class User extends Authenticatable
         'status',
         'google_id',
         'avatar',
+        'provider',
+        'provider_id',
+        'email_verified_at',
+        'last_login_at',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
+        'email_verified_at',
+        'google_id',
     ];
 
     protected function casts(): array

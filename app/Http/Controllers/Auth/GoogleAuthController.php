@@ -11,18 +11,37 @@ use Laravel\Socialite\Facades\Socialite;
 
 class GoogleAuthController extends Controller
 {
-    public function redirect()
+    public function redirect1()
     {
-        $redirectUri = route('google.callback');
-        \Log::info('Google OAuth Redirect URI: ' . $redirectUri);
+        info("started google auth redirect....");
+        try {
+            $redirectUri = route('google.callback');
+            \Log::info('Google OAuth Redirect URI: ' . $redirectUri);
 
-        return Socialite::driver('google')
-            ->redirectUrl($redirectUri)
-            ->redirect();
+            return Socialite::driver('google')
+                ->redirectUrl($redirectUri)
+                ->redirect();
+        } catch (\Exception $e) {
+            \Log::error('Google OAuth Redirect Error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return redirect()->route('login')
+                ->with('error', 'Failed to connect to Google. Please try again.');
+        }
     }
+
+//    public function redirect()
+//    {
+//        return Socialite::driver('google')
+//            ->redirectUrl(route('google.callback'))
+//            ->redirect();
+//    }
 
     public function register()
     {
+        info("started google auth register....");
         session(['google_auth_intent' => 'register']);
 
         $redirectUri = route('google.callback');
@@ -66,7 +85,7 @@ class GoogleAuthController extends Controller
 
                     $this->updateExistingCustomerFromGoogle($customer, $googleUser);
                     DB::commit();
-                    Auth::login($user);
+                    Auth::login($customer);
                     request()->session()->regenerate();
                     return redirect()->route('home')->with('success', 'Welcome back!');
                 }
@@ -84,7 +103,7 @@ class GoogleAuthController extends Controller
                 $this->linkGoogleToExistingCustomer($existingCustomer, $googleUser);
                 DB::commit();
                     if ($user) {
-                        Auth::login($user);
+                        Auth::login($existingCustomer);
                         request()->session()->regenerate();
                     }else{
                         return redirect()->route('login')->with('error','Sory, could not veryfy user account');
@@ -94,8 +113,7 @@ class GoogleAuthController extends Controller
 
             $newCustomer = $this->createCustomerFromGoogle($googleUser);
             DB::commit();
-            $user = User::where('id', $newCustomer->user_id)->first();
-            Auth::login($user);
+            Auth::login($newCustomer);
             request()->session()->regenerate();
 
             $message = $authIntent === 'register'
@@ -116,6 +134,10 @@ class GoogleAuthController extends Controller
 
             return redirect()->route($redirectRoute)->with(
                 'error','Authentication failed. Please try again.');
+        } catch (\Throwable $e) {
+            log($e->getMessage());
+            DB::rollBack();
+            return $this->redirect()->route("/")->with("error","Authentication failed. Please try again.");
         }
     }
 
@@ -157,20 +179,20 @@ class GoogleAuthController extends Controller
     {
         info('Creating new customer from Google');
         $nameParts = $this->parseGoogleName($googleUser->name);
-        $user = User::create([
-            'name' => $googleUser->name,
-            'email' => $googleUser->email,
-            'password' => bcrypt(str()->random(16)), // random password
-            'email_verified_at' => now(),
-            'google_id' => $googleUser->id,
-            'phone' => $googleUser->phone_number,
-            'provider' => 'google',
-            'provider_verified_at' => now(),
-            'last_login_at' => now(),
-        ]);
-        $user->assignRole('customer');
+//        $user = User::create([
+//            'name' => $googleUser->name,
+//            'email' => $googleUser->email,
+//            'password' => bcrypt(str()->random(16)), // random password
+//            'email_verified_at' => now(),
+//            'google_id' => $googleUser->id,
+//            'phone' => $googleUser->phone_number,
+//            'provider' => 'google',
+//            'provider_verified_at' => now(),
+//            'last_login_at' => now(),
+//        ]);
+//        $user->assignRole('customer');
         $customer = Customer::create([
-            'user_id' => $user->id,
+//            'user_id' => $user->id,
             'first_name' => $nameParts['first_name'],
             'last_name' => $nameParts['last_name'],
             'email' => $googleUser->email,

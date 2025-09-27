@@ -1,6 +1,6 @@
-<script setup lang="ts">
+<!--<script setup lang="ts">-->
 
-  defineProps<object>()
-</script>
+<!--  defineProps<object>()-->
+<!--</script>-->
 
 

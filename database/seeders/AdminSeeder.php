@@ -21,7 +21,6 @@ class AdminSeeder extends Seeder
             'password' => bcrypt('123456'),
             'email_verified_at' => now(),
             'status' => true,
-            'gender' => 'male'
         ]);
         $user->assignRole('admin');
 
@@ -32,7 +31,6 @@ class AdminSeeder extends Seeder
             'password' => bcrypt('password'),
             'email_verified_at' => now(),
             'status' => true,
-            'gender' => 'male'
         ]);
 
 

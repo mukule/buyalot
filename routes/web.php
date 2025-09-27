@@ -39,7 +39,7 @@ use App\Http\Controllers\Admin\RegionController;
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';
 require __DIR__.'/payment.php';
-//require __DIR__.'/order.php';
+require __DIR__.'/order.php';
 require __DIR__.'/customer.php';
 
 

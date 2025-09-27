@@ -140,8 +140,11 @@ class CustomerSeeder extends Seeder
 
         // Create test customers with related data
         foreach ($testCustomers as $customerData) {
-            $customer = Customer::create($customerData);
-
+//            $customer = Customer::updateOrCreate($customerData);
+            $customer = Customer::updateOrCreate(
+                ['customer_code' => $customerData['customer_code']],
+                $customerData
+            );
             // Create default address for each customer
             $this->createCustomerAddress($customer);
 
@@ -212,30 +215,32 @@ class CustomerSeeder extends Seeder
      */
     private function createMarketingPreferences($customer): void
     {
-        DB::table('customer_marketing_preferences')->insert([
-            'customer_id' => $customer->id,
-            'accepts_marketing' => rand(0, 1),
-            'accepts_sms' => rand(0, 1),
-            'accepts_phone_calls' => rand(0, 1),
-            'accepts_push_notifications' => rand(0, 1),
-            'channel_preferences' => json_encode([
-                'email' => rand(0, 1),
-                'sms' => rand(0, 1),
-                'push' => rand(0, 1),
-            ]),
-            'frequency_preferences' => json_encode([
-                'daily' => false,
-                'weekly' => rand(0, 1),
-                'monthly' => rand(0, 1),
-            ]),
-            'content_preferences' => json_encode([
-                'promotions' => rand(0, 1),
-                'new_products' => rand(0, 1),
-                'order_updates' => true,
-            ]),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        DB::table('customer_marketing_preferences')->updateOrInsert(
+            ['customer_id' => $customer->id], // unique key
+            [
+                'accepts_marketing' => rand(0, 1),
+                'accepts_sms' => rand(0, 1),
+                'accepts_phone_calls' => rand(0, 1),
+                'accepts_push_notifications' => rand(0, 1),
+                'channel_preferences' => json_encode([
+                    'email' => rand(0, 1),
+                    'sms' => rand(0, 1),
+                    'push' => rand(0, 1),
+                ]),
+                'frequency_preferences' => json_encode([
+                    'daily' => false,
+                    'weekly' => rand(0, 1),
+                    'monthly' => rand(0, 1),
+                ]),
+                'content_preferences' => json_encode([
+                    'promotions' => rand(0, 1),
+                    'new_products' => rand(0, 1),
+                    'order_updates' => true,
+                ]),
+                'updated_at' => now(),
+                'created_at' => now(),
+            ]
+        );
     }
 
     /**
@@ -243,7 +248,7 @@ class CustomerSeeder extends Seeder
      */
     private function createCustomerStatistics($customer): void
     {
-        DB::table('customer_statistics')->insert([
+        DB::table('customer_statistics')->updateOrInsert([
             'customer_id' => $customer->id,
             'first_order_at' => null,
             'last_order_at' => null,
@@ -287,14 +292,19 @@ class CustomerSeeder extends Seeder
         ];
 
         foreach ($preferences as $pref) {
-            DB::table('customer_preferences')->insert([
-                'customer_id' => $customer->id,
-                'category' => $pref['category'],
-                'preference_key' => $pref['preference_key'],
-                'preference_value' => $pref['preference_value'],
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
+            DB::table('customer_preferences')->updateOrInsert(
+                [
+                    'customer_id' => $customer->id,
+                    'category' => $pref['category'],
+                    'preference_key' => $pref['preference_key'],
+                ],
+                [
+                    'preference_value' => $pref['preference_value'],
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ]
+            );
+
         }
     }
 }

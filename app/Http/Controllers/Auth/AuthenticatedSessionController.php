@@ -17,12 +17,24 @@ class AuthenticatedSessionController extends Controller
     /**
      * Show the login page.
      */
-    public function create(Request $request): Response
+    public function create(Request $request)
     {
-        return Inertia::render('auth/Login', [
-            'canResetPassword' => Route::has('password.request'),
-            'status' => $request->session()->get('status'),
-        ]);
+        \Illuminate\Log\log("log create function");
+        try {
+            info("inside try");
+
+                $canResetPassword=Route::has('password.request');
+                $status = $request->session()->get('status');
+            info($canResetPassword);
+            info($status);
+            return Inertia::render('auth/Login', [
+                'canResetPassword' =>$canResetPassword,
+                'status' => $status,
+            ]);
+        }catch (\Exception $exception){
+            \Illuminate\Log\log($exception);
+            return redirect()->back()->with("error",$exception->getMessage());
+        }
     }
 
     /**
@@ -48,7 +60,8 @@ class AuthenticatedSessionController extends Controller
         return redirect()->intended(route('admin.dashboard'))
             ->with('success', 'Welcome back, ' . $user->name . '!');
     }
-
+    Auth::login($user);
+    request()->session()->regenerate();
     return redirect()->intended(route('home'))
         ->with('success', 'Welcome back, ' . $user->name . '!');
 }

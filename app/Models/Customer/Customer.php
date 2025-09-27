@@ -7,7 +7,6 @@ use App\Models\Commission\CommissionCalculation;
 use App\Models\Orders\Order;
 use App\Models\Traits\HasHashid;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -19,20 +18,32 @@ class Customer extends Authenticatable
 {
     use Notifiable, SoftDeletes, HasApiTokens, HasHashid;
 
-    use HasFactory, Notifiable, SoftDeletes;
+    use Notifiable, SoftDeletes;
 
     protected $guard = 'customer';
 
     protected $fillable = [
         'customer_code', 'first_name', 'last_name', 'email', 'phone',
         'date_of_birth', 'gender', 'profile_photo', 'customer_type', 'status',
-        'acquisition_source', 'referrer_url','avatar','user_id'
+        'acquisition_source', 'referrer_url','avatar','user_id','google_id',
+        'avatar',
+        'provider',
+        'provider_id',
+        'email_verified_at',
+        'last_login_at',
     ];
 
     protected $casts = [
         'date_of_birth' => 'date',
+        'email_verified_at' => 'datetime',
+        'password' => 'hashed',
     ];
-
+    protected $hidden = [
+        'password',
+        'remember_token',
+        'email_verified_at',
+        'google_id'
+    ];
     protected static function boot()
     {
         parent::boot();
