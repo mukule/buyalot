@@ -71,25 +71,25 @@ class GoogleAuthController extends Controller
             $authIntent = session('google_auth_intent', 'login');
             session()->forget('google_auth_intent');
 
-            $user = User::where('google_id', $googleUser->id)->first();
-
-            if ($user) {
-                $customer = Customer::where('user_id', $user->id)->first();
-
-                if ($customer) {
-                    if ($authIntent === 'register') {
-                        DB::rollBack();
-                        return redirect()->route('login')->with('error',
-                            'An account with this Google account already exists. Please log in instead.');
-                    }
-
-                    $this->updateExistingCustomerFromGoogle($customer, $googleUser);
-                    DB::commit();
-                    Auth::login($customer);
-                    request()->session()->regenerate();
-                    return redirect()->route('home')->with('success', 'Welcome back!');
-                }
-            }
+//            $user = User::where('google_id', $googleUser->id)->first();
+//
+//            if ($user) {
+//                $customer = Customer::where('user_id', $user->id)->first();
+//
+//                if ($customer) {
+//                    if ($authIntent === 'register') {
+//                        DB::rollBack();
+//                        return redirect()->route('login')->with('error',
+//                            'An account with this Google account already exists. Please log in instead.');
+//                    }
+//
+//                    $this->updateExistingCustomerFromGoogle($customer, $googleUser);
+//                    DB::commit();
+//                    Auth::login($customer);
+//                    request()->session()->regenerate();
+//                    return redirect()->route('home')->with('success', 'Welcome back!');
+//                }
+//            }
 
             $existingCustomer = Customer::where('email', $googleUser->email)->first();
 
@@ -99,15 +99,15 @@ class GoogleAuthController extends Controller
                     return redirect()->route('login')->with('error',
                         'An account with this email already exists. Please log in instead.');
                 }
-                $user = User::where('email', $googleUser->email)->first();
+//                $user = User::where('email', $googleUser->email)->first();
                 $this->linkGoogleToExistingCustomer($existingCustomer, $googleUser);
                 DB::commit();
-                    if ($user) {
+//                    if ($user) {
                         Auth::login($existingCustomer);
                         request()->session()->regenerate();
-                    }else{
-                        return redirect()->route('login')->with('error','Sory, could not veryfy user account');
-                    }
+//                    }else{
+//                        return redirect()->route('login')->with('error','Sory, could not veryfy user account');
+//                    }
                 return redirect()->route('home')->with('success', 'Google account linked successfully.');
             }
 
@@ -145,34 +145,25 @@ class GoogleAuthController extends Controller
     {
         $customer->update([
             'avatar' => $googleUser->avatar,
+            'first_name' => $customer->first_name,
+            'last_name' => $customer->last_name,
+            'email' => $customer->email,
+            'last_login_at' => now(),
         ]);
-
-        if ($customer->user) {
-            $customer->user->update([
-                'name' => $customer->first_name . ' ' . $customer->last_name,
-                'email' => $customer->email,
-                'last_login_at' => now(),
-            ]);
-        }
     }
 
     private function linkGoogleToExistingCustomer(Customer $customer, $googleUser): void
     {
         $customer->update([
             'avatar' => $googleUser->avatar,
+            'provider' => 'google',
+            'first_name' => $customer->first_name,
+            'last_name' => $customer->last_name,
+            'provider_verified_at' => now(),
+            'email_verified_at' => $customer->email_verified_at ?? now(),
+            'last_login_at' => now(),
+            'google_id' => $googleUser->id,
         ]);
-
-        if ($customer->user) {
-            $customer->user->update([
-                'name' => $customer->first_name . ' ' . $customer->last_name,
-                'email' => $customer->email,
-                'provider' => 'google',
-                'provider_verified_at' => now(),
-                'email_verified_at' => $customer->email_verified_at ?? now(),
-                'last_login_at' => now(),
-                'google_id' => $googleUser->id,
-            ]);
-        }
     }
 
     private function createCustomerFromGoogle($googleUser): Customer
@@ -196,11 +187,17 @@ class GoogleAuthController extends Controller
             'first_name' => $nameParts['first_name'],
             'last_name' => $nameParts['last_name'],
             'email' => $googleUser->email,
-            'phone' => $googleUser->phone_number,
+//            'phone' => $googleUser->phone_number,
             'avatar' => $googleUser->avatar,
             'customer_type' => 'individual',
             'status' => 'active',
             'acquisition_source' => 'google_oauth',
+            'password' => bcrypt(str()->random(16)),
+            'email_verified_at' => now(),
+            'google_id' => $googleUser->id,
+            'provider' => 'google',
+            'provider_verified_at' => now(),
+            'last_login_at' => now(),
         ]);
 
         return $customer;

@@ -31,18 +31,23 @@ class Customer extends Authenticatable
         'provider_id',
         'email_verified_at',
         'last_login_at',
+        'provider_verified_at',
+        'password'
     ];
 
     protected $casts = [
         'date_of_birth' => 'date',
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'provider_verified_at'=>'datetime',
     ];
     protected $hidden = [
         'password',
         'remember_token',
         'email_verified_at',
-        'google_id'
+        'google_id',
+        'provider_verified_at',
+        'password'
     ];
     protected static function boot()
     {
@@ -222,8 +227,8 @@ class Customer extends Authenticatable
         return $this->customer_type === 'vip' || $this->getTotalSpent() > 10000;
     }
 
-    public function user()
-    {
-        return $this->belongsTo(User::class);
-    }
+//    public function user()
+//    {
+//        return $this->belongsTo(User::class);
+//    }
 }
