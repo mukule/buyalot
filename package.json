@@ -28,6 +28,7 @@
     "vue-tsc": "^2.2.4"
   },
   "dependencies": {
+    "@ckeditor/ckeditor5-build-classic": "^44.3.0",
     "@ckeditor/ckeditor5-vue": "^7.3.0",
     "@inertiajs/core": "^2.2.1",
     "@inertiajs/vue3": "^2.0.0",
@@ -40,6 +41,7 @@
     "concurrently": "^9.0.1",
     "country-calling-code": "^0.0.3",
     "laravel-vite-plugin": "^1.0",
+    "lodash": "^4.17.21",
     "lucide-vue-next": "^0.468.0",
     "quill": "^2.0.3",
     "reka-ui": "^2.2.0",
