@@ -43,6 +43,7 @@ class HandleInertiaRequests extends Middleware
 
         $user  = $request->user();
         $roles = $user ? $user->getRoleNames() : collect();
+//        $permissions => $user ? $user->getAllPermissions()->pluck('name') : [];
 
         // ------------------------
         // Cart (works for auth + guests)
@@ -84,6 +85,7 @@ class HandleInertiaRequests extends Middleware
                     'email' => $user->email,
                 ] : null,
                 'roles' => $user ? $roles : [],
+                'permissions' => $user ? $user->getAllPermissions()->pluck('name') : [],
                 'counts' => [
                     'wishlist' => $wishlistItems->count(),
                     'cart'     => $cart->items->count(),

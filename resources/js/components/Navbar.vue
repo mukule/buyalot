@@ -125,8 +125,6 @@ function logout() {
                     </Link>
                     <span v-if="index < authLinks.length - 1" class="text-gray-400">|</span>
                 </template>
-                <Link href="/login">Login2</Link>
-
                 <!-- Wishlist -->
                 <Link :href="wishlistUrl" class="relative flex items-center justify-center rounded-full bg-secondary p-2">
                     <Heart class="h-4 w-4 text-white" />
