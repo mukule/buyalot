@@ -65,19 +65,17 @@ export type AppPageProps<T extends Record<string, unknown> = Record<string, unkn
     ziggy: Config & { location: string };
     sidebarOpen: boolean;
 };
-
-export interface User {
+export interface Customer {
     id: number;
     name: string;
     email: string;
-    phone: string;
-    status: boolean;
-    avatar?: string;
-    email_verified_at: string | null;
-    created_at: string;
-    updated_at: string;
+    phone?: string;
+    status: boolean | number;
+    orders_count?: number;
 }
-export interface Customer {
+
+
+export interface User {
     id: number;
     name: string;
     email: string;
@@ -99,6 +97,53 @@ export interface MyOrders {
     subtotal: number;
     discount: number;
     tax: number;
+}
+
+export interface ProductVariant {
+    id: number
+    product: Product
+}
+
+export interface OrderItem {
+    id: number
+    quantity: number
+    price: number
+    product_variant?: ProductVariant
+    seller?: { id: number; name: string }
+}
+
+export interface Address {
+    id: number
+    address_line1: string
+    address_line2?: string
+    city: string
+    state?: string
+    country: string
+    postal_code?: string
+}
+export interface Product {
+    id: number
+    name: string
+}
+
+export interface Order {
+    id: number
+    order_code: string
+    status: string
+    payment_status: string
+    fulfillment_status: string
+    total_amount: number
+    created_at: string
+    updated_at: string
+
+    // Relations
+    customer: Customer
+    order_items: OrderItem[]
+    shipping_address?: Address
+    billing_address?: Address
+
+    // Delivery
+    rider_id?: number
 }
 
 export interface Permission {

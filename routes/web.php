@@ -39,8 +39,6 @@ use App\Http\Controllers\Admin\RegionController;
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';
 require __DIR__.'/payment.php';
-require __DIR__.'/order.php';
-require __DIR__.'/customer.php';
 
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -71,7 +69,8 @@ Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard']
 
 Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group(function () {
     require __DIR__ . '/roles_permissions.php';
-
+    require __DIR__.'/customer.php';
+    require __DIR__.'/order.php';
     Route::prefix('users')->name('users.')->group(function () {
 
         Route::middleware(['check_permission:view-users'])->group(function () {

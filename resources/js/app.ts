@@ -16,8 +16,6 @@ createInertiaApp({
     // resolve: (name) => resolvePageComponent(`./pages/${name}.vue`, import.meta.glob<DefineComponent>('./pages/**/*.vue')),
 
     resolve: (name) => {
-        console.log("Resolving page:", name);
-        console.log("Available pages:", Object.keys(pages));
         return resolvePageComponent(`./pages/${name}.vue`, pages);
     },
     setup({ el, App, props, plugin }) {

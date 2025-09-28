@@ -8,6 +8,7 @@ use App\Models\Orders\OrderItem;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\ProductVariantValue;
+use App\Models\User;
 use DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -38,78 +39,65 @@ class OrderController extends Controller
         ]);
 
         if ($validator->fails()) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'message' => 'Validation failed',
-                    'errors' => $validator->errors()
-                ], 400);
-            }
             return back()->withErrors($validator)->withInput();
         }
 
-        try {
-            $query = Order::with(['customer:id,first_name,last_name', 'orderItems.productVariant.product:id,name', 'orderItems.seller:id,name','shippingAddress','billingAddress'])
-                ->when($request->status, fn($q) => $q->where('status', $request->status))
-                ->when($request->payment_status, fn($q) => $q->where('payment_status', $request->payment_status))
-                ->when($request->fulfillment_status, fn($q) => $q->where('fulfillment_status', $request->fulfillment_status))
-                ->when($request->customer_id, fn($q) => $q->where('customer_id', $request->customer_id))
-                ->when($request->order_code, fn($q) => $q->where('order_code', 'like', "%{$request->order_code}%"))
-                ->when($request->date_from, fn($q) => $q->whereDate('created_at', '>=', $request->date_from))
-                ->when($request->date_to, fn($q) => $q->whereDate('created_at', '<=', $request->date_to));
+        $query = Order::with(['customer:id,first_name,last_name', 'orderItems.productVariant.product:id,name', 'orderItems.seller:id,name', 'shippingAddress', 'billingAddress'])
+            ->when($request->status, fn($q) => $q->where('status', $request->status))
+            ->when($request->payment_status, fn($q) => $q->where('payment_status', $request->payment_status))
+            ->when($request->fulfillment_status, fn($q) => $q->where('fulfillment_status', $request->fulfillment_status))
+            ->when($request->customer_id, fn($q) => $q->where('customer_id', $request->customer_id))
+            ->when($request->order_code, fn($q) => $q->where('order_code', 'like', "%{$request->order_code}%"))
+            ->when($request->date_from, fn($q) => $q->whereDate('created_at', '>=', $request->date_from))
+            ->when($request->date_to, fn($q) => $q->whereDate('created_at', '<=', $request->date_to));
 
-            // Sorting
-            $sortBy = $request->get('sort_by', 'created_at');
-            $sortOrder = $request->get('sort_order', 'desc');
-            $query->orderBy($sortBy, $sortOrder);
+        $sortBy = $request->get('sort_by', 'created_at');
+        $sortOrder = $request->get('sort_order', 'desc');
+        $query->orderBy($sortBy, $sortOrder);
 
-            // Pagination
-            $perPage = $request->get('per_page', 15);
-            $orders = $query->paginate($perPage)->withQueryString();
+        $orders = $query->paginate($request->get('per_page', 15))->withQueryString();
 
-            // API Response
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'message' => 'Orders retrieved successfully',
-                    'data' => $orders->items(),
-                    'pagination' => [
-                        'current_page' => $orders->currentPage(),
-                        'per_page' => $orders->perPage(),
-                        'total' => $orders->total(),
-                        'last_page' => $orders->lastPage(),
-                        'has_more_pages' => $orders->hasMorePages()
-                    ]
-                ]);
-            }
-
-            return Inertia::render('Orders/Index', [
-                'orders' => $orders,
-                'filters' => $request->only(['status', 'payment_status', 'fulfillment_status', 'customer_id', 'order_code', 'date_from', 'date_to']),
-                'statusOptions' => [
-                    'pending', 'confirmed', 'processing', 'shipped',
-                    'delivered', 'cancelled', 'refunded', 'partially_refunded'
-                ],
-                'paymentStatusOptions' => [
-                    'pending', 'paid', 'partially_paid', 'failed', 'refunded', 'partially_refunded'
-                ],
-                'fulfillmentStatusOptions' => [
-                    'unfulfilled', 'processing', 'partially_fulfilled', 'fulfilled', 'cancelled'
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            if ($request->expectsJson()) {
-                if ($request->expectsJson()) {
-                    return response()->json([
-                        'message' => 'Failed to retrieve orders',
-                        'error' => config('app.debug') ? $e->getMessage() : null
-                    ], 500);
-                }
-                return back()->with('error', 'Failed to retrieve orders');
-            }
-        }
+        return Inertia::render('Orders/Index', [
+            'orders' => $orders,
+            'filters' => $request->only(['status', 'payment_status', 'fulfillment_status', 'customer_id', 'order_code', 'date_from', 'date_to']),
+            'statusOptions' => [
+                'pending', 'confirmed', 'processing', 'shipped',
+                'delivered', 'cancelled', 'refunded', 'partially_refunded'
+            ],
+            'paymentStatusOptions' => [
+                'pending', 'paid', 'partially_paid', 'failed', 'refunded', 'partially_refunded'
+            ],
+            'fulfillmentStatusOptions' => [
+                'unfulfilled', 'processing', 'partially_fulfilled', 'fulfilled', 'cancelled'
+            ]
+        ]);
     }
 
-    /**
+    public function show(Order $order)
+    {
+        $order->load(['customer', 'orderItems.productVariant.product', 'shippingAddress', 'billingAddress', 'assignedRider:id,name,email']);
+
+        return Inertia::render('Orders/Show', [
+            'order' => $order,
+        ]);
+    }
+
+    public function assignRider(Request $request, Order $order)
+    {
+        $request->validate([
+            'rider_id' => 'required|exists:users,id'
+        ]);
+
+        $rider = User::whereHas('roles', fn($q) => $q->where('name', 'delivery'))
+            ->where('id', $request->rider_id)
+            ->firstOrFail();
+
+        $order->update(['rider_id' => $rider->id]);
+
+        return back()->with('success', 'Order assigned to rider successfully.');
+    }
+
+/**
      * Show the form for creating a new resource.
      */
     public function create()
@@ -271,7 +259,7 @@ class OrderController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Request $request, Order $order)
+    public function show1(Request $request, Order $order)
     {
         try {
             $order->load([

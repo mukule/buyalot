@@ -26,6 +26,8 @@ import {
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from './AppLogo.vue';
+import AppLogoIcon from '@/components/AppLogoIcon.vue';
+import { Label } from '@/components/ui/label';
 const { canAccess } = usePermissions();
 
 // const page = usePage();
@@ -158,7 +160,7 @@ const allNavItems: NavItem[] = [
         title: 'Customers',
         href: '/admin/customers',
         icon: BookUserIcon,
-        permissions: ['view-users'],
+        permissions: ['view-customers'],
     },
     {
         title: 'Users',

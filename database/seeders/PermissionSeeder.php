@@ -349,5 +349,11 @@ class PermissionSeeder extends Seeder
             'guard_name' => 'web'
         ]);
         $customerPermissions = Permission::whereIn('name', ['view-user-profile','edit-user-profile']);
+
+        $delivery = Role::firstOrCreate([
+            'name' => 'delivery',
+            'guard_name' => 'web'
+        ]);
+        $deliveryPermissions = Permission::whereIn('name', ['view-user-profile','edit-user-profile']);
     }
 }

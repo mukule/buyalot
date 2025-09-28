@@ -5,6 +5,7 @@ namespace App\Models\Orders;
 use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerAddress;
 use App\Models\Payment\Discount;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -242,4 +243,10 @@ class Order extends Model
             }
         });
     }
+
+    public function assignedRider()
+    {
+        return $this->belongsTo(User::class, 'delivery_id');
+    }
+
 }

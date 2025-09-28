@@ -21,8 +21,10 @@ class CustomerController extends Controller
 
     public function index(Request $request)
     {
+        info("customers list");
         $customers = Customer::query()
-            ->with(['defaultAddress', 'orders'])
+            ->with(['defaultAddress'])
+            ->withCount('orders')
             ->when($request->search, function($query, $search) {
                 $query->where(function($q) use ($search) {
                     $q->where('first_name', 'like', "%{$search}%")
@@ -35,7 +37,7 @@ class CustomerController extends Controller
             ->latest()
             ->paginate(20);
 
-        return Inertia::render('customers/index', compact('customers'));
+        return Inertia::render('Admin/Customers/Index', compact('customers'));
     }
 
     public function show(Customer $customer)
