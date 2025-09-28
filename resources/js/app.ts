@@ -9,10 +9,17 @@ import { ZiggyVue } from 'ziggy-js';
 import { initializeTheme } from './composables/useAppearance';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Buyalot';
+const pages = import.meta.glob<DefineComponent>('./pages/**/*.vue');
 
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
-    resolve: (name) => resolvePageComponent(`./pages/${name}.vue`, import.meta.glob<DefineComponent>('./pages/**/*.vue')),
+    // resolve: (name) => resolvePageComponent(`./pages/${name}.vue`, import.meta.glob<DefineComponent>('./pages/**/*.vue')),
+
+    resolve: (name) => {
+        console.log("Resolving page:", name);
+        console.log("Available pages:", Object.keys(pages));
+        return resolvePageComponent(`./pages/${name}.vue`, pages);
+    },
     setup({ el, App, props, plugin }) {
         const vueApp = createApp({ render: () => h(App, props) });
 

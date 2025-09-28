@@ -11,23 +11,37 @@ use Laravel\Socialite\Facades\Socialite;
 
 class GoogleAuthController extends Controller
 {
+    public function redirect1()
+    {
+        info("started google auth redirect....");
+        try {
+            $redirectUri = route('google.callback');
+            \Log::info('Google OAuth Redirect URI: ' . $redirectUri);
+
+            return Socialite::driver('google')
+                ->redirectUrl($redirectUri)
+                ->redirect();
+        } catch (\Exception $e) {
+            \Log::error('Google OAuth Redirect Error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return redirect()->route('login')
+                ->with('error', 'Failed to connect to Google. Please try again.');
+        }
+    }
+
     public function redirect()
     {
-        $redirectUri = route('google.callback');
-        \Log::info('Google OAuth Redirect URI: ' . $redirectUri);
-
         return Socialite::driver('google')
-            ->redirectUrl($redirectUri)
+            ->redirectUrl(route('google.callback'))
             ->redirect();
     }
-//    public function redirect()
-//    {
-//        return Socialite::driver('google')
-//            ->redirectUrl(route('google.callback'))
-//            ->redirect();
-//    }
+
     public function register()
     {
+        info("started google auth register....");
         session(['google_auth_intent' => 'register']);
 
         $redirectUri = route('google.callback');
@@ -49,30 +63,64 @@ class GoogleAuthController extends Controller
                 ->user();
 
             if (!$googleUser->email) {
-                return redirect()->route('login')->with('error', 'Email is required from Google account.');
+                return redirect()->route('login')->with('error','Email is required from Google account.');
             }
+
+            DB::beginTransaction();
 
             $authIntent = session('google_auth_intent', 'login');
             session()->forget('google_auth_intent');
 
-            DB::beginTransaction();
+//            $user = User::where('google_id', $googleUser->id)->first();
+//
+//            if ($user) {
+//                $customer = Customer::where('user_id', $user->id)->first();
+//
+//                if ($customer) {
+//                    if ($authIntent === 'register') {
+//                        DB::rollBack();
+//                        return redirect()->route('login')->with('error',
+//                            'An account with this Google account already exists. Please log in instead.');
+//                    }
+//
+//                    $this->updateExistingCustomerFromGoogle($customer, $googleUser);
+//                    DB::commit();
+//                    Auth::login($customer);
+//                    request()->session()->regenerate();
+//                    return redirect()->route('home')->with('success', 'Welcome back!');
+//                }
+//            }
 
-            // Check if user already exists with this Google ID
-            $existingUser = User::where('google_id', $googleUser->id)->first();
+            $existingCustomer = Customer::where('email', $googleUser->email)->first();
 
-            if ($existingUser) {
-                return $this->handleExistingGoogleUser($existingUser, $googleUser, $authIntent);
+            if ($existingCustomer) {
+                if ($authIntent === 'register') {
+                    DB::rollBack();
+                    return redirect()->route('login')->with('error',
+                        'An account with this email already exists. Please log in instead.');
+                }
+//                $user = User::where('email', $googleUser->email)->first();
+                $this->linkGoogleToExistingCustomer($existingCustomer, $googleUser);
+                DB::commit();
+//                    if ($user) {
+                        Auth::login($existingCustomer);
+                        request()->session()->regenerate();
+//                    }else{
+//                        return redirect()->route('login')->with('error','Sory, could not veryfy user account');
+//                    }
+                return redirect()->route('home')->with('success', 'Google account linked successfully.');
             }
 
-            // Check if user exists with this email
-            $emailUser = User::where('email', $googleUser->email)->first();
+            $newCustomer = $this->createCustomerFromGoogle($googleUser);
+            DB::commit();
+            Auth::login($newCustomer);
+            request()->session()->regenerate();
 
-            if ($emailUser) {
-                return $this->handleExistingEmailUser($emailUser, $googleUser, $authIntent);
-            }
+            $message = $authIntent === 'register'
+                ? 'Account created successfully'
+                : 'Account created successfully';
 
-            // Create new user and customer
-            return $this->createNewUser($googleUser, $authIntent);
+            return $this->successRedirect($newCustomer, $message);
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -85,138 +133,74 @@ class GoogleAuthController extends Controller
             $redirectRoute = session('google_auth_intent') === 'register' ? 'register' : 'login';
 
             return redirect()->route($redirectRoute)->with(
-                'error', 'Authentication failed. Please try again.'
-            );
-        }
-    }
-
-    private function handleExistingGoogleUser(User $user, $googleUser, string $authIntent)
-    {
-        if ($authIntent === 'register') {
+                'error','Authentication failed. Please try again.');
+        } catch (\Throwable $e) {
+            log($e->getMessage());
             DB::rollBack();
-            return redirect()->route('login')->with('error',
-                'An account with this Google account already exists. Please log in instead.');
+            return $this->redirect()->route("/")->with("error","Authentication failed. Please try again.");
         }
-
-        // Update user info
-        $user->update([
-            'name' => $googleUser->name,
-            'email' => $googleUser->email,
-            'last_login_at' => now(),
-        ]);
-
-        // Update or create customer
-        $customer = Customer::where('user_id', $user->id)->first();
-
-        if (!$customer) {
-            $customer = $this->createCustomerForUser($user, $googleUser);
-        } else {
-            $this->updateCustomerFromGoogle($customer, $googleUser);
-        }
-
-        DB::commit();
-        Auth::guard('web')->login($user);
-        request()->session()->regenerate();
-
-        return redirect()->route('home')->with('success', 'Welcome back!');
     }
 
-    private function handleExistingEmailUser(User $user, $googleUser, string $authIntent)
-    {
-        if ($authIntent === 'register') {
-            DB::rollBack();
-            return redirect()->route('login')->with('error',
-                'An account with this email already exists. Please log in instead.');
-        }
-
-        // Link Google account to existing user
-        $user->update([
-            'google_id' => $googleUser->id,
-            'provider' => 'google',
-            'provider_verified_at' => now(),
-            'email_verified_at' => $user->email_verified_at ?? now(),
-            'last_login_at' => now(),
-        ]);
-
-        // Update or create customer
-        $customer = Customer::where('user_id', $user->id)->first();
-
-        if (!$customer) {
-            $customer = $this->createCustomerForUser($user, $googleUser);
-        } else {
-            $this->updateCustomerFromGoogle($customer, $googleUser);
-        }
-
-        DB::commit();
-        Auth::guard('web')->login($user);
-        request()->session()->regenerate();
-
-        return redirect()->route('home')->with('success', 'Google account linked successfully.');
-    }
-
-    private function createNewUser($googleUser, string $authIntent)
-    {
-        $nameParts = $this->parseGoogleName($googleUser->name);
-
-        $user = User::create([
-            'name' => $googleUser->name,
-            'email' => $googleUser->email,
-            'password' => bcrypt(str()->random(16)),
-            'email_verified_at' => now(),
-            'google_id' => $googleUser->id,
-            'phone' => null,
-            'provider' => 'google',
-            'provider_verified_at' => now(),
-            'last_login_at' => now(),
-        ]);
-
-        $user->assignRole('customer');
-
-        $customer = Customer::create([
-            'user_id' => $user->id,
-            'first_name' => $nameParts['first_name'],
-            'last_name' => $nameParts['last_name'],
-            'email' => $googleUser->email,
-            'phone' => null,
-            'avatar' => $googleUser->avatar,
-            'customer_type' => 'individual',
-            'status' => 'active',
-            'acquisition_source' => 'google_oauth',
-        ]);
-
-        DB::commit();
-        Auth::guard('web')->login($user);
-        request()->session()->regenerate();
-
-        $message = $authIntent === 'register'
-            ? 'Account created successfully'
-            : 'Account created successfully';
-
-        return $this->successRedirect($customer, $message);
-    }
-
-    private function createCustomerForUser(User $user, $googleUser): Customer
-    {
-        $nameParts = $this->parseGoogleName($googleUser->name);
-
-        return Customer::create([
-            'user_id' => $user->id,
-            'first_name' => $nameParts['first_name'],
-            'last_name' => $nameParts['last_name'],
-            'email' => $googleUser->email,
-            'phone' => null,
-            'avatar' => $googleUser->avatar,
-            'customer_type' => 'individual',
-            'status' => 'active',
-            'acquisition_source' => 'google_oauth',
-        ]);
-    }
-
-    private function updateCustomerFromGoogle(Customer $customer, $googleUser): void
+    private function updateExistingCustomerFromGoogle(Customer $customer, $googleUser): void
     {
         $customer->update([
             'avatar' => $googleUser->avatar,
+            'first_name' => $customer->first_name,
+            'last_name' => $customer->last_name,
+            'email' => $customer->email,
+            'last_login_at' => now(),
         ]);
+    }
+
+    private function linkGoogleToExistingCustomer(Customer $customer, $googleUser): void
+    {
+        $customer->update([
+            'avatar' => $googleUser->avatar,
+            'provider' => 'google',
+            'first_name' => $customer->first_name,
+            'last_name' => $customer->last_name,
+            'provider_verified_at' => now(),
+            'email_verified_at' => $customer->email_verified_at ?? now(),
+            'last_login_at' => now(),
+            'google_id' => $googleUser->id,
+        ]);
+    }
+
+    private function createCustomerFromGoogle($googleUser): Customer
+    {
+        info('Creating new customer from Google');
+        $nameParts = $this->parseGoogleName($googleUser->name);
+//        $user = User::create([
+//            'name' => $googleUser->name,
+//            'email' => $googleUser->email,
+//            'password' => bcrypt(str()->random(16)), // random password
+//            'email_verified_at' => now(),
+//            'google_id' => $googleUser->id,
+//            'phone' => $googleUser->phone_number,
+//            'provider' => 'google',
+//            'provider_verified_at' => now(),
+//            'last_login_at' => now(),
+//        ]);
+//        $user->assignRole('customer');
+        $customer = Customer::create([
+//            'user_id' => $user->id,
+            'first_name' => $nameParts['first_name'],
+            'last_name' => $nameParts['last_name'],
+            'email' => $googleUser->email,
+//            'phone' => $googleUser->phone_number,
+            'avatar' => $googleUser->avatar,
+            'customer_type' => 'individual',
+            'status' => 'active',
+            'acquisition_source' => 'google_oauth',
+            'password' => bcrypt(str()->random(16)),
+            'email_verified_at' => now(),
+            'google_id' => $googleUser->id,
+            'provider' => 'google',
+            'provider_verified_at' => now(),
+            'last_login_at' => now(),
+        ]);
+
+        return $customer;
     }
 
     private function parseGoogleName(string $fullName): array

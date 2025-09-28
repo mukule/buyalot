@@ -22,6 +22,8 @@ export interface Auth {
     wishlistVariantIds: number[];
     cartItems: CartItem[]; // 👈 store items instead of only the count
     permissions: string[];
+    customer: Customer | null;
+    customerOrders: MyOrders | null;
 }
 
 export interface BreadcrumbItem {
@@ -74,6 +76,29 @@ export interface User {
     email_verified_at: string | null;
     created_at: string;
     updated_at: string;
+}
+export interface Customer {
+    id: number;
+    name: string;
+    email: string;
+    phone: string;
+    status: boolean;
+    avatar?: string;
+    email_verified_at: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface MyOrders {
+    id: number;
+    hashid: string;
+    order_number: string;
+    status: string;
+    status_label: string;
+    total: number;
+    subtotal: number;
+    discount: number;
+    tax: number;
 }
 
 export interface Permission {

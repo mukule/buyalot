@@ -17,6 +17,9 @@ class DatabaseSeeder extends Seeder
             BrandSeeder::class,
             CategorySeeder::class,
             SubcategorySeeder::class,
+            AdminSeeder::class,
+            CustomerSeeder::class,
+            CommissionPlanSeeder::class
             // Optionally create more seeders here, e.g.
             // TestUserSeeder::class,
         ]);

@@ -27,14 +27,16 @@ class User extends Authenticatable
         'google_id',
         'avatar',
         'provider',
-        'provider_verified_at',
-        'last_login_at',
+        'provider_id',
         'email_verified_at',
+        'last_login_at',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
+        'email_verified_at',
+        'google_id',
     ];
 
     protected function casts(): array
@@ -42,9 +44,6 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'last_login_at' => 'datetime',
-            'google_id' => 'string',
-            'provider_verified_at' => 'datetime',
         ];
     }
 
@@ -62,7 +61,7 @@ class User extends Authenticatable
 
     public function sellerDocuments()
     {
-        return $this->hasMany(SellerDocument::class);
+        return $this->hasMany(SellerDocument::class, 'user_id');
     }
 
     public function products()
@@ -72,7 +71,7 @@ class User extends Authenticatable
 
 public function wishlists(): HasMany
     {
-        return $this->hasMany(\App\Models\Wishlist::class);
+        return $this->hasMany(Wishlist::class, 'customer_id');
     }
 
 

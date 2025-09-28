@@ -29,6 +29,7 @@ class HomeController extends Controller
         $brands = Brand::all();
 
         $productsByCategory = $this->productService->getProductsGroupedByCategory($categories);
+        info($productsByCategory);
 
         return Inertia::render('Frontend/Index', [
             'title'              => 'Online Shopping Store',
@@ -56,9 +57,12 @@ class HomeController extends Controller
             'id'             => $variant->id,
             'regular_price'  => $variant->regular_price,
             'selling_price'  => $variant->selling_price,
-            'discount'       => ($variant->regular_price > 0 && $variant->regular_price > $variant->selling_price)
-                ? round((($variant->regular_price - $variant->selling_price) / $variant->regular_price) * 100)
-                : null,
+//            'discount'       => ($variant->regular_price > 0 && $variant->regular_price > $variant->selling_price)
+//                ? round((($variant->regular_price - $variant->selling_price) / $variant->regular_price) * 100)
+//                : null,
+            'discount' => ($variant->regular_price > 0 && $variant->regular_price > $variant->selling_price)
+                ? (int) round((($variant->regular_price - $variant->selling_price) / $variant->regular_price) * 100)
+                : 0,
             'stock'          => $variant->stock,
             'sku'            => $variant->sku,
             'values'         => $variant->values->map(fn($v) => [

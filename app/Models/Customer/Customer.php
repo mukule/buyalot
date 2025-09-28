@@ -7,7 +7,6 @@ use App\Models\Commission\CommissionCalculation;
 use App\Models\Orders\Order;
 use App\Models\Traits\HasHashid;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -19,18 +18,35 @@ class Customer extends Authenticatable
 {
     use Notifiable, SoftDeletes, HasApiTokens, HasHashid;
 
-    use HasFactory, Notifiable, SoftDeletes;
+    use Notifiable, SoftDeletes;
 
     protected $fillable = [
         'customer_code', 'first_name', 'last_name', 'email', 'phone',
         'date_of_birth', 'gender', 'profile_photo', 'customer_type', 'status',
-        'acquisition_source', 'referrer_url','avatar','user_id'
+        'acquisition_source', 'referrer_url','avatar','user_id','google_id',
+        'avatar',
+        'provider',
+        'provider_id',
+        'email_verified_at',
+        'last_login_at',
+        'provider_verified_at',
+        'password'
     ];
 
     protected $casts = [
         'date_of_birth' => 'date',
+        'email_verified_at' => 'datetime',
+        'password' => 'hashed',
+        'provider_verified_at'=>'datetime',
     ];
-
+    protected $hidden = [
+        'password',
+        'remember_token',
+        'email_verified_at',
+        'google_id',
+        'provider_verified_at',
+        'password'
+    ];
     protected static function boot()
     {
         parent::boot();
@@ -209,8 +225,8 @@ class Customer extends Authenticatable
         return $this->customer_type === 'vip' || $this->getTotalSpent() > 10000;
     }
 
-    public function user()
-    {
-        return $this->belongsTo(User::class);
-    }
+//    public function user()
+//    {
+//        return $this->belongsTo(User::class);
+//    }
 }

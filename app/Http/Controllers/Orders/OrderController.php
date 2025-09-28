@@ -564,4 +564,54 @@ class OrderController extends Controller
             ], 500);
         }
     }
+
+
+    public function myOrders(Request $request)
+    {
+        $customer = $request->user();
+        info(" ..... customer .... ");
+        info($customer);
+        info(" ..... end ......");
+        $orders = Order::with(['orderItems.product:id,name', 'orderItems.seller:id,name'])
+            ->where('customer_id', $customer->id)
+            ->latest()
+            ->paginate(10);
+        $orders->getCollection()->transform(function ($order) {
+            return [
+                'id' => $order->id,
+                'order_code' => $order->order_code,
+                'subtotal' => (float) $order->subtotal,
+                'tax_amount' => (float) $order->tax_amount,
+                'shipping_amount' => (float) $order->shipping_amount,
+                'discount_amount' => (float) $order->discount_amount,
+                'total_amount' => (float) $order->total_amount,
+                'status' => $order->status,
+                'currency' => $order->currency,
+                'created_at' => $order->created_at ? $order->created_at->toDateTimeString() : null,
+                'order_items' => $order->orderItems->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'quantity' => $item->quantity,
+                        'unit_price' => (float) $item->unit_price,
+                        'total_price' => (float) $item->total_price,
+                        'product' => $item->product ? ['id' => $item->product->id, 'name' => $item->product->name] : null,
+                        'seller' => $item->seller ? ['id' => $item->seller->id, 'name' => $item->seller->name] : null,
+                    ];
+                })->toArray(),
+            ];
+        });
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Customer orders retrieved successfully',
+                'data' => $orders
+            ]);
+        }
+
+        return Inertia::render('Customer/MyOrders', [
+            'orders' => $orders
+        ]);
+    }
+
+
 }

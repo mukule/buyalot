@@ -1,30 +1,30 @@
 <template>
     <AppLayout title="My Profile">
         <div class="container mx-auto px-4 py-8">
-            <div class="max-w-4xl mx-auto">
+            <div class="mx-auto max-w-4xl">
                 <!-- Page Header -->
                 <div class="mb-8">
                     <h1 class="text-3xl font-bold text-gray-900">My Profile</h1>
-                    <p class="text-gray-600 mt-2">Manage your account information and preferences</p>
+                    <p class="mt-2 text-gray-600">Manage your account information and preferences</p>
                 </div>
 
                 <!-- Success/Error Messages -->
-                <div v-if="$page.props.flash?.success" class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6">
+                <div v-if="$page.props.flash?.success" class="mb-6 rounded border border-green-400 bg-green-100 px-4 py-3 text-green-700">
                     {{ $page.props.flash.success }}
                 </div>
 
-                <div v-if="$page.props.flash?.error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+                <div v-if="$page.props.flash?.error" class="mb-6 rounded border border-red-400 bg-red-100 px-4 py-3 text-red-700">
                     {{ $page.props.flash.error }}
                 </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="grid grid-cols-1 gap-8 lg:grid-cols-3">
                     <!-- Profile Information Card -->
                     <div class="lg:col-span-2">
-                        <div class="bg-white shadow rounded-lg p-6">
-                            <h2 class="text-xl font-semibold text-gray-900 mb-6">Profile Information</h2>
+                        <div class="rounded-lg bg-white p-6 shadow">
+                            <h2 class="mb-6 text-xl font-semibold text-gray-900">Profile Information</h2>
 
                             <form @submit.prevent="updateProfile" enctype="multipart/form-data">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                                     <!-- First Name -->
                                     <div>
                                         <label for="first_name" class="block text-sm font-medium text-gray-700">First Name</label>
@@ -34,7 +34,7 @@
                                             id="first_name"
                                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                             :class="{ 'border-red-300': $page.props.errors?.first_name }"
-                                        >
+                                        />
                                         <p v-if="$page.props.errors?.first_name" class="mt-1 text-sm text-red-600">
                                             {{ $page.props.errors.first_name }}
                                         </p>
@@ -49,7 +49,7 @@
                                             id="last_name"
                                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                             :class="{ 'border-red-300': $page.props.errors?.last_name }"
-                                        >
+                                        />
                                         <p v-if="$page.props.errors?.last_name" class="mt-1 text-sm text-red-600">
                                             {{ $page.props.errors.last_name }}
                                         </p>
@@ -64,7 +64,7 @@
                                             id="email"
                                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                             :class="{ 'border-red-300': $page.props.errors?.email }"
-                                        >
+                                        />
                                         <p v-if="$page.props.errors?.email" class="mt-1 text-sm text-red-600">
                                             {{ $page.props.errors.email }}
                                         </p>
@@ -79,7 +79,7 @@
                                             id="phone"
                                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                             :class="{ 'border-red-300': $page.props.errors?.phone }"
-                                        >
+                                        />
                                         <p v-if="$page.props.errors?.phone" class="mt-1 text-sm text-red-600">
                                             {{ $page.props.errors.phone }}
                                         </p>
@@ -94,7 +94,7 @@
                                             id="date_of_birth"
                                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                             :class="{ 'border-red-300': $page.props.errors?.date_of_birth }"
-                                        >
+                                        />
                                         <p v-if="$page.props.errors?.date_of_birth" class="mt-1 text-sm text-red-600">
                                             {{ $page.props.errors.date_of_birth }}
                                         </p>
@@ -128,15 +128,15 @@
                                             type="file"
                                             id="avatar"
                                             accept="image/*"
-                                            class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                                        >
+                                            class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:rounded-full file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
+                                        />
                                         <p v-if="$page.props.errors?.avatar" class="mt-1 text-sm text-red-600">
                                             {{ $page.props.errors.avatar }}
                                         </p>
 
                                         <!-- Avatar Preview -->
                                         <div v-if="avatarPreview" class="mt-2">
-                                            <img :src="avatarPreview" alt="Avatar preview" class="w-20 h-20 rounded-full object-cover">
+                                            <img :src="avatarPreview" alt="Avatar preview" class="h-20 w-20 rounded-full object-cover" />
                                         </div>
                                     </div>
                                 </div>
@@ -145,7 +145,7 @@
                                     <button
                                         type="submit"
                                         :disabled="processing"
-                                        class="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                                        class="rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50"
                                     >
                                         <span v-if="processing">Updating...</span>
                                         <span v-else>Update Profile</span>
@@ -158,45 +158,51 @@
                     <!-- Sidebar -->
                     <div class="space-y-6">
                         <!-- Account Overview -->
-                        <div class="bg-white shadow rounded-lg p-6">
-                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Account Overview</h3>
+                        <div class="rounded-lg bg-white p-6 shadow">
+                            <h3 class="mb-4 text-lg font-semibold text-gray-900">Account Overview</h3>
 
                             <!-- Avatar -->
-                            <div class="text-center mb-4">
-                                <img
-                                    :src="avatarUrl"
-                                    :alt="customer.first_name"
-                                    class="w-20 h-20 rounded-full mx-auto object-cover"
-                                >
-                                <h4 class="mt-2 text-lg font-medium text-gray-900">
-                                    {{ customer.first_name }} {{ customer.last_name }}
-                                </h4>
+                            <div class="mb-4 text-center">
+                                <img :src="avatarUrl" :alt="customer.first_name" class="mx-auto h-20 w-20 rounded-full object-cover" />
+                                <h4 class="mt-2 text-lg font-medium text-gray-900">{{ customer.first_name }} {{ customer.last_name }}</h4>
                                 <p class="text-sm text-gray-500">{{ customer.email }}</p>
                             </div>
 
                             <!-- Account Stats -->
                             <div class="border-t pt-4">
-                                <div class="text-sm text-gray-600 space-y-2">
+                                <div class="space-y-2 text-sm text-gray-600">
                                     <p><strong>Member since:</strong> {{ customer.created_at }}</p>
-                                    <p><strong>Account Type:</strong> {{ customer.customer_type ? customer.customer_type.charAt(0).toUpperCase() + customer.customer_type.slice(1) : 'Individual' }}</p>
-                                    <p><strong>Status:</strong>
-                                        <span :class="statusClass">
-                      {{ customer.status ? customer.status.charAt(0).toUpperCase() + customer.status.slice(1) : 'Active' }}
-                    </span>
+                                    <p>
+                                        <strong>Account Type:</strong>
+                                        {{
+                                            customer.customer_type
+                                                ? customer.customer_type.charAt(0).toUpperCase() + customer.customer_type.slice(1)
+                                                : 'Individual'
+                                        }}
                                     </p>
-                                    <p v-if="customer.provider"><strong>Connected via:</strong> {{ customer.provider.charAt(0).toUpperCase() + customer.provider.slice(1) }}</p>
+                                    <p>
+                                        <strong>Status:</strong>
+                                        <span :class="statusClass">
+                                            {{ customer.status ? customer.status.charAt(0).toUpperCase() + customer.status.slice(1) : 'Active' }}
+                                        </span>
+                                    </p>
+                                    <p v-if="customer.provider">
+                                        <strong>Connected via:</strong> {{ customer.provider.charAt(0).toUpperCase() + customer.provider.slice(1) }}
+                                    </p>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Security -->
-                        <div class="bg-white shadow rounded-lg p-6">
-                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Security</h3>
+                        <div class="rounded-lg bg-white p-6 shadow">
+                            <h3 class="mb-4 text-lg font-semibold text-gray-900">Security</h3>
 
                             <button
                                 @click="showPasswordForm = !showPasswordForm"
-                                class="w-full font-medium py-2 px-4 rounded-md mb-3"
-                                :class="customer.has_password ? 'bg-gray-600 hover:bg-gray-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'"
+                                class="mb-3 w-full rounded-md px-4 py-2 font-medium"
+                                :class="
+                                    customer.has_password ? 'bg-gray-600 text-white hover:bg-gray-700' : 'bg-blue-600 text-white hover:bg-blue-700'
+                                "
                             >
                                 {{ customer.has_password ? 'Change Password' : 'Set Password' }}
                             </button>
@@ -213,7 +219,7 @@
                                             required
                                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                             :class="{ 'border-red-300': $page.props.errors?.current_password }"
-                                        >
+                                        />
                                         <p v-if="$page.props.errors?.current_password" class="mt-1 text-sm text-red-600">
                                             {{ $page.props.errors.current_password }}
                                         </p>
@@ -228,7 +234,7 @@
                                             required
                                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                             :class="{ 'border-red-300': $page.props.errors?.password }"
-                                        >
+                                        />
                                         <p v-if="$page.props.errors?.password" class="mt-1 text-sm text-red-600">
                                             {{ $page.props.errors.password }}
                                         </p>
@@ -242,13 +248,13 @@
                                             id="password_confirmation"
                                             required
                                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                        >
+                                        />
                                     </div>
 
                                     <button
                                         type="submit"
                                         :disabled="passwordProcessing"
-                                        class="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium py-2 px-4 rounded-md"
+                                        class="w-full rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                                     >
                                         <span v-if="passwordProcessing">Updating...</span>
                                         <span v-else>{{ customer.has_password ? 'Update Password' : 'Set Password' }}</span>
@@ -258,15 +264,15 @@
                         </div>
 
                         <!-- Danger Zone -->
-                        <div class="bg-red-50 border border-red-200 shadow rounded-lg p-6">
-                            <h3 class="text-lg font-semibold text-red-900 mb-4">Danger Zone</h3>
-                            <p class="text-sm text-red-700 mb-4">
+                        <div class="rounded-lg border border-red-200 bg-red-50 p-6 shadow">
+                            <h3 class="mb-4 text-lg font-semibold text-red-900">Danger Zone</h3>
+                            <p class="mb-4 text-sm text-red-700">
                                 Once you delete your account, all of your data will be permanently removed. This action cannot be undone.
                             </p>
 
                             <button
                                 @click="showDeleteForm = !showDeleteForm"
-                                class="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md text-sm"
+                                class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
                             >
                                 Delete Account
                             </button>
@@ -275,9 +281,7 @@
                             <div v-show="showDeleteForm" class="mt-4">
                                 <form @submit.prevent="deleteAccount">
                                     <div class="mb-4">
-                                        <label for="confirmation" class="block text-sm font-medium text-gray-700">
-                                            Type "DELETE" to confirm
-                                        </label>
+                                        <label for="confirmation" class="block text-sm font-medium text-gray-700"> Type "DELETE" to confirm </label>
                                         <input
                                             v-model="deleteForm.confirmation"
                                             type="text"
@@ -286,7 +290,7 @@
                                             placeholder="DELETE"
                                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
                                             :class="{ 'border-red-300': $page.props.errors?.confirmation }"
-                                        >
+                                        />
                                         <p v-if="$page.props.errors?.confirmation" class="mt-1 text-sm text-red-600">
                                             {{ $page.props.errors.confirmation }}
                                         </p>
@@ -301,7 +305,7 @@
                                             required
                                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
                                             :class="{ 'border-red-300': $page.props.errors?.password }"
-                                        >
+                                        />
                                         <p v-if="$page.props.errors?.password" class="mt-1 text-sm text-red-600">
                                             {{ $page.props.errors.password }}
                                         </p>
@@ -311,7 +315,7 @@
                                         type="submit"
                                         :disabled="deleteProcessing"
                                         @click="confirmDelete"
-                                        class="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-medium py-2 px-4 rounded-md"
+                                        class="w-full rounded-md bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700 disabled:opacity-50"
                                     >
                                         <span v-if="deleteProcessing">Deleting...</span>
                                         <span v-else>I understand, delete my account</span>
@@ -327,13 +331,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useForm, router } from '@inertiajs/vue3'
 import AppLayout from '@/layouts/MainLayout.vue';
+import { useForm } from '@inertiajs/vue3';
+import { computed, ref } from 'vue';
 
 const props = defineProps({
-    customer: Object
-})
+    customer: Object,
+});
 
 // Form data
 const form = useForm({
@@ -343,91 +347,91 @@ const form = useForm({
     phone: props.customer.phone,
     date_of_birth: props.customer.date_of_birth,
     gender: props.customer.gender,
-    avatar: null
-})
+    avatar: null,
+});
 
 const passwordForm = useForm({
     current_password: '',
     password: '',
     password_confirmation: '',
-    has_password: props.customer.has_password
-})
+    has_password: props.customer.has_password,
+});
 
 const deleteForm = useForm({
     confirmation: '',
     password: '',
-    has_password: props.customer.has_password
-})
+    has_password: props.customer.has_password,
+});
 
 // State
-const showPasswordForm = ref(false)
-const showDeleteForm = ref(false)
-const processing = ref(false)
-const passwordProcessing = ref(false)
-const deleteProcessing = ref(false)
-const avatarPreview = ref(null)
+const showPasswordForm = ref(false);
+const showDeleteForm = ref(false);
+const processing = ref(false);
+const passwordProcessing = ref(false);
+const deleteProcessing = ref(false);
+const avatarPreview = ref(null);
 
 // Computed properties
 const avatarUrl = computed(() => {
-    if (avatarPreview.value) return avatarPreview.value
-    if (props.customer.avatar) return props.customer.avatar
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(props.customer.first_name + ' ' + props.customer.last_name)}&size=128&background=3B82F6&color=ffffff`
-})
+    if (avatarPreview.value) return avatarPreview.value;
+    if (props.customer.avatar) return props.customer.avatar;
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(props.customer.first_name + ' ' + props.customer.last_name)}&size=128&background=3B82F6&color=ffffff`;
+});
 
 const statusClass = computed(() => {
-    const status = props.customer.status || 'active'
+    const status = props.customer.status || 'active';
     return status === 'active'
         ? 'inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800'
-        : 'inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800'
-})
+        : 'inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800';
+});
 
 // Methods
 const handleAvatarChange = (event) => {
-    const file = event.target.files[0]
+    const file = event.target.files[0];
     if (file) {
-        form.avatar = file
-        const reader = new FileReader()
+        form.avatar = file;
+        const reader = new FileReader();
         reader.onload = (e) => {
-            avatarPreview.value = e.target.result
-        }
-        reader.readAsDataURL(file)
+            avatarPreview.value = e.target.result;
+        };
+        reader.readAsDataURL(file);
     }
-}
+};
 
 const updateProfile = () => {
-    processing.value = true
+    processing.value = true;
 
     form.post(route('customer.profile.update'), {
-        onFinish: () => processing.value = false,
-        preserveScroll: true
-    })
-}
+        onFinish: () => (processing.value = false),
+        preserveScroll: true,
+    });
+};
 
 const updatePassword = () => {
-    passwordProcessing.value = true
+    passwordProcessing.value = true;
 
     passwordForm.put(route('customer.password.update'), {
         onSuccess: () => {
-            passwordForm.reset('current_password', 'password', 'password_confirmation')
-            showPasswordForm.value = false
+            passwordForm.reset('current_password', 'password', 'password_confirmation');
+            showPasswordForm.value = false;
         },
-        onFinish: () => passwordProcessing.value = false,
-        preserveScroll: true
-    })
-}
+        onFinish: () => (passwordProcessing.value = false),
+        preserveScroll: true,
+    });
+};
 
 const confirmDelete = (event) => {
     if (!confirm('Are you absolutely sure? This action cannot be undone.')) {
-        event.preventDefault()
-        return false
+        event.preventDefault();
+        return false;
     }
-}
+};
 
 const deleteAccount = () => {
-    deleteProcessing.value = true
+    deleteProcessing.value = true;
 
     deleteForm.delete(route('customer.account.delete'), {
-        onFinish: () => deleteProcessing.value = false
-    })
-}
+        onFinish: () => (deleteProcessing.value = false),
+    });
+};
 </script>
