@@ -6,7 +6,6 @@ const appName = usePage().props.appName || 'Buyalot';
 <template>
     <footer class="border-t border-white/20 bg-[color:var(--primary)] px-4 pt-12 pb-6 text-[color:var(--primary-foreground)] sm:px-6 md:px-8">
         <div class="mx-auto grid max-w-7xl grid-cols-2 gap-8 sm:grid-cols-3 md:grid-cols-5">
-            
             <div>
                 <h4 class="mb-3 font-semibold text-white">Shop</h4>
                 <ul class="space-y-1 text-sm">
@@ -17,7 +16,6 @@ const appName = usePage().props.appName || 'Buyalot';
                 </ul>
             </div>
 
-            
             <div>
                 <h4 class="mb-3 font-semibold text-white">Account</h4>
                 <ul class="space-y-1 text-sm">
@@ -30,7 +28,6 @@ const appName = usePage().props.appName || 'Buyalot';
                 </ul>
             </div>
 
-           
             <div>
                 <h4 class="mb-3 font-semibold text-white">Help</h4>
                 <ul class="space-y-1 text-sm">

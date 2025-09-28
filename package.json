@@ -28,10 +28,13 @@
     "vue-tsc": "^2.2.4"
   },
   "dependencies": {
+    "@ckeditor/ckeditor5-vue": "^7.3.0",
+    "@inertiajs/core": "^2.2.1",
     "@inertiajs/vue3": "^2.0.0",
     "@vitejs/plugin-vue": "^5.2.1",
     "@vueup/vue-quill": "^1.2.0",
     "@vueuse/core": "^12.8.2",
+    "axios": "^1.12.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "concurrently": "^9.0.1",
