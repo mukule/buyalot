@@ -25,11 +25,7 @@ const userRole = computed(() => roles.value[0] ?? 'Guest');
     <div class="flex items-center space-x-3">
         <!-- Avatar -->
         <Avatar class="bg-light h-8 w-8 overflow-hidden rounded-lg">
-            <AvatarImage
-                v-if="props.user && showAvatar"
-                :src="props.user.avatar!"
-                :alt="props.user.name"
-            />
+            <AvatarImage v-if="props.user && showAvatar" :src="props.user.avatar!" :alt="props.user.name" />
             <AvatarFallback class="rounded-lg bg-primary text-white">
                 {{ props.user ? getInitials(props.user.name) : '?' }}
             </AvatarFallback>
@@ -37,19 +33,12 @@ const userRole = computed(() => roles.value[0] ?? 'Guest');
 
         <!-- User info -->
         <div class="grid flex-1 text-left text-sm leading-tight">
-      <span v-if="props.user" class="truncate font-medium">
-        {{ props.user.name }} – {{ userRole }}
-      </span>
-            <span v-else class="truncate font-medium text-gray-500">
-        Guest – {{ userRole }}
-      </span>
+            <span v-if="props.user" class="truncate font-medium"> {{ props.user.name }} – {{ userRole }} </span>
+            <span v-else class="truncate font-medium text-gray-500"> Guest – {{ userRole }} </span>
 
-            <span
-                v-if="props.showEmail && props.user"
-                class="truncate text-xs text-muted-foreground"
-            >
-        {{ props.user.email }}
-      </span>
+            <span v-if="props.showEmail && props.user" class="truncate text-xs text-muted-foreground">
+                {{ props.user.email }}
+            </span>
         </div>
     </div>
 </template>

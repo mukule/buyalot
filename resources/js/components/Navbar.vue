@@ -2,7 +2,7 @@
 import logo from '@/assets/images/logo.png';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { Heart, Menu, Search, ShoppingCart, X } from 'lucide-vue-next';
-import { computed, ref, inject } from 'vue';
+import { computed, inject, ref } from 'vue';
 
 import type { AppPageProps } from '@/types';
 
@@ -96,7 +96,6 @@ function logout() {
         <div class="container mx-auto flex items-center justify-between px-4 py-3 sm:px-6">
             <!-- Logo & Top Links -->
             <div class="flex items-center space-x-6">
-
                 <Link href="/">
                     <img :src="logo" alt="App Logo" class="h-10 w-auto" />
                 </Link>
@@ -126,6 +125,7 @@ function logout() {
                     </Link>
                     <span v-if="index < authLinks.length - 1" class="text-gray-400">|</span>
                 </template>
+                <Link href="/login">Login2</Link>
 
                 <!-- Wishlist -->
                 <Link :href="wishlistUrl" class="relative flex items-center justify-center rounded-full bg-secondary p-2">

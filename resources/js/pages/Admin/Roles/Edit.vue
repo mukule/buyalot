@@ -27,9 +27,7 @@ const searchQuery = ref('');
 
 // Group by `permission.module`
 const groupedPermissions = computed(() => {
-    const filtered = props.permissions.filter((permission) =>
-        permission.name.toLowerCase().includes(searchQuery.value.toLowerCase())
-    );
+    const filtered = props.permissions.filter((permission) => permission.name.toLowerCase().includes(searchQuery.value.toLowerCase()));
 
     // Group by the 'module' property from the database
     return filtered.reduce(
@@ -47,28 +45,26 @@ const groupedPermissions = computed(() => {
 
 // Check if all permissions in a group are selected
 function isGroupFullySelected(groupPermissions: Permission[]): boolean {
-    return groupPermissions.every(permission => form.permissions.includes(permission.id));
+    return groupPermissions.every((permission) => form.permissions.includes(permission.id));
 }
 
 // Check if some permissions in a group are selected (for indeterminate state)
 function isGroupPartiallySelected(groupPermissions: Permission[]): boolean {
-    const selectedCount = groupPermissions.filter(permission =>
-        form.permissions.includes(permission.id)
-    ).length;
+    const selectedCount = groupPermissions.filter((permission) => form.permissions.includes(permission.id)).length;
     return selectedCount > 0 && selectedCount < groupPermissions.length;
 }
 
 // Toggle all permissions in a group
 function toggleGroupPermissions(groupPermissions: Permission[]): void {
-    const groupPermissionIds = groupPermissions.map(p => p.id);
+    const groupPermissionIds = groupPermissions.map((p) => p.id);
 
     if (isGroupFullySelected(groupPermissions)) {
         // Uncheck all permissions in this group
-        form.permissions = form.permissions.filter(id => !groupPermissionIds.includes(id));
+        form.permissions = form.permissions.filter((id) => !groupPermissionIds.includes(id));
     } else {
         // Check all permissions in this group
         const newPermissions = [...form.permissions];
-        groupPermissionIds.forEach(id => {
+        groupPermissionIds.forEach((id) => {
             if (!newPermissions.includes(id)) {
                 newPermissions.push(id);
             }
@@ -126,15 +122,11 @@ function submit() {
                             v-model="searchQuery"
                             type="text"
                             placeholder="Search permissions..."
-                            class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[color:var(--primary)]"
+                            class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:ring-2 focus:ring-[color:var(--primary)] focus:outline-none"
                         />
 
                         <div class="max-h-96 space-y-4 overflow-y-auto rounded border border-[color:var(--border)] p-4">
-                            <div
-                                v-for="(permissionsInGroup, groupName) in groupedPermissions"
-                                :key="groupName"
-                                class="space-y-3"
-                            >
+                            <div v-for="(permissionsInGroup, groupName) in groupedPermissions" :key="groupName" class="space-y-3">
                                 <!-- Group Header with Select All Checkbox -->
                                 <div class="flex items-center space-x-3 border-b border-gray-200 pb-2">
                                     <label class="inline-flex cursor-pointer items-center space-x-2">
@@ -150,7 +142,9 @@ function submit() {
                                         </h5>
                                     </label>
                                     <span class="text-xs text-gray-500">
-                                        ({{ permissionsInGroup.filter(p => form.permissions.includes(p.id)).length }}/{{ permissionsInGroup.length }})
+                                        ({{ permissionsInGroup.filter((p) => form.permissions.includes(p.id)).length }}/{{
+                                            permissionsInGroup.length
+                                        }})
                                     </span>
                                 </div>
 
@@ -171,9 +165,7 @@ function submit() {
                                     </label>
                                 </div>
                             </div>
-                            <div v-if="Object.keys(groupedPermissions).length === 0" class="text-center text-gray-500">
-                                No permissions found.
-                            </div>
+                            <div v-if="Object.keys(groupedPermissions).length === 0" class="text-center text-gray-500">No permissions found.</div>
                         </div>
                         <div v-if="form.errors.permissions" class="mt-1 text-sm text-red-600">
                             {{ form.errors.permissions }}

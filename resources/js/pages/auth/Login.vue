@@ -1,7 +1,6 @@
 <script setup lang="ts">
-console.log("login page started...");
+console.log('login page started...');
 import InputError from '@/components/InputError.vue';
-import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -33,10 +32,9 @@ const handleGoogleLogin = () => {
     if (route().has('google.redirect')) {
         window.location.href = route('google.redirect');
     } else {
-        console.log("google auth url not found");
+        console.log('google auth url not found');
     }
 };
-
 </script>
 
 <template>
@@ -52,7 +50,6 @@ const handleGoogleLogin = () => {
         </div>
 
         <div class="flex flex-col gap-6">
-
             <!-- Regular Login Form -->
             <form @submit.prevent="submit" class="flex flex-col gap-6">
                 <div class="grid gap-6">
@@ -74,9 +71,9 @@ const handleGoogleLogin = () => {
                     <div class="grid gap-2">
                         <div class="flex items-center justify-between">
                             <Label for="password">Password</Label>
-<!--                            <TextLink v-if="canResetPassword" :href="route('password.request')" class="text-sm" :tabindex="5">-->
-<!--                                Forgot password?-->
-<!--                            </TextLink>-->
+                            <!--                            <TextLink v-if="canResetPassword" :href="route('password.request')" class="text-sm" :tabindex="5">-->
+                            <!--                                Forgot password?-->
+                            <!--                            </TextLink>-->
                         </div>
                         <Input
                             id="password"
@@ -110,20 +107,13 @@ const handleGoogleLogin = () => {
                     <span class="w-full border-t border-border" />
                 </div>
                 <div class="relative flex justify-center text-xs uppercase">
-                    <span class="bg-background px-2 text-muted-foreground">
-                        Or continue with Google
-                    </span>
+                    <span class="bg-background px-2 text-muted-foreground"> Or continue with Google </span>
                 </div>
             </div>
 
             <!-- Google Login Button -->
-            <Button
-                type="button"
-                variant="outline"
-                class="w-full flex items-center justify-center gap-3 py-6"
-                @click="handleGoogleLogin"
-            >
-                <svg class="w-5 h-5" viewBox="0 0 24 24">
+            <Button type="button" variant="outline" class="flex w-full items-center justify-center gap-3 py-6" @click="handleGoogleLogin">
+                <svg class="h-5 w-5" viewBox="0 0 24 24">
                     <path
                         fill="#4285F4"
                         d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -144,33 +134,13 @@ const handleGoogleLogin = () => {
                 Continue with Google
             </Button>
 
-
             <div class="text-center text-sm text-muted-foreground">
                 Don't have an account?
-<!--                <TextLink :href="route('register')" :tabindex="6">Sign up</TextLink>-->
+                <!--                <TextLink :href="route('register')" :tabindex="6">Sign up</TextLink>-->
             </div>
         </div>
     </AuthBase>
 </template>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 <!--<script setup lang="ts">-->
 <!--import InputError from '@/components/InputError.vue';-->
@@ -204,7 +174,6 @@ const handleGoogleLogin = () => {
 <!--        onFinish: () => form.reset('password'),-->
 <!--    });-->
 <!--};-->
-
 
 <!--</script>-->
 

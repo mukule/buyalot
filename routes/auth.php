@@ -40,6 +40,7 @@ Route::get('auth/google', [GoogleAuthController::class, 'redirect'])->name('goog
 Route::get('auth/google/register', [GoogleAuthController::class, 'register'])->name('google.register');
 Route::get('auth/google/callback', [GoogleAuthController::class, 'callback'])->name('google.callback');
 
+
 Route::middleware('auth')->group(function () {
     Route::get('verify-email', EmailVerificationPromptController::class)
         ->name('verification.notice');

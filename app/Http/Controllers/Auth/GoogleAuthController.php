@@ -32,12 +32,12 @@ class GoogleAuthController extends Controller
         }
     }
 
-//    public function redirect()
-//    {
-//        return Socialite::driver('google')
-//            ->redirectUrl(route('google.callback'))
-//            ->redirect();
-//    }
+    public function redirect()
+    {
+        return Socialite::driver('google')
+            ->redirectUrl(route('google.callback'))
+            ->redirect();
+    }
 
     public function register()
     {

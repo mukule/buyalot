@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem, Permission, Role } from '@/types';
 import { Head, router } from '@inertiajs/vue3';
+import { computed } from 'vue';
 
 const props = defineProps<{ role: Role & { permissions: Permission[]; hashid: string } }>();
 
@@ -16,20 +16,23 @@ const groupedPermissions = computed(() => {
     if (!props.role.permissions) {
         return {};
     }
-    return props.role.permissions.reduce((groups, permission) => {
-        const modelName = permission.module || 'general';
-        if (!groups[modelName]) {
-            groups[modelName] = [];
-        }
-        groups[modelName].push(permission);
-        return groups;
-    }, {} as Record<string, Permission[]>);
+    return props.role.permissions.reduce(
+        (groups, permission) => {
+            const modelName = permission.module || 'general';
+            if (!groups[modelName]) {
+                groups[modelName] = [];
+            }
+            groups[modelName].push(permission);
+            return groups;
+        },
+        {} as Record<string, Permission[]>,
+    );
 });
 
 function formatGroupName(name: string): string {
     return name
         .split('_')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ');
 }
 
@@ -59,9 +62,7 @@ function goToEditRole() {
                     <h3 class="mb-4 text-xl font-medium">Assigned Permissions</h3>
 
                     <!-- Display a message if no permissions are assigned -->
-                    <div v-if="props.role.permissions.length === 0" class="text-gray-500">
-                        No permissions assigned.
-                    </div>
+                    <div v-if="props.role.permissions.length === 0" class="text-gray-500">No permissions assigned.</div>
                     <div v-else class="space-y-5">
                         <div v-for="(permissionsInGroup, groupName) in groupedPermissions" :key="groupName">
                             <h4 class="mb-2 font-semibold text-gray-800">
@@ -69,7 +70,20 @@ function goToEditRole() {
                             </h4>
                             <ul class="grid grid-cols-1 gap-x-4 gap-y-2 pl-2 sm:grid-cols-2 md:grid-cols-3">
                                 <li v-for="permission in permissionsInGroup" :key="permission.id" class="flex items-center">
-                                    <svg class="mr-2 h-4 w-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    <svg
+                                        class="mr-2 h-4 w-4 text-green-500"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                        ></path>
+                                    </svg>
                                     <span class="text-sm text-gray-600">{{ permission.name }}</span>
                                     <span class="text-sm text-gray-600">{{ permission.module }}</span>
                                 </li>

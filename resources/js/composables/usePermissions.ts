@@ -1,6 +1,6 @@
+import type { Auth } from '@/types';
 import { usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
-import type { Auth } from '@/types';
 
 export function usePermissions() {
     const page = usePage();
@@ -15,16 +15,12 @@ export function usePermissions() {
 
     const hasAnyPermission = (requiredPermissions: string[]): boolean => {
         if (requiredPermissions.length === 0) return true;
-        return requiredPermissions.some(permission =>
-            permissions.value.includes(permission)
-        );
+        return requiredPermissions.some((permission) => permissions.value.includes(permission));
     };
 
     const hasAllPermissions = (requiredPermissions: string[]): boolean => {
         if (requiredPermissions.length === 0) return true;
-        return requiredPermissions.every(permission =>
-            permissions.value.includes(permission)
-        );
+        return requiredPermissions.every((permission) => permissions.value.includes(permission));
     };
 
     const hasRole = (role: string): boolean => {
@@ -33,12 +29,12 @@ export function usePermissions() {
 
     const hasAnyRole = (requiredRoles: string[]): boolean => {
         if (requiredRoles.length === 0) return true;
-        return requiredRoles.some(role => roles.value.includes(role));
+        return requiredRoles.some((role) => roles.value.includes(role));
     };
 
     const hasAllRoles = (requiredRoles: string[]): boolean => {
         if (requiredRoles.length === 0) return true;
-        return requiredRoles.every(role => roles.value.includes(role));
+        return requiredRoles.every((role) => roles.value.includes(role));
     };
 
     // Enhanced permission check that supports both permissions and roles

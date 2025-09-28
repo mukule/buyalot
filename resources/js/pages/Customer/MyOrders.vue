@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { ref, computed, watch } from 'vue';
 import { debounce } from 'lodash';
-import { SearchIcon, ChevronLeftIcon, ChevronRightIcon, Eye } from 'lucide-vue-next';
+import { ChevronLeftIcon, ChevronRightIcon, Eye, SearchIcon } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 
 interface OrderItem {
     id: number;
@@ -12,7 +12,6 @@ interface OrderItem {
     total_amount: number;
     created_at: string;
 }
-
 
 interface PaginationLink {
     url: string | null;
@@ -52,11 +51,7 @@ const filteredOrders = computed(() => {
     const query = debouncedQuery.value.trim().toLowerCase();
 
     if (!query) return orders;
-    return orders.filter(
-        (o) =>
-            o.order_number.toLowerCase().includes(query) ||
-            o.status.toLowerCase().includes(query),
-    );
+    return orders.filter((o) => o.order_number.toLowerCase().includes(query) || o.status.toLowerCase().includes(query));
 });
 
 const pagination = computed(() => {
@@ -82,7 +77,7 @@ const statusClasses = (status: string) => ({
     <AppLayout>
         <div class="p-4">
             <div class="card rounded-lg bg-white p-4 shadow-sm">
-                <div class="flex items-center justify-between mb-6">
+                <div class="mb-6 flex items-center justify-between">
                     <h1 class="text-2xl font-semibold text-gray-800">My Orders</h1>
                 </div>
 
@@ -107,37 +102,37 @@ const statusClasses = (status: string) => ({
                 <div v-if="filteredOrders.length" class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order Number</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                        </tr>
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order Number</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                            </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white">
-
-                        <tr v-for="(order, index) in filteredOrders" :key="order.id" class="hover:bg-gray-50">
-                            <td class="px-4 py-4 text-sm text-gray-500">{{ index + 1 }}</td>
-                            <td class="px-4 py-4 text-sm font-medium text-primary">{{ order.order_code }}</td>
-                            <td class="px-4 py-4 text-sm text-gray-700">{{ order.created_at }}</td>
-                            <td class="px-4 py-4 text-sm font-semibold text-gray-700">
-                                {{ order.currency }} {{ order.total_amount.toFixed(2) }}
-                            </td>
-                            <td class="px-4 py-4 text-sm">
-                            <span :class="statusClasses(order.status)" class="inline-block rounded-full px-2 py-0.5 text-xs font-medium capitalize">
-                                {{ order.status }}
-                            </span>
-                            </td>
-                            <td class="px-4 py-4 text-right text-sm font-medium">
-                                <button @click="viewOrder(order.id)" aria-label="View Order" class="text-blue-600 transition hover:text-blue-800">
-                                    <Eye class="h-5 w-5" />
-                                </button>
-                            </td>
-                        </tr>
-
-
+                            <tr v-for="(order, index) in filteredOrders" :key="order.id" class="hover:bg-gray-50">
+                                <td class="px-4 py-4 text-sm text-gray-500">{{ index + 1 }}</td>
+                                <td class="px-4 py-4 text-sm font-medium text-primary">{{ order.order_code }}</td>
+                                <td class="px-4 py-4 text-sm text-gray-700">{{ order.created_at }}</td>
+                                <td class="px-4 py-4 text-sm font-semibold text-gray-700">
+                                    {{ order.currency }} {{ order.total_amount.toFixed(2) }}
+                                </td>
+                                <td class="px-4 py-4 text-sm">
+                                    <span
+                                        :class="statusClasses(order.status)"
+                                        class="inline-block rounded-full px-2 py-0.5 text-xs font-medium capitalize"
+                                    >
+                                        {{ order.status }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-4 text-right text-sm font-medium">
+                                    <button @click="viewOrder(order.id)" aria-label="View Order" class="text-blue-600 transition hover:text-blue-800">
+                                        <Eye class="h-5 w-5" />
+                                    </button>
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
 
@@ -150,12 +145,12 @@ const statusClasses = (status: string) => ({
                                     @click.prevent="link.url && router.visit(link.url)"
                                     class="inline-flex items-center px-4 py-2 text-sm font-medium"
                                     :class="{
-                    'z-10 bg-primary text-white': link.active,
-                    'text-gray-900 ring-1 ring-gray-300 hover:bg-gray-50': !link.active,
-                    'rounded-l-md': index === 0,
-                    'rounded-r-md': index === pagination.links.length - 1,
-                    'pointer-events-none opacity-50': !link.url,
-                  }"
+                                        'z-10 bg-primary text-white': link.active,
+                                        'text-gray-900 ring-1 ring-gray-300 hover:bg-gray-50': !link.active,
+                                        'rounded-l-md': index === 0,
+                                        'rounded-r-md': index === pagination.links.length - 1,
+                                        'pointer-events-none opacity-50': !link.url,
+                                    }"
                                 >
                                     <component
                                         :is="index === 0 ? ChevronLeftIcon : index === pagination.links.length - 1 ? ChevronRightIcon : 'span'"
