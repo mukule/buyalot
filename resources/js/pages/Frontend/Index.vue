@@ -48,7 +48,6 @@ const simplifiedProductsByCategory: Record<number, SimplifiedProduct[]> = Object
     ]),
 );
 
-// ✅ Filter out categories with fewer than 2 products
 const filteredCategories = categories.filter((category) => (simplifiedProductsByCategory[category.id]?.length ?? 0) >= 2);
 </script>
 

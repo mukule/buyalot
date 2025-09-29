@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use App\Models\Traits\HasSlug;
 use App\Models\Traits\HasHashid;
 use App\Models\Warranty;
+use Illuminate\Support\Facades\Storage;
 
 class Product extends Model
 {
@@ -66,11 +67,13 @@ class Product extends Model
     // Attributes
     // ----------------------
 
-    protected function imageUrls(): Attribute
+   protected function imageUrls(): Attribute
     {
         return Attribute::get(fn () =>
             $this->relationLoaded('images')
-                ? $this->images->map(fn ($img) => asset('storage/' . $img->image_path))->toArray()
+                ? $this->images
+                    ->map(fn ($img) => Storage::disk('s3')->url($img->image_path))
+                    ->toArray()
                 : []
         );
     }
@@ -79,10 +82,11 @@ class Product extends Model
     {
         return Attribute::get(fn () =>
             $this->relationLoaded('primaryImage') && $this->primaryImage
-                ? asset('storage/' . $this->primaryImage->image_path)
+                ? Storage::disk('s3')->url($this->primaryImage->image_path)
                 : null
         );
     }
+
 
     protected function statusLabel(): Attribute
     {

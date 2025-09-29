@@ -27,7 +27,7 @@ class FrontendProductService
                 ])
                 ->whereHas('product', function ($q) use ($categoryIds) {
                     $q->whereIn('category_id', $categoryIds)
-                      ->where('status_id', 3);
+                      ->where('status_id', 2);
                 })
                 ->take($limit)
                 ->get()
@@ -37,13 +37,7 @@ class FrontendProductService
         });
     }
 
-    /**
-     * Get paginated product variants for a category and all its descendants.
-     *
-     * @param \App\Models\Category $category
-     * @param int $perPage
-     * @return LengthAwarePaginator
-     */
+   
     public function getPaginatedProductsByCategory($category, int $perPage = 20): LengthAwarePaginator
     {
         $categoryIds = $category->getAllCategoryIds();
@@ -63,10 +57,7 @@ class FrontendProductService
                      ->through(fn($variant) => $this->normalizeVariant($variant));
     }
 
-    /**
-     * Get related products for a given product.
-     * Uses the same logic as grouped products to ensure the same structure.
-     */
+   
     public function getRelatedProducts(Product $product, int $limit = 12)
     {
         if (!$product->category) {
@@ -92,35 +83,32 @@ class FrontendProductService
         return $variants;
     }
 
-    /**
-     * Normalize a product variant for frontend consumption.
-     *
-     * @param ProductVariant $variant
-     * @return array
-     */
+   
+   
     private function normalizeVariant(ProductVariant $variant): array
-    {
-        $product = $variant->product;
+{
+    $product = $variant->product;
 
-        $image = $product->primaryImage
-            ? asset('storage/' . $product->primaryImage->image_path)
-            : ($product->images->first()
-                ? asset('storage/' . $product->images->first()->image_path)
-                : '/fallback-image.png');
+    // Use S3 URLs
+    $image = $product->primaryImageUrl 
+        ?? ($product->images->first()?->image_path
+            ? Storage::disk('s3')->url($product->images->first()->image_path)
+            : '/fallback-image.png');
 
-        return [
-            'id'               => $variant->id,
-            'variant_hashid'   => $variant->hashid,
-            'product_id'       => $product?->id,
-            'product_slug'     => $product?->slug ?? '',
-            'name'             => $variant->display_name ?? $product?->name,
-            'product_name'     => $product?->name,
-            'regular_price'    => $variant->regular_price,
-            'selling_price'    => $variant->selling_price,
-            'discount'         => $variant->discount_percent,
-            'in_stock'         => $variant->in_stock,
-            'brand'            => $product?->brand?->name,
-            'primary_image_url'=> $image,
-        ];
-    }
+    return [
+        'id'                => $variant->id,
+        'variant_hashid'    => $variant->hashid,
+        'product_id'        => $product?->id,
+        'product_slug'      => $product?->slug ?? '',
+        'name'              => $variant->display_name ?? $product?->name,
+        'product_name'      => $product?->name,
+        'regular_price'     => $variant->regular_price,
+        'selling_price'     => $variant->selling_price,
+        'discount'          => $variant->discount_percent,
+        'in_stock'          => $variant->in_stock,
+        'brand'             => $product?->brand?->name,
+        'primary_image_url' => $image,
+    ];
+}
+
 }

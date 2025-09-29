@@ -13,6 +13,8 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Services\ImageService;
+use Illuminate\Support\Facades\Storage;
+
 
 class ProductService
 {
@@ -61,9 +63,7 @@ class ProductService
         });
     }
 
-    /**
-     * Step 1: Create or update base product.
-     */
+   
   
    
   protected function handleStep1(array $data, ?User $user, ?array $images, ?Product $product): Product
@@ -161,9 +161,9 @@ protected function handleStep4(array $data, ?User $user, ?array $images, ?Produc
     $images = $data['images'] ?? $images ?? [];
 
     \Log::info('handleStep4 called', [
-        'product_id' => $product->id,
-        'image_count' => count($images),
-        'sample' => array_slice($images, 0, 2),
+        'product_id'   => $product->id,
+        'image_count'  => count($images),
+        'sample'       => array_slice($images, 0, 2),
     ]);
 
     if (!empty($images)) {
@@ -178,7 +178,7 @@ protected function handleStep4(array $data, ?User $user, ?array $images, ?Produc
                 $submittedExistingIds[] = $img['id'];
             } elseif ($img instanceof \Illuminate\Http\UploadedFile) {
                 $newImages[] = [
-                    'file' => $img,
+                    'file'  => $img,
                     'index' => $index,
                 ];
             } elseif (is_array($img) && !empty($img['file'])) {
@@ -187,27 +187,27 @@ protected function handleStep4(array $data, ?User $user, ?array $images, ?Produc
         }
 
         // Remove images that were deleted in the frontend
-        $product->images()
-            ->whereNotIn('id', $submittedExistingIds)
-            ->get()
-            ->each(function ($img) {
-                if (\Storage::exists($img->image_path)) {
-                    \Storage::delete($img->image_path);
-                }
-                $img->delete();
-            });
+        if (!empty($submittedExistingIds)) {
+            $product->images()
+                ->whereNotIn('id', $submittedExistingIds)
+                ->get()
+                ->each(function ($img) {
+                    Storage::disk('s3')->delete($img->image_path);
+                    $img->delete();
+                });
+        }
 
         // Update existing images: primary flag, sort order, alt_text
         foreach ($images as $index => $img) {
             if (is_array($img) && !empty($img['id'])) {
                 $isPrimary = ($primaryIndex === $index);
                 $sortOrder = $img['sort_order'] ?? $index;
-                $altText = substr($product->name, 0, 15);
+                $altText   = substr($product->name, 0, 15);
 
                 $product->images()->where('id', $img['id'])->update([
                     'is_primary' => $isPrimary ? 1 : 0,
                     'sort_order' => $sortOrder,
-                    'alt_text' => $altText,
+                    'alt_text'   => $altText,
                 ]);
             }
         }
@@ -218,17 +218,17 @@ protected function handleStep4(array $data, ?User $user, ?array $images, ?Produc
         }
 
         // Ensure at least one primary exists
-        if (!$product->images()->where('is_primary', true)->exists()) {
+        if (!$product->images()->where('is_primary', 1)->exists()) {
             $first = $product->images()->orderBy('sort_order')->first();
             if ($first) {
-                $first->update(['is_primary' => true]);
+                $first->update(['is_primary' => 1]);
             }
         }
 
         \Log::info('handleStep4 completed', [
-            'product_id' => $product->id,
-            'final_count' => $product->images()->count(),
-            'has_primary' => $product->images()->where('is_primary', true)->exists(),
+            'product_id'   => $product->id,
+            'final_count'  => $product->images()->count(),
+            'has_primary'  => $product->images()->where('is_primary', 1)->exists(),
         ]);
     }
 
@@ -243,20 +243,44 @@ protected function processProductImages(Product $product, array $images, int $pr
             ? $image
             : (is_array($image) ? ($image['file'] ?? null) : null);
 
-        if ($file instanceof \Illuminate\Http\UploadedFile) {
-            $basename = Str::slug($product->name) . '-' . time();
-            $path = $this->imageService->optimizeAndStoreImage($file, 'products', $basename);
+        \Log::info('processProductImages: inspecting file', [
+            'index' => $index,
+            'type'  => is_object($file) ? get_class($file) : gettype($file),
+            'name'  => $file instanceof \Illuminate\Http\UploadedFile ? $file->getClientOriginalName() : null,
+        ]);
 
-            $product->images()->create([
-                'image_path' => $path,
-                'is_primary' => $primaryIndex === $index ? 1 : 0,
-                'sort_order' => $index,
-                'alt_text' => substr($product->name, 0, 15),
+        if ($file instanceof \Illuminate\Http\UploadedFile) {
+            try {
+                
+                $path = $file->store('products', 's3');
+
+                \Log::info('processProductImages: image stored', [
+                    'product_id' => $product->id,
+                    'path'       => $path,
+                    'url'        => Storage::disk('s3')->url($path),
+                ]);
+
+                // Save in DB
+                $product->images()->create([
+                    'image_path' => $path,
+                    'is_primary' => $primaryIndex === $index ? 1 : 0,
+                    'sort_order' => $index,
+                    'alt_text'   => substr($product->name, 0, 15),
+                ]);
+            } catch (\Exception $e) {
+                \Log::error('processProductImages: upload failed', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        } else {
+            \Log::warning('processProductImages: skipped file', [
+                'index' => $index,
+                'value' => $image,
             ]);
         }
     }
 
-    // Ensure at least one primary exists
+    
     if (!$product->images()->where('is_primary', 1)->exists()) {
         $firstImage = $product->images()->orderBy('sort_order')->first();
         if ($firstImage) {
@@ -265,13 +289,12 @@ protected function processProductImages(Product $product, array $images, int $pr
     }
 
     \Log::info('processProductImages completed', [
-        'product_id' => $product->id,
-        'final_count' => $product->images()->count(),
-        'primary_index' => $primaryIndex,
-        'has_primary' => $product->images()->where('is_primary', 1)->exists(),
+        'product_id'   => $product->id,
+        'final_count'  => $product->images()->count(),
+        'primary_index'=> $primaryIndex,
+        'has_primary'  => $product->images()->where('is_primary', 1)->exists(),
     ]);
 }
-
 
 
     protected function createBaseProduct(array $data, ?User $user = null): Product

@@ -7,6 +7,7 @@ use App\Models\Brand;
 use App\Models\Product;
 use App\Services\FrontendProductService;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Storage;
 
 
 class HomeController extends Controller
@@ -18,9 +19,7 @@ class HomeController extends Controller
         $this->productService = $productService;
     }
 
-    /**
-     * Homepage
-     */
+    
     public function index()
     {
         $categories = Category::with('children')
@@ -29,7 +28,7 @@ class HomeController extends Controller
         $brands = Brand::all();
 
         $productsByCategory = $this->productService->getProductsGroupedByCategory($categories);
-        info($productsByCategory);
+       // info($productsByCategory);
 
         return Inertia::render('Frontend/Index', [
             'title'              => 'Online Shopping Store',
@@ -39,12 +38,10 @@ class HomeController extends Controller
         ]);
     }
 
-    /**
-     * Product details page
-     */
+    
     public function productDetails(string $slug)
     {
-        info("product details "+$slug);
+        //info("product details "+$slug);
         $product = Product::with([
             'brand',
             'primaryImage',
@@ -86,7 +83,10 @@ class HomeController extends Controller
             'description'       => $product->description,
             'specifications'    => $product->specifications,
             'whats_in_the_box'  => $product->whats_in_the_box,
-            'images'            => $product->images->map(fn($img) => asset('storage/' . $img->image_path))->toArray(),
+            'images' => $product->images
+    ->map(fn($img) => Storage::disk('s3')->url($img->image_path))
+    ->toArray(),
+
             'variants'          => $variants,
         ];
 

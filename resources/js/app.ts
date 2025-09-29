@@ -9,14 +9,14 @@ import { ZiggyVue } from 'ziggy-js';
 import { initializeTheme } from './composables/useAppearance';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Buyalot';
-const pages = import.meta.glob<DefineComponent>('./pages/**/*.vue');
+const pages = import.meta.glob<DefineComponent>('./Pages/**/*.vue');
 
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
     // resolve: (name) => resolvePageComponent(`./pages/${name}.vue`, import.meta.glob<DefineComponent>('./pages/**/*.vue')),
 
     resolve: (name) => {
-        return resolvePageComponent(`./pages/${name}.vue`, pages);
+        return resolvePageComponent(`./Pages/${name}.vue`, pages);
     },
     setup({ el, App, props, plugin }) {
         const vueApp = createApp({ render: () => h(App, props) });
@@ -29,7 +29,7 @@ createInertiaApp({
         vueApp.mount(el);
     },
     progress: {
-        color: '#4B5563',
+        color: '#f5762a',
     },
 });
 

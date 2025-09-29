@@ -10,12 +10,10 @@ use Illuminate\Support\Str;
 
 class CategoryController extends Controller
 {
-    /**
-     * Display a paginated list of categories.
-     */
+   
     public function index()
     {
-        $categories = Category::with('parent') // eager load parent
+        $categories = Category::with('parent') 
             ->orderBy('created_at', 'desc')
             ->paginate(15);
 
@@ -24,9 +22,7 @@ class CategoryController extends Controller
         ]);
     }
 
-    /**
-     * Show the form for creating a new category.
-     */
+   
     public function create()
     {
         // Fetch all active categories for parent selection
