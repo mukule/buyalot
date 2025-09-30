@@ -22,6 +22,10 @@ return Application::configure(basePath: dirname(__DIR__))
         api: __DIR__.'/../routes/api.php',
         then: function () {
             require base_path('routes/payment.php');
+            require base_path('routes/customer.php');
+            require base_path('routes/order.php');
+            require base_path('routes/roles_permissions.php');
+            require base_path('routes/settings.php');
         },
     )
     ->withMiddleware(function (Middleware $middleware) {

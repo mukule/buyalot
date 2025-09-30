@@ -30,6 +30,7 @@ class User extends Authenticatable
         'provider_id',
         'email_verified_at',
         'last_login_at',
+        'provider_verified_at'
     ];
 
     protected $hidden = [
@@ -37,6 +38,7 @@ class User extends Authenticatable
         'remember_token',
         'email_verified_at',
         'google_id',
+        'provider_verified_at'
     ];
 
     protected function casts(): array
@@ -44,6 +46,11 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'provider_verified_at'=>'datetime',
+            'last_login_at'=>'datetime',
+            'google_id'=>'string',
+            'provider'=>'string',
+            'provider_id'=>'string',
         ];
     }
 

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import TextLink from '@/components/TextLink.vue';
+
 console.log('login page started...');
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
@@ -136,8 +138,13 @@ const handleGoogleLogin = () => {
 
             <div class="text-center text-sm text-muted-foreground">
                 Don't have an account?
-                <!--                <TextLink :href="route('register')" :tabindex="6">Sign up</TextLink>-->
+               <TextLink :href="route('register')" :tabindex="6">Sign up</TextLink>
             </div>
+
+            <div class="text-center text-sm text-muted-foreground">
+               <TextLink :href="route('home')" :tabindex="6">Back to Home Page</TextLink>
+            </div>
+
         </div>
     </AuthBase>
 </template>

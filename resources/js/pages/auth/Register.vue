@@ -175,5 +175,8 @@ const handleGoogleRegister = () => {
                 <TextLink :href="route('login')" class="underline underline-offset-4" :tabindex="7">Log in</TextLink>
             </div>
         </form>
+        <div class="text-center text-sm text-muted-foreground">
+            <TextLink :href="route('home')" :tabindex="6">Back to Home Page</TextLink>
+        </div>
     </AuthBase>
 </template>

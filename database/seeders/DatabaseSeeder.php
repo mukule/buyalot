@@ -18,8 +18,8 @@ class DatabaseSeeder extends Seeder
             CategorySeeder::class,
             SubcategorySeeder::class,
             AdminSeeder::class,
+            CommissionPlanSeeder::class,
             CustomerSeeder::class,
-            CommissionPlanSeeder::class
             // Optionally create more seeders here, e.g.
             // TestUserSeeder::class,
         ]);

@@ -69,8 +69,10 @@ Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard']
 
 Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group(function () {
     require __DIR__ . '/roles_permissions.php';
-    require __DIR__.'/customer.php';
+//    require __DIR__.'/customer.php';
     require __DIR__.'/order.php';
+    Route::resource('customers', CustomerController::class);
+
     Route::prefix('users')->name('users.')->group(function () {
 
         Route::middleware(['check_permission:view-users'])->group(function () {

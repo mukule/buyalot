@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Customer\Customer;
+use App\Models\User;
 use DB;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -138,26 +139,43 @@ class CustomerSeeder extends Seeder
             ]
         ];
 
-        // Create test customers with related data
-        foreach ($testCustomers as $customerData) {
-//            $customer = Customer::updateOrCreate($customerData);
+        foreach ($testCustomers as $data) {
+            // 1. Create or update the user
+//            $user = User::updateOrCreate(
+//                ['email' => $data['email']], // unique by email
+//                [
+//                    'name' => $data['first_name'].' '.$data['last_name'],
+//                    'email' => $data['email'],
+//                    'password' => Hash::make($data['password']),
+//                    'phone' => $data['phone'],
+//                    'status' => $data['status'] === 'active',
+//                    'email_verified_at' => now(),
+//                ]
+//            );
+
+            // 2. Create or update the customer and attach the user
             $customer = Customer::updateOrCreate(
-                ['customer_code' => $customerData['customer_code']],
-                $customerData
+                ['customer_code' => $data['customer_code']],
+                [
+                    'first_name' => $data['first_name'],
+                    'last_name' => $data['last_name'],
+                    'email' => $data['email'],
+                    'phone' => $data['phone'],
+                    'date_of_birth' => $data['date_of_birth'],
+                    'gender' => $data['gender'],
+                    'password' => Hash::make($data['password']),
+                    'status' => $data['status'] === 'active',
+                    'email_verified_at' => now(),
+//                    'user_id' => $user->id, // attach user_id
+                ]
             );
-            // Create default address for each customer
+
+            // create related records
             $this->createCustomerAddress($customer);
-
-            // Create marketing preferences
             $this->createMarketingPreferences($customer);
-
-            // Create customer statistics
             $this->createCustomerStatistics($customer);
 
-            // Create some preferences
-            $this->createCustomerPreferences($customer);
-
-            $this->command->info("Created customer: {$customer->first_name} {$customer->last_name} ({$customer->email})");
+            $this->command->info("Created user + customer: {$customer->first_name} {$customer->last_name}");
         }
 
         // Generate additional random customers using factory if it exists
@@ -248,19 +266,21 @@ class CustomerSeeder extends Seeder
      */
     private function createCustomerStatistics($customer): void
     {
-        DB::table('customer_statistics')->updateOrInsert([
-            'customer_id' => $customer->id,
-            'first_order_at' => null,
-            'last_order_at' => null,
-            'total_orders' => 0,
-            'total_spent' => 0,
-            'average_order_value' => 0,
-            'customer_lifetime_value' => 0,
-            'lifetime_days' => null,
-            'days_since_last_order' => null,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        DB::table('customer_statistics')->updateOrInsert(
+            ['customer_id' => $customer->id],
+            [
+                'first_order_at' => null,
+                'last_order_at' => null,
+                'total_orders' => 0,
+                'total_spent' => 0,
+                'average_order_value' => 0,
+                'customer_lifetime_value' => 0,
+                'lifetime_days' => null,
+                'days_since_last_order' => null,
+                'updated_at' => now(),
+                'created_at' => now(),
+            ]
+        );
     }
 
     /**

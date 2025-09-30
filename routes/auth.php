@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
 //use App\Http\Controllers\Auth\GoogleAuthController;
+use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
@@ -36,9 +37,11 @@ Route::middleware('guest')->group(function () {
 //    Route::get('login', [AuthenticatedSessionController::class, 'showLoginForm'])->name('login');
 
 });
-//Route::get('auth/google', [GoogleAuthController::class, 'redirect'])->name('google.redirect');
-//Route::get('auth/google/register', [GoogleAuthController::class, 'register'])->name('google.register');
-//Route::get('auth/google/callback', [GoogleAuthController::class, 'callback'])->name('google.callback');
+
+
+Route::get('auth/google', [GoogleAuthController::class, 'redirect'])->name('google.redirect');
+Route::get('auth/google/register', [GoogleAuthController::class, 'register'])->name('google.register');
+Route::get('auth/google/callback', [GoogleAuthController::class, 'callback'])->name('google.callback');
 
 
 Route::middleware('auth')->group(function () {

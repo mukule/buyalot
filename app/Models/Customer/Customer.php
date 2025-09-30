@@ -23,29 +23,31 @@ class Customer extends Authenticatable
     protected $fillable = [
         'customer_code', 'first_name', 'last_name', 'email', 'phone',
         'date_of_birth', 'gender', 'profile_photo', 'customer_type', 'status',
-        'acquisition_source', 'referrer_url','avatar','user_id','google_id',
-        'avatar',
+        'acquisition_source', 'referrer_url','avatar',
+        'google_id',
         'provider',
         'provider_id',
         'email_verified_at',
         'last_login_at',
         'provider_verified_at',
-        'password'
+        'password',
+        'remember_token',
     ];
 
     protected $casts = [
         'date_of_birth' => 'date',
         'email_verified_at' => 'datetime',
-        'password' => 'hashed',
-        'provider_verified_at'=>'datetime',
+        'last_login_at' => 'datetime',
+        'provider_verified_at' => 'datetime',
     ];
+
     protected $hidden = [
         'password',
         'remember_token',
-        'email_verified_at',
         'google_id',
+        'provider_id',
+        'email_verified_at',
         'provider_verified_at',
-        'password'
     ];
 
     protected $appends = ['name'];
@@ -235,4 +237,10 @@ class Customer extends Authenticatable
 //    {
 //        return $this->belongsTo(User::class);
 //    }
+
+    public function getRouteKeyName()
+    {
+        return 'customer_code';
+    }
+
 }

@@ -9,7 +9,6 @@ use App\Http\Controllers\Orders\OrderController;
 
 
 Route::middleware(['auth'])->group(function () {
-Route::resource('customers', CustomerController::class);
 Route::get('customers/{customer}/dashboard', [CustomerController::class, 'dashboard'])->name('customers.dashboard');
     Route::get('customer/profile', [CustomerController::class, 'profile'])->name('customer.profile.show');
     Route::put('customer/profile', [CustomerController::class, 'updateProfile'])->name('customer.profile.update');

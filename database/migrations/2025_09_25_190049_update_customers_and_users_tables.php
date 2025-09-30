@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
 //        Schema::table('customers', function (Blueprint $table) {
-////            $table->dropColumn(['google_id', 'provider', 'provider_verified_at','last_login_at','password','email_verified_at']);
+//            $table->dropColumn(['google_id', 'provider', 'provider_verified_at','last_login_at','password','email_verified_at']);
 //            $table->foreignId('user_id')
 //                ->nullable()
 //                ->constrained()
