@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
+use function PHPUnit\Framework\logicalOr;
 
 class CustomerController extends Controller
 {
@@ -86,10 +87,44 @@ class CustomerController extends Controller
             ->with('success', 'Customer deleted successfully.');
     }
 
-    public function dashboard(Customer $customer)
+    public function dashboard($customer_id)
     {
-        $stats = $this->customerService->getDashboardStats($customer);
-        return Inertia::render('customers/dashboard', compact('customer', 'stats'));
+      if (!Auth::check()) {
+            logger("❌ User not authenticated - redirecting to login");
+            return redirect()->route('login')->with('error', 'Please login first.');
+        }
+        $customer = Customer::findOrFail($customer_id);
+        logger("Found customer: " . $customer->id . " with user_id: " . $customer->user_id);
+
+        if (auth()->id() !== $customer->user_id) {
+            logger("❌ Authorization failed: auth user " . auth()->id() . " !== customer user_id " . $customer->user_id);
+            abort(403, 'Unauthorized action.');
+        }
+        $customer->load([
+            'addresses' => function ($query) {
+                $query->orderBy('is_default', 'desc');
+            },
+            'orders' => function ($query) {
+                $query->latest()->limit(5);
+            },
+            'loyaltyPoints',
+        ]);
+        $totalLoyaltyPoints = $customer->loyaltyPoints()->sum('points');
+
+        return Inertia::render('Customer/Dashboard', [
+            'customer' => $customer,
+            'addresses' => $customer->addresses,
+            'orders' => $customer->orders->map(function ($order) {
+                return [
+                    'id' => $order->id,
+                    'order_number' => $order->order_number,
+                    'total' => number_format($order->total, 2),
+                    'status' => $order->status,
+                    'created_at' => $order->created_at->format('M d, Y'),
+                ];
+            }),
+            'loyaltyPoints' => $totalLoyaltyPoints,
+        ]);
     }
 
     public function profile()

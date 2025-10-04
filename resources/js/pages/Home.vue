@@ -6,10 +6,6 @@ import ProductCarouselSection from '@/components/ProductCarouselSection.vue';
 import MainLayout from '@/layouts/MainLayout.vue';
 import type { PageProps as InertiaPageProps } from '@inertiajs/core';
 import { usePage } from '@inertiajs/vue3';
-console.log('Available routes from Ziggy:', route().routes);
-console.log('Has login:', route().has('login'));
-console.log('Has register:', route().has('register'));
-console.log('Has password.request:', route().has('password.request'));
 interface PageProps extends InertiaPageProps {
     categories?: string[];
     banners?: string[];

@@ -7,6 +7,7 @@ use App\Models\Commission\CommissionCalculation;
 use App\Models\Orders\Order;
 use App\Models\Traits\HasHashid;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -14,40 +15,39 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-class Customer extends Authenticatable
+class Customer extends Model
 {
     use Notifiable, SoftDeletes, HasApiTokens, HasHashid;
-
-    use Notifiable, SoftDeletes;
+    protected $table = 'customers';
 
     protected $fillable = [
         'customer_code', 'first_name', 'last_name', 'email', 'phone',
         'date_of_birth', 'gender', 'profile_photo', 'customer_type', 'status',
-        'acquisition_source', 'referrer_url','avatar',
-        'google_id',
-        'provider',
-        'provider_id',
-        'email_verified_at',
-        'last_login_at',
-        'provider_verified_at',
-        'password',
-        'remember_token',
+        'acquisition_source', 'referrer_url','avatar','user_id'
+//        'google_id',
+//        'provider',
+//        'provider_id',
+//        'email_verified_at',
+//        'last_login_at',
+//        'provider_verified_at',
+//        'password',
+//        'remember_token',
     ];
 
     protected $casts = [
         'date_of_birth' => 'date',
-        'email_verified_at' => 'datetime',
-        'last_login_at' => 'datetime',
-        'provider_verified_at' => 'datetime',
+//        'email_verified_at' => 'datetime',
+//        'last_login_at' => 'datetime',
+//        'provider_verified_at' => 'datetime',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
-        'google_id',
-        'provider_id',
-        'email_verified_at',
-        'provider_verified_at',
+//        'google_id',
+//        'provider_id',
+//        'email_verified_at',
+//        'provider_verified_at',
     ];
 
     protected $appends = ['name'];
@@ -201,12 +201,6 @@ class Customer extends Authenticatable
     {
         return $query->where('status', 'active');
     }
-
-    public function scopeVerified($query)
-    {
-        return $query->whereNotNull('email_verified_at');
-    }
-
     public function scopeByType($query, $type)
     {
         return $query->where('customer_type', $type);
@@ -233,10 +227,10 @@ class Customer extends Authenticatable
         return $this->customer_type === 'vip' || $this->getTotalSpent() > 10000;
     }
 
-//    public function user()
-//    {
-//        return $this->belongsTo(User::class);
-//    }
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 
     public function getRouteKeyName()
     {

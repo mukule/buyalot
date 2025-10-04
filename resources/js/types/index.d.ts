@@ -15,12 +15,13 @@ export interface CartItem {
 export interface Auth {
     user: User | null;
     roles: $roles;
+    customer_id?: number | null;
     counts: {
         wishlist: number;
         cart: number;
     };
     wishlistVariantIds: number[];
-    cartItems: CartItem[]; // 👈 store items instead of only the count
+    cartItems: CartItem[];
     permissions: string[];
     customer: Customer | null;
     customerOrders: MyOrders | null;

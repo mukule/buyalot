@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Models\Customer\Customer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -37,84 +38,70 @@ class AuthenticatedSessionController extends Controller
     $request->session()->regenerate();
 
     $user = $request->user();
-
-    if ($user->hasAnyRole(['admin', 'superadmin', 'seller'])) {
+    if ($user->user_type == 'user' || $user->user_type == 'seller' || $user->user_type == 'vendor') {
+//    if ($user->hasAnyRole(['admin', 'superadmin', 'seller'])) {
         return redirect()->intended(route('admin.dashboard'))
             ->with('success', 'Welcome back, ' . $user->name . '!');
     }
-
+    if ($user->user_type == 'customer') {
+        $customer = Customer::where('user_id', $user->id)->first();
+        if ($customer) {
+            session(['customer_id' => $customer->id]);
+        }
+    }
     return redirect()->intended(route('home'))
         ->with('success', 'Welcome back, ' . $user->name . '!');
 }
+
     public function store(LoginRequest $request): RedirectResponse
     {
         $request->authenticate();
 
+        if (! Auth::check()) {
+            logger('Authentication failed');
+            return back()->withErrors([
+                'email' => 'These credentials do not match our records.',
+            ]);
+        }
         $request->session()->regenerate();
 
-        // Check which guard was used
-        if (Auth::guard('web')->check()) {
-            $user = Auth::guard('web')->user();
-
-            if ($user->hasAnyRole(['admin', 'superadmin', 'seller'])) {
-                return redirect()->intended(route('admin.dashboard'))
-                    ->with('success', 'Welcome back, ' . $user->name . '!');
-            }
-
-            return redirect()->intended(route('home'))
+        $user = Auth::user();
+        if (in_array($user->user_type, ['admin', 'superadmin', 'seller'])) {
+            logger('User is an admin');
+            return redirect()->intended(route('admin.dashboard'))
                 ->with('success', 'Welcome back, ' . $user->name . '!');
         }
 
-        if (Auth::guard('customers')->check()) {
-            $customer = Auth::guard('customers')->user();
+        // Handle customer login
+        if ($user->user_type === 'customer') {
+            $customer = Customer::where('user_id', $user->id)->first();
 
-            return redirect()->intended(route('home', $customer->id))
-                ->with('success', 'Welcome back, ' . $customer->first_name . '!');
+            if (!$customer) {
+                logger('No customer record found for user: ' . $user->id);
+                Auth::logout();
+                return back()->withErrors([
+                    'email' => 'Customer account not found.',
+                ]);
+            }
+
+            // Store customer_id in session
+            session(['customer_id' => $customer->id]);
+            return redirect()->route('customers.dashboard', ['customer' => $customer->id])
+                ->with('success', 'Welcome back, ' . $user->name . '!');
         }
 
-        return redirect()->route('home');
+        logger('User is a customer');
+        return redirect()->intended(route('home'))
+            ->with('success', 'Welcome back, ' . $user->name . '!');
     }
 
-    public function authenticate(): void
-    {
-        $this->ensureIsNotRateLimited();
-
-        if (Auth::guard('web')->attempt($this->only('email', 'password'), $this->boolean('remember'))) {
-            return;
-        }
-
-        if (Auth::guard('customers')->attempt($this->only('email', 'password'), $this->boolean('remember'))) {
-            return;
-        }
-
-        RateLimiter::hit($this->throttleKey());
-
-        throw ValidationException::withMessages([
-            'email' => __('auth.failed'),
-        ]);
-    }
 
     /**
      * Destroy an authenticated session.
      */
-    public function destroy1(Request $request): RedirectResponse
-    {
-        Auth::guard('web')->logout();
-
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
-
-        return redirect('/');
-    }
     public function destroy(Request $request): RedirectResponse
     {
-        if (Auth::guard('web')->check()) {
-            Auth::guard('web')->logout();
-        }
-
-        if (Auth::guard('customers')->check()) {
-            Auth::guard('customers')->logout();
-        }
+        Auth::guard('web')->logout();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();

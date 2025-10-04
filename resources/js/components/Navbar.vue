@@ -12,6 +12,8 @@ const page = usePage<AppPageProps>();
 // User object
 const user = computed(() => page.props.auth?.user);
 
+const customerId = computed(() => page.props.auth?.customer_id);
+
 // Counts
 const wishlistCount = computed<number>(() => page.props.auth?.counts?.wishlist ?? 0);
 const cartCount = computed<number>(() => page.props.auth?.counts?.cart ?? 0);
@@ -40,7 +42,11 @@ const topLinks = [
 const authLinks = computed(() => {
     if (user.value) {
         return [
-            { name: 'My Account', href: '/account', isUser: true },
+            {
+                name: 'My Account',
+                href: customerId.value ? `/customers/${customerId.value}/dashboard` : '/customers/dashboard',
+                isUser: true
+            },
             { name: 'Orders', href: '/orders/my-orders' },
             { name: 'Logout', href: '/logout', isLogout: true },
         ];
@@ -52,8 +58,8 @@ const authLinks = computed(() => {
         ];
     }
 });
-
-// Categories
+//
+// // Categories
 const categoryLinks = [
     'Electronics',
     'Apparel',
@@ -78,9 +84,6 @@ const route = inject<((name: string, params?: any) => string) | undefined>('rout
 // Safe URLs with fallbacks
 const wishlistUrl = computed<string>(() => (route ? route('wishlist.index') : '/wishlist'));
 const cartUrl = computed<string>(() => (route ? route('cart.index') : '/cart'));
-
-console.log(wishlistUrl.value);
-console.log(cartUrl.value);
 // Methods
 function toggleMobileMenu() {
     mobileMenuOpen.value = !mobileMenuOpen.value;

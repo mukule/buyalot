@@ -110,6 +110,7 @@ class OrderController extends Controller
      */
     public function store(Request $request)
     {
+        info("create an order");
         $validator = Validator::make($request->all(), [
             'customer_id' => 'required|integer|exists:customers,id',
             'items' => 'required|array|min:1',
@@ -244,7 +245,7 @@ class OrderController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-
+            log($e->getMessage());
             if ($request->expectsJson()) {
                 return response()->json([
                     'message' => 'Failed to create order',

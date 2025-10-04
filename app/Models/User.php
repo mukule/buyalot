@@ -3,6 +3,7 @@
 namespace App\Models;
 
 
+use App\Models\Traits\HasHashid;
 use App\Notifications\UserRegistered;
 use App\Traits\CalculatesCommissions;
 use App\Traits\HasCommissions;
@@ -15,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, HasRoles, HasCommissions, CalculatesCommissions;
+    use HasFactory, Notifiable, HasRoles, HasCommissions,HasHashid,CalculatesCommissions;
 
     protected $fillable = [
         'name',
@@ -30,7 +31,8 @@ class User extends Authenticatable
         'provider_id',
         'email_verified_at',
         'last_login_at',
-        'provider_verified_at'
+        'provider_verified_at',
+        'user_type'
     ];
 
     protected $hidden = [
@@ -53,6 +55,7 @@ class User extends Authenticatable
             'provider_id'=>'string',
         ];
     }
+    protected $appends = ['hashid'];
 
     protected static function booted(): void
     {

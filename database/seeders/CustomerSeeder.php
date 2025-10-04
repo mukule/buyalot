@@ -141,17 +141,18 @@ class CustomerSeeder extends Seeder
 
         foreach ($testCustomers as $data) {
             // 1. Create or update the user
-//            $user = User::updateOrCreate(
-//                ['email' => $data['email']], // unique by email
-//                [
-//                    'name' => $data['first_name'].' '.$data['last_name'],
-//                    'email' => $data['email'],
-//                    'password' => Hash::make($data['password']),
-//                    'phone' => $data['phone'],
-//                    'status' => $data['status'] === 'active',
-//                    'email_verified_at' => now(),
-//                ]
-//            );
+            $user = User::updateOrCreate(
+                ['email' => $data['email']], // unique by email
+                [
+                    'name' => $data['first_name'].' '.$data['last_name'],
+                    'email' => $data['email'],
+                    'password' => Hash::make($data['password']),
+                    'phone' => $data['phone'],
+                    'status' => $data['status'] === 'active',
+                    'email_verified_at' => now(),
+                    'user_type' => 'customer',
+                ]
+            );
 
             // 2. Create or update the customer and attach the user
             $customer = Customer::updateOrCreate(
@@ -163,10 +164,10 @@ class CustomerSeeder extends Seeder
                     'phone' => $data['phone'],
                     'date_of_birth' => $data['date_of_birth'],
                     'gender' => $data['gender'],
-                    'password' => Hash::make($data['password']),
+//                    'password' => Hash::make($data['password']),
                     'status' => $data['status'] === 'active',
-                    'email_verified_at' => now(),
-//                    'user_id' => $user->id, // attach user_id
+//                    'email_verified_at' => now(),
+                    'user_id' => $user->id, // attach user_id
                 ]
             );
 

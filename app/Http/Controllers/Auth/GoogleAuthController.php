@@ -41,12 +41,13 @@ class GoogleAuthController extends Controller
             DB::beginTransaction();
 
             // Try find existing customer by google_id or email
-            $customer = Customer::where('google_id', $googleUser->id)
+            $customer = User::where('google_id', $googleUser->id)
                 ->orWhere('email', $googleUser->email)
                 ->first();
 
             if ($customer) {
-                $customer->update([
+                $user = User::where('user_id', $customer->user_id)->first();
+                $user->update([
                     'google_id' => $googleUser->id,
                     'avatar' => $googleUser->avatar,
                     'provider' => 'google',
@@ -57,10 +58,8 @@ class GoogleAuthController extends Controller
                 ]);
 
                 DB::commit();
-
-                Auth::guard('customers')->login($customer);
+                Auth::guard('web')->login($user);
                 request()->session()->regenerate();
-
                 return redirect()->intended(route('home'))
                     ->with('success', 'Welcome back, ' . $customer->first_name . '!');
             }
@@ -68,26 +67,35 @@ class GoogleAuthController extends Controller
             // Otherwise create a new customer
             $nameParts = $this->parseGoogleName($googleUser->name);
 
+            $newUser= User::create([
+                'name' => $nameParts['first_name']. ' ' .$nameParts['last_name'],
+                'email' => $googleUser->email,
+                'password' => bcrypt(str()->random(16)),
+                'google_id' => $googleUser->id,
+                'provider'   => 'google',
+                'provider_verified_at' => now(),
+                'email_verified_at' => now(),
+                'last_login_at' => now(),
+                'status' => true,
+                'user_type' => 'customer',
+                'avatar' => $googleUser->avatar,
+
+            ]);
+
             $newCustomer = Customer::create([
-                'customer_code' => uniqid('CUST-'),
+                'customer_code' => uniqid('CUS-'),
                 'first_name' => $nameParts['first_name'],
                 'last_name'  => $nameParts['last_name'],
                 'email'      => $googleUser->email,
                 'avatar'     => $googleUser->avatar,
-                'google_id'  => $googleUser->id,
-                'provider'   => 'google',
-                'provider_id'=> $googleUser->id,
-                'provider_verified_at' => now(),
-                'email_verified_at' => now(),
-                'last_login_at' => now(),
                 'customer_type' => 'individual',
                 'status' => 'active',
-                'password' => bcrypt(str()->random(16)), // random since OAuth
+                'user_id' => $newUser->id,
             ]);
 
             DB::commit();
 
-            Auth::guard('customers')->login($newCustomer);
+            Auth::guard('web')->login($newUser);
             request()->session()->regenerate();
 
             return redirect()->route('home')->with('success', 'Welcome to our shop, ' . $newCustomer->first_name . '!');

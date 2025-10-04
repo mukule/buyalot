@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import TextLink from '@/components/TextLink.vue';
-
-console.log('login page started...');
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -10,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import AuthBase from '@/layouts/AuthLayout.vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import { LoaderCircle } from 'lucide-vue-next';
-console.log('Available routes:', route().routes);
 
 defineProps<{
     status?: string;

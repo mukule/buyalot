@@ -3,10 +3,6 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import PlaceholderPattern from '../components/PlaceholderPattern.vue';
-console.log('Available routes from Ziggy:', route().routes);
-console.log('Has login:', route().has('login'));
-console.log('Has register:', route().has('register'));
-console.log('Has password.request:', route().has('password.request'));
 const breadcrumbs: BreadcrumbItem[] = [
     {
         title: 'Dashboard',

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Customer\Customer;
 use App\Models\Wishlist;
 use App\Services\CartService;
 use Illuminate\Foundation\Inspiring;
@@ -65,6 +66,18 @@ class HandleInertiaRequests extends Middleware
         }
         $wishlistItems = $wishlistQuery->pluck('product_variant_id');
 
+        $customerId = null;
+
+        if ($user && $user->user_type === 'customer') {
+            $customerId = session('customer_id');
+            if (!$customerId) {
+                $customer = Customer::where('user_id', $user->id)->first();
+                if ($customer) {
+                    $customerId = $customer->id;
+                    session(['customer_id' => $customer->id]);
+                }
+            }
+        }
         return [
             ...parent::share($request),
 
@@ -84,6 +97,7 @@ class HandleInertiaRequests extends Middleware
                     'name'  => $user->name,
                     'email' => $user->email,
                 ] : null,
+                'customer_id' => $customerId,
                 'roles' => $user ? $roles : [],
                 'permissions' => $user ? $user->getAllPermissions()->pluck('name') : [],
                 'counts' => [
@@ -95,6 +109,7 @@ class HandleInertiaRequests extends Middleware
                     'product_variant_id' => $item->product_variant_id,
                     'quantity'           => $item->quantity,
                 ]),
+
             ],
 
             // 🔑 Full cart shared globally
