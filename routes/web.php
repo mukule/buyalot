@@ -39,9 +39,10 @@ require __DIR__.'/order.php';
 Route::get('/', [HomeController::class, 'index'])->name('home');
 
 Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard'])->prefix('admin')->name('admin.')->group(function () {
-    Route::get('/dashboard', function () {
-        return Inertia::render('Dashboard');
-    })->name('dashboard');
+    Route::get('/dashboard',[HomeController::class,'dashboard'])->name('dashboard');
+//        function () {
+//        return Inertia::render('Dashboard');
+//    })->name('dashboard');
 
     Route::delete('products/destroy-all', [ProductController::class, 'destroyAll'])
         ->name('products.destroyAll');

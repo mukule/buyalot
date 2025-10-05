@@ -4,8 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\Category;
 use App\Models\Brand;
+use App\Models\Customer\Customer;
+use App\Models\Orders\Order;
 use App\Models\Product;
+use App\Models\Seller\Seller;
+use App\Models\User;
+use App\Models\Warehouse\Warehouse;
 use App\Services\FrontendProductService;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
 
@@ -28,12 +35,12 @@ class HomeController extends Controller
         $brands = Brand::all();
 
         $productsByCategory = $this->productService->getProductsGroupedByCategory($categories);
-       // info($productsByCategory);
+        // info($productsByCategory);
 
         return Inertia::render('Frontend/Index', [
-            'title'              => 'Online Shopping Store',
-            'categories'         => $categories,
-            'brands'             => $brands,
+            'title' => 'Online Shopping Store',
+            'categories' => $categories,
+            'brands' => $brands,
             'productsByCategory' => $productsByCategory,
         ]);
     }
@@ -51,43 +58,43 @@ class HomeController extends Controller
         ])->where('slug', $slug)->firstOrFail();
 
         $variants = $product->productVariants->map(fn($variant) => [
-            'id'             => $variant->id,
-            'regular_price'  => $variant->regular_price,
-            'selling_price'  => $variant->selling_price,
+            'id' => $variant->id,
+            'regular_price' => $variant->regular_price,
+            'selling_price' => $variant->selling_price,
 //            'discount'       => ($variant->regular_price > 0 && $variant->regular_price > $variant->selling_price)
 //                ? round((($variant->regular_price - $variant->selling_price) / $variant->regular_price) * 100)
 //                : null,
             'discount' => ($variant->regular_price > 0 && $variant->regular_price > $variant->selling_price)
-                ? (int) round((($variant->regular_price - $variant->selling_price) / $variant->regular_price) * 100)
+                ? (int)round((($variant->regular_price - $variant->selling_price) / $variant->regular_price) * 100)
                 : 0,
-            'stock'          => $variant->stock,
-            'sku'            => $variant->sku,
-            'values'         => $variant->values->map(fn($v) => [
+            'stock' => $variant->stock,
+            'sku' => $variant->sku,
+            'values' => $variant->values->map(fn($v) => [
                 'variant_category_id' => $v->variant->variant_category_id,
-                'value'               => $v->variant->value,
+                'value' => $v->variant->value,
             ]),
         ]);
 
         $productData = [
-            'id'                => $product->id,
-            'slug'              => $product->slug,
-            'name'              => $product->name,
+            'id' => $product->id,
+            'slug' => $product->slug,
+            'name' => $product->name,
             'primary_image_url' => $product->primary_image_url,
-            'stock'             => $product->productVariants->sum('stock'),
-            'category_hierarchy'=> $product->category ? $product->category->getHierarchy() : [],
-            'brand'             => $product->brand ? [
-                'id'   => $product->brand->id,
+            'stock' => $product->productVariants->sum('stock'),
+            'category_hierarchy' => $product->category ? $product->category->getHierarchy() : [],
+            'brand' => $product->brand ? [
+                'id' => $product->brand->id,
                 'name' => $product->brand->name,
             ] : null,
-            'features'          => $product->features,
-            'description'       => $product->description,
-            'specifications'    => $product->specifications,
-            'whats_in_the_box'  => $product->whats_in_the_box,
+            'features' => $product->features,
+            'description' => $product->description,
+            'specifications' => $product->specifications,
+            'whats_in_the_box' => $product->whats_in_the_box,
             'images' => $product->images
-    ->map(fn($img) => Storage::disk('s3')->url($img->image_path))
-    ->toArray(),
+                ->map(fn($img) => Storage::disk('s3')->url($img->image_path))
+                ->toArray(),
 
-            'variants'          => $variants,
+            'variants' => $variants,
         ];
 
         $relatedProducts = $this->productService->getRelatedProducts($product);
@@ -99,10 +106,10 @@ class HomeController extends Controller
         }
 
         return Inertia::render('Frontend/ProductDetail', [
-            'product'         => $productData,
+            'product' => $productData,
             'relatedProducts' => $relatedProducts,
-            'cartVariantIds'  => $cartVariantIds,
-            'title'           => $product->name,
+            'cartVariantIds' => $cartVariantIds,
+            'title' => $product->name,
         ]);
     }
 
@@ -117,10 +124,45 @@ class HomeController extends Controller
         $products = $this->productService->getPaginatedProductsByCategory($category, 20);
 
         return Inertia::render('Frontend/Category', [
-            'category'    => $category,
-            'products'    => $products,
+            'category' => $category,
+            'products' => $products,
             'breadcrumbs' => $category->getHierarchy(),
-            'title'       => $category->name,
+            'title' => $category->name,
+        ]);
+    }
+
+    public function dashboard(Request $request)
+    {
+        $now = Carbon::now();
+
+        // Define week ranges
+        $startOfThisWeek = $now->startOfWeek();
+        $endOfThisWeek   = $now->copy()->endOfWeek();
+
+        $startOfLastWeek = $now->copy()->subWeek()->startOfWeek();
+        $endOfLastWeek   = $now->copy()->subWeek()->endOfWeek();
+
+        // Weekly orders
+        $ordersThisWeek = Order::whereBetween('created_at', [$startOfThisWeek, $endOfThisWeek])->count();
+        $ordersLastWeek = Order::whereBetween('created_at', [$startOfLastWeek, $endOfLastWeek])->count();
+
+        $orderGrowth = $ordersLastWeek > 0
+            ? round((($ordersThisWeek - $ordersLastWeek) / $ordersLastWeek) * 100, 2)
+            : ($ordersThisWeek > 0 ? 100 : 0);
+
+        $stats = [
+            'sellers'         => Seller::count(),
+            'customers'       => Customer::count(),
+            'users'           => User::count(),
+            'orders'          => Order::count(),
+            'warehouses'      => Warehouse::count(),
+            'orders_this_week' => $ordersThisWeek,
+            'orders_last_week' => $ordersLastWeek,
+            'order_growth'     => $orderGrowth,
+        ];
+
+        return Inertia::render('Dashboard', [
+            'stats' => $stats,
         ]);
     }
 }
