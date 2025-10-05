@@ -349,11 +349,33 @@ class PermissionSeeder extends Seeder
             'guard_name' => 'web'
         ]);
         $customerPermissions = Permission::whereIn('name', ['view-user-profile','edit-user-profile']);
-
+        $customerPermissions->givePermissionTo($customerPermissions);
         $delivery = Role::firstOrCreate([
             'name' => 'delivery',
             'guard_name' => 'web'
         ]);
         $deliveryPermissions = Permission::whereIn('name', ['view-user-profile','edit-user-profile']);
+        $deliveryPermissions->givePermissionTo($deliveryPermissions);
+        $warehousemanager = Role::firstOrCreate([
+            'name' => 'warehouse_manager',
+            'guard_name' => 'web'
+        ]);
+        $warehousemanagerPermissions = Permission::whereIn('name', ['view-user-profile','edit-user-profile','view-warehouse']);
+        $warehousemanager->givePermissionTo($warehousemanagerPermissions);
+        $storekeeper = Role::firstOrCreate([
+            'name' => 'store_keeper',
+            'guard_name' => 'web'
+
+        ]);
+        $storekeeperPermissions = Permission::whereIn('name', ['view-user-profile','edit-user-profile','view-warehouse']);
+        $storekeeper->givePermissionTo($storekeeperPermissions);
+
+
+        $storeManager= Role::firstOrCreate([
+            'name' => 'store_manager',
+            'guard_name' => 'web'
+        ]);
+        $storeManager->givePermissionTo($warehousemanagerPermissions);
+
     }
 }

@@ -66,8 +66,7 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerate();
 
         $user = Auth::user();
-        if (in_array($user->user_type, ['admin', 'superadmin', 'seller'])) {
-            logger('User is an admin');
+        if (in_array($user->user_type, ['user', 'vendor', 'seller'])) {
             return redirect()->intended(route('admin.dashboard'))
                 ->with('success', 'Welcome back, ' . $user->name . '!');
         }
@@ -77,7 +76,6 @@ class AuthenticatedSessionController extends Controller
             $customer = Customer::where('user_id', $user->id)->first();
 
             if (!$customer) {
-                logger('No customer record found for user: ' . $user->id);
                 Auth::logout();
                 return back()->withErrors([
                     'email' => 'Customer account not found.',
@@ -85,8 +83,6 @@ class AuthenticatedSessionController extends Controller
             }
             if ($customer) {
                 session(['customer_id' => $customer->id]);
-                logger('✅ Customer ID stored in session: ' . $customer->id);
-
                 return redirect()->route('customers.dashboard', ['customer' => $customer->id])
                     ->with('success', 'Welcome back, ' . $user->name . '!');
             }

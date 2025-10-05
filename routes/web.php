@@ -1,9 +1,12 @@
 <?php
 
+use App\Http\Controllers\Admin\BrandCategoryController;
 use App\Http\Controllers\Admin\BrandController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\DocumentTypeController;
 use App\Http\Controllers\Admin\ProductController;
+use App\Http\Controllers\Admin\ProductStatusController;
+use App\Http\Controllers\Admin\RegionController;
 use App\Http\Controllers\Admin\SellerApplicationController;
 use App\Http\Controllers\Admin\SellerVerificationController;
 use App\Http\Controllers\Admin\SubcategoryController;
@@ -11,29 +14,19 @@ use App\Http\Controllers\Admin\UnitController;
 use App\Http\Controllers\Admin\UnitTypeController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\VariantCategoryController;
-use App\Http\Controllers\Admin\WarehouseController;
+use App\Http\Controllers\Admin\WarrantyController;
+use App\Http\Controllers\CartController;
 use App\Http\Controllers\Commission\CommissionCalculationController;
 use App\Http\Controllers\Commission\CommissionInvoiceController;
 use App\Http\Controllers\Commission\CommissionPlanController;
-use App\Http\Controllers\Customer\CustomerAddressController;
 use App\Http\Controllers\Customer\CustomerController;
-use App\Http\Controllers\Customer\CustomerLoyaltyPointController;
-use App\Http\Controllers\Customer\CustomerReferralController;
-use App\Http\Controllers\Customer\CustomerSupportTicketController;
-use App\Http\Controllers\Customer\CustomerWishlistsController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Payments\PaymentController;
 use App\Http\Controllers\SellController;
 use App\Http\Controllers\SellerAccountController;
+use App\Http\Controllers\Warehouse\WarehouseController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-use App\Http\Controllers\Admin\VariantController;
-use App\Http\Controllers\Admin\BrandCategoryController;
-use App\Http\Controllers\Admin\ProductStatusController;
-use App\Http\Controllers\Admin\WarrantyController;
-use App\Http\Controllers\WishlistController;
-use App\Http\Controllers\CartController;
-use App\Http\Controllers\Admin\RegionController;
 
 
 require __DIR__.'/settings.php';
@@ -137,6 +130,14 @@ Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group
     });
 
     Route::resource('warehouses', WarehouseController::class);
+
+
+    Route::post('/warehouses/{warehouse}/assign-managers', [WarehouseController::class, 'assignManagers'])
+        ->name('admin.warehouses.assign-managers');
+
+    Route::get('/warehouses/assignable-users', [WarehouseController::class, 'getAssignableUsers'])
+        ->name('admin.warehouses.assignable-users');
+
     Route::resource('product-statuses', ProductStatusController::class);
     Route::resource('categories', CategoryController::class);
     Route::get('/categories/{category}/children', [CategoryController::class, 'children'])
