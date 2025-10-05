@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\Brand;
 use App\Models\Customer\Customer;
 use App\Models\Orders\Order;
+use App\Models\Orders\OrderItem;
 use App\Models\Product;
 use App\Models\Seller\Seller;
 use App\Models\User;
@@ -13,6 +14,7 @@ use App\Models\Warehouse\Warehouse;
 use App\Services\FrontendProductService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
 
@@ -161,8 +163,40 @@ class HomeController extends Controller
             'order_growth'     => $orderGrowth,
         ];
 
+        $startOfMonth = Carbon::now()->startOfMonth();
+        $endOfMonth = Carbon::now()->endOfMonth();
+
+        $ordersByStatus = Order::select(
+            DB::raw('DATE(created_at) as date'),
+            'status',
+            DB::raw('COUNT(*) as total')
+        )
+            ->whereBetween('created_at', [$startOfMonth, $endOfMonth])
+            ->groupBy('date', 'status')
+            ->orderBy('date')
+            ->get()
+            ->groupBy('status');
+
+        $productVariantPerformance = OrderItem::select(
+            'product_variant_id',
+            DB::raw('SUM(quantity) as total_sold')
+        )
+            ->groupBy('product_variant_id')
+            ->with(['productVariant:id,product_id,sku', 'productVariant.product:id,name'])
+            ->orderByDesc('total_sold')
+            ->limit(10)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'name'  => $item->productVariant?->display_name ?? 'Unknown Variant',
+                    'total' => $item->total_sold,
+                ];
+            });
+
         return Inertia::render('Dashboard', [
             'stats' => $stats,
+            'ordersByStatus' => $ordersByStatus,
+            'productVariantPerformance' => $productVariantPerformance,
         ]);
     }
 }
