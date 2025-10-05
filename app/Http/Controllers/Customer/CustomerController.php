@@ -83,7 +83,7 @@ class CustomerController extends Controller
     {
         $this->customerService->deleteCustomer($customer);
 
-        return redirect()->route('customers.index')
+        return redirect()->route('home')
             ->with('success', 'Customer deleted successfully.');
     }
 
@@ -94,7 +94,6 @@ class CustomerController extends Controller
             return redirect()->route('login')->with('error', 'Please login first.');
         }
         $customer = Customer::findOrFail($customer_id);
-        logger("Found customer: " . $customer->id . " with user_id: " . $customer->user_id);
 
         if (auth()->id() !== $customer->user_id) {
             logger("❌ Authorization failed: auth user " . auth()->id() . " !== customer user_id " . $customer->user_id);

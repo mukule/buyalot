@@ -83,14 +83,14 @@ class AuthenticatedSessionController extends Controller
                     'email' => 'Customer account not found.',
                 ]);
             }
+            if ($customer) {
+                session(['customer_id' => $customer->id]);
+                logger('✅ Customer ID stored in session: ' . $customer->id);
 
-            // Store customer_id in session
-            session(['customer_id' => $customer->id]);
-            return redirect()->route('customers.dashboard', ['customer' => $customer->id])
-                ->with('success', 'Welcome back, ' . $user->name . '!');
+                return redirect()->route('customers.dashboard', ['customer' => $customer->id])
+                    ->with('success', 'Welcome back, ' . $user->name . '!');
+            }
         }
-
-        logger('User is a customer');
         return redirect()->intended(route('home'))
             ->with('success', 'Welcome back, ' . $user->name . '!');
     }

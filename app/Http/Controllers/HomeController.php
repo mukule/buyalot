@@ -19,7 +19,7 @@ class HomeController extends Controller
         $this->productService = $productService;
     }
 
-    
+
     public function index()
     {
         $categories = Category::with('children')
@@ -38,10 +38,10 @@ class HomeController extends Controller
         ]);
     }
 
-    
+
     public function productDetails(string $slug)
     {
-        //info("product details "+$slug);
+//        info("product details "+$slug);
         $product = Product::with([
             'brand',
             'primaryImage',

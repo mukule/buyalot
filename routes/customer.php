@@ -6,9 +6,10 @@ use App\Http\Controllers\Customer\CustomerReferralController;
 use App\Http\Controllers\Customer\CustomerSupportTicketController;
 use App\Http\Controllers\Customer\CustomerWishlistsController;
 use App\Http\Controllers\Orders\OrderController;
+use App\Http\Controllers\WishlistController;
 
 
-Route::middleware(['web', 'auth'])->group(function () {
+Route::middleware(['auth','web'])->group(function () {
 
 Route::get('customers/{customer}/dashboard', [CustomerController::class, 'dashboard'])->name('customers.dashboard');
 
@@ -28,5 +29,9 @@ Route::get('customers/{customer}/dashboard', [CustomerController::class, 'dashbo
 
     Route::resource('customers.referrals', CustomerReferralController::class)->except(['edit', 'update', 'destroy']);
     Route::resource('customers.support-tickets', CustomerSupportTicketController::class)->except(['edit', 'destroy']);
-    Route::resource('customers.wishlist', CustomerWishlistsController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::resource('wishlist', WishlistController::class)->only(['index', 'store','destroy']);
+//    Route::delete('wishlist/{wishlist}', [WishlistController::class, 'destroy'])
+//        ->name('wishlist.destroy');
+
+
 });

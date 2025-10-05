@@ -13,7 +13,8 @@ const page = usePage<AppPageProps>();
 const user = computed(() => page.props.auth?.user);
 
 const customerId = computed(() => page.props.auth?.customer_id);
-
+console.log("customer id "+customerId.value);
+console.log(user.value);
 // Counts
 const wishlistCount = computed<number>(() => page.props.auth?.counts?.wishlist ?? 0);
 const cartCount = computed<number>(() => page.props.auth?.counts?.cart ?? 0);
@@ -39,12 +40,38 @@ const topLinks = [
 ];
 
 // Auth links
+// const authLinks = computed(() => {
+//     if (user.value) {
+//         return [
+//             {
+//                 name: 'My Account',
+//                 href: customerId.value ? `/customers/${customerId.value}/dashboard` : '/customers/dashboard',
+//                 isUser: true
+//             },
+//             { name: 'Orders', href: '/orders/my-orders' },
+//             { name: 'Logout', href: '/logout', isLogout: true },
+//         ];
+//     } else {
+//         return [
+//             { name: 'Orders', href: '/orders/my-orders' },
+//             { name: 'Login', href: '/login' },
+//             { name: 'Register', href: '/register' },
+//         ];
+//     }
+// });
+
 const authLinks = computed(() => {
     if (user.value) {
+        const dashboardUrl = customerId.value && route
+            ? route('customers.dashboard', { customer: customerId.value })
+            : '#';
+
+        console.log('Dashboard URL generated:', dashboardUrl);
+
         return [
             {
                 name: 'My Account',
-                href: customerId.value ? `/customers/${customerId.value}/dashboard` : '/customers/dashboard',
+                href: dashboardUrl,
                 isUser: true
             },
             { name: 'Orders', href: '/orders/my-orders' },

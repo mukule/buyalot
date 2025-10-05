@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Wishlist;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Vinkla\Hashids\Facades\Hashids;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -16,15 +17,41 @@ class WishlistController extends Controller
      */
     public function index(Request $request)
     {
-        info("wishlist index");
         $userId = Auth::id();
         $token  = $request->cookie('wishlist_token');
 
-        $wishlist = Wishlist::with('productVariant.product')
+//        $wishlist = Wishlist::with('productVariant.product')
+//            ->forOwner($userId, $token)
+//            ->get();
+        $wishlist = Wishlist::with(['productVariant.product.primaryImage'])
             ->forOwner($userId, $token)
-            ->get();
+            ->get()
+            ->map(function ($item) {
+                $product = $item->productVariant?->product;
+                $primaryImageUrl = $product?->primaryImage
+                    ? Storage::disk('s3')->url($product->primaryImage->image_path)
+                    : null;
 
-        return inertia('Wishlist/Index', [
+                return [
+                    'id' => $item->id,
+                    'product_variant_id' => $item->product_variant_id,
+                    'created_at' => $item->created_at,
+                    'productVariant' => [
+                        'id' => $item->productVariant?->id,
+                        'sku' => $item->productVariant?->sku,
+                        'price' => $item->productVariant?->selling_price,
+                        'stock_quantity' => $item->productVariant?->stock,
+                        'product' => [
+                            'id' => $product?->id,
+                            'name' => $product?->name,
+                            'slug' => $product?->slug,
+                            'thumbnail' => $primaryImageUrl,
+                        ],
+                    ],
+                ];
+            });
+
+        return inertia('Customer/Wishlist', [
             'wishlist' => $wishlist
         ]);
     }
@@ -117,5 +144,23 @@ class WishlistController extends Controller
         ]);
 
         return back()->with('success', 'Added to your wishlist.');
+    }
+
+
+    public function destroy($wishlist_id,Request $request)
+    {
+        $userId = Auth::id();
+        $token  = $request->cookie('wishlist_token');
+        $wishlist = Wishlist::forOwner($userId, $token)
+            ->where('id', $wishlist_id)
+            ->first();
+
+        if (! $wishlist) {
+            return redirect()->back()->with('error', 'Wishlist not found.');
+        }
+
+        $wishlist->delete();
+
+        return redirect()->back()->with('success','Wishlist item removed successfully.');
     }
 }

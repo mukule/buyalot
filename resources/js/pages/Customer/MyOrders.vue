@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import AppLayout from '@/layouts/AppLayout.vue';
-import { Head, router, usePage } from '@inertiajs/vue3';
+import AppLayout from '@/layouts/CustomerAppSidebarLayout.vue';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { debounce } from 'lodash';
 import { ChevronLeftIcon, ChevronRightIcon, Eye, SearchIcon } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
@@ -75,6 +75,12 @@ const statusClasses = (status: string) => ({
     <Head title="My Orders" />
 
     <AppLayout>
+        <Link
+            :href="route ? route('home') : '/'"
+            class="ml-auto inline-flex items-center rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
+        >
+            Back to shopping
+        </Link>
         <div class="p-4">
             <div class="card rounded-lg bg-white p-4 shadow-sm">
                 <div class="mb-6 flex items-center justify-between">

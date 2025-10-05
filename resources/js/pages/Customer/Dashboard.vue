@@ -12,9 +12,10 @@ import type { AppPageProps } from '@/types';
 const page = usePage<AppPageProps>();
 
 const user = computed(() => page.props.auth?.user);
+const customer = computed(() => page.props.customer);
 
 interface Props {
-    customer?: any;
+    // customer?: any;
     addresses?: any[];
     orders?: any[];
     loyaltyPoints?: number;
@@ -39,6 +40,16 @@ const defaultAddress = computed(() => {
 const recentOrders = computed(() => {
     return props.orders?.slice(0, 3) || [];
 });
+
+const statusClass = computed(() => {
+    switch (customer.value?.status) {
+        case 'active': return 'text-green-400';
+        case 'inactive': return 'text-red-400';
+        case 'pending': return 'text-yellow-400';
+        default: return 'text-gray-400';
+    }
+});
+
 </script>
 
 <template>
@@ -64,6 +75,12 @@ const recentOrders = computed(() => {
                         </BreadcrumbItem>
                     </BreadcrumbList>
                 </Breadcrumb>
+                <Link
+                    :href="route ? route('home') : '/'"
+                    class="ml-auto inline-flex items-center rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors"
+                >
+                    Back to shopping
+                </Link>
             </header>
 
             <!-- Main Content -->
@@ -85,8 +102,11 @@ const recentOrders = computed(() => {
                             </div>
                             <div class="space-y-3">
                                 <div>
-                                    <p class="text-lg font-medium text-gray-900">{{ user?.name || 'Guest User' }}</p>
+                                    <p class="text-lg font-medium text-gray-900 pe-5 me-5">{{ user?.name || 'Guest User' }}
+                                        <span class="badge-award ms-5 ps-5" :class="statusClass">{{ customer?.status?.charAt(0).toUpperCase() + customer?.status?.slice(1) }}</span>
+                                    </p>
                                     <p class="text-sm text-gray-600">{{ user?.email || 'No email provided' }}</p>
+                                    <p class="text-sm text-gray-600">{{ user?.phone || 'No phone number provided' }}</p>
                                 </div>
                             </div>
                         </div>

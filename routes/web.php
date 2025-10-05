@@ -39,7 +39,8 @@ use App\Http\Controllers\Admin\RegionController;
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';
 require __DIR__.'/payment.php';
-    require __DIR__.'/customer.php';
+require __DIR__.'/customer.php';
+require __DIR__.'/order.php';
 
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -70,7 +71,6 @@ Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard']
 
 Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group(function () {
     require __DIR__ . '/roles_permissions.php';
-    require __DIR__.'/order.php';
     Route::resource('customers', CustomerController::class);
 
     Route::prefix('users')->name('users.')->group(function () {
@@ -196,10 +196,6 @@ Route::prefix('seller')->middleware(['auth', 'role:seller'])->name('seller.')->g
 
 
 Route::get('products/{slug}', [HomeController::class, 'productDetails'])->name('product.details');
-
-Route::resource('wishlist', WishlistController::class)
-    ->only(['index', 'store', 'destroy']);
-
 
 
 //Route::resource('customers', CustomerController::class);

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Orders;
 
 use App\Http\Controllers\Controller;
+use App\Models\Customer\Customer;
 use App\Models\Orders\Order;
 use App\Models\Orders\OrderItem;
 use App\Models\Product;
@@ -557,7 +558,12 @@ class OrderController extends Controller
 
     public function myOrders(Request $request)
     {
-        $customer = $request->user();
+        logger("orders");
+        $user = $request->user();
+        $customer = Customer::where('user_id', $user->id)->first();
+        if ($customer == null) {
+            return redirect()->back()->with('error', 'Customer record not found');
+        }
         info(" ..... customer .... ");
         info($customer);
         info(" ..... end ......");
