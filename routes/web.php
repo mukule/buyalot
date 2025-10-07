@@ -16,6 +16,7 @@ use App\Http\Controllers\SellController;
 use App\Http\Controllers\SellerAccountController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Http\Controllers\ReviewController;
 
 
 Route::get('/', function () {
@@ -133,6 +134,10 @@ Route::prefix('seller')->middleware(['auth', 'role:seller'])->name('seller.')->g
 
 
 });
+
+Route::post('/products/{product}/reviews', [ReviewController::class, 'store'])
+    ->name('reviews.store')
+    ->middleware('auth');
 
 
 require __DIR__.'/settings.php';
