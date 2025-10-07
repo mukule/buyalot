@@ -117,24 +117,24 @@ function openEditModal(customer: Customer) {
 }
 
 // --- FORM SUBMISSION FUNCTIONS ---
-function createCustomer() {
-    createForm.post(route('admin.customers.store'), {
-        preserveScroll: true,
-        onSuccess: () => {
-            closeModals();
-        },
-    });
-}
-function updateCustomer() {
-    if (!selectedCustomer.value) return;
-
-    editForm.put(route('admin.customers.update', selectedCustomer.value.id), {
-        preserveScroll: true,
-        onSuccess: () => {
-            closeModals();
-        },
-    });
-}
+// function createCustomer() {
+//     createForm.post(route('admin.customers.store'), {
+//         preserveScroll: true,
+//         onSuccess: () => {
+//             closeModals();
+//         },
+//     });
+// }
+// function updateCustomer() {
+//     if (!selectedCustomer.value) return;
+//
+//     editForm.put(route('admin.customers.update', selectedCustomer.value.id), {
+//         preserveScroll: true,
+//         onSuccess: () => {
+//             closeModals();
+//         },
+//     });
+// }
 
 // Watch for changes in search form
 watch(
@@ -216,7 +216,7 @@ watch(
                             <th class="px-4 py-3">#</th>
                             <th class="px-4 py-3">Customer</th>
                             <th class="px-4 py-3">Email</th>
-                            <th class="px-4 py-3">Orders</th> <!-- 👈 added -->
+                            <th class="px-4 py-3">Orders</th>
                             <th class="px-4 py-3">Status</th>
                             <th class="px-4 py-3">Actions</th>
                         </tr>
@@ -249,17 +249,24 @@ watch(
                             <td class="px-4 py-3">{{ customer.email || '-' }}</td>
                             <td class="px-4 py-3">{{ customer.orders_count }}</td> <!-- 👈 show orders count -->
                             <td class="px-4 py-3">
-                                <span v-if="customer.status == true" class="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
+                                <span v-if="customer.status == 'active'" class="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
                                     Active
                                 </span>
-                                                    <span v-else class="rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-500">
+                                 <span v-if="customer.status == 'suspended'" class="rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-orange-400">
                                     Suspended
+                                </span>
+                                <span v-if="customer.status == 'blacklisted'" class="rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-yellow-600">
+                                    Blacklisted
+                                </span>
+                                <span v-if="customer.status == 'inactive'"  class="rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-500">
+                                    Inactive
                                 </span>
                             </td>
                             <td class="px-4 py-3">
                                 <div class="flex items-center gap-3">
                                     <button @click="openViewModal(customer)" class="text-sm text-blue-600 hover:underline">View</button>
                                     <button @click="openEditModal(customer)" class="text-sm text-yellow-600 hover:underline">Edit</button>
+                                    <button @click="deleteCustomer(customer.id.toString())" class="text-sm text-orange-400 hover:underline">Suspend</button>
                                     <button @click="deleteCustomer(customer.id.toString())" class="text-sm text-red-600 hover:underline">Delete</button>
                                 </div>
                             </td>

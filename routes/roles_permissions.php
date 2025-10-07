@@ -6,7 +6,7 @@ use App\Http\Controllers\Admin\UserController;
 use Illuminate\Support\Facades\Route;
 
 
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'verified','web'])->group(function () {
     // Users
     Route::middleware(['check_permission:view-users'])->group(function () {
         Route::get('/users', [UserController::class, 'index'])->name('users.index');

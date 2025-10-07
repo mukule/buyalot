@@ -14,7 +14,7 @@ export interface CartItem {
 
 export interface Auth {
     user: User | null;
-    roles: $roles;
+    roles: Role | null;
     customer_id?: number | null;
     counts: {
         wishlist: number;
