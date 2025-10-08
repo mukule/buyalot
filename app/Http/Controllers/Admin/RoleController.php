@@ -30,6 +30,7 @@ class RoleController extends Controller
 
     public function create()
     {
+        logger("create role");
         return Inertia::render('Admin/Roles/Create', [
             'permissions' => Permission::all(),
         ]);

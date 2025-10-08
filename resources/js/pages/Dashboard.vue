@@ -84,7 +84,7 @@ const options = {
                 <div
                     v-for="(value, key) in stats"
                     :key="key"
-                    class="rounded-lg bg-gradient-to-r from-[#29AB87] to-emerald-600 p-4 text-white shadow-md"
+                    class="rounded-lg bg-gradient-to-r from-green-400 to-green-600 p-4 text-white shadow-md"
                 >
                     <div class="flex items-center justify-between">
                         <div>
@@ -92,7 +92,7 @@ const options = {
                             <p class="text-2xl font-bold">{{ value }}</p>
                         </div>
                         <svg
-                            class="h-8 w-8 text-emerald-200"
+                            class="h-8 w-8 text-green-300"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -112,7 +112,7 @@ const options = {
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <!-- Orders Chart -->
                 <div class="rounded-lg bg-white shadow p-6">
-                    <h2 class="text-lg font-semibold text-[#29AB87] mb-4">
+                    <h2 class="text-lg font-semibold text-green-400 mb-4">
                         Orders by Status (This Month)
                     </h2>
                     <div class="h-[350px]">
@@ -122,7 +122,7 @@ const options = {
 
                 <!-- Pie Chart -->
                 <div class="rounded-lg bg-white shadow p-6">
-                    <h2 class="text-lg font-semibold text-[#29AB87] mb-4">
+                    <h2 class="text-lg font-semibold text-green-400 mb-4">
                         Product Variant Performance
                     </h2>
                     <div class="h-[350px]">

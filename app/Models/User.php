@@ -10,13 +10,14 @@ use App\Traits\HasCommissions;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, HasRoles, HasCommissions,HasHashid,CalculatesCommissions;
+    use HasFactory, HasApiTokens, Notifiable, HasRoles, HasCommissions,HasHashid,CalculatesCommissions;
 
     protected $fillable = [
         'name',

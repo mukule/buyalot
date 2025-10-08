@@ -38,7 +38,6 @@ class OrderController extends Controller
             'sort_by' => 'sometimes|string|in:created_at,total_amount,order_code,status',
             'sort_order' => 'sometimes|string|in:asc,desc'
         ]);
-
         if ($validator->fails()) {
             return back()->withErrors($validator)->withInput();
         }
@@ -136,7 +135,7 @@ class OrderController extends Controller
             'channel' => 'sometimes|string|max:50',
             'metadata' => 'sometimes|array'
         ]);
-
+        logger($validator->errors()->all());
         if ($validator->fails()) {
             if ($request->expectsJson()) {
                 return response()->json([
@@ -226,11 +225,13 @@ class OrderController extends Controller
                         'current_stock' => $productVariant->stock,
                     ]
                 ]);
+                //reduce stock quantity
+                $productVariant->decrement('stock', $item['quantity']);
             }
 
             DB::commit();
 
-            $order->load(['orderItems.product:id,name', 'orderItems.seller:id,name']);
+            $order->load(['orderItems.productVariant.product:id,name', 'orderItems.seller:id,name']);
 
             // API Response
             if ($request->expectsJson()) {
@@ -246,7 +247,7 @@ class OrderController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            log($e->getMessage());
+            logger($e->getMessage());
             if ($request->expectsJson()) {
                 return response()->json([
                     'message' => 'Failed to create order',

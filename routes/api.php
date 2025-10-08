@@ -1,11 +1,15 @@
 <?php
 
 
+use App\Http\Controllers\Api\ApiAuthController;
+use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Commission\CommissionController;
 use App\Http\Controllers\Orders\OrderController;
 use App\Http\Controllers\Payments\PaymentTransactionController;
 use Illuminate\Support\Facades\Route;
 
+
+Route::post('login', [ApiAuthController::class, 'login']);
 
 Route::prefix('payments')->name('payments.')->group(function () {
     Route::get('providers', [PaymentTransactionController::class, 'providers'])->name('providers');

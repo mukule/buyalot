@@ -6,7 +6,7 @@ use App\Http\Controllers\Admin\UserController;
 use Illuminate\Support\Facades\Route;
 
 
-Route::middleware(['auth', 'verified','web'])->group(function () {
+//Route::middleware(['auth','web'])->group(function () {
     // Users
     Route::middleware(['check_permission:view-users'])->group(function () {
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
@@ -64,7 +64,7 @@ Route::middleware(['auth', 'verified','web'])->group(function () {
         Route::get('/user-roles', [UserController::class, 'index'])->name('user-roles.index');
         Route::put('/user-roles/{user}', [UserController::class, 'update'])->name('user-roles.update');
         Route::put('/users/{user}/roles', [UserController::class, 'updateRoles'])->name('user.roles.update');
-    });
+//    });
 
     // API routes
 //    Route::prefix('api')->name('api.')->group(function () {

@@ -19,8 +19,9 @@ const page = usePage<AppPageProps<{
 }>>()
 
 // Orders and filters
-const orders = computed(() => page.props.orders || [])
+const orders = computed(() => page.props.orders.data || [])
 const filters = computed(() => page.props.filters || {})
+const pagination = computed(() => page.props.orders.meta)
 
 // Form for filters
 const searchForm = useForm({
