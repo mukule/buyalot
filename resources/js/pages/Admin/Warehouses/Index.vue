@@ -75,6 +75,10 @@ function editWarehouse(hashid: string) {
     if (!hashid) return console.error('Missing hashid for warehouse');
     router.get(route('admin.warehouses.edit', { warehouse: hashid }));
 }
+function viewInventory(hashid: string) {
+    if (!hashid) return console.error('Missing hashid for warehouse');
+    router.get(route('admin.warehouses.inventory', { warehouse: hashid }));
+}
 
 function deleteWarehouse(hashid: string) {
     if (!hashid) return console.error('Missing hashid for warehouse');
@@ -252,6 +256,13 @@ function saveManagers() {
                                     Edit
                                 </button>
 
+                                <button
+                                    @click.stop="viewInventory(warehouse.hashid)"
+                                    class="text-gray-600 hover:underline"
+                                >
+                                    Inventory
+                                </button>
+
 <!--                                <button-->
 <!--                                    @click.stop="openManagerModal(warehouse)"-->
 <!--                                    class="text-orange-400 hover:underline"-->
@@ -265,6 +276,7 @@ function saveManagers() {
                                 >
                                     Delete
                                 </button>
+
                             </td>
 
 

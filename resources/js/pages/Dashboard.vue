@@ -72,6 +72,20 @@ const options = {
         title: { display: false },
     },
 };
+
+const getGradient = (key) => {
+    if (key.includes('customer') || key.includes('user'))
+        return 'from-blue-500 to-blue-600'
+    if (key.includes('order') && !key.includes('growth'))
+        return 'from-green-500 to-green-600'
+    if (key.includes('growth') || key.includes('trend'))
+        return 'from-purple-500 to-purple-600'
+    if (key.includes('revenue') || key.includes('sales'))
+        return 'from-orange-500 to-orange-600'
+    if (key.includes('product') || key.includes('inventory'))
+        return 'from-pink-500 to-pink-600'
+    return 'from-gray-500 to-gray-600'
+}
 </script>
 
 <template>
@@ -79,20 +93,108 @@ const options = {
 
     <AppLayout>
         <div class="p-4 space-y-6">
+
             <!-- Stats Cards -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
                 <div
                     v-for="(value, key) in stats"
                     :key="key"
-                    class="rounded-lg bg-gradient-to-r from-green-400 to-green-600 p-4 text-white shadow-md"
+                    :class="[
+                    'rounded-lg p-4 text-white shadow-md bg-gradient-to-r',
+                    getGradient(key)
+                ]"
                 >
                     <div class="flex items-center justify-between">
                         <div>
-                            <p class="text-sm opacity-80 capitalize">{{ key.replaceAll('_', ' ') }}</p>
+                            <p class="text-sm opacity-90 capitalize">{{ key.replaceAll('_', ' ') }}</p>
                             <p class="text-2xl font-bold">{{ value }}</p>
                         </div>
+
+                        <!-- Icons -->
                         <svg
-                            class="h-8 w-8 text-green-300"
+                            v-if="key.includes('customer') || key.includes('user')"
+                            class="h-8 w-8 opacity-80"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
+                            />
+                        </svg>
+
+                        <svg
+                            v-else-if="key.includes('order') && !key.includes('growth')"
+                            class="h-8 w-8 opacity-80"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-1.35 2.7a1 1 0 00.9 1.3H19m-12 0a1 1 0 100 2 1 1 0 000-2zm12 0a1 1 0 100 2 1 1 0 000-2z"
+                            />
+                        </svg>
+
+                        <svg
+                            v-else-if="key.includes('growth') || key.includes('trend')"
+                            class="h-8 w-8 opacity-80"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M3 17l6-6 4 4 8-8M13 5h8v8"
+                            />
+                        </svg>
+
+                        <svg
+                            v-else-if="key.includes('revenue') || key.includes('sales')"
+                            class="h-8 w-8 opacity-80"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M12 8c-1.657 0-3 1.343-3 3h6c0-1.657-1.343-3-3-3zm0 8c1.657 0 3-1.343 3-3H9c0 1.657 1.343 3 3 3z"
+                            />
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M12 2v2m0 16v2m8-10h2M2 12h2"
+                            />
+                        </svg>
+
+                        <svg
+                            v-else-if="key.includes('product') || key.includes('inventory')"
+                            class="h-8 w-8 opacity-80"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4"
+                            />
+                        </svg>
+
+                        <svg
+                            v-else
+                            class="h-8 w-8 opacity-80"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -102,11 +204,12 @@ const options = {
                                 stroke-linejoin="round"
                                 stroke-width="2"
                                 d="M12 4v16m8-8H4"
-                            ></path>
+                            />
                         </svg>
                     </div>
                 </div>
             </div>
+            <!--end of stats cards-->
 
             <!-- Charts Section -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -7,6 +7,7 @@ use App\Models\Region;
 use App\Models\User;
 use App\Models\Warehouse\Warehouse;
 use App\Models\Warehouse\WarehouseManager;
+use App\Models\Warehouse\WarehouseProductInventory;
 use App\Traits\HasPermissionCheck;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -293,6 +294,165 @@ class WarehouseController extends Controller
         })->select('id', 'name', 'email')->get();
 
         return response()->json(['users' => $users]);
+    }
+
+    public function show(Warehouse $warehouse)
+    {
+        $warehouse->load([
+            'region',
+            'managers',
+            'inventories.productVariant.product',
+        ]);
+
+        return inertia('Admin/Warehouses/InventoryView', [
+            'warehouse' => $warehouse,
+            'inventories' => $warehouse->inventories->map(function ($inv) {
+                return [
+                    'product_name' => $inv->productVariant->product->name ?? 'N/A',
+                    'variant_name' => $inv->productVariant->variant_name ?? '',
+                    'stock' => $inv->stock,
+                    'reserved_stock' => $inv->reserved_stock,
+                    'damaged_stock' => $inv->damaged_stock,
+                    'cost_price' => $inv->cost_price,
+                ];
+            }),
+        ]);
+    }
+
+    public function inventory(Request $request, Warehouse $warehouse)
+    {
+        $query = WarehouseProductInventory::with('productVariant.product')
+            ->where('warehouse_id', $warehouse->id);
+
+        // Search & filter
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->whereHas('productVariant.product', function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%");
+            })->orWhereHas('productVariant', function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%");
+            });
+        }
+
+        // Paginate
+        $perPage = $request->input('per_page', 20);
+        $paginated = $query->orderBy('id', 'desc')->paginate($perPage)->withQueryString();
+
+        // Transform for frontend
+        $inventories = $paginated->getCollection()->map(function ($inv) {
+            return [
+                'id' => $inv->id,
+                'product_name' => $inv->productVariant->product->name,
+                'variant_name' => $inv->productVariant->name,
+                'stock' => $inv->stock,
+                'reserved_stock' => $inv->reserved_stock,
+                'damaged_stock' => $inv->damaged_stock,
+                'cost_price' => $inv->cost_price,
+            ];
+        });
+
+        return Inertia::render('Admin/Warehouses/InventoryView', [
+            'warehouse' => [
+                'id' => $warehouse->id,
+                'name' => $warehouse->name,
+                'code' => $warehouse->code,
+                'capacity' => $warehouse->capacity,
+            ],
+            'inventories' => $inventories,
+            'pagination' => [
+                'links' => $paginated->links(),
+                'meta' => $paginated->toArray(),
+            ],
+            'filters' => [
+                'search' => $request->input('search', ''),
+                'per_page' => $perPage,
+            ],
+        ]);
+    }
+
+    public function updateInventory(Request $request, Warehouse $warehouse)
+    {
+        $data = $request->validate([
+            'inventories.*.id' => 'required|exists:warehouse_product_inventories,id',
+            'inventories.*.stock' => 'required|integer|min:0',
+            'inventories.*.reserved_stock' => 'required|integer|min:0',
+            'inventories.*.damaged_stock' => 'required|integer|min:0',
+            'inventories.*.cost_price' => 'nullable|numeric|min:0',
+        ]);
+
+        foreach ($data['inventories'] as $item) {
+            WarehouseProductInventory::where('id', $item['id'])
+                ->update([
+                    'stock' => $item['stock'],
+                    'reserved_stock' => $item['reserved_stock'],
+                    'damaged_stock' => $item['damaged_stock'],
+                    'cost_price' => $item['cost_price'],
+                ]);
+        }
+
+        return back()->with('success', 'Inventory updated successfully.');
+    }
+
+    public function adjustStock(Request $request, Warehouse $warehouse)
+    {
+        $request->validate([
+            'inventory_id' => 'required|exists:warehouse_product_inventories,id',
+            'type' => 'required|in:increase,decrease,damaged',
+            'quantity' => 'required|integer|min:1',
+        ]);
+
+        $inventory = WarehouseProductInventory::findOrFail($request->inventory_id);
+
+        switch ($request->type) {
+            case 'increase':
+                $inventory->stock += $request->quantity;
+                break;
+            case 'decrease':
+                if ($inventory->stock < $request->quantity) {
+                    return back()->withErrors('Insufficient stock to decrease');
+                }
+                $inventory->stock -= $request->quantity;
+                break;
+            case 'damaged':
+                $inventory->damaged_stock += $request->quantity;
+                if ($inventory->stock < $request->quantity) $inventory->stock = 0;
+                else $inventory->stock -= $request->quantity;
+                break;
+        }
+
+        $inventory->save();
+        return back()->with('success', 'Stock updated successfully.');
+    }
+
+    public function transferStock(Request $request, Warehouse $warehouse)
+    {
+        $request->validate([
+            'inventory_id' => 'required|exists:warehouse_product_inventories,id',
+            'to_warehouse_id' => 'required|exists:warehouses,id',
+            'quantity' => 'required|integer|min:1',
+        ]);
+
+        $inventory = WarehouseProductInventory::findOrFail($request->inventory_id);
+        if ($inventory->stock < $request->quantity) return back()->withErrors('Insufficient stock');
+
+        $inventory->stock -= $request->quantity;
+        $inventory->save();
+
+        // Add to target warehouse
+        $targetInventory = WarehouseProductInventory::firstOrCreate([
+            'warehouse_id' => $request->to_warehouse_id,
+            'product_variant_id' => $inventory->product_variant_id,
+        ], [
+            'stock' => 0,
+            'reserved_stock' => 0,
+            'damaged_stock' => 0,
+            'cost_price' => $inventory->cost_price,
+        ]);
+
+        $targetInventory->stock += $request->quantity;
+        $targetInventory->save();
+
+        return back()->with('success', 'Stock transferred successfully.');
     }
 
 

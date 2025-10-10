@@ -139,6 +139,24 @@ Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group
     Route::get('/warehouses/assignable-users', [WarehouseController::class, 'getAssignableUsers'])
         ->name('admin.warehouses.assignable-users');
 
+    Route::get('{warehouse}/inventory', [WarehouseController::class, 'inventory'])->name('inventory');
+    Route::post('{warehouse}/inventory/update', [WarehouseController::class, 'updateInventory'])->name('inventory.update');
+
+    // Stock adjustments
+    Route::post('{warehouse}/inventory/adjust', [WarehouseController::class, 'adjustStock'])->name('inventory.adjust');
+
+    // Receive items
+    Route::get('{warehouse}/receivables', [WarehouseController::class, 'receivables'])->name('receivables.index');
+    Route::post('{warehouse}/receivables/accept', [WarehouseController::class, 'acceptReceivable'])->name('receivables.accept');
+
+    // Dispatch items
+    Route::get('{warehouse}/dispatches', [WarehouseController::class, 'dispatches'])->name('dispatches.index');
+    Route::post('{warehouse}/dispatches/create', [WarehouseController::class, 'createDispatch'])->name('dispatches.create');
+
+    // Transfer stock
+    Route::post('{warehouse}/transfer', [WarehouseController::class, 'transferStock'])->name('inventory.transfer');
+
+
     Route::resource('product-statuses', ProductStatusController::class);
     Route::resource('categories', CategoryController::class);
     Route::get('/categories/{category}/children', [CategoryController::class, 'children'])
