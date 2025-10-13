@@ -1,21 +1,21 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
-import type { PageProps as InertiaPageProps } from '@inertiajs/core';
+// import type { PageProps as InertiaPageProps } from '@inertiajs/core';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 
-interface Region {
-    hashid?: string;
-    name: string;
-    active: boolean;
-}
+// interface Region {
+//     hashid?: string;
+//     name: string;
+//     active: boolean;
+// }
 
 // Extend default Inertia PageProps to include your regions
-interface PageProps extends InertiaPageProps {
-    regions?: Region[];
-}
+// interface PageProps extends InertiaPageProps {
+//     regions?: Region[];
+// }
 
-const page = usePage<PageProps>();
+// const page = usePage<PageProps>();
 
 const page = usePage<{ title: string; level: string; basePath: string; parents?: { id: number; name: string }[] }>();
 const title = page.props.title || 'Create Region';
