@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Payments;
 
 use App\Http\Controllers\Controller;
+use App\Http\DTOs\PaymentRequest;
 use App\Models\Payment\Payment;
+use App\Services\PaymentService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -50,7 +52,34 @@ class PaymentController extends Controller
                 'mpesa',
                 'credit card',
                 'debit card',
+                'cash_on_delivery',
             ],
+        ]);
+    }
+
+    public function verify(Request $request, Payment $payment): \Illuminate\Http\JsonResponse
+    {
+        /** @var PaymentService $service */
+        $service = app(PaymentService::class);
+        $result = $service->verifyPayment($payment);
+
+        return response()->json([
+            'success' => $result->success,
+            'message' => $result->message,
+            'data' => $result->data,
+        ], $result->success ? 200 : 422);
+    }
+
+    public function mpesaCallback(Request $request)
+    {
+        /** @var PaymentService $service */
+        $service = app(PaymentService::class);
+        $result = $service->handleCallback('mpesa', $request->all());
+
+        // Safaricom expects a 200 even on logical failures after we process
+        return response()->json([
+            'ResultCode' => $result->success ? 0 : 1,
+            'ResultDesc' => $result->message,
         ]);
     }
 }

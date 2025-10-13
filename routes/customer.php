@@ -20,6 +20,11 @@ Route::get('customers/{customer}/dashboard', [CustomerController::class, 'dashbo
     Route::get('customer/welcome', [CustomerController::class, 'welcome'])->name('customer.welcome');
 
     Route::resource('customers.addresses', CustomerAddressController::class)->except(['index']);
+
+        // JSON endpoints for address management (web auth)
+        Route::get('me/addresses', [CustomerAddressController::class, 'apiList'])->name('me.addresses.index');
+        Route::post('me/addresses', [CustomerAddressController::class, 'apiStore'])->name('me.addresses.store');
+        Route::post('me/addresses/{address}/make-default', [CustomerAddressController::class, 'apiMakeDefault'])->name('me.addresses.make-default');
     Route::get('customers/{customer}/addresses', [CustomerAddressController::class, 'index'])->name('customers.addresses.index');
     Route::post('customers/{customer}/addresses/{address}/make-default', [CustomerAddressController::class, 'makeDefault'])->name('customers.addresses.make-default');
 

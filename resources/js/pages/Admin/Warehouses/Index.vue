@@ -77,14 +77,16 @@ function editWarehouse(hashid: string) {
 }
 function viewInventory(hashid: string) {
     if (!hashid) return console.error('Missing hashid for warehouse');
-    router.get(route('admin.warehouses.inventory', { warehouse: hashid }));
+    router.get(route('admin.inventory', { warehouse: hashid }));
 }
 
-function deleteWarehouse(hashid: string) {
+function toggleWarehouseStatus(hashid: string) {
     if (!hashid) return console.error('Missing hashid for warehouse');
-    if (confirm('Are you sure you want to delete this warehouse?')) {
-        router.delete(route('admin.warehouses.destroy', { warehouse: hashid }));
-    }
+    router.patch(route('admin.warehouses.toggle-status', { warehouse: hashid }), {}, {
+        onSuccess: () => {
+            router.get(route('admin.warehouses.index'), {}, { replace: true });
+        }
+    });
 }
 
 const statusClasses = (active: boolean) => ({
@@ -258,7 +260,7 @@ function saveManagers() {
 
                                 <button
                                     @click.stop="viewInventory(warehouse.hashid)"
-                                    class="text-gray-600 hover:underline"
+                                    class="text-green-600 hover:underline"
                                 >
                                     Inventory
                                 </button>
@@ -271,10 +273,10 @@ function saveManagers() {
 <!--                                </button>-->
 
                                 <button
-                                    @click.stop="deleteWarehouse(warehouse.hashid)"
+                                    @click.stop="toggleWarehouseStatus(warehouse.hashid)"
                                     class="text-red-600 hover:underline"
                                 >
-                                    Delete
+                                    {{ warehouse.active ? 'Deactivate' : 'Activate' }}
                                 </button>
 
                             </td>

@@ -22,20 +22,27 @@ use App\Http\Controllers\Commission\CommissionPlanController;
 use App\Http\Controllers\Customer\CustomerController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Payments\PaymentController;
+use App\Http\Controllers\Payments\PaymentTransactionController;
 use App\Http\Controllers\SellController;
 use App\Http\Controllers\SellerAccountController;
 use App\Http\Controllers\Warehouse\WarehouseController;
+use App\Http\Controllers\CouponController;
+use App\Http\Controllers\Admin\DiscountController as AdminDiscountController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken as VerifyCsrfTokenMiddleware;
 
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';
-require __DIR__.'/payment.php';
+//require __DIR__.'/payment.php';
 require __DIR__.'/customer.php';
 
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
+
+// Product search
+Route::get('/search', [\App\Http\Controllers\SearchController::class, 'products'])->name('search.products');
 
 Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard',[HomeController::class,'dashboard'])->name('dashboard');
@@ -59,6 +66,39 @@ Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard']
 
     Route::patch('warranties/{warranty}/toggle-active', [WarrantyController::class, 'toggleActive'])
     ->name('warranties.toggleActive');
+
+    // Warehouses (admins and sellers)
+    Route::resource('warehouses', WarehouseController::class);
+    Route::patch('warehouses/{warehouse}/toggle-status', [WarehouseController::class, 'toggleStatus'])
+        ->name('warehouses.toggle-status');
+    Route::post('/warehouses/{warehouse}/assign-managers', [WarehouseController::class, 'assignManagers'])
+        ->name('admin.warehouses.assign-managers');
+    Route::get('/warehouses/assignable-users', [WarehouseController::class, 'getAssignableUsers'])
+        ->name('admin.warehouses.assignable-users');
+
+    // Inventory & stock routes
+    Route::get('{warehouse}/inventory', [WarehouseController::class, 'inventory'])->name('inventory');
+    Route::post('{warehouse}/inventory/update', [WarehouseController::class, 'updateInventory'])->name('inventory.update');
+    Route::post('{warehouse}/inventory/adjust', [WarehouseController::class, 'adjustStock'])->name('inventory.adjust');
+    Route::post('{warehouse}/transfer', [WarehouseController::class, 'transferStock'])->name('inventory.transfer');
+
+    // Receivables & Dispatches
+    Route::get('{warehouse}/receivables', [WarehouseController::class, 'receivables'])->name('receivables.index');
+    Route::post('{warehouse}/receivables/create', [WarehouseController::class, 'createReceivable'])->name('receivables.create');
+    Route::post('{warehouse}/receivables/accept', [WarehouseController::class, 'acceptReceivable'])->name('receivables.accept');
+    Route::get('{warehouse}/dispatches', [WarehouseController::class, 'dispatches'])->name('dispatches.index');
+    Route::post('{warehouse}/dispatches/create', [WarehouseController::class, 'createDispatch'])->name('dispatches.create');
+
+    // Publish product variant from warehouse inventory
+    Route::post('{warehouse}/inventory/{inventory}/publish', [WarehouseController::class, 'publishInventory'])->name('inventory.publish');
+
+    // Product variant search for adding to inventory via modal
+    Route::get('{warehouse}/inventory/variants', [WarehouseController::class, 'searchVariants'])->name('inventory.variants');
+
+    // Cascading selects for Add Product modal
+    Route::get('{warehouse}/inventory/categories', [WarehouseController::class, 'categories'])->name('inventory.categories');
+    Route::get('{warehouse}/inventory/products', [WarehouseController::class, 'productsByCategory'])->name('inventory.products');
+    Route::get('{warehouse}/inventory/variants-by-product', [WarehouseController::class, 'variantsByProduct'])->name('inventory.variants-by-product');
 
 });
 
@@ -130,31 +170,6 @@ Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group
             ->name('seller-applications.verify');
     });
 
-    Route::resource('warehouses', WarehouseController::class);
-
-
-    Route::post('/warehouses/{warehouse}/assign-managers', [WarehouseController::class, 'assignManagers'])
-        ->name('admin.warehouses.assign-managers');
-
-    Route::get('/warehouses/assignable-users', [WarehouseController::class, 'getAssignableUsers'])
-        ->name('admin.warehouses.assignable-users');
-
-    Route::get('{warehouse}/inventory', [WarehouseController::class, 'inventory'])->name('inventory');
-    Route::post('{warehouse}/inventory/update', [WarehouseController::class, 'updateInventory'])->name('inventory.update');
-
-    // Stock adjustments
-    Route::post('{warehouse}/inventory/adjust', [WarehouseController::class, 'adjustStock'])->name('inventory.adjust');
-
-    // Receive items
-    Route::get('{warehouse}/receivables', [WarehouseController::class, 'receivables'])->name('receivables.index');
-    Route::post('{warehouse}/receivables/accept', [WarehouseController::class, 'acceptReceivable'])->name('receivables.accept');
-
-    // Dispatch items
-    Route::get('{warehouse}/dispatches', [WarehouseController::class, 'dispatches'])->name('dispatches.index');
-    Route::post('{warehouse}/dispatches/create', [WarehouseController::class, 'createDispatch'])->name('dispatches.create');
-
-    // Transfer stock
-    Route::post('{warehouse}/transfer', [WarehouseController::class, 'transferStock'])->name('inventory.transfer');
 
 
     Route::resource('product-statuses', ProductStatusController::class);
@@ -169,9 +184,20 @@ Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group
     Route::resource('unit-types.units', UnitController::class)->except(['index', 'show']);
     Route::resource('variant-categories', VariantCategoryController::class);
     Route::resource('regions', RegionController::class);
+    Route::resource('subregions', RegionController::class);
+    Route::resource('areas', RegionController::class);
+    Route::resource('routes', RegionController::class);
 
 
     Route::resource('payments', PaymentController::class);
+
+    // Discounts management
+    Route::resource('discounts', AdminDiscountController::class);
+
+    // Sellers management
+    Route::middleware(['check_permission:view-sellers'])->group(function () {
+        Route::resource('sellers', \App\Http\Controllers\Admin\SellerController::class)->only(['index','show']);
+    });
 
     Route::resource('commission-plans', CommissionPlanController::class);
     Route::post('commission-plans/{plan}/toggle', [CommissionPlanController::class, 'toggle'])
@@ -242,5 +268,34 @@ Route::prefix('cart')->name('cart.')->group(function () {
     Route::delete('', [CartController::class, 'clear'])->name('clear');
 });
 
+// Checkout Summary (similar to Jumia)
+Route::get('/checkout/summary', [CartController::class, 'checkout'])
+    ->name('checkout.summary');
+
+// Checkout Payment page
+Route::get('/checkout/payment', [CartController::class, 'payment'])
+    ->name('checkout.payment');
+
+// Terms & Conditions
+Route::get('/terms', function () {
+    return Inertia::render('Frontend/Legal/Terms');
+})->name('terms');
+
+// Shipping estimate endpoint
+Route::post('/shipping/estimate', [CartController::class, 'estimateShipping'])
+    ->name('shipping.estimate');
+
+// Coupon validation endpoint
+Route::post('/coupons/validate', [CouponController::class, 'validateCode'])
+    ->name('coupons.validate');
+
 Route::get('/category/{slug}', [HomeController::class, 'category'])
     ->name('category.show');
+
+
+Route::prefix('payments')->name('payments.')->group(function () {
+    Route::get('providers', [PaymentTransactionController::class, 'providers'])->name('providers');
+    Route::post('initiate', [PaymentTransactionController::class, 'initiate'])->withoutMiddleware([VerifyCsrfTokenMiddleware::class])->name('initiate');
+    Route::get('{payment}/status', [PaymentTransactionController::class, 'status'])->name('status');
+    Route::post('callback/{provider}', [PaymentTransactionController::class, 'callback'])->withoutMiddleware([VerifyCsrfTokenMiddleware::class])->name('callback');
+});

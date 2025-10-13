@@ -7,9 +7,12 @@ import { computed, ref, watch } from 'vue';
 
 interface OrderItem {
     id: number;
+    ulid: string;
     order_code: string;
     status: string;
+    payment_status?: string;
     total_amount: number;
+    currency: string;
     created_at: string;
 }
 
@@ -59,8 +62,8 @@ const pagination = computed(() => {
     return { links, meta };
 });
 
-function viewOrder(id: number) {
-    router.get(route('orders.show', { order: id }));
+function viewOrder(ulid: string) {
+    router.get(route('orders.show', { orders: ulid }));
 }
 
 const statusClasses = (status: string) => ({
@@ -69,6 +72,50 @@ const statusClasses = (status: string) => ({
     'bg-green-100 text-green-800': status === 'completed',
     'bg-red-100 text-red-800': status === 'cancelled',
 });
+
+const paying = ref(false);
+const payMessage = ref<string>('');
+
+async function payNow(order: OrderItem) {
+    try {
+        payMessage.value = '';
+        // get phone number from user
+        let phone = (window as any)?.APP_DEFAULT_PHONE || '';
+        if (!phone) {
+            phone = prompt('Enter your M-Pesa phone number (e.g., 07xxxxxxxx or 2547xxxxxxxx):') || '';
+        }
+        if (!phone) return;
+        paying.value = true;
+        const axios = (window as any).axios || (await import('axios')).default;
+        const payload: any = {
+            payable_type: 'order',
+            payable_id: order.id,
+            amount: order.total_amount,
+            currency: order.currency || 'KES',
+            provider: 'mpesa',
+            method: 'mobile_money',
+            phone: phone,
+        };
+        const resp = await axios.post(route('payments.initiate'), payload, {
+            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            withCredentials: true,
+        });
+        if (resp.status >= 200 && resp.status < 300) {
+            alert('Payment initiated. Please check your phone for the M-Pesa prompt and enter your PIN.');
+        }
+    } catch (e: any) {
+        const resp = e?.response;
+        if (resp?.status === 409 && resp?.data?.items?.length) {
+            const items = resp.data.items as Array<{ product_variant_id: number; requested: number; available: number; product_name: string }>;
+            const lines = items.map(i => `- ${i.product_name}: requested ${i.requested}, available ${i.available}`).join('\n');
+            alert('Cannot proceed with payment due to insufficient stock for:\n' + lines);
+        } else {
+            alert(resp?.data?.message || 'Failed to initiate payment.');
+        }
+    } finally {
+        paying.value = false;
+    }
+}
 </script>
 
 <template>
@@ -133,9 +180,18 @@ const statusClasses = (status: string) => ({
                                         {{ order.status }}
                                     </span>
                                 </td>
-                                <td class="px-4 py-4 text-right text-sm font-medium">
-                                    <button @click="viewOrder(order.id)" aria-label="View Order" class="text-blue-600 transition hover:text-blue-800">
+                                <td class="px-4 py-4 text-right text-sm font-medium flex items-center justify-end gap-3">
+                                    <button @click="viewOrder(order.ulid)" aria-label="View Order" class="text-blue-600 transition hover:text-blue-800">
                                         <Eye class="h-5 w-5" />
+                                    </button>
+                                    <button
+                                        v-if="order.payment_status === 'pending'"
+                                        :disabled="paying"
+                                        @click="payNow(order)"
+                                        class="rounded bg-primary px-3 py-1 text-xs text-white hover:bg-primary/90 disabled:opacity-60"
+                                        title="Pay for this order"
+                                    >
+                                        {{ paying ? 'Processing…' : 'Pay Now' }}
                                     </button>
                                 </td>
                             </tr>

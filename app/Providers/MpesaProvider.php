@@ -20,7 +20,8 @@ class MpesaProvider implements PaymentProviderInterface
 
     public function __construct()
     {
-        $this->config = config('payment.providers.mpesa');
+        // Ensure config is always an array to satisfy typed property and avoid TypeErrors when config is missing
+        $this->config = (array) (config('payment.providers.mpesa', []) ?? []);
     }
 
     public function initialize(Payment $payment, PaymentRequest $request): PaymentResponse
@@ -122,6 +123,22 @@ class MpesaProvider implements PaymentProviderInterface
                             'verified_at' => now()->toISOString(),
                         ])
                     ]);
+                    // Update order payment status if applicable
+                    try {
+                        $payable = $payment->payable;
+                        if ($payable && method_exists($payable, 'update')) {
+                            // Avoid hard coupling; set payment_status to paid when available
+                            if (isset($payable->payment_status)) {
+                                $payable->payment_status = 'paid';
+                            }
+                            if (isset($payable->status) && ($payable->status === 'pending')) {
+                                $payable->status = 'confirmed';
+                            }
+                            $payable->save();
+                        }
+                    } catch (\Throwable $e) {
+                        \Log::warning('Failed to update payable on payment completion', ['payment_id' => $payment->id, 'error' => $e->getMessage()]);
+                    }
                 }
                 return PaymentResponse::success('Payment completed successfully');
             } elseif ($resultCode === '1032') {
@@ -183,6 +200,22 @@ class MpesaProvider implements PaymentProviderInterface
                         'callback_processed_at' => now()->toISOString(),
                     ])
                 ]);
+
+                // Update order payment status if applicable
+                try {
+                    $payable = $payment->payable;
+                    if ($payable && method_exists($payable, 'update')) {
+                        if (isset($payable->payment_status)) {
+                            $payable->payment_status = 'paid';
+                        }
+                        if (isset($payable->status) && ($payable->status === 'pending')) {
+                            $payable->status = 'confirmed';
+                        }
+                        $payable->save();
+                    }
+                } catch (\Throwable $e) {
+                    \Log::warning('Failed to update payable on callback completion', ['payment_id' => $payment->id, 'error' => $e->getMessage()]);
+                }
 
                 Log::info('M-Pesa payment completed', [
                     'payment_id' => $payment->id,

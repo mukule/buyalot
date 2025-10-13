@@ -146,10 +146,15 @@ const formatPrice = (amount: number) => `KSh ${amount.toLocaleString()}`;
                         </div>
 
                         <button
+                            @click="router.visit(route('checkout.summary'))"
                             class="mt-4 flex w-full items-center justify-center gap-2 rounded bg-primary px-4 py-2 text-white hover:bg-primary/90"
                         >
                             Proceed to Checkout
                         </button>
+                        <p class="mt-2 text-xs text-gray-600 text-center">
+                            By proceeding, you are automatically accepting the
+                            <a :href="route('terms')" class="underline text-primary hover:text-primary/80">Terms &amp; Conditions</a>
+                        </p>
                     </div>
                 </div>
             </div>

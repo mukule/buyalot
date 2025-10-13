@@ -27,6 +27,42 @@ class PaymentTransactionController extends Controller
     {
         try {
             $payable = $request->getPayable();
+
+            // If paying for an order, ensure there is enough stock before allowing payment
+            if ($request->input('payable_type') === 'order') {
+                /** @var \App\Models\Orders\Order $order */
+                $order = $payable->loadMissing(['orderItems.productVariant.product']);
+
+                // If already paid, block re-initiation
+                if (isset($order->payment_status) && $order->payment_status === 'paid') {
+                    return response()->json([
+                        'message' => 'This order has already been paid.',
+                    ], 400);
+                }
+
+                $insufficient = [];
+                foreach ($order->orderItems as $item) {
+                    $variant = $item->productVariant;
+                    $available = (int)($variant?->stock ?? 0);
+                    $requested = (int)$item->quantity;
+                    if ($requested > $available) {
+                        $insufficient[] = [
+                            'product_variant_id' => $item->product_variant_id,
+                            'requested' => $requested,
+                            'available' => $available,
+                            'product_name' => $variant?->product?->name ?? 'Unknown Product',
+                        ];
+                    }
+                }
+
+                if (!empty($insufficient)) {
+                    return response()->json([
+                        'message' => 'Some items are out of stock or have insufficient quantity. Please modify your order before paying.',
+                        'items' => $insufficient,
+                    ], 409);
+                }
+            }
+
             $paymentRequest = PaymentRequest::from($request->validated());
 
             $payment = $this->paymentService->createPayment($payable, $paymentRequest);

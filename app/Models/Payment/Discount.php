@@ -113,11 +113,27 @@ class Discount extends Model
     #[Scope]
     protected function active($query)
     {
+        // Consider both legacy (start_date/end_date) and new (starts_at/expires_at) columns
         return $query->where('is_active', true)
-            ->where('starts_at', '<=', now())
             ->where(function ($q) {
+                $now = now();
+                $q->whereNull('starts_at')
+                  ->orWhere('starts_at', '<=', $now);
+            })
+            ->where(function ($q) {
+                $now = now();
                 $q->whereNull('expires_at')
-                    ->orWhere('expires_at', '>=', now());
+                  ->orWhere('expires_at', '>=', $now);
+            })
+            ->where(function ($q) {
+                $now = now();
+                $q->whereNull('start_date')
+                  ->orWhere('start_date', '<=', $now);
+            })
+            ->where(function ($q) {
+                $now = now();
+                $q->whereNull('end_date')
+                  ->orWhere('end_date', '>=', $now);
             });
     }
 
@@ -165,11 +181,12 @@ class Discount extends Model
     // Accessors & Mutators
     public function getFormattedValueAttribute(): string
     {
-        return match ($this->type) {
+        $type = $this->normalizeType($this->type);
+        return match ($type) {
             'percentage' => $this->value . '%',
             'fixed_amount' => 'KES ' . number_format($this->value, 2),
             'free_shipping' => 'Free Shipping',
-            default => $this->value
+            default => (string)$this->value,
         };
     }
 
@@ -204,27 +221,65 @@ class Discount extends Model
     }
 
     // Helper Methods
+    private function normalizeType(?string $type): ?string
+    {
+        return match ($type) {
+            'fixed' => 'fixed_amount',
+            'bogo' => 'buy_x_get_y',
+            default => $type,
+        };
+    }
+
+    private function effectiveStart(): ?\Carbon\CarbonInterface
+    {
+        $starts = $this->starts_at ?? $this->start_date ?? null;
+        return $starts ? \Carbon\Carbon::parse($starts) : null;
+    }
+
+    private function effectiveEnd(): ?\Carbon\CarbonInterface
+    {
+        $ends = $this->expires_at ?? $this->end_date ?? null;
+        return $ends ? \Carbon\Carbon::parse($ends) : null;
+    }
+
+    private function totalUsedCount(): int
+    {
+        return (int)($this->used_count ?? $this->times_used ?? 0);
+    }
+
+    private function perCustomerLimit(): ?int
+    {
+        return $this->usage_limit_per_customer ?? $this->per_user_limit ?? null;
+    }
     public function isActive(): bool
     {
-        return $this->is_active
-            && ($this->starts_at === null || $this->starts_at <= now())
-            && ($this->expires_at === null || $this->expires_at >= now())
-            && ($this->usage_limit === null || $this->used_count < $this->usage_limit);
+        $start = $this->effectiveStart();
+        $end = $this->effectiveEnd();
+        $limit = $this->usage_limit ?? null;
+        $used = $this->totalUsedCount();
+
+        return (bool)$this->is_active
+            && (!$start || $start->lessThanOrEqualTo(now()))
+            && (!$end || $end->greaterThanOrEqualTo(now()))
+            && ($limit === null || $used < (int)$limit);
     }
 
     public function isExpired(): bool
     {
-        return $this->expires_at && $this->expires_at < now();
+        $end = $this->effectiveEnd();
+        return $end !== null && $end->lessThan(now());
     }
 
     public function isScheduled(): bool
     {
-        return $this->starts_at && $this->starts_at > now();
+        $start = $this->effectiveStart();
+        return $start !== null && $start->greaterThan(now());
     }
 
     public function isExhausted(): bool
     {
-        return $this->usage_limit && $this->used_count >= $this->usage_limit;
+        $limit = $this->usage_limit ?? null;
+        return $limit !== null && $this->totalUsedCount() >= (int)$limit;
     }
 
     public function canBeUsed(): bool
@@ -238,13 +293,14 @@ class Discount extends Model
             return false;
         }
 
-        // Check per-customer usage limit
-        if ($this->usage_limit_per_customer) {
+        // Check per-customer usage limit (supports usage_limit_per_customer or per_user_limit)
+        $limitPerCustomer = $this->perCustomerLimit();
+        if ($limitPerCustomer) {
             $customerUsageCount = Order::where('customer_id', $customerId)
                 ->where('discount_id', $this->id)
                 ->count();
 
-            if ($customerUsageCount >= $this->usage_limit_per_customer) {
+            if ($customerUsageCount >= $limitPerCustomer) {
                 return false;
             }
         }
@@ -280,26 +336,154 @@ class Discount extends Model
         return !empty(array_intersect($discountCategoryIds, $productCategoryIds));
     }
 
-    public function calculateDiscount(float $amount, array $items = []): float
+    public function calculateDiscount(float $amount, array $items = [], array $context = []): float
     {
         if (!$this->canBeUsed() || $amount < ($this->minimum_amount ?? 0)) {
             return 0;
         }
 
-        $discount = match ($this->type) {
-            'percentage' => $amount * ($this->value / 100),
-            'fixed_amount' => min($this->value, $amount),
-            'free_shipping' => 0, // Handled separately
-            'buy_x_get_y' => $this->calculateBuyXGetYDiscount($items),
+        // Evaluate order-level constraints from conditions
+        $conditions = $this->conditions ?? [];
+        $matchMode = ($conditions['match'] ?? 'any') === 'all' ? 'all' : 'any';
+        $appliesTo = $conditions['applies_to'] ?? 'items'; // items|order|shipping
+
+        $orderSubtotal = (float)($context['order_subtotal'] ?? $amount);
+        $customerId = $context['customer_id'] ?? null;
+        $regionId = $context['region_id'] ?? null;
+
+        // Order-level gates
+        if (isset($conditions['min_order_total']) && $orderSubtotal < (float)$conditions['min_order_total']) {
+            return 0;
+        }
+        if (isset($conditions['max_order_total']) && $orderSubtotal > (float)$conditions['max_order_total']) {
+            return 0;
+        }
+        if (!empty($conditions['customer_ids']) && $customerId !== null) {
+            if (!$this->valueInList($customerId, $conditions['customer_ids'])) {
+                return 0;
+            }
+        }
+        if (!empty($conditions['region_ids']) && $regionId !== null) {
+            if (!$this->valueInList($regionId, $conditions['region_ids'])) {
+                return 0;
+            }
+        }
+
+        // Filter items by applicability
+        $applicableItems = [];
+        foreach ($items as $item) {
+            if ($this->isApplicableToItem($item, $conditions, $matchMode)) {
+                $applicableItems[] = $item;
+            }
+        }
+
+        // If applies_to = order we still might want to require at least one matching item when product constraints exist
+        if ($appliesTo !== 'order' && empty($applicableItems)) {
+            return 0;
+        }
+
+        $baseAmount = $appliesTo === 'order' ? $amount : $this->sumItems($applicableItems);
+
+        $type = $this->normalizeType($this->type);
+        $discount = match ($type) {
+            'percentage' => $baseAmount * ((float)$this->value / 100),
+            'fixed_amount' => min((float)$this->value, $baseAmount),
+            'free_shipping' => 0, // handled by caller using shipping rules
+            'buy_x_get_y' => $this->calculateBuyXGetYDiscount($applicableItems),
             default => 0,
         };
 
-        // Apply maximum discount limit
+        // Cap maximum discount
         if ($this->maximum_discount) {
-            $discount = min($discount, $this->maximum_discount);
+            $discount = min($discount, (float)$this->maximum_discount);
         }
 
         return round($discount, 2);
+    }
+
+    private function sumItems(array $items): float
+    {
+        $sum = 0.0;
+        foreach ($items as $it) {
+            $qty = (int)($it['quantity'] ?? 1);
+            $price = (float)($it['unit_price'] ?? 0);
+            $sum += $qty * $price;
+        }
+        return $sum;
+    }
+
+    private function isApplicableToItem(array $item, array $conditions, string $matchMode = 'any'): bool
+    {
+        // Collect checks according to available condition keys
+        $checks = [];
+
+        if (!empty($conditions['product_ids'])) {
+            $checks[] = $this->valueInList($item['product_id'] ?? null, $conditions['product_ids']);
+        }
+        if (!empty($conditions['variant_ids'])) {
+            $checks[] = $this->valueInList($item['product_variant_id'] ?? null, $conditions['variant_ids']);
+        }
+        if (!empty($conditions['seller_ids'])) {
+            $checks[] = $this->valueInList($item['seller_id'] ?? null, $conditions['seller_ids']);
+        }
+        if (!empty($conditions['brand_ids'])) {
+            $checks[] = $this->valueInList($item['brand_id'] ?? null, $conditions['brand_ids']);
+        }
+        if (!empty($conditions['sub_brand_ids'])) {
+            $checks[] = $this->valueInList($item['sub_brand_id'] ?? null, $conditions['sub_brand_ids']);
+        }
+        if (!empty($conditions['category_ids'])) {
+            $includeChildren = (bool)($conditions['include_children'] ?? true);
+            $checks[] = $this->matchesCategories($item['category_ids'] ?? [], $conditions['category_ids'], $includeChildren);
+        }
+        if (!empty($conditions['all_variants'])) {
+            // If true and product_id matches, any variant qualifies regardless of variant filter
+            if (!empty($conditions['product_ids']) && isset($item['product_id'])) {
+                $checks[] = $this->valueInList($item['product_id'], $conditions['product_ids']);
+            }
+        }
+
+        // If no specific item-level conditions provided, consider item eligible
+        if (empty($checks)) {
+            return true;
+        }
+
+        // Evaluate match mode
+        if ($matchMode === 'all') {
+            return !in_array(false, $checks, true);
+        }
+        // any
+        return in_array(true, $checks, true);
+    }
+
+    private function valueInList($value, array $list): bool
+    {
+        if ($value === null) return false;
+        return in_array($value, $list);
+    }
+
+    private function matchesCategories(array $itemCategoryIds, array $conditionCategoryIds, bool $includeChildren = true): bool
+    {
+        if (empty($itemCategoryIds) || empty($conditionCategoryIds)) {
+            return false;
+        }
+
+        // If includeChildren, expand conditionCategoryIds by their descendants using Category model
+        $expanded = collect($conditionCategoryIds);
+        if ($includeChildren) {
+            $all = collect();
+            foreach ($conditionCategoryIds as $catId) {
+                $cat = Category::with('children')->find($catId);
+                if ($cat) {
+                    $all = $all->merge($cat->getAllCategoryIds());
+                }
+            }
+            if ($all->isNotEmpty()) {
+                $expanded = $all->unique();
+            }
+        }
+
+        return !empty(array_intersect($expanded->all(), $itemCategoryIds));
     }
 
     private function calculateBuyXGetYDiscount(array $items): float
@@ -326,13 +510,24 @@ class Discount extends Model
 
     public function incrementUsage(): void
     {
-        $this->increment('used_count');
+        // Prefer times_used if available (legacy schema), otherwise used_count
+        if (array_key_exists('times_used', $this->getAttributes())) {
+            $this->increment('times_used');
+        } else {
+            $this->increment('used_count');
+        }
     }
 
     public function decrementUsage(): void
     {
-        if ($this->used_count > 0) {
-            $this->decrement('used_count');
+        if (array_key_exists('times_used', $this->getAttributes())) {
+            if ((int)($this->times_used ?? 0) > 0) {
+                $this->decrement('times_used');
+            }
+        } else {
+            if ((int)($this->used_count ?? 0) > 0) {
+                $this->decrement('used_count');
+            }
         }
     }
 

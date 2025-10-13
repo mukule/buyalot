@@ -13,6 +13,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 
 class User extends Authenticatable
@@ -85,6 +86,9 @@ public function wishlists(): HasMany
         return $this->hasMany(Wishlist::class, 'customer_id');
     }
 
-
+    public function customer(): HasOne
+    {
+        return $this->hasOne(\App\Models\Customer\Customer::class, 'user_id');
+    }
 
 }

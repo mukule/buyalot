@@ -17,24 +17,29 @@ interface PageProps extends InertiaPageProps {
 
 const page = usePage<PageProps>();
 
-const title = 'Create Region';
+const page = usePage<{ title: string; level: string; basePath: string; parents?: { id: number; name: string }[] }>();
+const title = page.props.title || 'Create Region';
+const level = page.props.level || 'region';
+const basePath = page.props.basePath || '/admin/regions';
+const parents = page.props.parents || [];
+
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: '/admin/dashboard' },
-    { title: 'Regions', href: '/admin/regions' },
+    { title: level === 'region' ? 'Regions' : level === 'subregion' ? 'Subregions' : level === 'area' ? 'Areas' : 'Routes', href: basePath },
     { title, href: '' },
 ];
 
 // Form for creating a region
 const form = useForm({
     name: '',
-    active: true,
+    parent_id: parents.length ? parents[0].id : null,
 });
 
 // Submit handler
 function submitRegion() {
-    form.post('/admin/regions', {
+    form.post(basePath, {
         onSuccess: () => {
-            router.get('/admin/regions'); // redirect to regions index after successful creation
+            router.get(basePath);
         },
     });
 }
@@ -61,21 +66,19 @@ function submitRegion() {
                             id="name"
                             type="text"
                             required
-                            placeholder="Enter region name"
+                            placeholder="Enter name"
                             class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:ring-2 focus:ring-[color:var(--primary)] focus:outline-none"
                         />
                         <div v-if="form.errors.name" class="mt-1 text-sm text-red-600">{{ form.errors.name }}</div>
                     </div>
 
-                    <!-- Active Checkbox -->
-                    <div class="flex items-center space-x-2">
-                        <input
-                            id="active"
-                            type="checkbox"
-                            v-model="form.active"
-                            class="h-4 w-4 rounded border border-gray-300 text-primary focus:ring-primary"
-                        />
-                        <label for="active" class="select-none">Active</label>
+                    <!-- Parent Selector (for sub-levels) -->
+                    <div v-if="parents.length" class="mt-2">
+                        <label class="mb-1 block text-sm font-medium">Parent {{ level === 'subregion' ? 'Region' : level === 'area' ? 'Subregion' : 'Area' }}</label>
+                        <select v-model="form.parent_id" class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:ring-2 focus:ring-[color:var(--primary)] focus:outline-none">
+                            <option v-for="p in parents" :key="p.id" :value="p.id">{{ p.name }}</option>
+                        </select>
+                        <div v-if="form.errors.parent_id" class="mt-1 text-sm text-red-600">{{ form.errors.parent_id }}</div>
                     </div>
 
                     <button

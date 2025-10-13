@@ -94,4 +94,10 @@ class Payment extends Model
             'failure_reason' => $reason,
         ]);
     }
+
+    // Use ulid for route model binding so web routes like payments.status accept the returned id
+    public function getRouteKeyName(): string
+    {
+        return 'ulid';
+    }
 }

@@ -17,6 +17,8 @@ class WarehouseProductInventory extends Model
         'stock',
         'reserved_stock',
         'damaged_stock',
+        'regular_price',
+        'selling_price',
         'cost_price',
     ];
 

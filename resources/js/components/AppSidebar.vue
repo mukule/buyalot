@@ -136,6 +136,12 @@ const allNavItems: NavItem[] = [
                 icon: ClipboardList,
                 permissions: ['view-products', 'manage-product-inventory'],
             },
+            {
+                title: 'Discounts',
+                href: '/admin/discounts',
+                icon: Tag,
+                permissions: ['view-discounts']
+            },
 
             {
                 title: 'Product Statuses',
@@ -161,6 +167,12 @@ const allNavItems: NavItem[] = [
         href: '/admin/customers',
         icon: BookUserIcon,
         permissions: ['view-customers'],
+    },
+    {
+        title: 'Sellers',
+        href: '/admin/sellers',
+        icon: BookUserIcon,
+        permissions: ['view-sellers'],
     },
     {
         title: 'Users',
@@ -204,6 +216,24 @@ const allNavItems: NavItem[] = [
             {
                 title: 'Regions',
                 href: '/admin/regions',
+                icon: MapPin,
+                permissions: ['view-regions'],
+            },
+            {
+                title: 'Subregions',
+                href: '/admin/subregions',
+                icon: MapPin,
+                permissions: ['view-regions'],
+            },
+            {
+                title: 'Areas',
+                href: '/admin/areas',
+                icon: MapPin,
+                permissions: ['view-regions'],
+            },
+            {
+                title: 'Routes',
+                href: '/admin/routes',
                 icon: MapPin,
                 permissions: ['view-regions'],
             },

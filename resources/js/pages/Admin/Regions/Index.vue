@@ -34,31 +34,34 @@ interface PaginatedResponse<T> {
     meta: PaginationMeta;
 }
 
-const page = usePage<AppPageProps<{ regions: PaginatedResponse<Region> }>>();
+const page = usePage<AppPageProps<{ regions: PaginatedResponse<Region>; level: string; title: string; basePath: string }>>();
 const regions = computed(() => page.props.regions?.data || []);
 const pagination = computed(() => {
     const { links, meta } = page.props.regions || {};
     return { links, meta };
 });
+const level = computed(() => page.props.level || 'region');
+const title = computed(() => page.props.title || 'Regions');
+const basePath = computed(() => page.props.basePath || '/admin/regions');
 
 const breadcrumbs = [
     { title: 'Dashboard', href: route('admin.dashboard') },
-    { title: 'Regions', href: route('admin.regions.index') },
+    { title: title.value, href: basePath.value },
 ];
 
 function createRegion() {
-    router.get(route('admin.regions.create'));
+    router.get(`${basePath.value}/create`);
 }
 
 function editRegion(hashid: string) {
     if (!hashid) return console.error('editRegion called without hashid');
-    router.get(route('admin.regions.edit', { region: hashid }));
+    router.get(`${basePath.value}/${hashid}/edit`);
 }
 
 function deleteRegion(hashid: string) {
     if (!hashid) return console.error('deleteRegion called without hashid');
-    if (confirm('Are you sure you want to delete this region?')) {
-        router.delete(route('admin.regions.destroy', { region: hashid }));
+    if (confirm('Are you sure you want to delete this item?')) {
+        router.delete(`${basePath.value}/${hashid}`);
     }
 }
 
@@ -69,12 +72,12 @@ const statusClasses = (active: boolean) => ({
 </script>
 
 <template>
-    <Head title="Regions" />
+    <Head :title="title" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="p-4">
             <div class="card flex flex-col gap-6 rounded-lg bg-white p-4 shadow-sm">
                 <div class="flex items-center justify-between">
-                    <h1 class="text-2xl font-semibold text-gray-800">Regions</h1>
+                    <h1 class="text-2xl font-semibold text-gray-800">{{ title }}</h1>
                     <button @click="createRegion" class="hover:bg-primary-dark rounded-xl bg-primary px-4 py-2 text-white">+ New Region</button>
                 </div>
 

@@ -2,8 +2,6 @@
 
 
 use App\Http\Controllers\Api\ApiAuthController;
-use App\Http\Controllers\Auth\AuthenticatedSessionController;
-use App\Http\Controllers\Commission\CommissionController;
 use App\Http\Controllers\Orders\OrderController;
 use App\Http\Controllers\Payments\PaymentTransactionController;
 use Illuminate\Support\Facades\Route;
@@ -11,20 +9,19 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('login', [ApiAuthController::class, 'login']);
 
-Route::prefix('payments')->name('payments.')->group(function () {
-    Route::get('providers', [PaymentTransactionController::class, 'providers'])->name('providers');
-    Route::post('initiate', [PaymentTransactionController::class, 'initiate'])->name('initiate');
-    Route::get('{payment}/status', [PaymentTransactionController::class, 'status'])->name('status');
+//Route::prefix('payments')->name('payments.')->group(function () {
+//    Route::get('providers', [PaymentTransactionController::class, 'providers'])->name('providers');
+//    Route::post('initiate', [PaymentTransactionController::class, 'initiate'])->name('initiate');
+//    Route::get('{payment}/status', [PaymentTransactionController::class, 'status'])->name('status');
+//    Route::post('callback/{provider}', [PaymentTransactionController::class, 'callback'])->name('callback');
+//});
 
-    // Callbacks
-    Route::post('callback/{provider}', [PaymentTransactionController::class, 'callback'])->name('callback');
-});
-
-//Route::prefix('v1')->middleware(['auth:api'])->group(function () {
-Route::prefix('v1')->group(function () {
+Route::prefix('v1')->middleware(['auth:api'])->group(function () {
+//Route::prefix('v1')->group(function () {
 //    Route::post('commissions/calculate', [CommissionController::class, 'calculate']);
 //    Route::get('commissions/summary', [CommissionController::class, 'summary']);
-    require __DIR__ .'/payment.php';
+//    require __DIR__ .'/payment.php';
+
     Route::apiResource('orders', OrderController::class)->names([
         'index'   => 'api.orders.index',
         'store'   => 'api.orders.store',

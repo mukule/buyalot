@@ -15,27 +15,31 @@ interface PageProps extends InertiaPageProps {
     region: Region;
 }
 
-const page = usePage<PageProps>();
+const page = usePage<PageProps & { title: string; level: string; basePath: string; parents?: { id: number; name: string }[] }>();
 const region = page.props.region;
 
-const title = 'Edit Region';
+const title = page.props.title || 'Edit Region';
+const level = page.props.level || 'region';
+const basePath = page.props.basePath || '/admin/regions';
+const parents = page.props.parents || [];
+
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: '/admin/dashboard' },
-    { title: 'Regions', href: '/admin/regions' },
+    { title: level === 'region' ? 'Regions' : level === 'subregion' ? 'Subregions' : level === 'area' ? 'Areas' : 'Routes', href: basePath },
     { title, href: '' },
 ];
 
 // Form initialized with existing region data
 const form = useForm({
     name: region.name,
-    active: region.active,
+    parent_id: region.parent_id ?? (parents.length ? parents[0].id : null),
 });
 
 // Submit handler for updating the region
 function submitRegion() {
-    form.put(`/admin/regions/${region.hashid}`, {
+    form.put(`${basePath}/${region.hashid}`, {
         onSuccess: () => {
-            router.get('/admin/regions'); // redirect to regions index after successful update
+            router.get(basePath);
         },
     });
 }

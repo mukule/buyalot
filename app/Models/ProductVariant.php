@@ -16,6 +16,11 @@ class ProductVariant extends Model
         'sku',
     ];
 
+    public function warehouseInventories(): HasMany
+    {
+        return $this->hasMany(\App\Models\Warehouse\WarehouseProductInventory::class, 'product_variant_id');
+    }
+
     protected $appends = [
         'display_name',
         'has_discount',

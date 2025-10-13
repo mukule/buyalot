@@ -10,14 +10,18 @@ class CustomerAddress extends Model
     protected $fillable = [
         'customer_id', 'type', 'label', 'first_name', 'last_name',
         'company', 'address_line_1', 'address_line_2', 'city',
-        'state', 'postal_code', 'country', 'phone', 'is_default',
-        'coordinates', 'delivery_instructions'
+        'state_province', 'postal_code', 'country_code', 'country_name', 'phone', 'is_default',
+        'latitude', 'longitude', 'delivery_instructions', 'is_validated', 'validation_data'
     ];
 
     protected $casts = [
         'is_default' => 'boolean',
-        'coordinates' => 'array',
+        'is_validated' => 'boolean',
+        'validation_data' => 'array',
     ];
+
+    protected $appends = ['state', 'country', 'coordinates'];
+
     protected static function boot()
     {
         parent::boot();
@@ -46,6 +50,28 @@ class CustomerAddress extends Model
         return $this->belongsTo(Customer::class);
     }
 
+    // Virtual attributes to align with frontend expectations
+    public function getStateAttribute(): ?string
+    {
+        return $this->attributes['state_province'] ?? null;
+    }
+
+    public function getCountryAttribute(): ?string
+    {
+        // Prefer code (KE) for frontend; adjust if you need country_name instead
+        return $this->attributes['country_code'] ?? null;
+    }
+
+    public function getCoordinatesAttribute(): ?array
+    {
+        $lat = $this->attributes['latitude'] ?? null;
+        $lng = $this->attributes['longitude'] ?? null;
+        if ($lat === null || $lng === null) {
+            return null;
+        }
+        return ['lat' => (float)$lat, 'lng' => (float)$lng];
+    }
+
     // Accessors
     public function getFullNameAttribute(): string
     {
@@ -58,8 +84,8 @@ class CustomerAddress extends Model
             $this->address_line_1,
             $this->address_line_2,
             $this->city,
-            $this->state . ' ' . $this->postal_code,
-            $this->country
+            ($this->attributes['state_province'] ?? null) . ' ' . $this->postal_code,
+            ($this->attributes['country_name'] ?? $this->attributes['country_code'] ?? null),
         ]);
 
         return implode(', ', $parts);
@@ -75,6 +101,7 @@ class CustomerAddress extends Model
     {
         return $query->where('type', $type);
     }
+
     public function makeDefault(): void
     {
         $this->customer->addresses()->update(['is_default' => false]);
@@ -87,9 +114,9 @@ class CustomerAddress extends Model
             $this->address_line_1,
             $this->address_line_2,
             $this->city,
-            $this->state,
+            $this->attributes['state_province'] ?? null,
             $this->postal_code,
-            $this->country
+            $this->attributes['country_name'] ?? $this->attributes['country_code'] ?? null,
         ];
         return implode(', ', array_filter($parts));
     }

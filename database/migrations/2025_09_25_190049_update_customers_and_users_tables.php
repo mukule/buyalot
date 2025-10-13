@@ -29,11 +29,11 @@ return new class extends Migration
      */
     public function down(): void
     {
-//        Schema::table('customers', function (Blueprint $table) {
-//            $table->string('google_id')->nullable();
-//            $table->string('provider')->nullable();
-//            $table->timestamp('provider_verified_at')->nullable();
-//        });
+        Schema::table('customers', function (Blueprint $table) {
+            $table->string('google_id')->nullable();
+            $table->string('provider')->nullable();
+            $table->timestamp('provider_verified_at')->nullable();
+        });
 
         Schema::table('users', function (Blueprint $table) {
             $table->string('gender')->nullable();

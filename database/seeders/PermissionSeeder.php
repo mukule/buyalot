@@ -130,6 +130,13 @@ class PermissionSeeder extends Seeder
                 'transfer-inventory',
                 'view-inventory-history',
             ],
+            'discounts' => [
+                'view-discounts',
+                'edit-discounts',
+                'create-discounts',
+                'view-discounts-reports',
+                'delete-discounts',
+            ],
 
             // Warehouses Management
             'warehouses' => [
@@ -279,17 +286,12 @@ class PermissionSeeder extends Seeder
         ]);
         $superAdmin->givePermissionTo(Permission::all());
 
-        // Admin - has most permissions except super admin specific ones
+        // Admin - give admin all permissions as per requirements
         $admin = Role::firstOrCreate([
             'name' => 'admin',
             'guard_name' => 'web'
         ]);
-        $adminPermissions = Permission::whereNotIn('name', [
-            'backup-system',
-            'restore-system',
-            'view-system-logs',
-        ])->get();
-        $admin->givePermissionTo($adminPermissions);
+        $admin->syncPermissions(Permission::all());
 
         // Manager - has management permissions
         $manager = Role::firstOrCreate([
@@ -349,13 +351,13 @@ class PermissionSeeder extends Seeder
             'guard_name' => 'web'
         ]);
         $customerPermissions = Permission::whereIn('name', ['view-user-profile','edit-user-profile']);
-        $customerPermissions->givePermissionTo($customerPermissions);
+        $customer->givePermissionTo($customerPermissions);
         $delivery = Role::firstOrCreate([
             'name' => 'delivery',
             'guard_name' => 'web'
         ]);
         $deliveryPermissions = Permission::whereIn('name', ['view-user-profile','edit-user-profile']);
-        $deliveryPermissions->givePermissionTo($deliveryPermissions);
+        $delivery->givePermissionTo($deliveryPermissions);
         $warehousemanager = Role::firstOrCreate([
             'name' => 'warehouse_manager',
             'guard_name' => 'web'

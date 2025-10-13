@@ -13,7 +13,7 @@ trait HasPermissionCheck
         if (!$user) {
             return redirect()->route('login');
         }
-        if ($user->hasRole('super-admin')) {
+        if ($user->hasRole('super-admin') || $user->hasRole('admin')) {
             return null;
         }
         $permissions = is_array($permissions) ? $permissions : [$permissions];
