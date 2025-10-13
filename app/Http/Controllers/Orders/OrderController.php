@@ -79,8 +79,9 @@ class OrderController extends Controller
 
     public function show(Order $order)
     {
+        logger("view order details");
         $order->load(['customer', 'orderItems.productVariant.product', 'shippingAddress', 'billingAddress', 'assignedRider:id,name,email']);
-
+        logger($order);
         // Transform order to a plain array structure that the frontend expects
         $payload = [
             'id' => $order->id,
@@ -177,7 +178,6 @@ class OrderController extends Controller
      */
     public function store(Request $request)
     {
-        info("create an order");
         $validator = Validator::make($request->all(), [
             'customer_id' => 'sometimes|integer|exists:customers,id',
             'items' => 'required|array|min:1',
