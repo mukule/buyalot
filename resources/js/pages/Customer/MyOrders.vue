@@ -11,6 +11,7 @@ interface OrderItem {
     order_code: string;
     status: string;
     payment_status?: string;
+    fulfillment_status?: string;
     total_amount: number;
     currency: string;
     created_at: string;
@@ -68,8 +69,25 @@ function viewOrder(ulid: string) {
 
 const statusClasses = (status: string) => ({
     'bg-yellow-100 text-yellow-800': status === 'pending',
+    'bg-indigo-100 text-indigo-800': status === 'confirmed',
     'bg-blue-100 text-blue-800': status === 'processing',
-    'bg-green-100 text-green-800': status === 'completed',
+    'bg-purple-100 text-purple-800': status === 'shipped',
+    'bg-green-100 text-green-800': status === 'delivered' || status === 'completed',
+    'bg-red-100 text-red-800': status === 'cancelled',
+});
+
+const paymentStatusClasses = (status?: string) => ({
+    'bg-yellow-100 text-yellow-800': status === 'pending',
+    'bg-green-100 text-green-800': status === 'paid' || status === 'partially_paid',
+    'bg-red-100 text-red-800': status === 'failed',
+    'bg-gray-100 text-gray-800': status === 'refunded' || status === 'partially_refunded',
+});
+
+const fulfillmentStatusClasses = (status?: string) => ({
+    'bg-gray-100 text-gray-800': status === 'unfulfilled',
+    'bg-blue-100 text-blue-800': status === 'processing',
+    'bg-amber-100 text-amber-800': status === 'partially_fulfilled',
+    'bg-green-100 text-green-800': status === 'fulfilled',
     'bg-red-100 text-red-800': status === 'cancelled',
 });
 
@@ -160,7 +178,9 @@ async function payNow(order: OrderItem) {
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order Number</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order Status</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fulfillment</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                             </tr>
                         </thead>
@@ -178,6 +198,22 @@ async function payNow(order: OrderItem) {
                                         class="inline-block rounded-full px-2 py-0.5 text-xs font-medium capitalize"
                                     >
                                         {{ order.status }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-4 text-sm">
+                                    <span
+                                        :class="paymentStatusClasses(order.payment_status)"
+                                        class="inline-block rounded-full px-2 py-0.5 text-xs font-medium capitalize"
+                                    >
+                                        {{ order.payment_status || '—' }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-4 text-sm">
+                                    <span
+                                        :class="fulfillmentStatusClasses(order.fulfillment_status)"
+                                        class="inline-block rounded-full px-2 py-0.5 text-xs font-medium capitalize"
+                                    >
+                                        {{ order.fulfillment_status || '—' }}
                                     </span>
                                 </td>
                                 <td class="px-4 py-4 text-right text-sm font-medium flex items-center justify-end gap-3">

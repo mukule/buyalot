@@ -81,8 +81,71 @@ class OrderController extends Controller
     {
         $order->load(['customer', 'orderItems.productVariant.product', 'shippingAddress', 'billingAddress', 'assignedRider:id,name,email']);
 
+        // Transform order to a plain array structure that the frontend expects
+        $payload = [
+            'id' => $order->id,
+            'ulid' => $order->ulid,
+            'order_code' => $order->order_code,
+            'subtotal' => (float) $order->subtotal,
+            'tax_amount' => (float) $order->tax_amount,
+            'shipping_amount' => (float) $order->shipping_amount,
+            'discount_amount' => (float) $order->discount_amount,
+            'total_amount' => (float) $order->total_amount,
+            'status' => $order->status,
+            'payment_status' => $order->payment_status,
+            'fulfillment_status' => $order->fulfillment_status,
+            'currency' => $order->currency,
+            'created_at' => optional($order->created_at)?->toDateTimeString(),
+            'notes' => $order->notes,
+            'order_items' => $order->orderItems->map(function ($item) {
+                $variant = $item->productVariant;
+                $product = $variant?->product;
+                return [
+                    'id' => $item->id,
+                    'quantity' => (int) $item->quantity,
+                    'unit_price' => (float) $item->unit_price,
+                    'total_price' => (float) $item->total_price,
+                    // Keep both a direct product field and the nested product_variant.product for compatibility
+                    'product' => $product ? ['id' => $product->id, 'name' => $product->name] : null,
+                    'product_variant' => $variant ? [
+                        'id' => $variant->id,
+                        'sku' => $variant->sku,
+                        'product' => $product ? ['id' => $product->id, 'name' => $product->name] : null,
+                    ] : null,
+                ];
+            })->toArray(),
+            'shipping_address' => $order->shippingAddress ? [
+                'first_name' => $order->shippingAddress->first_name,
+                'last_name' => $order->shippingAddress->last_name,
+                'address_line_1' => $order->shippingAddress->address_line_1,
+                'address_line_2' => $order->shippingAddress->address_line_2,
+                'city' => $order->shippingAddress->city,
+                'state' => $order->shippingAddress->state ?? $order->shippingAddress->state_province,
+                'state_province' => $order->shippingAddress->state_province,
+                'postal_code' => $order->shippingAddress->postal_code,
+                'country' => $order->shippingAddress->country ?? $order->shippingAddress->country_code,
+                'country_code' => $order->shippingAddress->country_code,
+                'country_name' => $order->shippingAddress->country_name,
+                'phone' => $order->shippingAddress->phone,
+            ] : null,
+            'billing_address' => $order->billingAddress ? [
+                'first_name' => $order->billingAddress->first_name,
+                'last_name' => $order->billingAddress->last_name,
+                'address_line_1' => $order->billingAddress->address_line_1,
+                'address_line_2' => $order->billingAddress->address_line_2,
+                'city' => $order->billingAddress->city,
+                'state' => $order->billingAddress->state ?? $order->billingAddress->state_province,
+                'state_province' => $order->billingAddress->state_province,
+                'postal_code' => $order->billingAddress->postal_code,
+                'country' => $order->billingAddress->country ?? $order->billingAddress->country_code,
+                'country_code' => $order->billingAddress->country_code,
+                'country_name' => $order->billingAddress->country_name,
+                'phone' => $order->billingAddress->phone,
+            ] : null,
+        ];
+
         return Inertia::render('Customer/OrderDetails', [
-            'order' => $order,
+            'order' => $payload,
         ]);
     }
 
@@ -868,6 +931,7 @@ class OrderController extends Controller
                 'total_amount' => (float) $order->total_amount,
                 'status' => $order->status,
                 'payment_status' => $order->payment_status,
+                'fulfillment_status' => $order->fulfillment_status,
                 'currency' => $order->currency,
                 'created_at' => $order->created_at ? $order->created_at->toDateTimeString() : null,
                 'order_items' => $order->orderItems->map(function ($item) {
