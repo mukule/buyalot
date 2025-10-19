@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Customer\Customer;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
@@ -40,10 +41,30 @@ class RegisteredUserController extends Controller
         'name' => $request->name,
         'email' => $request->email,
         'password' => Hash::make($request->password),
+        'google_id' => null,
+        'provider'   => 'register',
+        'provider_verified_at' => now(),
+        'email_verified_at' => now(),
+        'last_login_at' => now(),
+        'status' => true,
+        'user_type' => 'customer',
     ]);
 
-    
-    $user->assignRole('user'); 
+    $nameParts = explode(' ', trim($request->name), 2);
+    $firstName = $nameParts[0] ?? '';
+    $lastName = $nameParts[1] ?? '';
+
+    Customer::create([
+        'customer_code' => uniqid('CUS-'),
+        'first_name' => $firstName,
+        'last_name'  => $lastName,
+        'email'      => $user->email,
+        'avatar'     => null,
+        'customer_type' => 'individual',
+        'status' => 'active',
+        'user_id' => $user->id,
+    ]);
+    $user->assignRole('user');
 
     event(new Registered($user));
 
