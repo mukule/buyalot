@@ -42,8 +42,10 @@ class MpesaProvider implements PaymentProviderInterface
             if (!$accessToken) {
                 return PaymentResponse::failed('Failed to authenticate with M-Pesa');
             }
-
+            logger("started stk push");
             $stkResponse = $this->initiateStkPush($payment, $phone);
+            logger("stk response: {$stkResponse}");
+            logger($stkResponse);
 
             if (!$stkResponse['success']) {
                 $this->logTransaction($payment, 'initialize', 'failed', [], $stkResponse['data']);

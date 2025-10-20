@@ -184,12 +184,6 @@ class OrderController extends Controller
             'items.*.product_variant_id' => 'required|integer|exists:product_variants,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'sometimes|numeric|min:0',
-//            'billing_address' => 'required|array',
-//            'billing_address.name' => 'required|string|max:255',
-//            'billing_address.address' => 'required|string',
-//            'billing_address.city' => 'required|string|max:100',
-//            'billing_address.postal_code' => 'nullable|string|max:20',
-//            'billing_address.country' => 'required|string|max:50',
             'billing_address_id'=>'sometimes:exists:customer_address,id',
             'shipping_address_id'=>'sometimes:exists:customer_address,id',
             'currency' => 'sometimes|string|size:3|in:KES,USD,EUR',
@@ -344,10 +338,18 @@ class OrderController extends Controller
                             $hier = $product->category->getHierarchy();
                             $categoryIds = array_map(fn($c) => $c['id'], $hier);
                         }
+
+                        $sellerId = null;
+                        if ($ci['product']->owner_type === 'App\\Models\\Seller') {
+                            $sellerId = $ci['product']->owner_id;
+                        } elseif ($ci['product']->owner_type === 'App\\Models\\User') {
+                            $sellerId = null;
+                        }
+
                         return [
                             'product_id' => $product->id,
                             'product_variant_id' => $ci['variant']->id,
-                            'seller_id' => $product->owner_id ?? null,
+                            'seller_id' => $sellerId,
                             'brand_id' => $product->brand_id ?? null,
                             'category_ids' => $categoryIds,
                             'quantity' => $ci['quantity'],
@@ -514,11 +516,18 @@ class OrderController extends Controller
 
             // Create order items and decrement stock
             foreach ($computedItems as $ci) {
+                // Determine the correct seller_id based on owner_type
+                $sellerId = null;
+                if ($ci['product']->owner_type === 'App\\Models\\Seller') {
+                    $sellerId = $ci['product']->owner_id;
+                } elseif ($ci['product']->owner_type === 'App\\Models\\User') {
+                    $sellerId = null;
+                }
                 OrderItem::create([
                     'ulid' => Str::ulid(),
                     'order_id' => $order->id,
                     'product_variant_id' => $ci['variant']->id,
-                    'seller_id' => $ci['product']->owner_id ?? null,
+                    'seller_id' => $sellerId,
                     'quantity' => $ci['quantity'],
                     'unit_price' => $ci['unit_price'],
                     'total_price' => $ci['line_subtotal'],
@@ -589,7 +598,7 @@ class OrderController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            logger($e->getMessage());
+            info($e->getMessage());
             if ($request->expectsJson()) {
                 return response()->json([
                     'message' => 'Failed to create order',

@@ -400,7 +400,7 @@ class CartController extends Controller
     //         $cart  = Cart::firstOrCreate(['cart_token' => $token]);
 
     //         if (!$request->cookie('cart_token')) {
-    //             cookie()->queue('cart_token', $token, 60 * 24 * 30); 
+    //             cookie()->queue('cart_token', $token, 60 * 24 * 30);
     //         }
     //     }
 
