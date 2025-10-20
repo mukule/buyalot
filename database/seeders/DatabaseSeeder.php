@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Jobs\CalculateCommissionJob;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -10,7 +9,6 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-//            AdminSeeder::class,
             PermissionSeeder::class,
             VariantCategorySeeder::class,
             VariantSeeder::class,
@@ -19,6 +17,7 @@ class DatabaseSeeder extends Seeder
             SubcategorySeeder::class,
             AdminSeeder::class,
             CommissionPlanSeeder::class,
+            CountrySeeder::class,
             CustomerSeeder::class,
             // Optionally create more seeders here, e.g.
             // TestUserSeeder::class,

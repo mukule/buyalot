@@ -32,11 +32,24 @@ class DiscountController extends Controller
 
     public function create()
     {
-        return Inertia::render('Admin/Discounts/Create');
+        // Provide minimal datasets for selection UIs
+        $categories = \App\Models\Category::select('id', 'name', 'parent_id')->orderBy('name')->get();
+        $products = \App\Models\Product::select('id', 'name', 'category_id')->orderBy('name')->limit(1000)->get();
+        $variants = \App\Models\ProductVariant::select('id', 'product_id')->orderBy('id')->limit(1000)->get();
+        $customers = \App\Models\Customer\Customer::select('id', 'first_name','last_name','email', 'created_at')->orderByDesc('created_at')->limit(1000)->get();
+
+        return Inertia::render('Admin/Discounts/Create', [
+            'categories' => $categories,
+            'products' => $products,
+            'variants' => $variants,
+            'customers' => $customers,
+        ]);
     }
 
     public function store(Request $request)
     {
+        logger("store discount");
+        logger(request()->all());
         $data = $this->validateData($request);
 
         // Normalize optional JSON fields
@@ -50,14 +63,24 @@ class DiscountController extends Controller
 
         $discount = Discount::create($data);
 
-        return redirect()->route('admin.discounts.edit', $discount->slug)
+        return redirect()->route('admin.discounts.index', $discount->slug)
             ->with('success', 'Discount created successfully');
     }
 
     public function edit(Discount $discount)
     {
+        $categories = \App\Models\Category::select('id', 'name', 'parent_id')->orderBy('name')->get();
+        $products = \App\Models\Product::select('id', 'name', 'category_id')->orderBy('name')->limit(500)->get();
+        // ProductVariant table has no 'name' column; rely on appends (display_name) and include sku
+        $variants = \App\Models\ProductVariant::select('id', 'product_id', 'sku')->orderBy('id')->limit(1000)->get();
+        $customers = \App\Models\Customer\Customer::select('id', 'first_name','last_name','email', 'created_at')->orderByDesc('created_at')->limit(500)->get();
+
         return Inertia::render('Admin/Discounts/Edit', [
             'discount' => $discount,
+            'categories' => $categories,
+            'products' => $products,
+            'variants' => $variants,
+            'customers' => $customers,
         ]);
     }
 
@@ -74,7 +97,7 @@ class DiscountController extends Controller
 
         $discount->update($data);
 
-        return back()->with('success', 'Discount updated successfully');
+        return redirect()->route('admin.discounts.index')->with('success', 'Discount updated successfully');
     }
 
     public function destroy(Discount $discount)
@@ -90,7 +113,7 @@ class DiscountController extends Controller
             'slug' => ['nullable', 'string', 'max:255', Rule::unique('discounts', 'slug')->ignore($id)],
             'description' => ['nullable', 'string'],
             'code' => ['nullable', 'string', 'max:50', Rule::unique('discounts', 'code')->ignore($id)],
-            'type' => ['required', Rule::in(['percentage', 'fixed_amount', 'fixed', 'bogo', 'buy_x_get_y', 'free_shipping'])],
+            'type' => ['required', Rule::in(['percentage', 'fixed', 'bogo', 'buy_x_get_y', 'free_shipping'])],
             'value' => ['nullable', 'numeric', 'min:0'],
             'minimum_amount' => ['nullable', 'numeric', 'min:0'],
             'maximum_discount' => ['nullable', 'numeric', 'min:0'],

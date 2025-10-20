@@ -3,6 +3,7 @@
 namespace App\Models;
 
 
+use App\Models\Seller\Seller;
 use App\Models\Traits\HasHashid;
 use App\Notifications\UserRegistered;
 use App\Traits\CalculatesCommissions;
@@ -90,5 +91,12 @@ public function wishlists(): HasMany
     {
         return $this->hasOne(\App\Models\Customer\Customer::class, 'user_id');
     }
+
+    public function sellers()
+    {
+        return $this->belongsToMany(Seller::class, 'seller_user', 'user_id', 'seller_id')
+            ->withPivot('role');
+    }
+
 
 }

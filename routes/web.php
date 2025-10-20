@@ -80,6 +80,7 @@ Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard']
     Route::get('{warehouse}/inventory', [WarehouseController::class, 'inventory'])->name('inventory');
     Route::post('{warehouse}/inventory/update', [WarehouseController::class, 'updateInventory'])->name('inventory.update');
     Route::post('{warehouse}/inventory/adjust', [WarehouseController::class, 'adjustStock'])->name('inventory.adjust');
+    Route::post('{warehouse}/inventory/add', [WarehouseController::class, 'addInventory'])->name('inventory.add');
     Route::post('{warehouse}/transfer', [WarehouseController::class, 'transferStock'])->name('inventory.transfer');
 
     // Receivables & Dispatches

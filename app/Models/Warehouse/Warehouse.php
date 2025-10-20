@@ -3,6 +3,8 @@
 namespace App\Models\Warehouse;
 
 use App\Models\Region;
+use App\Models\Scopes\SellerProductScope;
+use App\Models\Scopes\WarehouseScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 use Vinkla\Hashids\Facades\Hashids;
@@ -66,6 +68,11 @@ class Warehouse extends Model
             }
         });
     }
+    protected static function booted()
+    {
+        static::addGlobalScope(new WarehouseScope());
+    }
+
 
     /*
     |--------------------------------------------------------------------------
@@ -93,7 +100,7 @@ class Warehouse extends Model
     protected static function generateUniqueCode(): string
     {
         do {
-            $code = 'WH-' . strtoupper(Str::random(6));
+            $code = 'WRH00' . strtoupper(Str::random(6));
         } while (static::where('code', $code)->exists());
 
         return $code;
@@ -127,6 +134,12 @@ class Warehouse extends Model
     public function managers()
     {
         return $this->hasMany(WarehouseManager::class);
+    }
+
+    public function pendingReceivables()
+    {
+        return $this->hasMany(WarehouseReceivable::class)
+            ->where('status', 'pending');
     }
     public function region()
     {

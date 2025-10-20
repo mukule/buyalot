@@ -33,11 +33,16 @@ const onSearch = () => {
 };
 
 const goCreate = () => router.visit(route('admin.discounts.create'));
-const editItem = (d: Discount) => router.visit(route('admin.discounts.edit', d.slug || d.id));
+const editItem = (d: Discount) =>
+    router.visit(route('admin.discounts.edit', { discount: d.id }));
+
 const deleteItem = (d: Discount) => {
-  if (!confirm('Delete this discount?')) return;
-  router.delete(route('admin.discounts.destroy', d.slug || d.id));
+    if (!confirm('Delete this discount?')) return;
+    router.delete(route('admin.discounts.destroy', { discount: d.id }));
 };
+
+
+
 </script>
 
 <template>
