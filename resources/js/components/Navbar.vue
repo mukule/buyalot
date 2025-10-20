@@ -13,10 +13,17 @@ const page = usePage<AppPageProps>();
 const user = computed(() => page.props.auth?.user);
 
 const customerId = computed(() => page.props.auth?.customer_id);
-console.log("customer id "+customerId.value);
+console.log('customer id ' + customerId.value);
 console.log(user.value);
 // Counts
-const wishlistCount = computed<number>(() => page.props.auth?.counts?.wishlist ?? 0);
+//const wishlistCount = computed<number>(() => page.props.auth?.counts?.wishlist ?? 0);
+//const wishlistCount = computed(() => page.props.auth.wishlistVariantIds?.length ?? 0);
+
+const wishlistCount = computed(() => {
+    console.log('Computed Wishlist Count:', page.props.auth.wishlistVariantIds);
+    return page.props.auth.wishlistVariantIds?.length ?? 0;
+});
+
 const cartCount = computed<number>(() => page.props.auth?.counts?.cart ?? 0);
 
 // User initials
@@ -62,9 +69,12 @@ const topLinks = [
 
 const authLinks = computed(() => {
     if (user.value) {
-        const dashboardUrl = customerId.value && route
-            ? route('customers.dashboard', { customer: customerId.value })
-            : (route ? route('admin.dashboard') : '/admin/dashboard');
+        const dashboardUrl =
+            customerId.value && route
+                ? route('customers.dashboard', { customer: customerId.value })
+                : route
+                  ? route('admin.dashboard')
+                  : '/admin/dashboard';
 
         console.log('Dashboard URL generated:', dashboardUrl);
 
@@ -72,7 +82,7 @@ const authLinks = computed(() => {
             {
                 name: 'My Account',
                 href: dashboardUrl,
-                isUser: true
+                isUser: true,
             },
             { name: 'Orders', href: '/orders/my-orders' },
             { name: 'Logout', href: '/logout', isLogout: true },
@@ -121,7 +131,7 @@ let suggestTimer: any = null;
 async function fetchSuggestions(q: string) {
     try {
         const url = `/search?ajax=1&q=${encodeURIComponent(q)}&per_page=5`;
-        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        const res = await fetch(url, { headers: { Accept: 'application/json' } });
         const json = await res.json();
         suggestions.value = json.results?.data ?? [];
         showSuggestions.value = suggestions.value.length > 0;
@@ -175,7 +185,6 @@ function logout() {
                     </template>
                 </nav>
             </div>
-
 
             <!-- Desktop Right Nav -->
             <nav class="hidden items-center space-x-4 text-sm md:flex">

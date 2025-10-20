@@ -4,16 +4,19 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Support\Str;
 use App\Models\Traits\HasHashid;
 use Vinkla\Hashids\Facades\Hashids;
 
 class Wishlist extends Model
 {
-    use HasHashid;
+    use HasFactory, HasHashid;
 
     protected $fillable = [
+        'uuid',
         'user_id',
-        'wishlist_token',   // 👈 allow storing for guests
+        'wishlist_token',
         'product_variant_id',
     ];
 
@@ -22,12 +25,27 @@ class Wishlist extends Model
     ];
 
     // ----------------------
+    // Boot
+    // ----------------------
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($wishlist) {
+            if (empty($wishlist->uuid)) {
+                $wishlist->uuid = (string) Str::uuid();
+            }
+        });
+    }
+
+    // ----------------------
     // Relationships
     // ----------------------
 
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class)->withDefault(); // 👈 safe for guests (null)
+        return $this->belongsTo(User::class)->withDefault();
     }
 
     public function productVariant(): BelongsTo
@@ -35,7 +53,7 @@ class Wishlist extends Model
         return $this->belongsTo(ProductVariant::class);
     }
 
-    // Optional shortcut to access the actual product via variant
+    // If you want to link directly to products through variants
     public function product(): BelongsTo
     {
         return $this->productVariant()->withDefault()->belongsTo(Product::class, 'product_id');
@@ -78,5 +96,14 @@ class Wishlist extends Model
         }
 
         return $query->where('wishlist_token', $token);
+    }
+
+    // ----------------------
+    // Relations to items (new structure)
+    // ----------------------
+
+    public function items()
+    {
+        return $this->hasMany(WishlistItem::class);
     }
 }

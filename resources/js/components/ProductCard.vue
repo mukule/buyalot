@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { SimplifiedProduct } from '@/types';
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { Heart, Star } from 'lucide-vue-next';
+import { Heart, ShoppingCart, Star } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
 const props = defineProps<{
@@ -9,23 +9,33 @@ const props = defineProps<{
 }>();
 
 const page = usePage();
-const isAdding = ref(false);
+const isAddingWishlist = ref(false);
+const isAddingToCart = ref(false);
 
+// Check if in wishlist
 const isInWishlist = computed(() => {
     const wishlistIds = page.props.auth?.wishlistVariantIds ?? [];
     return wishlistIds.includes(props.product.id);
 });
 
+// Check if in cart
+const isInCart = computed(() => {
+    const cartItems = page.props.auth?.cartItems ?? [];
+    return cartItems.some((item: any) => item.product_variant_id === props.product.id);
+});
+
+// Format price
 const formatPrice = (amount: number | string | null): string => {
     if (amount === null || amount === undefined) return 'KSh 0';
     const num = typeof amount === 'string' ? parseFloat(amount) : amount;
     return isNaN(num) ? 'KSh 0' : `KSh ${num.toLocaleString()}`;
 };
 
+// Toggle wishlist
 const toggleWishlist = () => {
-    if (isAdding.value) return;
+    if (isAddingWishlist.value) return;
 
-    isAdding.value = true;
+    isAddingWishlist.value = true;
 
     router.post(
         route('wishlist.store'),
@@ -33,8 +43,24 @@ const toggleWishlist = () => {
         {
             preserveScroll: true,
             onSuccess: () => console.log('Wishlist updated'),
-            onFinish: () => (isAdding.value = false),
+            onFinish: () => (isAddingWishlist.value = false),
             onError: () => console.log('Failed to update wishlist'),
+        },
+    );
+};
+
+const addToCart = () => {
+    if (isAddingToCart.value || isInCart.value) return;
+
+    isAddingToCart.value = true;
+
+    router.post(
+        route('cart.store'),
+        { product_variant_id: props.product.id, quantity: 1 },
+        {
+            preserveScroll: true,
+            onSuccess: () => console.log('Added to cart'),
+            onFinish: () => (isAddingToCart.value = false),
         },
     );
 };
@@ -68,19 +94,33 @@ const toggleWishlist = () => {
                     </span>
                 </div>
 
+                <!-- Rating + Actions -->
                 <div class="mt-1 flex items-center justify-between text-yellow-400">
+                    <!-- Stars -->
                     <div class="flex gap-[2px]">
                         <Star v-for="i in 5" :key="i" :class="i <= (product.rating ?? 0) ? 'fill-yellow-400' : 'fill-gray-200'" class="h-4 w-4" />
                     </div>
 
-                    <Heart
-                        :class="[
-                            'relative z-10 h-6 w-6 cursor-pointer rounded-full p-1 transition-all hover:scale-110',
-                            isAdding ? 'cursor-wait opacity-50' : '',
-                            isInWishlist ? 'bg-secondary text-white' : 'text-secondary hover:bg-primary hover:text-white',
-                        ]"
-                        @click.stop.prevent="toggleWishlist"
-                    />
+                    <div class="flex items-center gap-2">
+                        <Heart
+                            :class="[
+                                'h-6 w-6 cursor-pointer rounded-full p-1 transition-all hover:scale-110',
+                                isAddingWishlist ? 'cursor-wait opacity-50' : '',
+                                isInWishlist ? 'bg-secondary text-white' : 'text-secondary hover:bg-primary hover:text-white',
+                            ]"
+                            @click.stop.prevent="toggleWishlist"
+                        />
+
+                        <!-- Cart Icon -->
+                        <ShoppingCart
+                            :class="[
+                                'h-6 w-6 cursor-pointer rounded-full p-1 transition-all hover:scale-110',
+                                isAddingToCart ? 'cursor-wait opacity-50' : '',
+                                isInCart ? 'bg-primary text-white' : 'text-primary hover:bg-secondary hover:text-white',
+                            ]"
+                            @click.stop.prevent="addToCart"
+                        />
+                    </div>
                 </div>
             </div>
         </Link>

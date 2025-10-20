@@ -4,8 +4,8 @@ import ProductImageUploader from '@/components/ProductImageUploader.vue';
 import ProductVariantCreator from '@/components/ProductVariantCreator.vue';
 import SearchableSelect from '@/components/SearchableSelect.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
-import ClassicEditor from '@ckeditor/ckeditor5-build-classic';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
+import '@vueup/vue-quill/dist/vue-quill.snow.css';
 import { onMounted, ref } from 'vue';
 
 // Types
@@ -23,7 +23,7 @@ const categories = page.categories ?? [];
 const brands = page.brands ?? [];
 const units = page.units ?? [];
 const variantCategories = page.variantCategories ?? [];
-const product = page.product ?? null; // ✅ unified
+const product = page.product ?? null;
 
 // Mapped options
 const brandOptions: OptionItem[] = brands.map((b: any) => ({ id: b.id, name: b.name }));
@@ -50,8 +50,7 @@ const form = useForm({
     images: product?.images ?? [],
 });
 
-// Editor
-const editor = ClassicEditor;
+// Fields for editors
 const editorFields = ['description', 'features', 'specifications', 'whats_in_the_box'];
 
 // Variants & Images
@@ -68,8 +67,7 @@ onMounted(() => {
     }
 });
 
-// Submit per step
-
+// Submit logic
 const submitStep = async () => {
     if (isSubmitting.value) return;
     isSubmitting.value = true;
@@ -78,22 +76,7 @@ const submitStep = async () => {
     form.variant_rows = variantRows.value;
     form.images = images.value.map((i) => i.file ?? i);
 
-    // 🔹 Log the data being submitted
-    console.log('Submitting Step', form.step, {
-        product_id: form.product_id,
-        name: form.name,
-        category_id: form.category_id,
-        brand_id: form.brand_id,
-        unit_id: form.unit_id,
-        variant_rows: form.variant_rows,
-        images: form.images.map((img: any, idx: number) => ({
-            index: idx,
-            id: img.id ?? null,
-            is_primary: img.is_primary ?? false,
-            fileName: img.file?.name ?? null,
-            preview: img.preview ?? null,
-        })),
-    });
+    console.log('Submitting Step', form.step, form);
 
     const url = route('admin.products.store');
 
@@ -118,11 +101,9 @@ const submitStep = async () => {
                 }
             },
             onError: (errors) => {
-                console.error('❌ Validation/Server errors:', errors);
+                console.error('❌ Validation errors:', errors);
             },
-            onFinish: () => {
-                isSubmitting.value = false;
-            },
+            onFinish: () => (isSubmitting.value = false),
         });
     } catch (err) {
         console.error('❌ Unexpected error:', err);
@@ -190,7 +171,6 @@ const submitStep = async () => {
 
                             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <CategoryDropdown v-model="form.category_id" :categories="categories" label="Category*" />
-
                                 <div>
                                     <SearchableSelect v-model="form.brand_id" :options="brandOptions" label="Brand*" placeholder="Select Brand" />
                                 </div>
@@ -209,12 +189,16 @@ const submitStep = async () => {
                     <!-- Step 2: Content -->
                     <div v-show="currentStep === 1" class="space-y-6">
                         <div class="space-y-6 rounded-lg border border-gray-200 p-6 shadow-sm">
-                            <div v-for="field in editorFields" :key="field">
-                                <label>{{ field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) }}</label>
-                                <CKEditor
-                                    :editor="editor"
-                                    v-model="form[field as keyof typeof form]"
-                                    :config="{ toolbar: ['bold', 'italic', 'link', 'bulletedList', 'numberedList', 'undo', 'redo'] }"
+                            <div v-for="field in editorFields" :key="field" class="space-y-2">
+                                <label class="block text-sm font-medium text-gray-700">
+                                    {{ field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) }}
+                                </label>
+                                <QuillEditor
+                                    v-model:content="form[field as keyof typeof form]"
+                                    contentType="html"
+                                    theme="snow"
+                                    placeholder="Write here..."
+                                    class="min-h-[200px] rounded-md border border-gray-200 bg-white"
                                 />
                             </div>
                         </div>
@@ -230,6 +214,7 @@ const submitStep = async () => {
                         <ProductImageUploader v-model="images" />
                     </div>
 
+                    <!-- Navigation Buttons -->
                     <div class="flex justify-between pt-6">
                         <button type="button" v-if="currentStep > 0" @click="currentStep--" class="rounded-md bg-gray-200 px-6 py-2.5 text-gray-700">
                             Previous

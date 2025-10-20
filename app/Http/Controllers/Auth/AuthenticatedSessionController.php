@@ -13,12 +13,12 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Services\WishlistService;
 
 class AuthenticatedSessionController extends Controller
 {
-    /**
-     * Show the login page.
-     */
+   
+
     public function create(Request $request): Response
     {
         return Inertia::render('auth/Login', [
@@ -53,48 +53,69 @@ class AuthenticatedSessionController extends Controller
         ->with('success', 'Welcome back, ' . $user->name . '!');
 }
 
-    public function store(LoginRequest $request): RedirectResponse
-    {
-        $request->authenticate();
+  
 
-        if (! Auth::check()) {
-            logger('Authentication failed');
-            return back()->withErrors([
-                'email' => 'These credentials do not match our records.',
-            ]);
-        }
-        $request->session()->regenerate();
+public function store(
+    LoginRequest $request,
+    WishlistService $wishlistService,
+    \App\Services\CartReservationService $cartService
+): RedirectResponse {
+    $request->authenticate();
 
-        $user = Auth::user();
-        if (in_array($user->user_type, ['user', 'vendor', 'seller'])) {
-            return redirect()->intended(route('admin.dashboard'))
-                ->with('success', 'Welcome back, ' . $user->name . '!');
-        }
+    if (!Auth::check()) {
+        logger('Authentication failed');
+        return back()->withErrors([
+            'email' => 'These credentials do not match our records.',
+        ]);
+    }
 
-        // Handle customer login
-        if ($user->user_type === 'customer') {
-            $customer = Customer::where('user_id', $user->id)->first();
+    $request->session()->regenerate();
 
-            if (!$customer) {
-                Auth::logout();
-                return back()->withErrors([
-                    'email' => 'Customer account not found.',
-                ]);
-            }
-            if ($customer) {
-                session(['customer_id' => $customer->id]);
-                return redirect()->route('customers.dashboard', ['customer' => $customer->id])
-                    ->with('success', 'Welcome back, ' . $user->name . '!');
-            }
-        }
-        return redirect()->intended(route('home'))
+    $user = Auth::user();
+
+   
+    try {
+        
+        $wishlistService->mergeGuestWishlist($request, $user);
+
+       
+        $cartService->getCart($request);
+    } catch (\Throwable $e) {
+        \Log::error('Merge failed during login', [
+            'error'   => $e->getMessage(),
+            'user_id' => $user->id ?? null,
+        ]);
+    }
+
+   
+    if (in_array($user->user_type, ['user', 'vendor', 'seller'])) {
+        return redirect()->intended(route('admin.dashboard'))
             ->with('success', 'Welcome back, ' . $user->name . '!');
     }
 
+    if ($user->user_type === 'customer') {
+        $customer = \App\Models\Customer\Customer::where('user_id', $user->id)->first();
 
-    /**
-     * Destroy an authenticated session.
-     */
+        if (!$customer) {
+            Auth::logout();
+            return back()->withErrors([
+                'email' => 'Customer account not found.',
+            ]);
+        }
+
+        session(['customer_id' => $customer->id]);
+
+        return redirect()
+            ->route('customers.dashboard', ['customer' => $customer->id])
+            ->with('success', 'Welcome back, ' . $user->name . '!');
+    }
+
+    return redirect()->intended(route('home'))
+        ->with('success', 'Welcome back, ' . $user->name . '!');
+}
+
+
+
     public function destroy(Request $request): RedirectResponse
     {
         Auth::guard('web')->logout();

@@ -30,9 +30,7 @@ class CartService
         return $cart;
     }
 
-    /**
-     * Merge guest cart into the authenticated user's cart after login.
-     */
+   
     public function mergeGuestCart(Request $request, User $user): void
     {
         $guestToken = $request->cookie('cart_token');

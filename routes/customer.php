@@ -34,9 +34,11 @@ Route::get('customers/{customer}/dashboard', [CustomerController::class, 'dashbo
 
     Route::resource('customers.referrals', CustomerReferralController::class)->except(['edit', 'update', 'destroy']);
     Route::resource('customers.support-tickets', CustomerSupportTicketController::class)->except(['edit', 'destroy']);
-    Route::resource('wishlist', WishlistController::class)->only(['index', 'store','destroy']);
+   
 //    Route::delete('wishlist/{wishlist}', [WishlistController::class, 'destroy'])
 //        ->name('wishlist.destroy');
 
 
 });
+
+ Route::resource('wishlist', WishlistController::class)->only(['index', 'store','destroy']);

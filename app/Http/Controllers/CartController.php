@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\ProductVariant;
+use App\Services\CartReservationService;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -201,8 +202,10 @@ class CartController extends Controller
 }
 
 
-    public function store(Request $request)
+    public function store(Request $request, CartReservationService $cartService)
     {
+        $cart = $cartService->getCart($request);
+
         $request->validate([
             'product_variant_id' => 'required|integer|exists:product_variants,id',
             'quantity'           => 'required|integer|min:0', // allow 0 to remove
@@ -212,7 +215,7 @@ class CartController extends Controller
         $quantity  = (int) $request->input('quantity');
 
         $variant   = ProductVariant::with('product')->findOrFail($variantId);
-        $cart      = $this->getCart($request);
+        //$cart      = $this->getCart($request);
 
         $cartItem = $cart->items()->where('product_variant_id', $variantId)->first();
 
@@ -268,7 +271,7 @@ class CartController extends Controller
         // Reserve the requested quantity for this cart for ~20 minutes
         $reservationService->reserve($cart->id, $variantId, $quantity, 20);
 
-        return redirect()->back()->with('success', "{$variant->product->name} cart updated!");
+        return redirect()->back()->with('success', "{$variant->product->name} added to cart");
     }
 
     public function decrease(Request $request, CartItem $item)
@@ -363,46 +366,46 @@ class CartController extends Controller
         return redirect()->back()->with('success', 'Cart cleared.');
     }
 
-    protected function getCart(Request $request): Cart
-    {
-        if (Auth::check()) {
-            $cart = Cart::firstOrCreate(['user_id' => Auth::id()]);
+    // protected function getCart(Request $request): Cart
+    // {
+    //     if (Auth::check()) {
+    //         $cart = Cart::firstOrCreate(['user_id' => Auth::id()]);
 
-            if ($guestToken = $request->cookie('cart_token')) {
-                $guestCart = Cart::where('cart_token', $guestToken)->first();
+    //         if ($guestToken = $request->cookie('cart_token')) {
+    //             $guestCart = Cart::where('cart_token', $guestToken)->first();
 
-                if ($guestCart && $guestCart->id !== $cart->id) {
-                    DB::transaction(function () use ($cart, $guestCart) {
-                        foreach ($guestCart->items as $item) {
-                            $cart->items()->updateOrCreate(
-                                ['product_variant_id' => $item->product_variant_id],
-                                [
-                                    'quantity'        => DB::raw('quantity + ' . $item->quantity),
-                                    'unit_price'      => $item->unit_price,
-                                    'discount_amount' => $item->discount_amount,
-                                    'total_price'     => ($item->unit_price - $item->discount_amount) * $item->quantity,
-                                    'product_id'      => $item->product_id,
-                                    'seller_id'       => $item->seller_id,
-                                ]
-                            );
-                        }
+    //             if ($guestCart && $guestCart->id !== $cart->id) {
+    //                 DB::transaction(function () use ($cart, $guestCart) {
+    //                     foreach ($guestCart->items as $item) {
+    //                         $cart->items()->updateOrCreate(
+    //                             ['product_variant_id' => $item->product_variant_id],
+    //                             [
+    //                                 'quantity'        => DB::raw('quantity + ' . $item->quantity),
+    //                                 'unit_price'      => $item->unit_price,
+    //                                 'discount_amount' => $item->discount_amount,
+    //                                 'total_price'     => ($item->unit_price - $item->discount_amount) * $item->quantity,
+    //                                 'product_id'      => $item->product_id,
+    //                                 'seller_id'       => $item->seller_id,
+    //                             ]
+    //                         );
+    //                     }
 
-                        $guestCart->items()->delete();
-                        $guestCart->delete();
-                    });
-                }
-            }
-        } else {
-            $token = $request->cookie('cart_token') ?? Str::uuid()->toString();
-            $cart  = Cart::firstOrCreate(['cart_token' => $token]);
+    //                     $guestCart->items()->delete();
+    //                     $guestCart->delete();
+    //                 });
+    //             }
+    //         }
+    //     } else {
+    //         $token = $request->cookie('cart_token') ?? Str::uuid()->toString();
+    //         $cart  = Cart::firstOrCreate(['cart_token' => $token]);
 
-            if (!$request->cookie('cart_token')) {
-                cookie()->queue('cart_token', $token, 60 * 24 * 30); // 30 days
-            }
-        }
+    //         if (!$request->cookie('cart_token')) {
+    //             cookie()->queue('cart_token', $token, 60 * 24 * 30); 
+    //         }
+    //     }
 
-        return $cart;
-    }
+    //     return $cart;
+    // }
 
     public function payment(Request $request)
     {
