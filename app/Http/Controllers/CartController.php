@@ -185,9 +185,11 @@ class CartController extends Controller
     }
 
 
-    public function index(Request $request)
+    public function index(Request $request, CartReservationService $cartService)
 {
-    $cart = $this->getCart($request);
+   // $cart = $this->getCart($request);
+    $cart = $cartService->getCart($request);
+
 
     // Eager load productVariant and product with primaryImage
     $cart->load('items.productVariant.product.primaryImage');
