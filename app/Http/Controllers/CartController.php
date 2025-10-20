@@ -35,9 +35,10 @@ class CartController extends Controller
         ]);
     }
 
-    public function checkout(Request $request)
+    public function checkout(Request $request, CartReservationService $cartService)
     {
-        $cart = $this->getCart($request);
+       // $cart = $this->getCart($request);
+        $cart = $cartService->getCart($request);
         $cart->load('items.productVariant.product.primaryImage');
 
         // Compute totals similar to order calculation (per-item discounts only + optional coupon)
@@ -276,9 +277,9 @@ class CartController extends Controller
         return redirect()->back()->with('success', "{$variant->product->name} added to cart");
     }
 
-    public function decrease(Request $request, CartItem $item)
+    public function decrease(Request $request, CartItem $item, CartReservationService $cartService)
     {
-        $cart = $this->getCart($request);
+        $cart = $cartService->getCart($request);
 
         if ($item->cart_id !== $cart->id) {
             abort(403, 'Unauthorized action.');
@@ -303,13 +304,13 @@ class CartController extends Controller
         return redirect()->back()->with('success', 'Cart updated successfully!');
     }
 
-    public function update(Request $request, CartItem $item)
+    public function update(Request $request, CartItem $item, CartReservationService $cartService)
     {
         $request->validate([
             'quantity' => 'required|integer|min:0'
         ]);
 
-        $cart = $this->getCart($request);
+        $cart = $cartService->getCart($request);
 
         if ($item->cart_id !== $cart->id) {
             abort(403, 'Unauthorized action.');
@@ -347,9 +348,9 @@ class CartController extends Controller
         return redirect()->back()->with('success', 'Cart updated successfully!');
     }
 
-    public function destroy(Request $request, CartItem $item)
+    public function destroy(Request $request, CartItem $item, CartReservationService $cartService)
     {
-        $cart = $this->getCart($request);
+        $cart = $cartService->getCart($request);
 
         if ($item->cart_id !== $cart->id) {
             abort(403, 'Unauthorized action.');
@@ -360,7 +361,7 @@ class CartController extends Controller
         return redirect()->back()->with('success', 'Item removed from cart.');
     }
 
-    public function clear(Request $request)
+    public function clear(Request $request, CartReservationService $cartService)
     {
         $cart = $this->getCart($request);
         $cart->items()->delete();
@@ -409,9 +410,9 @@ class CartController extends Controller
     //     return $cart;
     // }
 
-    public function payment(Request $request)
+    public function payment(Request $request, CartReservationService $cartService)
     {
-        $cart = $this->getCart($request);
+        $cart = $cartService->getCart($request);
         $cart->load('items.productVariant.product.primaryImage');
 
         $items = $cart->items;
