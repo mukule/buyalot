@@ -25,7 +25,7 @@ class NewSellerApplicationAdminAlert extends Mailable
     public function build()
     {
         return $this->markdown('emails.seller.admin_alert')
-                    ->subject('New Seller Application Received')
+                    ->subject('New Vendor Application Received')
                     ->with([
                         'application' => $this->application,
                         'logoUrl' => $this->logoUrl,

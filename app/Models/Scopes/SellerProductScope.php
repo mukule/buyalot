@@ -17,15 +17,32 @@ class SellerProductScope implements Scope
     {
         $user = Auth::user();
 
-        // Apply only if user is logged in and is a seller
-        if ($user && $user->hasRole('seller')) {
-            $sellerId = DB::table('seller_user')
-                ->where('user_id', $user->id)
-                ->value('seller_id');
+        if (!$user) {
+            return; // no filtering for guests
+        }
 
-            if ($sellerId) {
-                $builder->where('owner_id', $sellerId);
+        // Only apply to sellers or vendors
+        if (in_array($user->user_type, ['seller', 'vendor'])) {
+            // Get all seller IDs linked to this user
+            $sellerIds = DB::table('seller_user')
+                ->where('user_id', $user->id)
+                ->pluck('seller_id');
+
+            if ($sellerIds->isNotEmpty()) {
+                // Get all user IDs who share those seller IDs
+                $relatedUserIds = DB::table('seller_user')
+                    ->whereIn('seller_id', $sellerIds)
+                    ->pluck('user_id');
+
+                // Filter products where:
+                // - owner_type is seller or vendor
+                // - owner_id is any of the related user IDs
+                $builder->where(function ($query) use ($relatedUserIds) {
+                    $query->whereIn('owner_type', ['seller', 'vendor'])
+                        ->whereIn('owner_id', $relatedUserIds);
+                });
             }
         }
     }
+
 }

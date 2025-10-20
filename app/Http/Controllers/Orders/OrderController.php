@@ -598,6 +598,7 @@ class OrderController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
+            info("error making payments");
             info($e->getMessage());
             if ($request->expectsJson()) {
                 return response()->json([

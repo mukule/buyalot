@@ -23,7 +23,7 @@ class SellerRejectedMail extends Mailable
     {
         $this->application = $application;
         $this->reason = $reason;
-        $this->logoUrl = asset('images/logo.png');  
+        $this->logoUrl = asset('images/logo.png');
         $this->appName = config('app.name');
     }
 
@@ -33,7 +33,7 @@ class SellerRejectedMail extends Mailable
     public function build(): self
     {
         return $this->markdown('emails.seller.seller-rejected')
-            ->subject('Your Seller Application Has been Closed')
+            ->subject('Your Vendor Application Has been Closed')
             ->with([
                 'application' => $this->application,
                 'reason' => $this->reason,

@@ -165,7 +165,7 @@ export interface Role {
     permissions: Permission[];
 }
 
-// ---------------- Seller Application ----------------
+// ---------------- Vendor Application ----------------
 
 export interface SellerApplicationImage {
     id: number;

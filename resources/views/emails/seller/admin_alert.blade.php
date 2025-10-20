@@ -5,7 +5,7 @@
     <img src="{{ $logoUrl }}" alt="{{ $appName }} Logo" style="width: 120px; height: auto; max-width: 100%;" />
 </div>
 
-# New Seller Application Received
+# New Vendor Application Received
 
 A new seller application has been submitted to **{{ $appName }}**.
 

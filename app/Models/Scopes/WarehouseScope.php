@@ -17,8 +17,8 @@ class WarehouseScope implements Scope
     public function apply(Builder $builder, Model $model): void
     {
         $user = Auth::user();
-        if ($user && $user->hasRole('seller')) {
-                $builder->where('created_by', $user->id());
+        if ($user && $user->user_type="seller"){
+                $builder->where('created_by', $user->id);
         }
     }
 }

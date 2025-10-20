@@ -25,7 +25,7 @@ class NewSellerApplicationRegisteredAdmin extends Notification
     public function toMail($notifiable)
     {
         return (new MailMessage)
-            ->subject('New Seller Application Submitted')
+            ->subject('New Vendor Application Submitted')
             ->greeting('Hello Admin,')
             ->line('A new seller application has been submitted.')
             ->line('Applicant: ' . $this->application->first_name . ' ' . $this->application->last_name)

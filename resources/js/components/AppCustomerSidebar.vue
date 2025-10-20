@@ -55,11 +55,11 @@ const allNavItems: NavItem[] = [
                 href: '/wishlist',
                 icon: Heart,
             },
-            {
-                title: 'Followed Sellers',
-                href: '#',
-                icon: Store,
-            },
+            // {
+            //     title: 'Followed Vendors',
+            //     href: '#',
+            //     icon: Store,
+            // },
             {
                 title: 'Recently Viewed',
                 href: '#',

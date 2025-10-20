@@ -143,7 +143,7 @@ Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group
         });
     });
 
-    // Seller Applications
+    // Vendor Applications
     Route::prefix('applications')->name('applications.')->group(function () {
         Route::middleware(['check_permission:view-seller-applications'])->group(function () {
             Route::get('/', [SellerApplicationController::class, 'index'])->name('index');

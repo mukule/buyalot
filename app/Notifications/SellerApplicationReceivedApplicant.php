@@ -25,7 +25,7 @@ class SellerApplicationReceivedApplicant extends Notification
     public function toMail($notifiable)
     {
         return (new MailMessage)
-            ->subject('Your Seller Application Has Been Received')
+            ->subject('Your Vendor Application Has Been Received')
             ->greeting('Hello ' . $this->application->first_name . ',')
             ->line('Thank you for submitting your seller application.')
             ->line('We have received your application and will review it shortly.')

@@ -17,14 +17,14 @@ class SellerApplicationReceived extends Mailable
     public function __construct(SellerApplication $application)
     {
         $this->application = $application;
-        $this->logoUrl = asset('images/logo.png');  
+        $this->logoUrl = asset('images/logo.png');
         $this->appName = config('app.name');
     }
 
     public function build()
     {
         return $this->markdown('emails.seller.application_received')
-                    ->subject('Your Seller Application Has Been Received')
+                    ->subject('Your Vendor Application Has Been Received')
                     ->with([
                         'application' => $this->application,
                         'logoUrl' => $this->logoUrl,

@@ -14,7 +14,7 @@ const app = computed(() => page.props.application);
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/admin/dashboard' },
-    { title: 'Seller Applications', href: '/admin/applications' },
+    { title: 'Vendor Applications', href: '/admin/applications' },
     { title: `${app.value.first_name} ${app.value.last_name}`, href: '#' },
 ];
 </script>
@@ -25,7 +25,7 @@ const breadcrumbs = [
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="p-4">
             <div class="rounded-lg bg-white p-4 shadow-sm">
-                <h1 class="mb-4 text-2xl font-bold">Seller Application Details</h1>
+                <h1 class="mb-4 text-2xl font-bold">Vendor Application Details</h1>
                 <hr />
                 <!-- Contact Info -->
                 <h2 class="mb-2 text-lg font-semibold text-gray-700">Contact Info</h2>

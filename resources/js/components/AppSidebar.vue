@@ -50,7 +50,7 @@ const allNavItems: NavItem[] = [
         permissions: ['view-accounts'],
     },
     {
-        title: 'Sellers',
+        title: 'Vendors',
         href: '#',
         icon: Users,
         permissions: [
@@ -64,13 +64,13 @@ const allNavItems: NavItem[] = [
         ],
         children: [
             {
-                title: 'Sellers List',
+                title: 'Vendors List',
                 href: '/admin/sellers',
                 icon: BookUserIcon,
                 permissions: ['view-sellers', 'manage-sellers'],
             },
             {
-                title: 'Sellers Applications',
+                title: 'Vendors Applications',
                 href: '/admin/applications',
                 icon: ClipboardList,
                 permissions: ['view-seller-applications', 'approve-seller-applications'],
@@ -172,12 +172,12 @@ const allNavItems: NavItem[] = [
         icon: BookUserIcon,
         permissions: ['view-customers'],
     },
-    {
-        title: 'Sellers',
-        href: '/admin/sellers',
-        icon: BookUserIcon,
-        permissions: ['view-sellers'],
-    },
+    // {
+    //     title: 'Sellers',
+    //     href: '/admin/sellers',
+    //     icon: BookUserIcon,
+    //     permissions: ['view-sellers'],
+    // },
     {
         title: 'Users',
         href: '/admin/users',

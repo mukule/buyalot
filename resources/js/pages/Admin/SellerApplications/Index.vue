@@ -28,7 +28,7 @@ const dropdownCoords = ref<{ x: number; y: number }>({ x: 0, y: 0 });
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/admin/dashboard' },
-    { title: 'Seller Applications', href: '/admin/applications' },
+    { title: 'Vendor Applications', href: '/admin/applications' },
 ];
 
 function goToApplicationShow(hashid: string) {
@@ -51,6 +51,10 @@ function statusLabel(status: number | undefined): string {
             return 'Unknown';
     }
 }
+
+const currentApp = computed(() =>
+    applications.value.find((a) => a.id === dropdownAppId.value) ?? null
+);
 
 function goToPreviousPage() {
     if (page.props.applications.prev_page_url) {
@@ -130,12 +134,12 @@ watch(search, (val) => {
 </script>
 
 <template>
-    <Head title="Seller Applications" />
+    <Head title="Vendor Applications" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="p-4">
             <div class="card flex flex-col gap-6 rounded-lg bg-white p-4 shadow-sm">
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <h1 class="text-2xl font-semibold">Seller Applications</h1>
+                    <h1 class="text-2xl font-semibold">Vendor Applications</h1>
                     <input
                         v-model="search"
                         type="text"
@@ -209,6 +213,51 @@ watch(search, (val) => {
             </div>
 
             <!-- Dropdown rendered via Teleport to prevent table overflow -->
+<!--            <Teleport to="body">-->
+<!--                <div-->
+<!--                    v-if="dropdownAppId !== null"-->
+<!--                    class="ring-opacity-5 absolute z-[9999] w-36 rounded-md border bg-white"-->
+<!--                    :style="{ left: `${dropdownCoords.x}px`, top: `${dropdownCoords.y}px` }"-->
+<!--                    @click.outside="closeDropdown"-->
+<!--                >-->
+<!--                    <ul class="divide-y divide-gray-200 text-sm">-->
+<!--                        <li>-->
+<!--                            <button-->
+<!--                                class="w-full px-4 py-2 text-left text-green-700 hover:bg-green-100"-->
+<!--                                @click="-->
+<!--                                    approveApplication(applications.find((a) => a.id === dropdownAppId)?.hashid ?? '');-->
+<!--                                    closeDropdown();-->
+<!--                                "-->
+<!--                            >-->
+<!--                                Approve-->
+<!--                            </button>-->
+<!--                        </li>-->
+<!--                        <li>-->
+<!--                            <button-->
+<!--                                class="w-full px-4 py-2 text-left text-red-700 hover:bg-red-100"-->
+<!--                                @click="-->
+<!--                                    openRejectModal(applications.find((a) => a.id === dropdownAppId)?.hashid ?? '');-->
+<!--                                    closeDropdown();-->
+<!--                                "-->
+<!--                            >-->
+<!--                                Reject-->
+<!--                            </button>-->
+<!--                        </li>-->
+<!--                        <li>-->
+<!--                            <button-->
+<!--                                @click="-->
+<!--                                    goToSellerVerification(applications.find((a) => a.id === dropdownAppId)?.hashid ?? '');-->
+<!--                                    closeDropdown();-->
+<!--                                "-->
+<!--                                class="w-full px-4 py-2 text-left text-blue-700 hover:bg-blue-100"-->
+<!--                            >-->
+<!--                                Verify-->
+<!--                            </button>-->
+<!--                        </li>-->
+<!--                    </ul>-->
+<!--                </div>-->
+<!--            </Teleport>-->
+
             <Teleport to="body">
                 <div
                     v-if="dropdownAppId !== null"
@@ -217,42 +266,50 @@ watch(search, (val) => {
                     @click.outside="closeDropdown"
                 >
                     <ul class="divide-y divide-gray-200 text-sm">
-                        <li>
-                            <button
-                                class="w-full px-4 py-2 text-left text-green-700 hover:bg-green-100"
-                                @click="
-                                    approveApplication(applications.find((a) => a.id === dropdownAppId)?.hashid ?? '');
-                                    closeDropdown();
-                                "
-                            >
-                                Approve
-                            </button>
-                        </li>
-                        <li>
-                            <button
-                                class="w-full px-4 py-2 text-left text-red-700 hover:bg-red-100"
-                                @click="
-                                    openRejectModal(applications.find((a) => a.id === dropdownAppId)?.hashid ?? '');
-                                    closeDropdown();
-                                "
-                            >
-                                Reject
-                            </button>
-                        </li>
-                        <li>
-                            <button
-                                @click="
-                                    goToSellerVerification(applications.find((a) => a.id === dropdownAppId)?.hashid ?? '');
-                                    closeDropdown();
-                                "
-                                class="w-full px-4 py-2 text-left text-blue-700 hover:bg-blue-100"
-                            >
-                                Verify
-                            </button>
-                        </li>
+                        <template v-if="currentApp">
+                            <!-- ✅ Show Approve + Reject only if NOT approved (status != 1) -->
+                            <li v-if="currentApp.status !== 1">
+                                <button
+                                    class="w-full px-4 py-2 text-left text-green-700 hover:bg-green-100"
+                                    @click="
+              approveApplication(currentApp.hashid);
+              closeDropdown();
+            "
+                                >
+                                    Approve
+                                </button>
+                            </li>
+
+                            <li v-if="currentApp.status !== 1">
+                                <button
+                                    class="w-full px-4 py-2 text-left text-red-700 hover:bg-red-100"
+                                    @click="
+              openRejectModal(currentApp.hashid);
+              closeDropdown();
+            "
+                                >
+                                    Reject
+                                </button>
+                            </li>
+
+                            <!-- ✅ Show Verify only if approved (status == 1) -->
+                            <li v-if="currentApp.status === 1">
+                                <button
+                                    @click="
+              goToSellerVerification(currentApp.hashid);
+              closeDropdown();
+            "
+                                    class="w-full px-4 py-2 text-left text-blue-700 hover:bg-blue-100"
+                                >
+                                    Verify
+                                </button>
+                            </li>
+                        </template>
                     </ul>
                 </div>
             </Teleport>
+
+
 
             <!-- Reject Modal -->
             <transition name="fade">

@@ -5,14 +5,16 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Mail\SellerApprovedMail;
 use App\Mail\SellerRejectedMail;
+use App\Models\Seller\SellerUser;
 use App\Models\SellerApplication;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Inertia\Inertia;
 use Vinkla\Hashids\Facades\Hashids;
-use Illuminate\Support\Facades\Route; 
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -29,21 +31,29 @@ class SellerApplicationController extends Controller
 
         if ($search) {
             $applicationsQuery->where(function($query) use ($search) {
-                $query->where('business_type', 'like', "%{$search}%")
-                    ->orWhere('company_legal_name', 'like', "%{$search}%")
-                    ->orWhere('primary_product_category', 'like', "%{$search}%");
+                $query->where('business_name', 'like', "%{$search}%")
+                    ->orWhere('contact_email', 'like', "%{$search}%")
+                    ->orWhere('contact_phone', 'like', "%{$search}%")
+                    ->orWhere('company_legal_name', 'like', "%{$search}%");
             });
         }
 
-        $applications = $applicationsQuery->latest()->paginate(20);
+        $applications = $applicationsQuery
+            ->latest()
+            ->paginate(20)
+            ->through(fn ($application) => [
+                'id' => $application->id,
+                'hashid' => Hashids::encode($application->id),
+                'business_name' => $application->business_name,
+                'email' => $application->contact_email,
+                'phone' => $application->contact_phone,
+                'status' => $application->status,
+                'is_active' => $application->status === SellerApplication::STATUS_APPROVED,
+                'created_at' => $application->created_at->toDateString(),
+            ]);
 
-        $applications->getCollection()->transform(function ($application) {
-            $application->hashid = Hashids::encode($application->id);
-            return $application;
-        });
-
-        return inertia('Admin/SellerApplications/Index', [
-            'applications' => $applications,
+        return Inertia::render('Admin/SellerApplications/Index', [
+            'sellers' => $applications,
             'filters' => $request->only('search'),
         ]);
     }
@@ -63,7 +73,7 @@ class SellerApplicationController extends Controller
         return redirect()->back()->with('success', 'Application deleted successfully.');
     }
 
-   
+
     public function approve(SellerApplication $sellerApplication)
 {
     if (User::where('email', $sellerApplication->contact_email)->exists()) {
@@ -79,10 +89,15 @@ class SellerApplicationController extends Controller
             'name' => $sellerApplication->first_name . ' ' . $sellerApplication->last_name,
             'email' => $sellerApplication->contact_email,
             'password' => Hash::make($password),
-            'seller_application_id' => $sellerApplication->id, 
+            'seller_application_id' => $sellerApplication->id,
         ]);
 
         $user->assignRole('seller');
+        SellerUser::create([
+            'user_id' => $user->id,
+            'seller_id' => $sellerApplication->id,
+            'role' => 'seller_admin',
+        ]);
 
         $sellerApplication->update([
             'status' => SellerApplication::STATUS_APPROVED,
