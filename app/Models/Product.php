@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\SellerProductScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -67,6 +68,11 @@ class Product extends Model
     // Attributes
     // ----------------------
 
+    protected static function booted()
+    {
+        static::addGlobalScope(new SellerProductScope);
+    }
+    
    protected function imageUrls(): Attribute
     {
         return Attribute::get(fn () =>
@@ -263,5 +269,6 @@ public function activeWarranty(): ?Warranty
 {
     return $this->warranties()->where('active', true)->first();
 }
+
 
 }

@@ -82,7 +82,9 @@ class ProductVariant extends Model
 
     public function getFinalPriceAttribute(): float
     {
-        return $this->selling_price;
+        // Ensure we always return a float. Fallback to regular_price, then 0.0
+        $price = $this->selling_price ?? $this->regular_price ?? 0.0;
+        return round((float) $price, 2);
     }
 
     public function getInStockAttribute(): bool

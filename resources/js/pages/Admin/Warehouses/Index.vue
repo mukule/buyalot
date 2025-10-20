@@ -188,7 +188,7 @@ function saveManagers() {
                             <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase">Type</th>
                             <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase">Region</th>
                             <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase">Managers</th>
-                            <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase">Capacity</th>
+                            <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase">Receivables</th>
                             <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase">Status</th>
                             <th class="px-4 py-3 text-right font-medium text-gray-500 uppercase">Actions</th>
                         </tr>
@@ -241,8 +241,16 @@ function saveManagers() {
                                 </div>
                             </td>
                             <td class="px-4 py-3 text-gray-700">
-                                {{ warehouse.capacity ?? '—' }}
+                                  <span
+                                      v-if="warehouse.pending_receivables_count > 0"
+                                      class="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-1 text-xs font-medium text-yellow-700"
+                                  >
+                                    <span class="h-2 w-2 rounded-full bg-yellow-500"></span>
+                                    {{ warehouse.pending_receivables_count }} pending
+                                  </span>
+                                <span v-else class="text-gray-400 text-xs">None</span>
                             </td>
+
                             <td class="px-4 py-3">
                                     <span :class="statusClasses(warehouse.active)">
                                         {{ warehouse.active ? 'Active' : 'Inactive' }}

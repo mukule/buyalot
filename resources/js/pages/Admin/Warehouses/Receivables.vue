@@ -46,7 +46,7 @@ function accept(id: number) {
     <div class="p-4">
       <div class="mb-3 flex justify-between items-center">
         <h1 class="text-2xl font-semibold">Receivables</h1>
-        <button @click="goBack" class="inline-flex items-center gap-2 text-sm bg-gray-700 text-gray-100 px-3 py-2 rounded-md hover:bg-gray-300 hover:text-gray-900">Back to Inventory</button>
+        <button @click="goBack" class="inline-flex items-center gap-2 text-sm bg-orange-600 text-white px-3 py-2 rounded-md hover:bg-primary/80">Back to Inventory</button>
       </div>
 
       <div class="flex items-center gap-3 mb-4">

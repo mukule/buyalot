@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { reactive } from 'vue';
+import { computed, reactive } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 const page = usePage();
 const discount = (page.props as any).discount as any;
+const categories = (page.props as any).categories as Array<{id:number; name:string; parent_id:number|null}> || [];
+const products = (page.props as any).products as Array<{id:number; name:string; category_id:number|null}> || [];
+const variants = (page.props as any).variants as Array<{id:number; display_name?:string; sku?:string; product_id:number}> || [];
+const customers = (page.props as any).customers as Array<{id:number; first_name?:string; last_name?:string; email:string; created_at:string}> || [];
 
 const form = reactive({
   name: discount.name || '',
@@ -20,16 +24,130 @@ const form = reactive({
   is_active: !!discount.is_active as any,
   starts_at: discount.starts_at ? discount.starts_at.substring(0, 16) : '',
   expires_at: discount.expires_at ? discount.expires_at.substring(0, 16) : '',
-  applicable_to: discount.applicable_to || '',
-  conditions: discount.conditions ? JSON.stringify(discount.conditions, null, 2) : '',
+  applicable_to: discount.applicable_to || 'all_variants',
+  conditions: '' as any,
   metadata: discount.metadata ? JSON.stringify(discount.metadata, null, 2) : '',
 });
+
+// Deserialize existing conditions to prefill UI
+const c = (discount.conditions || {}) as any;
+const initialScope = (() => {
+  if (!c || !Object.keys(c).length) return 'all_variants';
+  if (c.applies_to === 'customers') return 'customers';
+  if (c.variant_ids) return 'variants';
+  if (c.product_ids) return 'specific_products';
+  if (c.category_ids) return 'categories';
+  return 'all_variants';
+})() as 'all_variants' | 'specific_products' | 'categories' | 'variants' | 'customers';
+
+const state = reactive({
+  scope: initialScope,
+  selectedCategoryIds: (c.category_ids || []) as number[],
+  selectedProductIds: (c.product_ids || []) as number[],
+  selectedVariantIds: (c.variant_ids || []) as number[],
+  customerTarget: ((c.scope as any) || 'all_variants') as 'all_variants' | 'new' | 'by_order_count' | 'by_total_spend' | 'specific',
+  newCustomerDays: (c.within_days || 30) as number,
+  minOrderCount: (c.min_orders || 1) as number,
+  minTotalSpend: (c.min_total_spend || 0) as number,
+  selectedCustomerIds: (c.customer_ids || []) as number[],
+  includeChildCategories: !!c.include_children,
+  // Searches
+  categorySearch: '' as string,
+  productSearch: '' as string,
+  variantSearch: '' as string,
+  // Category drilldown
+  categoryPath: [] as number[],
+  selectedLeafCategoryId: ((c.category_ids || [])[0] ?? null) as number | null,
+});
+
+// Category helpers
+const rootCategories = computed(() => categories.filter(c => c.parent_id == null));
+const childrenOf = (parentId: number) => categories.filter(c => c.parent_id === parentId);
+const pathBreadcrumb = computed(() => state.categoryPath.map(id => categories.find(c => c.id === id)).filter(Boolean) as Array<{id:number; name:string; parent_id:number|null}>);
+const currentLevelCategories = computed(() => {
+  const parentId = state.categoryPath.length ? state.categoryPath[state.categoryPath.length - 1] : null;
+  const list = parentId === null ? rootCategories.value : childrenOf(parentId);
+  const q = state.categorySearch.trim().toLowerCase();
+  return q ? list.filter(c => c.name.toLowerCase().includes(q)) : list;
+});
+const leafProducts = computed(() => {
+  const q = state.productSearch.trim().toLowerCase();
+  const base = state.selectedLeafCategoryId ? products.filter(p => p.category_id === state.selectedLeafCategoryId) : [];
+  return q ? base.filter(p => p.name.toLowerCase().includes(q)) : base;
+});
+
+const filteredProducts = computed(() => {
+  let base = products;
+  if (state.selectedCategoryIds.length) {
+    const set = new Set(state.selectedCategoryIds);
+    base = base.filter(p => p.category_id && set.has(p.category_id));
+  }
+  const q = state.productSearch.trim().toLowerCase();
+  return q ? base.filter(p => p.name.toLowerCase().includes(q)) : base;
+});
+const filteredVariants = computed(() => {
+  let base = variants;
+  if (state.selectedProductIds.length) {
+    const set = new Set(state.selectedProductIds);
+    base = base.filter(v => set.has(v.product_id));
+  }
+  const q = state.variantSearch.trim().toLowerCase();
+  const getName = (v: any) => (v.display_name || v.sku || '').toString().toLowerCase();
+  return q ? base.filter(v => getName(v).includes(q)) : base;
+});
+
+const builtConditions = computed(() => {
+  switch (state.scope) {
+    case 'categories':
+      return { applies_to: 'items', category_ids: state.selectedCategoryIds, include_children: !!state.includeChildCategories };
+    case 'specific_products':
+      return { applies_to: 'items', product_ids: state.selectedProductIds };
+    case 'variants':
+      return { applies_to: 'items', variant_ids: state.selectedVariantIds };
+    case 'customers':
+      if (state.customerTarget === 'all_variants') return { applies_to: 'customers', scope: 'all_variants' };
+      if (state.customerTarget === 'new') return { applies_to: 'customers', scope: 'new', within_days: state.newCustomerDays };
+      if (state.customerTarget === 'by_order_count') return { applies_to: 'customers', scope: 'by_order_count', min_orders: state.minOrderCount };
+      if (state.customerTarget === 'by_total_spend') return { applies_to: 'customers', scope: 'by_total_spend', min_total_spend: state.minTotalSpend };
+      return { applies_to: 'customers', scope: 'specific', customer_ids: state.selectedCustomerIds };
+    default:
+      return { applies_to: 'all_variants' };
+  }
+});
+
+// Handlers for category drilldown
+const onSelectCategory = (catId: number) => {
+  const children = categories.filter(c => c.parent_id === catId);
+  if (children.length) {
+    state.categoryPath.push(catId);
+    state.selectedLeafCategoryId = null;
+    state.selectedCategoryIds = [];
+  } else {
+    state.selectedLeafCategoryId = catId;
+    state.selectedCategoryIds = [catId];
+  }
+};
+const onBreadcrumbClick = (index: number) => {
+  if (index < 0) {
+    state.categoryPath = [];
+  } else {
+    state.categoryPath = state.categoryPath.slice(0, index + 1);
+  }
+  state.selectedLeafCategoryId = null;
+  state.selectedCategoryIds = [];
+};
+
 const breadcrumbs = [
     { title: 'Dashboard', href: route('admin.dashboard') },
-    { title: 'Discounts', href: route('admin.discount.index') },
-    { title: 'Edit', href: route('admin.discount.edit') },
+    { title: 'Discounts', href: route('admin.discounts.index') },
+    { title: 'Edit', href: route('admin.discounts.edit', discount.id) },
+    // { title: 'Edit', href: route('admin.discounts.edit') },
 ];
+
 const submit = () => {
+  const scope = state.scope;
+  form.applicable_to = scope === 'customers' ? 'specific_customers' : (scope === 'all_variants' ? 'all_variants' : `specific_${scope}`);
+  form.conditions = JSON.stringify(builtConditions.value);
   router.put(route('admin.discounts.update', discount.slug || discount.id), form);
 };
 const destroyItem = () => {
@@ -68,7 +186,7 @@ const destroyItem = () => {
             <label class="mb-1 block text-sm font-medium text-gray-700">Type</label>
             <select v-model="form.type" class="w-full rounded border px-3 py-2">
               <option value="percentage">Percentage (%)</option>
-              <option value="fixed_amount">Fixed Amount</option>
+              <option value="fixed">Fixed Amount</option>
               <option value="free_shipping">Free Shipping</option>
             </select>
           </div>
@@ -108,13 +226,139 @@ const destroyItem = () => {
             <input v-model.number="form.usage_limit_per_customer" type="number" step="1" min="0" class="w-full rounded border px-3 py-2" />
           </div>
           <div class="md:col-span-2">
-            <label class="mb-1 block text-sm font-medium text-gray-700">Applicable To (optional)</label>
-            <input v-model="form.applicable_to" type="text" placeholder="e.g., all, specific_products, specific_categories" class="w-full rounded border px-3 py-2" />
+            <label class="mb-1 block text-sm font-medium text-gray-700">Applies To</label>
+            <select v-model="state.scope" class="w-full rounded border px-3 py-2">
+              <option value="all_variants">All items</option>
+              <option value="categories">Specific categories</option>
+              <option value="specific_products">Specific products</option>
+              <option value="variants">Specific product variants</option>
+              <option value="customers">Customers</option>
+            </select>
           </div>
-          <div class="md:col-span-2">
-            <label class="mb-1 block text-sm font-medium text-gray-700">Conditions (JSON)</label>
-            <textarea v-model="form.conditions" rows="5" placeholder='{"applies_to":"items","product_ids":[1,2]}' class="w-full rounded border px-3 py-2 font-mono text-sm" />
+
+          <!-- Categories selection (drilldown) -->
+          <div v-if="state.scope==='categories'" class="md:col-span-2 grid grid-cols-1 gap-4">
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700">Search categories</label>
+              <input v-model="state.categorySearch" type="text" placeholder="Search categories..." class="w-full rounded border px-3 py-2" />
+            </div>
+
+            <!-- Breadcrumb -->
+            <div class="flex flex-wrap items-center gap-2 text-sm">
+              <button type="button" class="text-primary underline" @click="onBreadcrumbClick(-1)">Root</button>
+              <template v-for="(crumb, idx) in pathBreadcrumb" :key="crumb.id">
+                <span>/</span>
+                <button type="button" class="text-primary underline" @click="onBreadcrumbClick(idx)">{{ crumb.name }}</button>
+              </template>
+            </div>
+
+            <!-- Current level categories -->
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700">Categories</label>
+              <div class="grid grid-cols-1 gap-2 md:grid-cols-3">
+                <button v-for="c in currentLevelCategories" :key="c.id" type="button" @click="onSelectCategory(c.id)" class="rounded border px-3 py-2 text-left hover:bg-gray-50">
+                  {{ c.name }}
+                </button>
+              </div>
+              <p v-if="!currentLevelCategories.length" class="text-sm text-gray-500">No categories here.</p>
+            </div>
+
+            <!-- Include children -->
+            <div class="flex items-center gap-2">
+              <input id="includeChildren2" v-model="state.includeChildCategories" type="checkbox" class="h-4 w-4" />
+              <label for="includeChildren2" class="text-sm text-gray-700">Include sub-categories</label>
+            </div>
+
+            <!-- Leaf products preview -->
+            <div v-if="state.selectedLeafCategoryId">
+              <label class="mb-1 block text-sm font-medium text-gray-700">Products in selected category</label>
+              <input v-model="state.productSearch" type="text" placeholder="Search products..." class="mb-2 w-full rounded border px-3 py-2" />
+              <div class="max-h-48 overflow-auto rounded border">
+                <div v-for="p in leafProducts" :key="p.id" class="border-b px-3 py-1 last:border-b-0">{{ p.name }}</div>
+              </div>
+              <p class="mt-1 text-xs text-gray-500">Note: This discount will target the selected category. Use the Products scope to target specific products.</p>
+            </div>
           </div>
+
+          <!-- Products selection -->
+          <div v-if="state.scope==='specific_products'" class="md:col-span-2 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700">Filter by Category (optional)</label>
+              <select v-model="state.selectedCategoryIds" multiple class="w-full rounded border px-3 py-2 h-40">
+                <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700">Products</label>
+              <input v-model="state.productSearch" type="text" placeholder="Search products..." class="mb-2 w-full rounded border px-3 py-2" />
+              <select v-model="state.selectedProductIds" multiple class="w-full rounded border px-3 py-2 h-40">
+                <option v-for="p in filteredProducts" :key="p.id" :value="p.id">{{ p.name }}</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Variants selection -->
+          <div v-if="state.scope==='variants'" class="md:col-span-2 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700">Filter by Category (optional)</label>
+              <select v-model="state.selectedCategoryIds" multiple class="w-full rounded border px-3 py-2 h-40">
+                <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700">Filter by Product (optional)</label>
+              <input v-model="state.productSearch" type="text" placeholder="Search products..." class="mb-2 w-full rounded border px-3 py-2" />
+              <select v-model="state.selectedProductIds" multiple class="w-full rounded border px-3 py-2 h-40">
+                <option v-for="p in filteredProducts" :key="p.id" :value="p.id">{{ p.name }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700">Variants</label>
+              <input v-model="state.variantSearch" type="text" placeholder="Search variants..." class="mb-2 w-full rounded border px-3 py-2" />
+              <select v-model="state.selectedVariantIds" multiple class="w-full rounded border px-3 py-2 h-40">
+                <option v-for="v in filteredVariants" :key="v.id" :value="v.id">{{ v.display_name || v.sku || ('Variant #' + v.id) }}</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Customers selection -->
+          <div v-if="state.scope==='customers'" class="md:col-span-2 grid grid-cols-1 gap-4">
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700">Customer Target</label>
+              <select v-model="state.customerTarget" class="w-full rounded border px-3 py-2">
+                <option value="all">All customers</option>
+                <option value="new">New customers (joined within N days)</option>
+                <option value="by_order_count">Customers with at least N orders</option>
+                <option value="by_total_spend">Customers with total spend >= amount</option>
+                <option value="specific">Specific customers</option>
+              </select>
+            </div>
+            <div v-if="state.customerTarget==='new'" class="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label class="mb-1 block text-sm font-medium text-gray-700">Within days</label>
+                <input v-model.number="state.newCustomerDays" type="number" min="1" class="w-full rounded border px-3 py-2" />
+              </div>
+            </div>
+            <div v-if="state.customerTarget==='by_order_count'" class="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label class="mb-1 block text-sm font-medium text-gray-700">Minimum Orders</label>
+                <input v-model.number="state.minOrderCount" type="number" min="1" class="w-full rounded border px-3 py-2" />
+              </div>
+            </div>
+            <div v-if="state.customerTarget==='by_total_spend'" class="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label class="mb-1 block text-sm font-medium text-gray-700">Minimum Total Spend</label>
+                <input v-model.number="state.minTotalSpend" type="number" min="0" step="0.01" class="w-full rounded border px-3 py-2" />
+              </div>
+            </div>
+            <div v-if="state.customerTarget==='specific'">
+              <label class="mb-1 block text-sm font-medium text-gray-700">Select Customers</label>
+              <select v-model="state.selectedCustomerIds" multiple class="w-full rounded border px-3 py-2 h-48">
+                <option v-for="c in customers" :key="c.id" :value="c.id">{{ ([(c.first_name||''),(c.last_name||'')].join(' ').trim()) || c.email }} ({{ c.email }})</option>
+              </select>
+            </div>
+          </div>
+
           <div class="md:col-span-2">
             <label class="mb-1 block text-sm font-medium text-gray-700">Metadata (JSON)</label>
             <textarea v-model="form.metadata" rows="3" class="w-full rounded border px-3 py-2 font-mono text-sm" />

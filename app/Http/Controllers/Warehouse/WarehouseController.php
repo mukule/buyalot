@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\Category;
 use App\Models\ProductVariant;
 use App\Models\Warehouse\Warehouse;
+use App\Models\Warehouse\WarehouseActivityLog;
 use App\Models\Warehouse\WarehouseManager;
 use App\Models\Warehouse\WarehouseProductInventory;
 use App\Models\Warehouse\WarehouseInventoryMovement;
@@ -23,6 +24,21 @@ use Inertia\Inertia;
 class WarehouseController extends Controller
 {
     use HasPermissionCheck;
+
+    protected function logActivity(Warehouse $warehouse, string $action, $reference = null, array $details = []): void
+    {
+        WarehouseActivityLog::create([
+            'warehouse_id' => $warehouse->id,
+            'user_id' => auth()->id(),
+            'action' => $action,
+            'reference_type' => $reference ? get_class($reference) : null,
+            'reference_id' => $reference?->id,
+            'details' => $details,
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+        ]);
+    }
+
 
     public function searchVariants(Request $request, Warehouse $warehouse)
     {
@@ -184,7 +200,7 @@ class WarehouseController extends Controller
         }
 
         $warehouses = Warehouse::visibleTo(auth()->user())
-            ->with(['region', 'managers'])
+            ->with(['region', 'managers'])->withCount('pendingReceivables')
             ->orderBy('created_at', 'desc')
             ->paginate(15)
             ->withQueryString();
@@ -305,7 +321,6 @@ class WarehouseController extends Controller
                 }
             }
         });
-
         return redirect()->route('admin.warehouses.index')
             ->with('success', 'Warehouse created successfully.');
     }
@@ -617,6 +632,60 @@ class WarehouseController extends Controller
         ]);
     }
 
+    public function addInventory(Request $request, Warehouse $warehouse)
+    {
+        if (!$this->sellerOwns($warehouse)) {
+            $permissionCheck = $this->checkPermissionOrFail('manage-inventory');
+            if ($permissionCheck) {
+                return $permissionCheck;
+            }
+        }
+
+        $data = $request->validate([
+            'product_variant_id' => 'required|exists:product_variants,id',
+            'quantity' => 'required|integer|min:1',
+            'regular_price' => 'nullable|numeric|min:0',
+            'selling_price' => 'nullable|numeric|min:0',
+            'cost_price' => 'nullable|numeric|min:0',
+        ]);
+
+        // Check if this variant already exists in the warehouse
+        $inventory = WarehouseProductInventory::where('warehouse_id', $warehouse->id)
+            ->where('product_variant_id', $data['product_variant_id'])
+            ->first();
+
+        if ($inventory) {
+            $inventory->increment('stock', $data['quantity']);
+            $inventory->update([
+                'regular_price' => $data['regular_price'] ?? $inventory->regular_price,
+                'selling_price' => $data['selling_price'] ?? $inventory->selling_price,
+                'cost_price' => $data['cost_price'] ?? $inventory->cost_price,
+            ]);
+        } else {
+            $inventory = WarehouseProductInventory::create([
+                'warehouse_id' => $warehouse->id,
+                'product_variant_id' => $data['product_variant_id'],
+                'stock' => $data['quantity'],
+                'reserved_stock' => 0,
+                'damaged_stock' => 0,
+                'regular_price' => $data['regular_price'] ?? null,
+                'selling_price' => $data['selling_price'] ?? null,
+                'cost_price' => $data['cost_price'] ?? null,
+            ]);
+        }
+
+        // Record in warehouse activity log
+        $this->logActivity($warehouse, 'inventory_added', $inventory, [
+            'variant_id' => $data['product_variant_id'],
+            'quantity' => $data['quantity'],
+        ]);
+
+
+        return back()->with('success', 'Product added to warehouse successfully.');
+    }
+
+
+
     public function updateInventory(Request $request, Warehouse $warehouse)
     {
         if (!$this->sellerOwns($warehouse)) {
@@ -635,9 +704,11 @@ class WarehouseController extends Controller
             'inventories.*.selling_price' => 'nullable|numeric|min:0',
             'inventories.*.cost_price' => 'nullable|numeric|min:0',
         ]);
+        $inventory = null;
+        $items=[];
 
         foreach ($data['inventories'] as $item) {
-            WarehouseProductInventory::where('id', $item['id'])
+            $inventory=WarehouseProductInventory::where('id', $item['id'])
                 ->update([
                     'stock' => $item['stock'],
                     'reserved_stock' => $item['reserved_stock'],
@@ -646,7 +717,12 @@ class WarehouseController extends Controller
                     'selling_price' => $item['selling_price'] ?? null,
                     'cost_price' => $item['cost_price'] ?? null,
                 ]);
+            $items[]=$item;
         }
+        $this->logActivity($warehouse, 'inventory_updated', $inventory, [
+            'changes' => $items,
+        ]);
+
 
         return back()->with('success', 'Inventory updated successfully.');
     }
@@ -665,6 +741,7 @@ class WarehouseController extends Controller
             'quantity' => 'required|integer|min:1',
             'note' => 'nullable|string|max:255',
         ]);
+        $inventory=null;
 
         DB::transaction(function () use ($request, $warehouse) {
             $inventory = WarehouseProductInventory::lockForUpdate()->findOrFail($request->inventory_id);
@@ -702,6 +779,9 @@ class WarehouseController extends Controller
                 'note' => $request->note,
             ]);
         });
+        $this->logActivity($warehouse, 'stock_adjusted', $inventory, [
+            'adjustment' => $request->all(),
+        ]);
 
         return back()->with('success', 'Stock updated successfully.');
     }
@@ -720,7 +800,9 @@ class WarehouseController extends Controller
             'quantity' => 'required|integer|min:1',
             'note' => 'nullable|string|max:255',
         ]);
-
+        $toWarehouse =$request->to_warehouse_id;
+        $transferItems =null ;
+        $transfer = null;
         DB::transaction(function () use ($request, $warehouse) {
             $inventory = WarehouseProductInventory::lockForUpdate()->findOrFail($request->inventory_id);
             if ($inventory->stock < $request->quantity) {
@@ -731,7 +813,7 @@ class WarehouseController extends Controller
             $inventory->save();
 
             // Log transfer out
-            WarehouseInventoryMovement::create([
+            $transfer=WarehouseInventoryMovement::create([
                 'warehouse_id' => $warehouse->id,
                 'product_variant_id' => $inventory->product_variant_id,
                 'type' => 'transfer_out',
@@ -775,6 +857,10 @@ class WarehouseController extends Controller
                 'note' => $request->note,
             ]);
         });
+        $this->logActivity($warehouse, 'stock_transferred', $transfer, [
+            'to_warehouse' => $toWarehouse,
+            'items' => $transferItems,
+        ]);
 
         return back()->with('success', 'Stock transferred successfully.');
     }
@@ -835,6 +921,7 @@ class WarehouseController extends Controller
 
     public function createReceivable(Request $request, Warehouse $warehouse)
     {
+        logger("receivables");
         if (!$this->sellerOwns($warehouse)) {
             $permissionCheck = $this->checkPermissionOrFail('manage-inventory');
             if ($permissionCheck) {

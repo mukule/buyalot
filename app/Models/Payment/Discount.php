@@ -20,7 +20,7 @@ use LaravelIdea\Helper\App\Models\Payment\_IH_Discount_QB;
 
 class Discount extends Model
 {
-    use HasFactory, HasSlug, SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     protected $table = 'discounts';
 
@@ -76,14 +76,31 @@ class Discount extends Model
     // Hashid configuration
     public function getHashidAttribute(): string
     {
-        return Hashids::encode($this->id);
+        return (new \Hashids\Hashids)->encode($this->id);
     }
 
     public static function findByHashid(string $hashid): ?self
     {
-        $id = Hashids::decode($hashid);
+        $id = (new \Hashids\Hashids)->decode($hashid);
         return $id ? static::find($id[0]) : null;
     }
+    public function resolveRouteBinding($value, $field = null)
+    {
+        // If it's numeric, treat it as ID
+        if (is_numeric($value)) {
+            return $this->find($value);
+        }
+
+        // Try slug first
+        $bySlug = $this->where('slug', $value)->first();
+        if ($bySlug) {
+            return $bySlug;
+        }
+
+        // Then try hashid
+        return static::findByHashid($value);
+    }
+
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class);
@@ -351,6 +368,39 @@ class Discount extends Model
         $customerId = $context['customer_id'] ?? null;
         $regionId = $context['region_id'] ?? null;
 
+        // Customer-scoped gates (new/specific/segments)
+        if (!empty($conditions['applies_to']) && $conditions['applies_to'] === 'customers') {
+            if ($customerId === null) {
+                return 0; // cannot evaluate customer-based discount without customer context
+            }
+            $scope = $conditions['scope'] ?? 'all';
+            if ($scope === 'specific' && !empty($conditions['customer_ids'])) {
+                if (!$this->valueInList($customerId, $conditions['customer_ids'])) {
+                    return 0;
+                }
+            } elseif ($scope === 'new') {
+                $withinDays = (int)($conditions['within_days'] ?? 30);
+                $customer = Customer::find($customerId);
+                if (!$customer) return 0;
+                $cutoff = now()->subDays(max(1, $withinDays));
+                if ($customer->created_at < $cutoff) {
+                    return 0;
+                }
+            } elseif ($scope === 'by_order_count') {
+                $minOrders = (int)($conditions['min_orders'] ?? 1);
+                $orderCount = Order::where('customer_id', $customerId)->count();
+                if ($orderCount < max(1, $minOrders)) {
+                    return 0;
+                }
+            } elseif ($scope === 'by_total_spend') {
+                $minSpend = (float)($conditions['min_total_spend'] ?? 0);
+                $total = (float) Order::where('customer_id', $customerId)->sum('total');
+                if ($total < $minSpend) {
+                    return 0;
+                }
+            }
+        }
+
         // Order-level gates
         if (isset($conditions['min_order_total']) && $orderSubtotal < (float)$conditions['min_order_total']) {
             return 0;
@@ -532,17 +582,17 @@ class Discount extends Model
     }
 
     // Route key binding
-    public function getRouteKeyName(): string
+    public function getRouteKeyName()
     {
-        return 'slug';
+        return 'id';
     }
 
-    public function resolveRouteBinding($value, $field = null)
-    {
-        // Try to find by slug first, then by hashid
-        return $this->where('slug', $value)->first()
-            ?? static::findByHashid($value);
-    }
+//    public function resolveRouteBinding($value, $field = null)
+//    {
+//        // Try to find by slug first, then by hashid
+//        return $this->where('slug', $value)->first()
+//            ?? static::findByHashid($value);
+//    }
 
     // Boot method
     protected static function boot()

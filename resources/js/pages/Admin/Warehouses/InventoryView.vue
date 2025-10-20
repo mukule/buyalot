@@ -48,6 +48,10 @@ const loadingProducts = ref(false);
 const loadingVariants = ref(false);
 
 const addQuantity = ref<number>(1);
+const regularPrice = ref(null);
+const sellingPrice = ref(null);
+const costPrice = ref(null);
+
 
 // Edit Inventory modal state
 const showEditModal = ref(false);
@@ -175,8 +179,11 @@ async function fetchVariantsByProduct() {
 function submitAddVariant() {
     if (!selectedVariantId.value || addQuantity.value <= 0) return;
     router.post(
-        route('admin.receivables.create', { warehouse: props.warehouse.hashid }),
-        { product_variant_id: selectedVariantId.value, quantity: addQuantity.value },
+        route('admin.inventory.add', { warehouse: props.warehouse.hashid }),
+        { product_variant_id: selectedVariantId.value, quantity: addQuantity.value,
+            regular_price: regularPrice.value,
+            selling_price: sellingPrice.value,
+            cost_price: costPrice.value, },
         {
             onSuccess: () => {
                 closeAddModal();
@@ -382,15 +389,15 @@ function confirmPublish() {
                         <option value="100">100 per page</option>
                     </select>
 
-                    <button @click="filterInventories" class="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90">
+                    <button @click="filterInventories" class="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/80">
                         Filter
                     </button>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button @click="openAddModal" class="inline-flex items-center gap-2 bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300">
-                        <PlusIcon class="h-4 w-4" /> Add Product
+                    <button @click="openAddModal" class="inline-flex items-center gap-2 bg-primary/80 text-white px-4 py-2 rounded-md hover:bg-orange-500">
+                        <PlusIcon class="h-4 w-4 p-2" /> Add Product
                     </button>
-                    <a :href="route('admin.receivables.index', { warehouse: props.warehouse.hashid })" class="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                    <a :href="route('admin.receivables.index', { warehouse: props.warehouse.hashid })" class="inline-flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-primary/80">
                         Receivables
                     </a>
                 </div>
@@ -409,6 +416,7 @@ function confirmPublish() {
                         <th class="px-4 py-2 text-left font-medium text-gray-500 uppercase">Regular Price</th>
                         <th class="px-4 py-2 text-left font-medium text-gray-500 uppercase">Selling Price</th>
                         <th class="px-4 py-2 text-left font-medium text-gray-500 uppercase">Cost Price</th>
+                        <th class="px-4 py-2 text-left font-medium text-gray-500 uppercase">Actions</th>
                     </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 bg-white">
@@ -525,10 +533,33 @@ function confirmPublish() {
                         </template>
                     </div>
 
-                    <div class="flex items-center gap-3">
-                        <label class="text-sm">Quantity</label>
-                        <input type="number" min="1" v-model.number="addQuantity" class="border rounded-md px-3 py-2 w-28" />
+<!--                    <div class="flex items-center gap-3">-->
+<!--                        <label class="text-sm">Quantity</label>-->
+<!--                        <input type="number" min="1" v-model.number="addQuantity" class="border rounded-md px-3 py-2 w-28" />-->
+<!--                    </div>-->
+
+                    <div class="flex flex-col gap-3 mt-3">
+                        <div class="flex items-center gap-3">
+                            <label class="text-sm w-32">Quantity</label>
+                            <input type="number" min="1" v-model.number="addQuantity" class="border rounded-md px-3 py-2 w-40" />
+                        </div>
+
+                        <div class="flex items-center gap-3">
+                            <label class="text-sm w-32">Regular Price</label>
+                            <input type="number" step="0.01" v-model.number="regularPrice" class="border rounded-md px-3 py-2 w-40" />
+                        </div>
+
+                        <div class="flex items-center gap-3">
+                            <label class="text-sm w-32">Selling Price</label>
+                            <input type="number" step="0.01" v-model.number="sellingPrice" class="border rounded-md px-3 py-2 w-40" />
+                        </div>
+
+                        <div class="flex items-center gap-3">
+                            <label class="text-sm w-32">Cost Price</label>
+                            <input type="number" step="0.01" v-model.number="costPrice" class="border rounded-md px-3 py-2 w-40" />
+                        </div>
                     </div>
+
 
                     <div class="flex justify-end gap-2 mt-4">
                         <button @click="closeAddModal" class="px-4 py-2 border rounded-md">Cancel</button>

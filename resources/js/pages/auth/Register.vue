@@ -7,34 +7,224 @@ import AuthBase from '@/layouts/AuthLayout.vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import allCountries from 'country-calling-code';
 import { Eye, EyeOff, LoaderCircle } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { ref, watch } from 'vue';
 
 const form = useForm({
+    first_name: '',
+    last_name: '',
     name: '',
     email: '',
     country_code: '+254',
     phone: '',
     password: '',
     password_confirmation: '',
+    customer_type: 'individual',
+    address: {
+        label: 'Home',
+        type: 'shipping',
+        first_name: '',
+        last_name: '',
+        company: '',
+        address_line_1: '',
+        address_line_2: '',
+        city: '',
+        state_province: '',
+        postal_code: '',
+        country_code: '',
+        country_name: '',
+        phone: '',
+        delivery_instructions: '',
+    },
 });
+
+// Always keep email lowercase on the client
+watch(
+    () => form.email,
+    (val) => {
+        if (typeof val === 'string') {
+            const lower = val.toLowerCase();
+            if (lower !== val) form.email = lower;
+        }
+    }
+);
+
+const step = ref(1);
+
+// Helpers for client-side validation
+const clearClientErrors = (keys: string[]) => {
+    keys.forEach((k) => form.clearErrors(k as any));
+};
+
+const setClientError = (key: string, message: string) => {
+    form.setError(key as any, message);
+};
+
+const isEmail = (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+
+const validateStep1 = (): boolean => {
+    const keys = ['first_name', 'last_name', 'email', 'phone', 'password', 'password_confirmation'];
+    clearClientErrors(keys);
+
+    let ok = true;
+
+    if (!form.first_name?.trim()) {
+        setClientError('first_name', 'First name is required.');
+        ok = false;
+    }
+    if (!form.last_name?.trim()) {
+        setClientError('last_name', 'Last name is required.');
+        ok = false;
+    }
+    if (!form.email?.trim()) {
+        setClientError('email', 'Email is required.');
+        ok = false;
+    } else if (!isEmail(form.email.trim())) {
+        setClientError('email', 'Please enter a valid email address.');
+        ok = false;
+    }
+
+    const rawPhone = (form.phone || '').toString();
+    if (!rawPhone.trim()) {
+        setClientError('phone', 'Phone is required.');
+        ok = false;
+    } else {
+        const digits = rawPhone.replace(/[^0-9]/g, '').replace(/^0/, '');
+        if (digits.length < 7 || digits.length > 15) {
+            setClientError('phone', 'Enter a valid phone number.');
+            ok = false;
+        }
+    }
+
+    if (!form.password) {
+        setClientError('password', 'Password is required.');
+        ok = false;
+    } else if (form.password.length < 8) {
+        setClientError('password', 'Password must be at least 8 characters.');
+        ok = false;
+    }
+
+    if (!form.password_confirmation) {
+        setClientError('password_confirmation', 'Please confirm your password.');
+        ok = false;
+    } else if (form.password !== form.password_confirmation) {
+        setClientError('password_confirmation', 'Passwords do not match.');
+        ok = false;
+    }
+
+    return ok;
+};
+
+const validateStep2 = (): boolean => {
+    const keys = [
+        'address.address_line_1',
+        'address.city',
+        'address.state_province',
+        'address.postal_code',
+        'address.country_code',
+        'address.country_name',
+    ];
+    clearClientErrors(keys);
+
+    let ok = true;
+
+    if (!form.address.address_line_1?.trim()) {
+        setClientError('address.address_line_1', 'Address line 1 is required.');
+        ok = false;
+    }
+    if (!form.address.city?.trim()) {
+        setClientError('address.city', 'City is required.');
+        ok = false;
+    }
+    if (!form.address.state_province?.trim()) {
+        setClientError('address.state_province', 'State/Province is required.');
+        ok = false;
+    }
+    if (!form.address.postal_code?.trim()) {
+        setClientError('address.postal_code', 'Postal code is required.');
+        ok = false;
+    }
+    if (!form.address.country_code?.trim()) {
+        setClientError('address.country_code', 'Country is required.');
+        ok = false;
+    } else {
+        // Ensure country_name matches selected code
+        const c = countries.find((x) => x.iso === form.address.country_code);
+        form.address.country_name = c ? c.name : '';
+        if (!form.address.country_name) {
+            setClientError('address.country_name', 'Country is invalid.');
+            ok = false;
+        }
+    }
+
+    return ok;
+};
+
+const nextStep = () => {
+    if (step.value === 1) {
+        // Validate but do not block progression; show errors if any
+        validateStep1();
+    }
+    if (step.value < 2) step.value++;
+};
+
+const prevStep = () => {
+    if (step.value > 1) step.value--;
+};
+
+const toFlagEmoji = (iso: string): string => {
+    if (!iso || iso.length !== 2) return '';
+    const upper = iso.toUpperCase();
+    const codePoints = Array.from(upper).map((ch) => 127397 + ch.charCodeAt(0));
+    try {
+        return String.fromCodePoint(...codePoints);
+    } catch {
+        return '';
+    }
+};
 
 const countries = allCountries.map((c) => ({
     code: `+${Array.isArray(c.countryCodes) ? c.countryCodes[0] : ''}`,
     iso: c.isoCode2, // Add ISO shortform
     name: `${c.country}`,
-    emoji: (c as any).emoji || '',
+    emoji: toFlagEmoji(c.isoCode2),
 }));
 
-const fullPhone = computed({
-    get: () => form.phone,
-    set: (val: string) => {
-        form.phone = val.replace(/^\+?[0-9]+/, val); // keep only the number part
-    },
-});
+const onAddressCountryChange = () => {
+    const c = countries.find((x) => x.iso === form.address.country_code);
+    form.address.country_name = c ? c.name : '';
+};
+
 
 const submit = () => {
+    // Ensure email is lowercase before any validation/submission
+    if (typeof form.email === 'string') {
+        form.email = form.email.toLowerCase();
+    }
+
+    // Validate both steps; block submit only if invalid
+    const ok1 = validateStep1();
+    const ok2 = validateStep2();
+
+    if (!ok1 || !ok2) {
+        // If basic info invalid, show step 1; otherwise show step 2
+        step.value = !ok1 ? 1 : 2;
+        return;
+    }
+
+    // Compose display name and default address names
+    form.name = `${form.first_name} ${form.last_name}`.trim();
+    if (!form.address.first_name) form.address.first_name = form.first_name;
+    if (!form.address.last_name) form.address.last_name = form.last_name;
+    if (!form.address.phone) form.address.phone = form.phone;
+
+    // Sync country_name with selected code (safety)
+    if (form.address.country_code && !form.address.country_name) {
+        const c = countries.find((x) => x.iso === form.address.country_code);
+        form.address.country_name = c ? c.name : '';
+    }
+
     // Normalize phone number before submit
-    const phone = form.phone.replace(/^0/, ''); // remove leading 0
+    const phone = form.phone.replace(/[^0-9]/g, '').replace(/^0/, ''); // digits only, remove leading 0
     form.phone = `${form.country_code}${phone}`;
 
     form.post(route('register'), {
@@ -56,84 +246,151 @@ const handleGoogleRegister = () => {
 
         <form @submit.prevent="submit" class="flex flex-col gap-6">
             <div class="grid gap-6">
-                <!-- Name -->
-                <div class="grid gap-2">
-                    <Input id="name" type="text" required autofocus :tabindex="1" autocomplete="name" v-model="form.name" placeholder="Full name" />
-                    <InputError :message="form.errors.name" />
-                </div>
-
-                <!-- Email -->
-                <div class="grid gap-2">
-                    <Input id="email" type="email" required :tabindex="2" autocomplete="email" v-model="form.email" placeholder="email@example.com" />
-                    <InputError :message="form.errors.email" />
-                </div>
-
-                <!-- Country Code + Phone -->
-                <div class="grid gap-2">
+                <!-- Step indicator -->
+                <div class="flex items-center justify-between">
+                    <div class="text-sm">Step {{ step }} of 2</div>
                     <div class="flex gap-2">
-                        <select
-                            v-model="form.country_code"
-                            class="w-32 shrink-0 rounded-md border px-3 py-2 text-sm text-muted-foreground dark:border-muted dark:bg-background"
-                        >
-                            <option v-for="country in countries" :key="country.code + country.iso" :value="country.code">
-                                {{ country.iso }} {{ country.emoji }} ({{ country.code }})
-                            </option>
-                        </select>
-
-                        <Input
-                            id="phone"
-                            type="tel"
-                            required
-                            :tabindex="3"
-                            autocomplete="tel"
-                            v-model="form.phone"
-                            placeholder="712345678"
-                            class="flex-1"
-                        />
-                    </div>
-                    <InputError :message="form.errors.phone" />
-                </div>
-
-                <!-- Password + Confirm Password -->
-                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div class="relative grid gap-2">
-                        <Input
-                            :type="showPassword ? 'text' : 'password'"
-                            id="password"
-                            required
-                            :tabindex="4"
-                            autocomplete="new-password"
-                            v-model="form.password"
-                            placeholder="Password"
-                        />
-                        <button type="button" class="absolute top-[38%] right-3" @click="showPassword = !showPassword">
-                            <component :is="showPassword ? EyeOff : Eye" class="h-4 w-4 text-muted-foreground" />
-                        </button>
-                        <InputError :message="form.errors.password" />
-                    </div>
-
-                    <div class="relative grid gap-2">
-                        <Input
-                            :type="showPasswordConfirm ? 'text' : 'password'"
-                            id="password_confirmation"
-                            required
-                            :tabindex="5"
-                            autocomplete="new-password"
-                            v-model="form.password_confirmation"
-                            placeholder="Confirm"
-                        />
-                        <button type="button" class="absolute top-[38%] right-3" @click="showPasswordConfirm = !showPasswordConfirm">
-                            <component :is="showPasswordConfirm ? EyeOff : Eye" class="h-4 w-4 text-muted-foreground" />
-                        </button>
-                        <InputError :message="form.errors.password_confirmation" />
+                        <div v-for="i in 2" :key="i" class="h-1 w-16 rounded" :class="i <= step ? 'bg-primary' : 'bg-border'"></div>
                     </div>
                 </div>
 
-                <!-- Submit -->
-                <Button type="submit" class="mt-2 w-full" tabindex="6" :disabled="form.processing">
-                    <LoaderCircle v-if="form.processing" class="h-4 w-4 animate-spin" />
-                    Create account
-                </Button>
+                <!-- Step 1: Basic information -->
+                <div v-if="step === 1" class="grid gap-6">
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div class="grid gap-2">
+                            <Input id="first_name" type="text" required autofocus v-model="form.first_name" placeholder="First name" />
+                            <InputError :message="form.errors.first_name" />
+                        </div>
+                        <div class="grid gap-2">
+                            <Input id="last_name" type="text" required v-model="form.last_name" placeholder="Last name" />
+                            <InputError :message="form.errors.last_name" />
+                        </div>
+                    </div>
+
+                    <div class="grid gap-2">
+                        <Input id="email" type="email" required autocomplete="email" v-model="form.email" placeholder="email@example.com" />
+                        <InputError :message="form.errors.email" />
+                    </div>
+
+                    <div class="grid gap-2">
+                        <div class="flex gap-2">
+                            <select
+                                v-model="form.country_code"
+                                class="w-32 shrink-0 rounded-md border px-3 py-2 text-sm text-muted-foreground dark:border-muted dark:bg-background"
+                            >
+                                <option v-for="country in countries" :key="country.code + country.iso" :value="country.code">
+                                    {{ country.iso }} {{ country.emoji }} ({{ country.code }})
+                                </option>
+                            </select>
+
+                            <Input
+                                id="phone"
+                                type="tel"
+                                required
+                                autocomplete="tel"
+                                v-model="form.phone"
+                                placeholder="712345678"
+                                class="flex-1"
+                            />
+                        </div>
+                        <InputError :message="form.errors.phone" />
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div class="relative grid gap-2">
+                            <Input
+                                :type="showPassword ? 'text' : 'password'"
+                                id="password"
+                                required
+                                autocomplete="new-password"
+                                v-model="form.password"
+                                placeholder="Password"
+                            />
+                            <button type="button" class="absolute top-[38%] right-3" @click="showPassword = !showPassword">
+                                <component :is="showPassword ? EyeOff : Eye" class="h-4 w-4 text-muted-foreground" />
+                            </button>
+                            <InputError :message="form.errors.password" />
+                        </div>
+
+                        <div class="relative grid gap-2">
+                            <Input
+                                :type="showPasswordConfirm ? 'text' : 'password'"
+                                id="password_confirmation"
+                                required
+                                autocomplete="new-password"
+                                v-model="form.password_confirmation"
+                                placeholder="Confirm"
+                            />
+                            <button type="button" class="absolute top-[38%] right-3" @click="showPasswordConfirm = !showPasswordConfirm">
+                                <component :is="showPasswordConfirm ? EyeOff : Eye" class="h-4 w-4 text-muted-foreground" />
+                            </button>
+                            <InputError :message="form.errors.password_confirmation" />
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- Step 2: Address -->
+                <div v-else-if="step === 2" class="grid gap-6">
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div class="grid gap-2">
+                            <Input id="address_line_1" type="text" required v-model="form.address.address_line_1" placeholder="Address line 1" />
+                            <InputError :message="form.errors['address.address_line_1']" />
+                        </div>
+                        <div class="grid gap-2">
+                            <Input id="address_line_2" type="text" v-model="form.address.address_line_2" placeholder="Address line 2 (optional)" />
+                            <InputError :message="form.errors['address.address_line_2']" />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                        <div class="grid gap-2">
+                            <Input id="city" type="text" required v-model="form.address.city" placeholder="City" />
+                            <InputError :message="form.errors['address.city']" />
+                        </div>
+                        <div class="grid gap-2">
+                            <Input id="state_province" type="text" required v-model="form.address.state_province" placeholder="State/Province" />
+                            <InputError :message="form.errors['address.state_province']" />
+                        </div>
+                        <div class="grid gap-2">
+                            <Input id="postal_code" type="text" required v-model="form.address.postal_code" placeholder="Postal code" />
+                            <InputError :message="form.errors['address.postal_code']" />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div class="grid gap-2">
+                            <label class="text-sm font-medium">Country</label>
+                            <select v-model="form.address.country_code" @change="onAddressCountryChange" class="rounded-md border px-3 py-2 text-sm text-muted-foreground dark:border-muted dark:bg-background">
+                                <option value="" disabled>Select country</option>
+                                <option v-for="c in countries" :key="c.iso" :value="c.iso">{{ c.name }} {{ c.emoji }}</option>
+                            </select>
+                            <InputError :message="form.errors['address.country_code'] || form.errors['address.country_name']" />
+                        </div>
+                        <div class="grid gap-2">
+                            <Input id="label" type="text" v-model="form.address.label" placeholder="Address label (Home, Work)" />
+                            <InputError :message="form.errors['address.label']" />
+                        </div>
+                    </div>
+
+                    <div class="grid gap-2">
+                        <label for="delivery_instructions" class="text-sm font-medium">Delivery instructions (optional)</label>
+                        <textarea id="delivery_instructions" v-model="form.address.delivery_instructions" rows="3" class="rounded-md border px-3 py-2 text-sm text-muted-foreground dark:border-muted dark:bg-background" placeholder="e.g., Gate code, leave at reception, call on arrival"></textarea>
+                        <InputError :message="form.errors['address.delivery_instructions']" />
+                    </div>
+                </div>
+
+                <!-- Navigation buttons -->
+                <div class="mt-2 flex items-center justify-between">
+                    <Button type="button" variant="outline" @click="prevStep" :disabled="step === 1">Back</Button>
+                    <div class="flex gap-2">
+                        <Button v-if="step < 2" type="button" @click="nextStep">Next</Button>
+                        <Button v-else type="submit" :disabled="form.processing">
+                            <LoaderCircle v-if="form.processing" class="h-4 w-4 animate-spin" />
+                            Submit
+                        </Button>
+                    </div>
+                </div>
 
                 <!-- Divider -->
                 <div class="relative">
@@ -172,7 +429,7 @@ const handleGoogleRegister = () => {
             <!-- Link to login -->
             <div class="text-center text-sm text-muted-foreground">
                 Already have an account?
-                <TextLink :href="route('login')" class="underline underline-offset-4" :tabindex="7">Log in</TextLink>
+                <TextLink :href="route('login')" class="underline underline-offset-4">Log in</TextLink>
             </div>
         </form>
         <div class="text-center text-sm text-muted-foreground">

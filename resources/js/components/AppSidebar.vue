@@ -3,13 +3,16 @@ import NavMain from '@/components/NavMain.vue';
 import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { usePermissions } from '@/composables/usePermissions';
-import { type NavItem,AppPageProps} from '@/types';
+import { type NavItem, AppPageProps } from '@/types';
 import { Link } from '@inertiajs/vue3';
 import {
+    BadgePercent,
     BookUserIcon,
     ClipboardList,
+    DiamondPercentIcon,
     FileCheck,
     KeyRound,
+    Layers3Icon,
     LayoutGrid,
     ListChecks,
     Lock,
@@ -22,6 +25,7 @@ import {
     UserCog2Icon,
     Users,
     Wallet2Icon,
+    Warehouse,
     Workflow,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
@@ -98,18 +102,19 @@ const allNavItems: NavItem[] = [
             'view-variants',
             'view-products',
             'manage-product-inventory',
+            'view-discounts',
         ],
         children: [
             {
                 title: 'Warehouses',
                 href: '/admin/warehouses',
-                icon: LayoutGrid,
+                icon: Warehouse,
                 permissions: ['view-warehouses', 'manage-warehouse-staff'],
             },
             {
                 title: 'Categories',
                 href: '/admin/categories',
-                icon: LayoutGrid,
+                icon: Layers3Icon,
                 permissions: ['view-brands'],
             },
             {
@@ -137,16 +142,15 @@ const allNavItems: NavItem[] = [
                 permissions: ['view-products', 'manage-product-inventory'],
             },
             {
-                title: 'Discounts',
-                href: '/admin/discounts',
-                icon: Tag,
-                permissions: ['view-discounts']
-            },
-
-            {
                 title: 'Product Statuses',
                 href: '/admin/product-statuses',
-                icon: Workflow, // or Flag
+                icon: Workflow,
+            },
+            {
+                title: 'Discounts',
+                href: '/admin/discounts',
+                icon: BadgePercent,
+                permissions: ['view-discounts'],
             },
         ],
     },
