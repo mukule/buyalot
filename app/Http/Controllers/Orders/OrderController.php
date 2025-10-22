@@ -965,7 +965,8 @@ class OrderController extends Controller
         }
 
         return Inertia::render('Customer/MyOrders', [
-            'orders' => $orders
+            'orders' => $orders,
+            'customerPhone' => auth()->user()->phone ?? '',
         ]);
     }
 

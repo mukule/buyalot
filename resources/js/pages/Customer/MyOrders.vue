@@ -39,7 +39,11 @@ interface PaginatedResponse<T> {
     meta: PaginationMeta;
 }
 
-const page = usePage<{ orders: PaginatedResponse<OrderItem> }>();
+// const page = usePage<{ orders: PaginatedResponse<OrderItem> }>();
+const page = usePage<{ orders: PaginatedResponse<OrderItem>; customerPhone?: string }>();
+const customerPhone = ref(page.props.customerPhone || '');
+
+console.log(customerPhone);
 const searchQuery = ref('');
 const debouncedQuery = ref(searchQuery.value);
 
@@ -55,7 +59,7 @@ const filteredOrders = computed(() => {
     const query = debouncedQuery.value.trim().toLowerCase();
 
     if (!query) return orders;
-    return orders.filter((o) => o.order_number.toLowerCase().includes(query) || o.status.toLowerCase().includes(query));
+    return orders.filter((o) => o.order_code.toLowerCase().includes(query) || o.status.toLowerCase().includes(query));
 });
 
 const pagination = computed(() => {
@@ -97,27 +101,34 @@ const payMessage = ref<string>('');
 async function payNow(order: OrderItem) {
     try {
         payMessage.value = '';
-        // get phone number from user
-        let phone = (window as any)?.APP_DEFAULT_PHONE || '';
+        let phone = customerPhone.value?.trim() || '';
+        if (!phone) {
+            phone = localStorage.getItem('mpesa_phone') || '';
+        }
         if (!phone) {
             phone = prompt('Enter your M-Pesa phone number (e.g., 07xxxxxxxx or 2547xxxxxxxx):') || '';
+            if (phone) localStorage.setItem('mpesa_phone', phone);
         }
+
         if (!phone) return;
+
         paying.value = true;
         const axios = (window as any).axios || (await import('axios')).default;
-        const payload: any = {
+        const payload = {
             payable_type: 'order',
             payable_id: order.id,
             amount: order.total_amount,
             currency: order.currency || 'KES',
             provider: 'mpesa',
             method: 'mobile_money',
-            phone: phone,
+            phone,
         };
+
         const resp = await axios.post(route('payments.initiate'), payload, {
             headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
             withCredentials: true,
         });
+
         if (resp.status >= 200 && resp.status < 300) {
             alert('Payment initiated. Please check your phone for the M-Pesa prompt and enter your PIN.');
         }
@@ -134,6 +145,7 @@ async function payNow(order: OrderItem) {
         paying.value = false;
     }
 }
+
 </script>
 
 <template>
