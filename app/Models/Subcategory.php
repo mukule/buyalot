@@ -55,19 +55,19 @@ class Subcategory extends Model
         return $slug;
     }
 
-    // Hashid accessor
+    
     public function getHashidAttribute(): string
     {
         return Hashids::encode($this->id);
     }
 
-    // Route key for implicit route model binding (using hashid)
+    
     public function getRouteKey(): string
     {
         return $this->hashid;
     }
 
-    // Resolve route binding by decoding hashid
+    
     public function resolveRouteBinding($value, $field = null)
     {
         $decoded = Hashids::decode($value);
@@ -79,7 +79,7 @@ class Subcategory extends Model
         return $this->where('id', $decoded[0])->firstOrFail();
     }
 
-    // Relationship: Subcategory belongs to a Category
+    
     public function category()
     {
         return $this->belongsTo(Category::class);

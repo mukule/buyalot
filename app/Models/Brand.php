@@ -8,13 +8,21 @@ use Vinkla\Hashids\Facades\Hashids;
 
 class Brand extends Model
 {
-    protected $fillable = ['name', 'slug', 'active', 'logo_path', 'subcategory_id'];
+    protected $fillable = [
+        'name',
+        'slug',
+        'active',
+        'logo_path', // Only brand-specific fields
+    ];
 
     protected $casts = [
         'active' => 'boolean',
     ];
 
-    protected $appends = ['hashid', 'logo_url', 'subcategory_name', 'category_name'];
+    protected $appends = [
+        'hashid',
+        'logo_url', // Removed 'category_name'
+    ];
 
     protected static function boot()
     {
@@ -50,6 +58,7 @@ class Brand extends Model
         return $slug;
     }
 
+    // Hashid
     public function getHashidAttribute(): string
     {
         return Hashids::encode($this->id);
@@ -57,39 +66,21 @@ class Brand extends Model
 
     public function getRouteKey(): string
     {
-        return Hashids::encode($this->id);
+        return $this->hashid;
     }
 
     public function resolveRouteBinding($value, $field = null): ?Model
     {
         $decoded = Hashids::decode($value);
-        if (count($decoded) !== 1) {
-            abort(404);
-        }
+        if (count($decoded) !== 1) abort(404);
         return $this->where('id', $decoded[0])->firstOrFail();
     }
 
+    // Logo URL (only brand-specific attribute)
     public function getLogoUrlAttribute(): ?string
     {
-        return $this->logo_path
-            ? asset('storage/' . $this->logo_path)
-            : null;
+        return $this->logo_path ? asset('storage/' . $this->logo_path) : null;
     }
 
-    // Relationships
-    public function subcategory()
-    {
-        return $this->belongsTo(Subcategory::class);
-    }
-
-    // Appended Attributes
-    public function getSubcategoryNameAttribute(): ?string
-    {
-        return $this->subcategory?->name;
-    }
-
-    public function getCategoryNameAttribute(): ?string
-    {
-        return $this->subcategory?->category?->name;
-    }
+    // Removed: category(), getCategoryNameAttribute()
 }

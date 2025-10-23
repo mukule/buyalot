@@ -1,9 +1,29 @@
 import type { LucideIcon } from 'lucide-vue-next';
 import type { Config } from 'ziggy-js';
 
+declare module '*.vue' {
+    import { DefineComponent } from 'vue';
+    const component: DefineComponent<{}, {}, any>;
+    export default component;
+}
+
+export interface CartItem {
+    product_variant_id: number;
+    quantity: number;
+}
+
 export interface Auth {
-    user: User;
+    user: User | null;
     roles: $roles;
+    counts: {
+        wishlist: number;
+        cart: number;
+    };
+    wishlistVariantIds: number[];
+    cartItems: CartItem[]; // 👈 store items instead of only the count
+    permissions: string[];
+    customer: Customer | null;
+    customerOrders: MyOrders | null;
 }
 
 export interface BreadcrumbItem {
@@ -17,6 +37,25 @@ export interface NavItem {
     icon?: LucideIcon;
     isActive?: boolean;
     children?: NavItem[];
+    permissions?: string[];
+    requireAllPermissions?: boolean;
+    roles?: string[];
+    customCheck?: (auth: Auth) => boolean;
+}
+
+export interface NavItemWithPermissions extends NavItem {
+    permissions: string[];
+    requireAllPermissions?: boolean;
+    roles?: string[];
+    customCheck?: (auth: Auth) => boolean;
+}
+
+export interface PermissionChecker {
+    hasPermission: (permission: string) => boolean;
+    hasAnyPermission: (permissions: string[]) => boolean;
+    hasAllPermissions: (permissions: string[]) => boolean;
+    hasRole: (role: string) => boolean;
+    hasAnyRole: (roles: string[]) => boolean;
 }
 
 export type AppPageProps<T extends Record<string, unknown> = Record<string, unknown>> = T & {
@@ -38,11 +77,35 @@ export interface User {
     created_at: string;
     updated_at: string;
 }
+export interface Customer {
+    id: number;
+    name: string;
+    email: string;
+    phone: string;
+    status: boolean;
+    avatar?: string;
+    email_verified_at: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface MyOrders {
+    id: number;
+    hashid: string;
+    order_number: string;
+    status: string;
+    status_label: string;
+    total: number;
+    subtotal: number;
+    discount: number;
+    tax: number;
+}
 
 export interface Permission {
     id: number;
     name: string;
     guard_name: string;
+    module: string;
     created_at: string;
     updated_at: string;
 }
@@ -56,7 +119,7 @@ export interface Role {
     permissions: Permission[];
 }
 
-// types.ts
+// ---------------- Seller Application ----------------
 
 export interface SellerApplicationImage {
     id: number;
@@ -131,7 +194,7 @@ export interface SellerApplication {
     is_submitted: boolean;
     status: number;
     status_reason?: string;
-    verified?: boolean; // New field for verification status
+    verified?: boolean;
 
     // Relations
     images?: SellerApplicationImage[];
@@ -154,6 +217,8 @@ export interface SellerDocument {
     status: 'pending' | 'approved' | 'rejected';
     rejection_reason?: string | null;
 }
+
+// ---------------- Core Entities ----------------
 
 export interface Warehouse {
     id: number;
@@ -195,28 +260,17 @@ export interface Category {
     active: boolean;
 }
 
-export interface Subcategory {
-    id: number;
-    category_id: number;
-    name: string;
-    slug: string;
-    active: boolean;
-    hashid: string;
-}
-
 export interface Brand {
     id: number;
     name: string;
     slug: string;
-    active: boolean;
     logo_url?: string | null;
     hashid?: string;
 }
 
-declare global {
-    interface Window {
-        axios: any;
-    }
+export interface Subcategory {
+    id: number;
+    name: string;
 }
 
 export interface UnitType {
@@ -230,11 +284,14 @@ export interface UnitType {
 export interface Unit {
     id: number;
     name: string;
-    symbol: string;
-    unit_type_id: number;
-    active: boolean;
+    symbol?: string;
+    short_code?: string;
+    unit_type_id?: number;
+    active?: boolean;
     hashid?: string;
 }
+
+// ---------------- Product & Variants ----------------
 
 export interface Product {
     id: number;
@@ -245,53 +302,70 @@ export interface Product {
     features: string | null;
     specifications: string | null;
     whats_in_the_box: string | null;
-    meta_title: string | null;
-    meta_keywords: string | null;
-    meta_description: string | null;
-    status: 'active' | 'inactive';
-    owner_type: string;
-    owner_id: number;
-    brand_id: number;
-    subcategory_id: number;
-    unit_id: number;
+
+    // ✅ Pricing
     price: number;
-    discount: number; // percentage discount (0 means no discount)
-    created_at: string;
-    updated_at: string;
-    stock: number;
-    status_label: string;
-    company_legal_name: string;
-
-    // Appended attributes
-    primary_image_url: string | null;
-    image_urls?: string[];
-
-    // Discount related (appended)
+    regular_price: number | null;
+    selling_price: number | null;
+    discount: number | null;
     discounted_price: number;
     has_discount: boolean;
 
-    // Relationships
+    // ✅ Inventory
+    stock: number;
+    in_stock: boolean;
+    is_out_of_stock: boolean;
+
+    // ✅ SEO
+    meta_title: string | null;
+    meta_keywords: string | null;
+    meta_description: string | null;
+
+    // ✅ Status
+    status: 0 | 1 | 3;
+    status_label: 'Pending' | 'Public' | 'Private' | 'Unknown';
+
+    // ✅ Ownership
+    owner_type: string;
+    owner_id: number | null;
+
+    // ✅ Relations
+    brand_id: number | null;
+    unit_id: number | null;
+    subcategory_id: number | null;
+
+    created_at: string | null;
+    updated_at: string | null;
+
+    company_legal_name: string | null;
+
+    // ✅ Media
+    primary_image_url: string | null;
+    image_urls: string[];
+
+    // ✅ Relationships
     brand?: Brand;
     subcategory?: Subcategory;
     unit?: Unit;
+    variants?: Variant[];
+    images: {
+        id: number;
+        image_path: string;
+        is_primary: boolean;
+    }[];
 }
 
-export interface Brand {
-    id: number;
+export interface SimplifiedProduct {
+    id: number; // variant id
+    hashid: string; // variant hashid
+    product_slug: string; // product slug for detail link
     name: string;
-    logo_url?: string;
-    subcategory_id?: number;
-}
-
-export interface Subcategory {
-    id: number;
-    name: string;
-}
-
-export interface Unit {
-    id: number;
-    name: string;
-    short_code?: string;
+    image: string | null;
+    regular_price: number | null;
+    selling_price: number | null;
+    discount?: number | null;
+    onSale?: boolean;
+    rating?: number;
 }
 
 export interface VariantCategory {
@@ -305,12 +379,32 @@ export interface Variant {
     id: number;
     variant_category_id: number;
     value: string;
+    regular_price: number;
+    selling_price: number;
+    stock: number;
     is_active: boolean;
     created_at: string;
     updated_at: string;
 
     hashid?: string;
     category?: VariantCategory;
+}
+
+export interface ProductStatus {
+    id: number;
+    name: string;
+    label: string;
+    color_class?: string | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+}
+
+// ---------------- Global ----------------
+
+declare global {
+    interface Window {
+        axios: any;
+    }
 }
 
 export type BreadcrumbItemType = BreadcrumbItem;

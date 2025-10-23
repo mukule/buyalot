@@ -19,7 +19,7 @@ const props = defineProps<{
 
 const form = useForm({
     name: '',
-    permissions: [] as number[],  // selected permission IDs
+    permissions: [] as number[], // selected permission IDs
 });
 </script>
 
@@ -53,13 +53,11 @@ const form = useForm({
 
                 <!-- Permissions Checkbox List -->
                 <div>
-                    <label class="block mb-2 font-semibold">Permissions</label>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-72 overflow-auto rounded border border-[color:var(--border)] p-3">
-                        <label
-                          v-for="permission in props.permissions"
-                          :key="permission.id"
-                          class="inline-flex items-center space-x-2 cursor-pointer"
-                        >
+                    <label class="mb-2 block font-semibold">Permissions</label>
+                    <div
+                        class="grid max-h-72 grid-cols-1 gap-3 overflow-auto rounded border border-[color:var(--border)] p-3 sm:grid-cols-2 md:grid-cols-3"
+                    >
+                        <label v-for="permission in props.permissions" :key="permission.id" class="inline-flex cursor-pointer items-center space-x-2">
                             <input
                                 type="checkbox"
                                 :value="permission.id"

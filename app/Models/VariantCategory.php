@@ -14,7 +14,7 @@ class VariantCategory extends Model
 
     protected $appends = ['hashid'];
 
-    // Accessor for the hashid
+    
     public function getHashidAttribute(): string
     {
         return Hashids::encode($this->id);

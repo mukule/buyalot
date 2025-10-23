@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('brands', function (Blueprint $table) {
             $table->id();
             $table->string('name');
+            $table->string('description')->nullable();
             $table->string('slug')->unique();
             $table->boolean('active')->default(true);
             $table->string('logo_path')->nullable(); // optional: brand logo

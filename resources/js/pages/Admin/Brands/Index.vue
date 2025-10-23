@@ -2,14 +2,12 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { AppPageProps, Brand } from '@/types';
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from 'lucide-vue-next';
+import { PlusIcon } from 'lucide-vue-next';
 import { computed } from 'vue';
 
 interface BrandWithExtras extends Brand {
     hashid: string;
     logo_url?: string;
-    subcategory_name?: string;
-    category_name?: string;
 }
 
 interface PaginationLink {
@@ -85,9 +83,6 @@ const statusClasses = (active: boolean) => ({
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subcategory</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                             </tr>
@@ -95,27 +90,10 @@ const statusClasses = (active: boolean) => ({
                         <tbody class="divide-y divide-gray-200 bg-white">
                             <tr v-for="(brand, index) in brands" :key="brand.hashid" class="hover:bg-gray-50">
                                 <td class="px-4 py-4 text-sm text-gray-500">{{ index + 1 }}</td>
-                                <td class="px-4 py-4 text-sm font-medium text-primary">
-                                    <router-link
-                                        :href="route('admin.brands.show', { brand: brand.hashid })"
-                                        class="flex cursor-pointer items-center space-x-3 hover:underline"
-                                    >
-                                        <img
-                                            v-if="brand.logo_url"
-                                            :src="brand.logo_url"
-                                            alt="Logo"
-                                            class="h-10 w-10 rounded bg-white object-contain"
-                                        />
-                                        <span>{{ brand.name }}</span>
-                                    </router-link>
+                                <td class="flex items-center space-x-3 px-4 py-4 text-sm font-medium text-primary">
+                                    <img v-if="brand.logo_url" :src="brand.logo_url" alt="Logo" class="h-10 w-10 rounded bg-white object-contain" />
+                                    <span>{{ brand.name }}</span>
                                 </td>
-                                <td class="px-4 py-4 text-sm text-gray-700">
-                                    {{ brand.category_name ?? '-' }}
-                                </td>
-                                <td class="px-4 py-4 text-sm text-gray-700">
-                                    {{ brand.subcategory_name ?? '-' }}
-                                </td>
-
                                 <td class="px-4 py-4 text-sm">
                                     <span :class="statusClasses(brand.active)">
                                         {{ brand.active ? 'Active' : 'Inactive' }}
@@ -128,57 +106,6 @@ const statusClasses = (active: boolean) => ({
                             </tr>
                         </tbody>
                     </table>
-
-                    <!-- Pagination -->
-                    <div v-if="pagination.links?.length > 3" class="mt-4 flex items-center justify-between">
-                        <div class="flex flex-1 justify-between sm:hidden">
-                            <a
-                                v-if="pagination.links[0].url"
-                                :href="pagination.links[0].url ?? undefined"
-                                class="inline-flex items-center rounded-md border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                            >
-                                Previous
-                            </a>
-                            <a
-                                v-if="pagination.links[pagination.links.length - 1].url"
-                                :href="pagination.links[pagination.links.length - 1].url ?? undefined"
-                                class="ml-3 inline-flex items-center rounded-md border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                            >
-                                Next
-                            </a>
-                        </div>
-
-                        <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                            <p class="text-sm text-gray-700">
-                                Showing <span class="font-medium">{{ pagination.meta?.from }}</span> to
-                                <span class="font-medium">{{ pagination.meta?.to }}</span> of
-                                <span class="font-medium">{{ pagination.meta?.total }}</span> results
-                            </p>
-
-                            <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-                                <template v-for="(link, index) in pagination.links" :key="index">
-                                    <a
-                                        :href="link.url ?? undefined"
-                                        class="inline-flex items-center px-4 py-2 text-sm font-medium"
-                                        :class="{
-                                            'z-10 bg-primary text-white': link.active,
-                                            'text-gray-900 ring-1 ring-gray-300 hover:bg-gray-50': !link.active,
-                                            'rounded-l-md': index === 0,
-                                            'rounded-r-md': index === pagination.links.length - 1,
-                                            'pointer-events-none opacity-50': !link.url,
-                                        }"
-                                    >
-                                        <component
-                                            :is="index === 0 ? ChevronLeftIcon : index === pagination.links.length - 1 ? ChevronRightIcon : 'span'"
-                                            class="h-5 w-5"
-                                            v-if="index === 0 || index === pagination.links.length - 1"
-                                        />
-                                        <span v-else>{{ link.label }}</span>
-                                    </a>
-                                </template>
-                            </nav>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- Empty State -->

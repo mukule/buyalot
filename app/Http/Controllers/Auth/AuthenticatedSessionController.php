@@ -10,39 +10,87 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Services\CartService;
 
 class AuthenticatedSessionController extends Controller
 {
     /**
      * Show the login page.
      */
-    public function create(Request $request): Response
+    public function create(Request $request)
     {
-        return Inertia::render('auth/Login', [
-            'canResetPassword' => Route::has('password.request'),
-            'status' => $request->session()->get('status'),
-        ]);
+        \Illuminate\Log\log("log create function");
+        try {
+            info("inside try");
+
+                $canResetPassword=Route::has('password.request');
+                $status = $request->session()->get('status');
+            info($canResetPassword);
+            info($status);
+            return Inertia::render('auth/Login', [
+                'canResetPassword' =>$canResetPassword,
+                'status' => $status,
+            ]);
+        }catch (\Exception $exception){
+            \Illuminate\Log\log($exception);
+            return redirect()->back()->with("error",$exception->getMessage());
+        }
     }
 
     /**
      * Handle an incoming authentication request.
      */
 
-     public function store(LoginRequest $request): RedirectResponse
+    public function store(LoginRequest $request): RedirectResponse
 {
+    info("login button store function");
     $request->authenticate();
-
     $request->session()->regenerate();
 
     $user = $request->user();
 
+    // 🔥 Merge guest cart into user cart
+    app(\App\Services\CartService::class)->mergeGuestCart($request, $user);
+
+    // 🔥 Merge guest wishlist into user wishlist
+    $this->mergeGuestWishlist($request, $user);
+
     if ($user->hasAnyRole(['admin', 'superadmin', 'seller'])) {
+        $user->update("last_login_at", now());
         return redirect()->intended(route('admin.dashboard'))
             ->with('success', 'Welcome back, ' . $user->name . '!');
     }
 
     return redirect()->intended(route('home'))
         ->with('success', 'Welcome back, ' . $user->name . '!');
+}
+
+/**
+ * Merge guest wishlist items into authenticated user's wishlist after login.
+ */
+protected function mergeGuestWishlist(Request $request, $user): void
+{
+    $guestToken = $request->cookie('wishlist_token');
+
+    if (!$guestToken) {
+        return; // no guest wishlist to merge
+    }
+
+    $guestItems = \App\Models\Wishlist::where('wishlist_token', $guestToken)->get();
+
+    foreach ($guestItems as $item) {
+        // Avoid duplicates
+        \App\Models\Wishlist::firstOrCreate([
+            'user_id' => $user->id,
+            'product_variant_id' => $item->product_variant_id,
+        ]);
+
+        // Delete the guest item
+        $item->delete();
+    }
+
+    // Remove guest wishlist cookie
+    cookie()->queue(cookie()->forget('wishlist_token'));
 }
 
     /**

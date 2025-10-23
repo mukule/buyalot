@@ -13,6 +13,14 @@ class DatabaseSeeder extends Seeder
         $this->call([
 //            AdminSeeder::class,
             PermissionSeeder::class,
+            VariantCategorySeeder::class,
+            VariantSeeder::class,
+            BrandSeeder::class,
+            CategorySeeder::class,
+            SubcategorySeeder::class,
+            AdminSeeder::class,
+            CustomerSeeder::class,
+            CommissionPlanSeeder::class
             // Optionally create more seeders here, e.g.
             // TestUserSeeder::class,
         ]);

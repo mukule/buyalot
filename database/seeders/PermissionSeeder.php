@@ -18,6 +18,7 @@ class PermissionSeeder extends Seeder
             // Dashboard
             'dashboard' => [
                 'view-dashboard',
+                'analytics'
             ],
 
             // Users Management
@@ -221,15 +222,46 @@ class PermissionSeeder extends Seeder
                 'manage-communication-templates',
                 'view-communication-logs',
             ],
+
+            'customers'=>[
+                'view-customers',
+                'create-customers',
+                'edit-customers',
+                'delete-customers',
+                'manage-customer-hierarchy',
+                'reorder-customers',
+                'view-customer-analytics',
+                'suspend_customers',
+                'activate_customers',
+            ],
+            'commissions'=>[
+                'view-commissions',
+                'create-commissions',
+                'edit-commissions',
+                'delete-commissions',
+                'manage-commissions',
+                'reorder-commissions',
+                'view-commission-reports',
+                'manage-commission-reports',
+            ],
+
+            // Regions Management
+            'regions' => [
+                'view-regions',
+                'create-regions',
+                'edit-regions',
+                'delete-regions',
+            ],
+
         ];
 
         // Create all permissions
         foreach ($permissions as $module => $modulePermissions) {
             foreach ($modulePermissions as $permission) {
-                Permission::create([
+                Permission::firstOrCreate([
                     'name' => $permission,
                     'guard_name' => 'web',
-                    'module' => $module, // Add module column to permissions table
+                    'module' => $module,
                 ]);
             }
         }
@@ -241,14 +273,14 @@ class PermissionSeeder extends Seeder
     private function createDefaultRoles()
     {
         // Super Admin - has all permissions
-        $superAdmin = Role::create([
+        $superAdmin = Role::firstOrCreate([
             'name' => 'super-admin',
             'guard_name' => 'web'
         ]);
         $superAdmin->givePermissionTo(Permission::all());
 
         // Admin - has most permissions except super admin specific ones
-        $admin = Role::create([
+        $admin = Role::firstOrCreate([
             'name' => 'admin',
             'guard_name' => 'web'
         ]);
@@ -260,7 +292,7 @@ class PermissionSeeder extends Seeder
         $admin->givePermissionTo($adminPermissions);
 
         // Manager - has management permissions
-        $manager = Role::create([
+        $manager = Role::firstOrCreate([
             'name' => 'manager',
             'guard_name' => 'web'
         ]);
@@ -275,7 +307,7 @@ class PermissionSeeder extends Seeder
         $manager->givePermissionTo($managerPermissions);
 
         // Staff - has basic operational permissions
-        $staff = Role::create([
+        $staff = Role::firstOrCreate([
             'name' => 'staff',
             'guard_name' => 'web'
         ]);
@@ -288,7 +320,7 @@ class PermissionSeeder extends Seeder
         $staff->givePermissionTo($staffPermissions);
 
         // Seller - has seller specific permissions
-        $seller = Role::create([
+        $seller = Role::firstOrCreate([
             'name' => 'seller',
             'guard_name' => 'web'
         ]);
@@ -302,7 +334,7 @@ class PermissionSeeder extends Seeder
         $seller->givePermissionTo($sellerPermissions);
 
         // Basic User - minimal permissions
-        $user = Role::create([
+        $user = Role::firstOrCreate([
             'name' => 'user',
             'guard_name' => 'web'
         ]);
@@ -311,5 +343,11 @@ class PermissionSeeder extends Seeder
             'edit-user-profile',
         ])->get();
         $user->givePermissionTo($userPermissions);
+
+        $customer = Role::firstOrCreate([
+            'name' => 'customer',
+            'guard_name' => 'web'
+        ]);
+        $customerPermissions = Permission::whereIn('name', ['view-user-profile','edit-user-profile']);
     }
 }

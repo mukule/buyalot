@@ -22,7 +22,7 @@ class UserRegistered extends Notification
         return ['mail'];
     }
 
-   
+
     public function toMail(object $notifiable): MailMessage
 {
     return (new MailMessage)
@@ -30,7 +30,7 @@ class UserRegistered extends Notification
         ->markdown('emails.user.registered', [
             'user' => $notifiable,
             'appName' => $this->appName,
-            'logoUrl' => url('/buyalot-02.svg'), 
+            'logoUrl' => url('/buyalot-02.svg'),
         ]);
 }
 

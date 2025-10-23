@@ -10,7 +10,7 @@ class Role extends SpatieRole
 {
     public function getRouteKey(): string
     {
-        return Hashids::encode($this->id);
+        return Hashids::encode((array)$this->id);
     }
 
     /**

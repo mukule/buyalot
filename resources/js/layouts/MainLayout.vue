@@ -1,21 +1,19 @@
 <template>
-  <div class="flex min-h-screen flex-col">
-    <Navbar />
+    <div class="flex min-h-screen flex-col">
+        <Navbar />
 
-    <main class="flex-grow pt-14 text-primary-foreground">
-      <FlashMessage />
+        <main class="flex-grow pt-14 text-primary-foreground">
+            <FlashMessage />
 
-      
-      <slot name="full" />
+            <slot name="full" />
 
-      
-      <div class="container mx-auto px-4 sm:px-6">
-        <slot />
-      </div>
-    </main>
+            <div class="container mx-auto px-4 sm:px-6">
+                <slot />
+            </div>
+        </main>
 
-    <Footer />
-  </div>
+        <Footer />
+    </div>
 </template>
 
 <script setup lang="ts">
