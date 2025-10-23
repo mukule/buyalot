@@ -2,6 +2,7 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import { router, usePage } from '@inertiajs/vue3';
 import { computed, reactive } from 'vue';
+import { upperCase } from 'lodash';
 
 const page = usePage();
 const categories = ((page.props as any).categories as Array<{ id: number; name: string; parent_id: number | null }>) || [];
@@ -9,11 +10,13 @@ const products = ((page.props as any).products as Array<{ id: number; name: stri
 const variants = ((page.props as any).variants as Array<{ id: number; display_name?: string; sku?: string; product_id: number }>) || [];
 const customers =
     ((page.props as any).customers as Array<{ id: number; first_name?: string; last_name?: string; email: string; created_at: string }>) || [];
+const discountTypes = ((page.props as any).discountTypes as Array<{ code: string; name: string }>) || [];
 
 const form = reactive({
     name: '',
     slug: '',
     description: '',
+    discount_type_code: '',
     code: '',
     type: 'percentage',
     value: 0,
@@ -27,6 +30,7 @@ const form = reactive({
     applicable_to: 'all_variants',
     conditions: '' as any,
     metadata: '',
+    no_time_limit: false,
 });
 
 // UI state for building conditions
@@ -48,6 +52,7 @@ const state = reactive({
     // Category drilldown
     categoryPath: [] as number[], // array of category IDs representing drill path
     selectedLeafCategoryId: null as number | null,
+    no_time_limit: false,
 });
 
 // Category helpers
@@ -159,6 +164,23 @@ const breadcrumbs = [
     { title: 'Promotions', href: route('admin.discounts.index') },
     { title: 'Create', href: route('admin.discounts.create') },
 ];
+
+const onDiscountTypeChange = () => {
+    const selectedType = discountTypes.find(
+        (t) => t.code === form.discount_type_code
+    );
+    const randomNumber = Math.floor(10000 + Math.random() * 90000);
+    if (selectedType) {
+        form.name = selectedType.name;
+        form.code = upperCase(selectedType.code).replaceAll(" ","_");
+        form.slug = `${selectedType.code}-${randomNumber}`;
+    } else {
+        form.name = '';
+        form.code ='';
+        form.slug ='';
+    }
+};
+
 </script>
 
 <template>
@@ -179,13 +201,29 @@ const breadcrumbs = [
                 <div class="rounded-lg bg-white p-4 shadow">
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div>
-                            <label class="mb-1 block text-sm font-medium text-gray-700">Name</label>
-                            <input v-model="form.name" type="text" class="w-full rounded border px-3 py-2" />
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Discount Type</label>
+                            <select
+                                v-model="form.discount_type_code"
+                                @change="onDiscountTypeChange"
+                                class="w-full rounded border px-3 py-2"
+                            >
+                                <option value="">Select Type</option>
+                                <option v-for="t in discountTypes" :key="t.code" :value="t.code">
+                                    {{ t.name }}
+                                </option>
+                            </select>
                         </div>
+
                         <div>
-                            <label class="mb-1 block text-sm font-medium text-gray-700">Slug (optional)</label>
-                            <input v-model="form.slug" type="text" class="w-full rounded border px-3 py-2" />
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Name</label>
+                            <input
+                                v-model="form.name"
+                                type="text"
+                                class="w-full rounded border px-3 py-2 bg-gray-100 cursor-not-allowed"
+                                readonly
+                            />
                         </div>
+                        <input v-model="form.slug" type="hidden" class="w-full rounded border px-3 py-2"  />
                         <div class="md:col-span-2">
                             <label class="mb-1 block text-sm font-medium text-gray-700">Description</label>
                             <textarea v-model="form.description" rows="2" class="w-full rounded border px-3 py-2" />
@@ -213,14 +251,24 @@ const breadcrumbs = [
                                 <option :value="false">No</option>
                             </select>
                         </div>
-                        <div>
-                            <label class="mb-1 block text-sm font-medium text-gray-700">Starts At</label>
-                            <input v-model="form.starts_at" type="datetime-local" class="w-full rounded border px-3 py-2" />
+                        <div class="md:col-span-2">
+                            <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                                <input type="checkbox" v-model="form.no_time_limit" class="h-4 w-4" />
+                                No time limit
+                            </label>
                         </div>
-                        <div>
-                            <label class="mb-1 block text-sm font-medium text-gray-700">Expires At</label>
-                            <input v-model="form.expires_at" type="datetime-local" class="w-full rounded border px-3 py-2" />
+
+                        <div v-if="!form.no_time_limit">
+                            <div>
+                                <label class="mb-1 block text-sm font-medium text-gray-700">Starts At</label>
+                                <input v-model="form.starts_at" type="datetime-local" class="w-full rounded border px-3 py-2" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-sm font-medium text-gray-700">Expires At</label>
+                                <input v-model="form.expires_at" type="datetime-local" class="w-full rounded border px-3 py-2" />
+                            </div>
                         </div>
+
                         <div>
                             <label class="mb-1 block text-sm font-medium text-gray-700">Minimum Order Amount</label>
                             <input v-model.number="form.minimum_amount" type="number" step="0.01" min="0" class="w-full rounded border px-3 py-2" />
@@ -419,10 +467,10 @@ const breadcrumbs = [
                                 </select>
                             </div>
                         </div>
-                        <div class="md:col-span-2">
-                            <label class="mb-1 block text-sm font-medium text-gray-700">Metadata (JSON)</label>
-                            <textarea v-model="form.metadata" rows="3" class="w-full rounded border px-3 py-2 font-mono text-sm" />
-                        </div>
+<!--                        <div class="md:col-span-2">-->
+<!--                            <label class="mb-1 block text-sm font-medium text-gray-700">Metadata (JSON)</label>-->
+<!--                            <textarea v-model="form.metadata" rows="3" class="w-full rounded border px-3 py-2 font-mono text-sm" />-->
+<!--                        </div>-->
                     </div>
 
                     <div class="mt-4">

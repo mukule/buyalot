@@ -27,6 +27,7 @@ class Discount extends Model
     protected $fillable = [
         'name',
         'slug',
+        'discount_type_code',
         'description',
         'code',
         'type', // percentage, fixed_amount, buy_x_get_y, free_shipping
@@ -43,6 +44,7 @@ class Discount extends Model
         'conditions',
         'metadata',
         'created_by',
+        'no_time_limit'
     ];
 
     protected $casts = [
@@ -77,6 +79,11 @@ class Discount extends Model
     public function getHashidAttribute(): string
     {
         return (new \Hashids\Hashids)->encode($this->id);
+    }
+
+    public function discountType()
+    {
+        return $this->belongsTo(DiscountType::class, 'discount_type_code', 'code');
     }
 
     public static function findByHashid(string $hashid): ?self

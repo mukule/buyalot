@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Payment\Discount;
+use App\Models\Payment\DiscountType;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Validation\Rule;
@@ -12,7 +13,7 @@ class DiscountController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Discount::query()->orderByDesc('created_at');
+        $query = Discount::with('discountType')->orderByDesc('id');
 
         if ($search = $request->get('search')) {
             $query->where(function ($q) use ($search) {
@@ -37,12 +38,13 @@ class DiscountController extends Controller
         $products = \App\Models\Product::select('id', 'name', 'category_id')->orderBy('name')->limit(1000)->get();
         $variants = \App\Models\ProductVariant::select('id', 'product_id')->orderBy('id')->limit(1000)->get();
         $customers = \App\Models\Customer\Customer::select('id', 'first_name','last_name','email', 'created_at')->orderByDesc('created_at')->limit(1000)->get();
-
+        $discountTypes = DiscountType::where('is_active', true)->get(['code', 'name']);
         return Inertia::render('Admin/Discounts/Create', [
             'categories' => $categories,
             'products' => $products,
             'variants' => $variants,
             'customers' => $customers,
+            'discountTypes' => $discountTypes,
         ]);
     }
 
@@ -74,13 +76,14 @@ class DiscountController extends Controller
         // ProductVariant table has no 'name' column; rely on appends (display_name) and include sku
         $variants = \App\Models\ProductVariant::select('id', 'product_id', 'sku')->orderBy('id')->limit(1000)->get();
         $customers = \App\Models\Customer\Customer::select('id', 'first_name','last_name','email', 'created_at')->orderByDesc('created_at')->limit(500)->get();
-
+        $discountTypes = DiscountType::where('is_active', true)->get(['code', 'name']);
         return Inertia::render('Admin/Discounts/Edit', [
             'discount' => $discount,
             'categories' => $categories,
             'products' => $products,
             'variants' => $variants,
             'customers' => $customers,
+            'discountTypes' => $discountTypes,
         ]);
     }
 
@@ -125,6 +128,7 @@ class DiscountController extends Controller
             'applicable_to' => ['nullable', 'string', 'max:50'],
             'conditions' => ['nullable'], // JSON (string in form)
             'metadata' => ['nullable'], // JSON
+            'discount_type_code' => ['nullable', 'string', 'max:255'],
         ]);
     }
 

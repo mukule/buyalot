@@ -10,12 +10,13 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             PermissionSeeder::class,
+            DiscountTypeSeeder::class,
             VariantCategorySeeder::class,
             VariantSeeder::class,
             BrandSeeder::class,
             CategorySeeder::class,
             SubcategorySeeder::class,
-            AdminSeeder::class,
+//            AdminSeeder::class,
             CommissionPlanSeeder::class,
             CountrySeeder::class,
             CustomerSeeder::class,

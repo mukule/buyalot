@@ -3,6 +3,8 @@
 use App\Http\Controllers\Admin\BrandCategoryController;
 use App\Http\Controllers\Admin\BrandController;
 use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\DiscountController as AdminDiscountController;
+use App\Http\Controllers\Admin\DiscountTypeController;
 use App\Http\Controllers\Admin\DocumentTypeController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\ProductStatusController;
@@ -19,6 +21,7 @@ use App\Http\Controllers\CartController;
 use App\Http\Controllers\Commission\CommissionCalculationController;
 use App\Http\Controllers\Commission\CommissionInvoiceController;
 use App\Http\Controllers\Commission\CommissionPlanController;
+use App\Http\Controllers\CouponController;
 use App\Http\Controllers\Customer\CustomerController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Payments\PaymentController;
@@ -26,11 +29,9 @@ use App\Http\Controllers\Payments\PaymentTransactionController;
 use App\Http\Controllers\SellController;
 use App\Http\Controllers\SellerAccountController;
 use App\Http\Controllers\Warehouse\WarehouseController;
-use App\Http\Controllers\CouponController;
-use App\Http\Controllers\Admin\DiscountController as AdminDiscountController;
+use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken as VerifyCsrfTokenMiddleware;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken as VerifyCsrfTokenMiddleware;
 
 
 require __DIR__.'/settings.php';
@@ -194,6 +195,10 @@ Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group
 
     // Discounts management
     Route::resource('discounts', AdminDiscountController::class);
+
+    Route::resource('discount-types', DiscountTypeController::class);
+    Route::patch('discount-types/{discountType}/toggle', [DiscountTypeController::class, 'toggleStatus'])
+        ->name('discount-types.toggle');
 
     // Sellers management
     Route::middleware(['check_permission:view-sellers'])->group(function () {

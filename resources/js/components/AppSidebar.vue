@@ -144,6 +144,12 @@ const allNavItems: NavItem[] = [
                 icon: Workflow,
             },
             {
+                title: 'Promotion Types',
+                href: '/admin/discount-types',
+                icon: BadgePercent,
+                permissions: ['view-discounts'],
+            },
+            {
                 title: 'Promotions',
                 href: '/admin/discounts',
                 icon: BadgePercent,
