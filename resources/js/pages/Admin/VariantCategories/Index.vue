@@ -50,15 +50,11 @@ const pagination = computed(() => {
 
 const breadcrumbs = [
     { title: 'Dashboard', href: route('admin.dashboard') },
-    { title: 'Variant Categories', href: route('admin.variant-categories.index') },
+    { title: 'Product Variants', href: route('admin.variant-categories.index') },
 ];
 
 function createVariantCategory() {
     router.get(route('admin.variant-categories.create'));
-}
-
-function showVariantCategory(hashid: string) {
-    router.get(route('admin.variant-categories.show', { variant_category: hashid }));
 }
 
 function editVariantCategory(hashid: string) {
@@ -80,9 +76,9 @@ function deleteVariantCategory(hashid: string) {
             <div class="card flex flex-col gap-6 rounded-lg bg-white p-4 shadow-sm">
                 <!-- Header -->
                 <div class="flex items-center justify-between">
-                    <h1 class="text-2xl font-semibold text-gray-800">Variant Categories</h1>
+                    <h1 class="text-2xl font-semibold text-gray-800">Product Variants</h1>
                     <button @click="createVariantCategory" class="hover:bg-primary-dark rounded-xl bg-primary px-4 py-2 text-white">
-                        <PlusIcon class="mr-2 inline-block h-5 w-5" /> New Category
+                        <PlusIcon class="mr-2 inline-block h-5 w-5" /> New Variant
                     </button>
                 </div>
 
@@ -99,10 +95,7 @@ function deleteVariantCategory(hashid: string) {
                         <tbody class="divide-y divide-gray-200 bg-white">
                             <tr v-for="(category, index) in variantCategories" :key="category.hashid" class="hover:bg-gray-50">
                                 <td class="px-4 py-4 text-sm text-gray-500">{{ index + 1 }}</td>
-                                <td
-                                    @click="showVariantCategory(category.hashid)"
-                                    class="cursor-pointer px-4 py-4 text-sm font-medium text-primary hover:underline"
-                                >
+                                <td class="px-4 py-4 text-sm font-medium text-gray-700">
                                     {{ category.name }}
                                 </td>
                                 <td class="px-4 py-4 text-right text-sm">

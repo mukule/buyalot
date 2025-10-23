@@ -10,16 +10,13 @@ class ProductVariant extends Model
 {
     protected $fillable = [
         'product_id',
+        'buying_price',
+        'marked_price',
         'regular_price',
         'selling_price',
         'stock',
         'sku',
     ];
-
-    public function warehouseInventories(): HasMany
-    {
-        return $this->hasMany(\App\Models\Warehouse\WarehouseProductInventory::class, 'product_variant_id');
-    }
 
     protected $appends = [
         'display_name',
@@ -28,6 +25,8 @@ class ProductVariant extends Model
         'discount_percent',
         'final_price',
         'in_stock',
+        'profit_margin',
+        'markup_percent',
     ];
 
     // ----------------------
@@ -44,15 +43,19 @@ class ProductVariant extends Model
         return $this->hasMany(ProductVariantValue::class);
     }
 
+    public function warehouseInventories(): HasMany
+    {
+        return $this->hasMany(\App\Models\Warehouse\WarehouseProductInventory::class, 'product_variant_id');
+    }
+
     // ----------------------
     // Accessors
     // ----------------------
 
     public function getDisplayNameAttribute(): string
     {
-        // Join all variant values, e.g., "Large, Red"
         $variantValues = $this->values
-            ->map(fn ($v) => $v->value) // safer than $v->variant->value
+            ->map(fn($v) => $v->value)
             ->join(', ');
 
         return $this->product
@@ -82,13 +85,35 @@ class ProductVariant extends Model
 
     public function getFinalPriceAttribute(): float
     {
-        // Ensure we always return a float. Fallback to regular_price, then 0.0
-        $price = $this->selling_price ?? $this->regular_price ?? 0.0;
+        // Final price: use selling price if available, else marked, else regular
+        $price = $this->selling_price ?? $this->marked_price ?? $this->regular_price ?? 0.0;
         return round((float) $price, 2);
     }
 
     public function getInStockAttribute(): bool
     {
         return $this->stock > 0;
+    }
+
+    // ----------------------
+    // Profit / Markup Helpers
+    // ----------------------
+
+    public function getProfitMarginAttribute(): float
+    {
+        if ($this->buying_price <= 0) {
+            return 0;
+        }
+
+        return round((($this->final_price - $this->buying_price) / $this->buying_price) * 100, 2);
+    }
+
+    public function getMarkupPercentAttribute(): float
+    {
+        if ($this->buying_price <= 0) {
+            return 0;
+        }
+
+        return round((($this->marked_price - $this->buying_price) / $this->buying_price) * 100, 2);
     }
 }

@@ -25,7 +25,7 @@ const DEFAULT_CATEGORIES = [
     'Groceries',
     'Pet Supplies',
     'Gaming',
-    'Baby & Kids',
+    'Baby & Kidss',
 ];
 
 const DEFAULT_BANNERS = [

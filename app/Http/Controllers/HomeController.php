@@ -115,9 +115,7 @@ class HomeController extends Controller
         ]);
     }
 
-    /**
-     * Display products for a specific category (with pagination)
-     */
+   
     public function category(string $slug)
     {
         $category = Category::where('slug', $slug)->firstOrFail();
@@ -200,3 +198,5 @@ class HomeController extends Controller
         ]);
     }
 }
+
+

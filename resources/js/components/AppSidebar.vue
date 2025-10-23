@@ -3,13 +3,12 @@ import NavMain from '@/components/NavMain.vue';
 import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { usePermissions } from '@/composables/usePermissions';
-import { type NavItem, AppPageProps } from '@/types';
+import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/vue3';
 import {
     BadgePercent,
     BookUserIcon,
     ClipboardList,
-    DiamondPercentIcon,
     FileCheck,
     KeyRound,
     Layers3Icon,
@@ -30,8 +29,6 @@ import {
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from './AppLogo.vue';
-import AppLogoIcon from '@/components/AppLogoIcon.vue';
-import { Label } from '@/components/ui/label';
 const { canAccess } = usePermissions();
 
 // const page = usePage();
@@ -147,7 +144,7 @@ const allNavItems: NavItem[] = [
                 icon: Workflow,
             },
             {
-                title: 'Discounts',
+                title: 'Promotions',
                 href: '/admin/discounts',
                 icon: BadgePercent,
                 permissions: ['view-discounts'],

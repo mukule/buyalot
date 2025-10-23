@@ -1,21 +1,31 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
-import type { AppPageProps, BreadcrumbItem, Category } from '@/types';
+import { type BreadcrumbItem, type Category, type VariantCategory, AppPageProps } from '@/types';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
-interface PageProps extends AppPageProps<{ category: Category & { hashid: string }; categories: Category[] }> {}
-
-const page = usePage<
-    AppPageProps<{
-        category: Category & { hashid: string; parent_id?: number | null };
+interface PageProps
+    extends AppPageProps<{
+        category: Category & { hashid: string; parent_id?: number | null; variant_categories?: VariantCategory[] };
         categories: Category[];
-    }>
->();
+        variantCategories: VariantCategory[];
+    }> {}
 
+const page = usePage<PageProps>();
 const category = page.props.category;
 const allCategories = page.props.categories || [];
+const allVariantCategories = page.props.variantCategories || [];
 
+// Determine pre-checked variants
+let defaultVariantIds: number[] = [];
+if (category.variant_categories && category.variant_categories.length > 0) {
+    defaultVariantIds = category.variant_categories.map((v) => v.id);
+} else {
+    const defaultVariant = allVariantCategories.find((v) => v.default);
+    defaultVariantIds = defaultVariant ? [defaultVariant.id] : [];
+}
+
+// Title & Breadcrumbs
 const title = 'Edit Category';
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: '/admin/dashboard' },
@@ -29,15 +39,15 @@ const form = useForm({
     slug: category.slug,
     active: category.active ?? true,
     parent_id: category.parent_id ?? ('' as number | ''),
+    variant_categories: defaultVariantIds,
 });
 
-// Parent search state
+// Parent category search
 const parentSearch = ref(category.parent_id ? allCategories.find((c) => c.id === category.parent_id)?.name || '' : '');
 const showDropdown = ref(false);
 const dropdownRef = ref<HTMLElement | null>(null);
 
 const filteredParents = computed(() => {
-    // Exclude the current category to prevent circular reference
     const candidates = allCategories.filter((c) => c.id !== category.id);
     if (!parentSearch.value) return candidates.slice(0, 5);
     return candidates.filter((c) => c.name.toLowerCase().includes(parentSearch.value.toLowerCase())).slice(0, 5);
@@ -49,7 +59,6 @@ function selectParent(c: Category) {
     showDropdown.value = false;
 }
 
-// Close dropdown when clicking outside
 function handleClickOutside(event: MouseEvent) {
     if (dropdownRef.value && !dropdownRef.value.contains(event.target as Node)) {
         showDropdown.value = false;
@@ -74,7 +83,6 @@ onBeforeUnmount(() => document.removeEventListener('click', handleClickOutside))
 
                 <hr class="my-1 border-[color:var(--border)]" />
 
-                <!-- Form -->
                 <form @submit.prevent="form.put(`/admin/categories/${category.hashid}`)" class="mt-2 space-y-4 px-4">
                     <!-- Name -->
                     <div>
@@ -88,7 +96,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleClickOutside))
                         <div v-if="form.errors.name" class="mt-1 text-sm text-red-600">{{ form.errors.name }}</div>
                     </div>
 
-                    <!-- Parent Category Autocomplete -->
+                    <!-- Parent Category -->
                     <div class="relative" ref="dropdownRef">
                         <label for="parent" class="mb-1 block font-semibold">Parent Category (optional)</label>
                         <input
@@ -113,6 +121,30 @@ onBeforeUnmount(() => document.removeEventListener('click', handleClickOutside))
                                 {{ parent.name }}
                             </li>
                         </ul>
+                    </div>
+
+                    <!-- Variant Categories -->
+                    <div>
+                        <label class="mb-1 block font-semibold">Variants</label>
+                        <div class="flex flex-wrap gap-2">
+                            <label
+                                v-for="variant in allVariantCategories"
+                                :key="variant.id"
+                                class="inline-flex cursor-pointer items-center space-x-2 px-2 py-1"
+                            >
+                                <input
+                                    type="checkbox"
+                                    :value="variant.id"
+                                    v-model="form.variant_categories"
+                                    :checked="variant.default && form.variant_categories.length === 0"
+                                    class="h-4 w-4 rounded text-primary focus:ring-primary"
+                                />
+                                <span>{{ variant.name }}</span>
+                            </label>
+                        </div>
+                        <div v-if="form.errors.variant_categories" class="mt-1 text-sm text-red-600">
+                            {{ form.errors.variant_categories }}
+                        </div>
                     </div>
 
                     <!-- Active -->

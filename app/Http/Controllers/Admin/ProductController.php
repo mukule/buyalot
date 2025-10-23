@@ -119,38 +119,45 @@ public function create()
         ->with('children')
         ->get();
 
-    $variantCategories = VariantCategory::with(['variants' => function ($query) {
-        $query->where('is_active', true);
-    }])->get()->map(function ($category) {
-        return [
-            'id' => $category->id,
-            'name' => $category->name,
-            'options' => $category->variants->map(fn($v) => [
-                'id' => $v->id,
-                'value' => $v->value,
-            ])->toArray(),
-        ];
-    });
+    // ✅ Only include the default variant category and its active variants
+    $variantCategories = VariantCategory::where('default', true)
+        ->with(['variants' => function ($query) {
+            $query->where('is_active', true);
+        }])
+        ->get()
+        ->map(function ($category) {
+            return [
+                'id' => $category->id,
+                'name' => $category->name,
+                'options' => $category->variants->map(fn($v) => [
+                    'id' => $v->id,
+                    'value' => $v->value,
+                ])->toArray(),
+            ];
+        });
 
     $draftProduct = auth()->user()->products()->latestDraft()->first();
     $productData = null;
 
     if ($draftProduct) {
-        $variantRows = $draftProduct->variants()->with('values.variant')->get()->map(function ($variant) {
-            $row = [
-                'regular_price' => $variant->regular_price,
-                'selling_price' => $variant->selling_price,
-                'stock' => $variant->stock,
-                'sku' => $variant->sku,
-                'values' => [],
-            ];
+        $variantRows = $draftProduct->variants()
+            ->with('values.variant')
+            ->get()
+            ->map(function ($variant) {
+                $row = [
+                    'regular_price' => $variant->regular_price,
+                    'selling_price' => $variant->selling_price,
+                    'stock' => $variant->stock,
+                    'sku' => $variant->sku,
+                    'values' => [],
+                ];
 
-            foreach ($variant->values as $pvValue) {
-                $row['values'][$pvValue->variant->variant_category_id] = $pvValue->variant->value;
-            }
+                foreach ($variant->values as $pvValue) {
+                    $row['values'][$pvValue->variant->variant_category_id] = $pvValue->variant->value;
+                }
 
-            return $row;
-        })->toArray();
+                return $row;
+            })->toArray();
 
         $productData = [
             'product_id' => $draftProduct->id,
@@ -175,7 +182,7 @@ public function create()
         'categories' => $categories,
         'units' => $units,
         'variantCategories' => $variantCategories,
-        'product' => $productData, 
+        'product' => $productData,
     ]);
 }
 
@@ -191,9 +198,19 @@ public function edit(Product $product)
         ->with('children')
         ->get();
 
-    $variantCategories = VariantCategory::with(['variants' => function ($query) {
-        $query->where('is_active', true);
-    }])->get()->map(function ($category) {
+    $variantCategories = VariantCategory::whereHas('categories', function ($query) use ($product) {
+        $query->where('categories.id', $product->category_id);
+    })
+    ->with(['variants' => fn($query) => $query->where('is_active', true)])
+    ->get();
+
+    if ($variantCategories->isEmpty()) {
+        $variantCategories = VariantCategory::where('default', true)
+            ->with(['variants' => fn($query) => $query->where('is_active', true)])
+            ->get();
+    }
+
+    $variantCategories = $variantCategories->map(function ($category) {
         return [
             'id' => $category->id,
             'name' => $category->name,
@@ -204,11 +221,11 @@ public function edit(Product $product)
         ];
     });
 
-    // Build variant rows
+    // Build variant rows (using marked_price and buying_price)
     $variantRows = $product->variants()->with('values.variant')->get()->map(function ($variant) {
         $row = [
-            'regular_price' => $variant->regular_price,
-            'selling_price' => $variant->selling_price,
+            'marked_price' => $variant->marked_price,
+            'buying_price' => $variant->buying_price,
             'stock' => $variant->stock,
             'sku' => $variant->sku,
             'values' => [],
@@ -221,7 +238,7 @@ public function edit(Product $product)
         return $row;
     })->toArray();
 
-    // Map images to full storage URL
+    // Map images to include preview and storage URLs
     $images = collect($product->images ?? [])->map(function ($img) {
         $path = $img->url ?? $img->image_path ?? '';
         return [
@@ -381,6 +398,7 @@ public function destroyAll()
     }
 }
 
+
 public function show(Product $product)
 {
     $product->load([
@@ -395,39 +413,47 @@ public function show(Product $product)
 
     $productData = [
         'id' => $product->id,
+        'hashid' => $product->hashid,
         'name' => $product->name,
         'product_code' => $product->product_code,
         'primary_image_url' => $product->primary_image_url,
         'stock' => $product->productVariants->sum('stock'),
         'category_hierarchy' => $product->category ? $product->category->getHierarchy() : [],
-        'owner' => $product->owner
-            ? [
-                'id' => $product->owner->id,
-                'name' => $product->owner->name,
-                'roles' => $product->owner->getRoleNames()->toArray(),
-            ]
-            : null,
-        'brand' => $product->brand ? ['id' => $product->brand->id, 'name' => $product->brand->name] : null,
-        'unit' => $product->unit ? ['id' => $product->unit->id, 'name' => $product->unit->name] : null,
 
-        
+        'owner' => $product->owner ? [
+            'id' => $product->owner->id,
+            'name' => $product->owner->name,
+            'roles' => $product->owner->getRoleNames()->toArray(),
+        ] : null,
+
+        'brand' => $product->brand ? [
+            'id' => $product->brand->id,
+            'name' => $product->brand->name,
+        ] : null,
+
+        'unit' => $product->unit ? [
+            'id' => $product->unit->id,
+            'name' => $product->unit->name,
+        ] : null,
+
         'features' => $product->features,
         'description' => $product->description,
         'specifications' => $product->specifications,
         'whats_in_the_box' => $product->whats_in_the_box,
 
-        
-        'images' => $product->images->map(fn($img) => asset('storage/' . $img->image_path))->toArray(),
-        'image_urls' => $product->images->map(fn($img) => asset('storage/' . $img->image_path))->toArray(),
+        // ✅ Use S3 URLs
+        'images' => $product->images
+            ->map(fn($img) => Storage::disk('s3')->url($img->image_path))
+            ->toArray(),
 
-        
+        'image_urls' => $product->images
+            ->map(fn($img) => Storage::disk('s3')->url($img->image_path))
+            ->toArray(),
+
         'variants' => $product->productVariants->map(fn($variant) => [
             'id' => $variant->id,
-            'regular_price' => $variant->regular_price,
-            'selling_price' => $variant->selling_price,
-            'discount' => ($variant->regular_price > 0 && $variant->regular_price > $variant->selling_price)
-                ? round((($variant->regular_price - $variant->selling_price) / $variant->regular_price) * 100)
-                : null,
+            'marked_price' => $variant->marked_price,
+            'buying_price' => $variant->buying_price,
             'stock' => $variant->stock,
             'sku' => $variant->sku,
             'values' => $variant->values->map(fn($v) => [
@@ -441,7 +467,6 @@ public function show(Product $product)
         'product' => $productData,
     ]);
 }
-
 
 public function destroyImage(Product $product, int $imageId)
 {
