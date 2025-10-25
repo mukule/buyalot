@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Storage;
 
 class FrontendProductService
 {
@@ -37,7 +38,7 @@ class FrontendProductService
         });
     }
 
-   
+
     public function getPaginatedProductsByCategory($category, int $perPage = 20): LengthAwarePaginator
     {
         $categoryIds = $category->getAllCategoryIds();
@@ -57,7 +58,7 @@ class FrontendProductService
                      ->through(fn($variant) => $this->normalizeVariant($variant));
     }
 
-   
+
     public function getRelatedProducts(Product $product, int $limit = 12)
     {
         if (!$product->category) {
@@ -83,14 +84,14 @@ class FrontendProductService
         return $variants;
     }
 
-   
-   
+
+
     private function normalizeVariant(ProductVariant $variant): array
 {
     $product = $variant->product;
 
     // Use S3 URLs
-    $image = $product->primaryImageUrl 
+    $image = $product->primaryImageUrl
         ?? ($product->images->first()?->image_path
             ? Storage::disk('s3')->url($product->images->first()->image_path)
             : '/fallback-image.png');

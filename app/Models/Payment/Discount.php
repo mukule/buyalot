@@ -2,10 +2,12 @@
 
 namespace App\Models\Payment;
 
+use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Customer\Customer;
 use App\Models\Orders\Order;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Traits\HasHashid;
 use App\Models\Traits\HasSlug;
 use App\Models\User;
@@ -59,12 +61,39 @@ class Discount extends Model
         'expires_at' => 'datetime',
         'conditions' => 'json',
         'metadata' => 'json',
+        'no_time_limit' => 'boolean',
     ];
 
     protected $dates = [
         'starts_at',
         'expires_at',
     ];
+
+
+    public function products()
+    {
+        return $this->morphedByMany(Product::class, 'model', 'discount_applicable_tables');
+    }
+
+    public function categories()
+    {
+        return $this->morphedByMany(Category::class, 'model', 'discount_applicable_tables');
+    }
+
+    public function variants()
+    {
+        return $this->morphedByMany(ProductVariant::class, 'model', 'discount_applicable_tables');
+    }
+
+    public function customers()
+    {
+        return $this->morphedByMany(\App\Models\Customer\Customer::class, 'model', 'discount_applicable_tables');
+    }
+
+    public function brands()
+    {
+        return $this->morphedByMany(Brand::class, 'model', 'discount_applicable_tables');
+    }
 
     // Slug configuration
 //    public function getSlugOptions(): SlugOptions
@@ -113,20 +142,20 @@ class Discount extends Model
         return $this->hasMany(Order::class);
     }
 
-    public function products(): BelongsToMany
-    {
-        return $this->belongsToMany(Product::class, 'discount_products');
-    }
-
-    public function categories(): BelongsToMany
-    {
-        return $this->belongsToMany(Category::class, 'discount_categories');
-    }
-
-    public function customers(): BelongsToMany
-    {
-        return $this->belongsToMany(Customer::class, 'discount_customers');
-    }
+//    public function products(): BelongsToMany
+//    {
+//        return $this->belongsToMany(Product::class, 'discount_products');
+//    }
+//
+//    public function categories(): BelongsToMany
+//    {
+//        return $this->belongsToMany(Category::class, 'discount_categories');
+//    }
+//
+//    public function customers(): BelongsToMany
+//    {
+//        return $this->belongsToMany(Customer::class, 'discount_customers');
+//    }
 
     public function creator()
     {
