@@ -87,6 +87,7 @@ const filteredProducts = computed(() => {
     const q = state.productSearch.trim().toLowerCase();
     return q ? base.filter((p) => p.name.toLowerCase().includes(q)) : base;
 });
+
 const filteredVariants = computed(() => {
     let base = variants;
     if (state.selectedProductIds.length) {
@@ -214,15 +215,11 @@ const onDiscountTypeChange = () => {
                             </select>
                         </div>
 
-                        <div>
-                            <label class="mb-1 block text-sm font-medium text-gray-700">Name</label>
                             <input
                                 v-model="form.name"
-                                type="text"
+                                type="hidden"
                                 class="w-full rounded border px-3 py-2 bg-gray-100 cursor-not-allowed"
-                                readonly
                             />
-                        </div>
                         <input v-model="form.slug" type="hidden" class="w-full rounded border px-3 py-2"  />
                         <div class="md:col-span-2">
                             <label class="mb-1 block text-sm font-medium text-gray-700">Description</label>
@@ -251,6 +248,7 @@ const onDiscountTypeChange = () => {
                                 <option :value="false">No</option>
                             </select>
                         </div>
+
                         <div class="md:col-span-2">
                             <label class="inline-flex items-center gap-2 text-sm text-gray-700">
                                 <input type="checkbox" v-model="form.no_time_limit" class="h-4 w-4" />
@@ -291,6 +289,7 @@ const onDiscountTypeChange = () => {
                                 class="w-full rounded border px-3 py-2"
                             />
                         </div>
+
                         <div class="md:col-span-2">
                             <label class="mb-1 block text-sm font-medium text-gray-700">Applies To</label>
                             <select v-model="state.scope" class="w-full rounded border px-3 py-2">
@@ -299,6 +298,7 @@ const onDiscountTypeChange = () => {
                                 <option value="specific_products">Specific products</option>
                                 <option value="variants">Specific product variants</option>
                                 <option value="customers">Customers</option>
+                                <option value="brand">Brands</option>
                             </select>
                         </div>
 
