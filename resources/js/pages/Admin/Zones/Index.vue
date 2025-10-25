@@ -2,15 +2,16 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { AppPageProps } from '@/types';
 import { Head, router, usePage } from '@inertiajs/vue3';
-
 import { PlusIcon } from 'lucide-vue-next';
 import { computed } from 'vue';
 
-interface Region {
-    hashid: string;
+interface Zone {
+    id: number;
     name: string;
-    active: boolean;
-    parent_name?: string | null;
+    tier: number;
+    is_default_origin: boolean;
+    created_at: string;
+    updated_at: string;
 }
 
 interface PaginationLink {
@@ -35,46 +36,41 @@ interface PaginatedResponse<T> {
     meta: PaginationMeta;
 }
 
-const page = usePage<AppPageProps<{ regions: PaginatedResponse<Region>; level: string; title: string; basePath: string }>>();
-const regions = computed(() => page.props.regions?.data || []);
+const page = usePage<AppPageProps<{ zones: PaginatedResponse<Zone>; title: string; basePath: string }>>();
+const zones = computed(() => page.props.zones?.data || []);
 const pagination = computed(() => {
-    const { links, meta } = page.props.regions || {};
+    const { links, meta } = page.props.zones || {};
     return { links, meta };
 });
-const level = computed(() => page.props.level || 'region');
-const title = computed(() => page.props.title || 'Regions');
-const basePath = computed(() => page.props.basePath || '/admin/regions');
+
+const title = computed(() => page.props.title || 'Zones');
+const basePath = computed(() => page.props.basePath || '/admin/zones');
 
 const breadcrumbs = [
     { title: 'Dashboard', href: route('admin.dashboard') },
     { title: title.value, href: basePath.value },
 ];
 
-function createRegion() {
+function createZone() {
     router.get(`${basePath.value}/create`);
 }
 
-function viewRegion(hashid: string) {
-    if (!hashid) return console.error('viewRegion called without hashid');
-    router.get(`${basePath.value}/${hashid}`);
+function viewZone(id: number) {
+    if (!id) return console.error('viewZone called without id');
+    router.get(`${basePath.value}/${id}`);
 }
 
-function editRegion(hashid: string) {
-    if (!hashid) return console.error('editRegion called without hashid');
-    router.get(`${basePath.value}/${hashid}/edit`);
+function editZone(id: number) {
+    if (!id) return console.error('editZone called without id');
+    router.get(`${basePath.value}/${id}/edit`);
 }
 
-function deleteRegion(hashid: string) {
-    if (!hashid) return console.error('deleteRegion called without hashid');
-    if (confirm('Are you sure you want to delete this item?')) {
-        router.delete(`${basePath.value}/${hashid}`);
+function deleteZone(id: number) {
+    if (!id) return console.error('deleteZone called without id');
+    if (confirm('Are you sure you want to delete this zone?')) {
+        router.delete(`${basePath.value}/${id}`);
     }
 }
-
-const statusClasses = (active: boolean) => ({
-    'text-green-600': active,
-    'text-red-600': !active,
-});
 </script>
 
 <template>
@@ -84,48 +80,46 @@ const statusClasses = (active: boolean) => ({
             <div class="card flex flex-col gap-6 rounded-lg bg-white p-4 shadow-sm">
                 <div class="flex items-center justify-between">
                     <h1 class="text-2xl font-semibold text-gray-800">{{ title }}</h1>
-                    <button @click="createRegion" class="hover:bg-primary-dark rounded-xl bg-primary px-4 py-2 text-white">+ New Region</button>
+                    <button @click="createZone" class="hover:bg-primary-dark rounded-xl bg-primary px-4 py-2 text-white">+ New Zone</button>
                 </div>
 
-                <!-- Regions Table -->
-                <div v-if="regions.length" class="overflow-x-auto">
+                <!-- Zones Table -->
+                <div v-if="zones.length" class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Parent</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tier</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Default Origin</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white">
-                            <tr v-for="(region, index) in regions" :key="region.hashid" class="hover:bg-gray-50">
+                            <tr v-for="(zone, index) in zones" :key="zone.id" class="hover:bg-gray-50">
                                 <td class="px-4 py-4 text-sm text-gray-500">{{ index + 1 }}</td>
 
-                                <!-- Name clickable -->
+                                <!-- Name -->
                                 <td class="px-4 py-4 text-sm font-medium text-primary">
-                                    <button @click.stop="viewRegion(region.hashid)" class="hover:underline">
-                                        {{ region.name }}
+                                    <button @click.stop="viewZone(zone.id)" class="hover:underline">
+                                        {{ zone.name }}
                                     </button>
                                 </td>
 
-                                <!-- Parent Name -->
-                                <td class="px-4 py-4 text-sm">
-                                    {{ region.parent_name || '-' }}
-                                </td>
+                                <!-- Tier -->
+                                <td class="px-4 py-4 text-sm text-gray-600">{{ zone.tier }}</td>
 
-                                <!-- Status -->
+                                <!-- Default Origin -->
                                 <td class="px-4 py-4 text-sm">
-                                    <span :class="statusClasses(region.active)">
-                                        {{ region.active ? 'Active' : 'Inactive' }}
+                                    <span :class="zone.is_default_origin ? 'font-semibold text-green-600' : 'text-gray-500'">
+                                        {{ zone.is_default_origin ? 'Yes' : 'No' }}
                                     </span>
                                 </td>
 
                                 <!-- Actions -->
                                 <td class="flex justify-end gap-3 px-4 py-4 text-right text-sm">
-                                    <button @click.stop="editRegion(region.hashid)" class="text-blue-600 hover:underline">Edit</button>
-                                    <button @click.stop="deleteRegion(region.hashid)" class="text-red-600 hover:underline">Delete</button>
+                                    <button @click.stop="editZone(zone.id)" class="text-blue-600 hover:underline">Edit</button>
+                                    <button @click.stop="deleteZone(zone.id)" class="text-red-600 hover:underline">Delete</button>
                                 </td>
                             </tr>
                         </tbody>
@@ -136,15 +130,15 @@ const statusClasses = (active: boolean) => ({
                 <div v-else class="text-center">
                     <div class="p-8">
                         <PlusIcon class="mx-auto h-12 w-12 text-gray-400" />
-                        <h3 class="mt-2 text-sm font-medium text-gray-900">No regions</h3>
-                        <p class="mt-1 text-sm text-gray-500">Get started by creating a new region.</p>
+                        <h3 class="mt-2 text-sm font-medium text-gray-900">No zones found</h3>
+                        <p class="mt-1 text-sm text-gray-500">Get started by creating a new zone.</p>
                         <div class="mt-6">
                             <button
-                                @click="createRegion"
+                                @click="createZone"
                                 class="hover:bg-primary-dark inline-flex items-center rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white"
                             >
                                 <PlusIcon class="mr-1.5 h-5 w-5" />
-                                New Region
+                                New Zone
                             </button>
                         </div>
                     </div>

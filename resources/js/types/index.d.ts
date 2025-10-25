@@ -453,4 +453,22 @@ declare global {
     }
 }
 
+interface PickupPoint {
+    id: number;
+    name: string;
+    address: string;
+    contact_phone?: string;
+    contact_email?: string;
+    is_active: boolean;
+    region: { name: string };
+}
+
+const page = usePage<
+    AppPageProps & {
+        region: Region;
+        pickupPoints: PickupPoint[];
+        title: string;
+    }
+>();
+
 export type BreadcrumbItemType = BreadcrumbItem;

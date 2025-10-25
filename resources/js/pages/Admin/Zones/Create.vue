@@ -6,27 +6,26 @@ import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 const page = usePage<
     InertiaPageProps & {
         title: string;
-        parents?: { id: number; name: string }[];
     }
 >();
 
-const title = page.props.title || 'Create Region';
-const basePath = '/admin/regions';
-const parents = page.props.parents || [];
+const title = page.props.title || 'Create Zone';
+const basePath = '/admin/zones';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: '/admin/dashboard' },
-    { title: 'Regions', href: basePath },
+    { title: 'Zones', href: basePath },
     { title, href: '' },
 ];
 
+// Zone form data
 const form = useForm({
     name: '',
-    parent_id: null as number | null,
-    level: 'region',
+    tier: 1,
+    is_default_origin: false,
 });
 
-function submitRegion() {
+function submitZone() {
     form.post(basePath, {
         onSuccess: () => router.get(basePath),
     });
@@ -42,22 +41,22 @@ function submitRegion() {
                 <!-- Header -->
                 <div class="flex items-center justify-between">
                     <h4 class="text-2xl font-bold">{{ title }}</h4>
-                    <router-link href="/admin/regions" class="text-sm text-[color:var(--primary)] hover:underline"> ← Back </router-link>
+                    <router-link href="/admin/zones" class="text-sm text-[color:var(--primary)] hover:underline"> ← Back </router-link>
                 </div>
 
                 <hr class="border-[color:var(--border)]" />
 
                 <!-- Form -->
-                <form @submit.prevent="submitRegion" class="space-y-4">
-                    <!-- Region Name -->
+                <form @submit.prevent="submitZone" class="space-y-4">
+                    <!-- Zone Name -->
                     <div>
-                        <label for="name" class="mb-1 block text-sm font-medium text-gray-700"> Region Name </label>
+                        <label for="name" class="mb-1 block text-sm font-medium text-gray-700"> Zone Name </label>
                         <input
                             v-model="form.name"
                             id="name"
                             type="text"
                             required
-                            placeholder="Enter region name"
+                            placeholder="Enter zone name"
                             class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:ring-2 focus:ring-[color:var(--primary)] focus:outline-none"
                         />
                         <div v-if="form.errors.name" class="mt-1 text-sm text-red-600">
@@ -65,22 +64,36 @@ function submitRegion() {
                         </div>
                     </div>
 
-                    <!-- Optional Parent Selector -->
-                    <div v-if="parents.length">
-                        <label for="parent" class="mb-1 block text-sm font-medium text-gray-700"> Parent Region </label>
-                        <select
-                            v-model="form.parent_id"
-                            id="parent"
+                    <!-- Tier -->
+                    <div>
+                        <label for="tier" class="mb-1 block text-sm font-medium text-gray-700"> Tier Level </label>
+                        <input
+                            v-model="form.tier"
+                            id="tier"
+                            type="number"
+                            min="1"
+                            placeholder="e.g. 1"
                             class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:ring-2 focus:ring-[color:var(--primary)] focus:outline-none"
-                        >
-                            <option :value="null">Select Parent Region</option>
-                            <option v-for="p in parents" :key="p.id" :value="p.id">
-                                {{ p.name }}
-                            </option>
-                        </select>
-                        <div v-if="form.errors.parent_id" class="mt-1 text-sm text-red-600">
-                            {{ form.errors.parent_id }}
+                        />
+                        <p class="mt-1 text-xs text-gray-500">Tier 1 = Default zone, higher numbers = farther zones.</p>
+                        <div v-if="form.errors.tier" class="mt-1 text-sm text-red-600">
+                            {{ form.errors.tier }}
                         </div>
+                    </div>
+
+                    <!-- Default Origin Checkbox -->
+                    <div class="flex items-center">
+                        <input
+                            v-model="form.is_default_origin"
+                            id="default_origin"
+                            type="checkbox"
+                            class="h-4 w-4 rounded border-gray-300 text-[color:var(--primary)] focus:ring-[color:var(--primary)]"
+                        />
+                        <label for="default_origin" class="ml-2 text-sm text-gray-700"> Set as Default Origin Zone </label>
+                    </div>
+
+                    <div v-if="form.errors.is_default_origin" class="mt-1 text-sm text-red-600">
+                        {{ form.errors.is_default_origin }}
                     </div>
 
                     <!-- Submit Button -->
@@ -89,7 +102,7 @@ function submitRegion() {
                         :disabled="form.processing"
                         class="rounded bg-[color:var(--primary)] px-4 py-2 text-white transition-colors duration-200 hover:bg-[color:var(--secondary)]"
                     >
-                        {{ form.processing ? 'Submitting...' : 'Submit' }}
+                        {{ form.processing ? 'Submitting...' : 'Create Zone' }}
                     </button>
                 </form>
             </div>

@@ -30,7 +30,7 @@ class Discount extends Model
         'discount_type_code',
         'description',
         'code',
-        'type', // percentage, fixed_amount, buy_x_get_y, free_shipping
+        'type', 
         'value',
         'minimum_amount',
         'maximum_discount',
@@ -40,7 +40,7 @@ class Discount extends Model
         'is_active',
         'starts_at',
         'expires_at',
-        'applicable_to', // all, specific_products, specific_categories, specific_customers
+        'applicable_to', 
         'conditions',
         'metadata',
         'created_by',
