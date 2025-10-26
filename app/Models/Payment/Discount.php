@@ -13,11 +13,13 @@ use App\Models\Traits\HasSlug;
 use App\Models\User;
 use Hashids\Hashids;
 use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 use LaravelIdea\Helper\App\Models\Payment\_IH_Discount_QB;
 
 class Discount extends Model
@@ -32,7 +34,7 @@ class Discount extends Model
         'discount_type_code',
         'description',
         'code',
-        'type', 
+        'type',
         'value',
         'minimum_amount',
         'maximum_discount',
@@ -42,7 +44,7 @@ class Discount extends Model
         'is_active',
         'starts_at',
         'expires_at',
-        'applicable_to', 
+        'applicable_to',
         'conditions',
         'metadata',
         'created_by',
@@ -640,5 +642,23 @@ class Discount extends Model
                 $discount->code = strtoupper(\Illuminate\Support\Str::random(8));
             }
         });
+    }
+
+    public function scopeActiveAndValid(Builder $query): Builder
+    {
+        $now = Carbon::now();
+
+        return $query
+            ->where('is_active', true)
+            ->where(function ($q) use ($now) {
+                $q->where('no_time_limit', true)
+                    ->orWhere(function ($inner) use ($now) {
+                        $inner->where(function ($d) use ($now) {
+                            $d->whereNull('starts_at')->orWhere('starts_at', '<=', $now);
+                        })->where(function ($d) use ($now) {
+                            $d->whereNull('expires_at')->orWhere('expires_at', '>', $now);
+                        });
+                    });
+            });
     }
 }

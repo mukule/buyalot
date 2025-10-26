@@ -6,9 +6,11 @@ import AppLayout from '@/layouts/AppLayout.vue';
 interface SellerApplication {
     id: number;
     hashid: string;
-    business_name: string;
-    email?: string | null;
-    phone?: string | null;
+    first_name: string;
+    company_legal_name: string;
+    last_name: string;
+    owner_email?: string | null;
+    owner_phone?: string | null;
     is_active?: boolean;
     status?: number;
     created_at?: string;
@@ -56,6 +58,7 @@ const viewItem = (s: SellerApplication) => router.visit(route('admin.sellers.sho
             <thead class="bg-gray-50">
             <tr>
                 <th class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Business Name</th>
+                <th class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Owner Name</th>
                 <th class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Email</th>
                 <th class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Phone</th>
                 <th class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Status</th>
@@ -64,9 +67,10 @@ const viewItem = (s: SellerApplication) => router.visit(route('admin.sellers.sho
             </thead>
             <tbody class="divide-y divide-gray-200 bg-white">
             <tr v-for="s in sellers.data" :key="s.id">
-                <td class="px-4 py-2">{{ s.business_name }}</td>
-                <td class="px-4 py-2">{{ s.email || '-' }}</td>
-                <td class="px-4 py-2">{{ s.phone || '-' }}</td>
+                <td class="px-4 py-2">{{s.company_legal_name}}</td>
+                <td class="px-4 py-2">{{ s.first_name }} {{s.last_name}}</td>
+                <td class="px-4 py-2">{{ s.owner_email || '-' }}</td>
+                <td class="px-4 py-2">{{ s.owner_phone || '-' }}</td>
                 <td class="px-4 py-2">
       <span
           :class="s.is_active ? 'text-green-700' : 'text-gray-500'"
@@ -76,7 +80,7 @@ const viewItem = (s: SellerApplication) => router.visit(route('admin.sellers.sho
                 </td>
                 <td class="px-4 py-2 text-right">
                     <button @click="viewItem(s)" class="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700">
-                        View
+                        <EyeIcon/>View
                     </button>
                 </td>
             </tr>
