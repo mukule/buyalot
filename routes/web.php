@@ -305,7 +305,7 @@ Route::post('/shipping/estimate', [CartController::class, 'estimateShipping'])
 Route::post('/coupons/validate', [CouponController::class, 'validateCode'])
     ->name('coupons.validate');
 
-Route::get('/category/{slug}', [HomeController::class, 'category'])
+Route::get('{slug}', [HomeController::class, 'category'])
     ->name('category.show');
 
 

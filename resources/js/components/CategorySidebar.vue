@@ -5,6 +5,7 @@ import { computed, ref } from 'vue';
 interface Category {
     id: number;
     name: string;
+    slug: string;
     children?: Category[];
 }
 
@@ -71,7 +72,7 @@ const activeCategory = computed(() => {
                 @click.prevent="onCategoryClick(cat.id)"
                 role="button"
             >
-                <a :href="`/category/${cat.id}`" class="flex-1 text-sm text-gray-800 hover:text-primary" @click.stop>
+                <a :href="`/${cat.slug}`" class="flex-1 text-sm text-gray-800 hover:text-primary" @click.stop>
                     {{ cat.name }}
                 </a>
             </li>

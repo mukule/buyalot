@@ -18,7 +18,7 @@ class DiscountTypeController extends Controller
                 ->orWhere('code', 'like', "%{$search}%");
         }
 
-        $discountTypes = $query->orderBy('id', 'desc')->paginate(10)->withQueryString();
+        $discountTypes = $query->orderBy('id', 'desc')->paginate(15)->withQueryString();
 
         return Inertia::render('Admin/DiscountTypes/Index', [
             'discountTypes' => $discountTypes,
@@ -51,18 +51,26 @@ class DiscountTypeController extends Controller
         ]);
     }
 
+  
     public function update(Request $request, DiscountType $discountType)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'code' => 'required|string|max:255|unique:discount_types,code,' . $discountType->id,
-            'description' => 'nullable|string',
-        ]);
+{
+    $validated = $request->validate([
+        'name' => 'required|string|max:255',
+        'code' => 'required|string|max:255|unique:discount_types,code,' . $discountType->id,
+        'description' => 'nullable|string',
+        'is_active' => 'required|boolean',
+    ]);
 
-        $discountType->update($validated);
+    // Ensure boolean is cast to tinyint
+    $validated['is_active'] = $validated['is_active'] ? 1 : 0;
 
-        return redirect()->route('admin.discount-types.index')->with('success', 'Discount Type updated successfully.');
-    }
+    $discountType->update($validated);
+
+    return redirect()
+        ->route('admin.discount-types.index')
+        ->with('success', 'Discount Type updated successfully.');
+}
+
 
     public function destroy(DiscountType $discountType)
     {
