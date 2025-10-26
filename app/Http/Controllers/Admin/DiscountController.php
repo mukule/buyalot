@@ -221,6 +221,7 @@ class DiscountController extends Controller
 
     public function calculateDiscounts(Request $request)
     {
+
         // Validate input
         $validated = $request->validate([
             'product_variant_ids' => ['required', 'array'],
@@ -230,6 +231,7 @@ class DiscountController extends Controller
         $variants = ProductVariant::with(['discounts'])
             ->whereIn('id', $validated['product_variant_ids'])
             ->get();
+        info($variants);
 
         $results = [];
 
