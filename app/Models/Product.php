@@ -57,9 +57,7 @@ class Product extends Model
         'status' => 'integer',
     ];
 
-    // ----------------------
-    // Status constants
-    // ----------------------
+   
     const STATUS_DRAFT    = 0; // Created but not submitted
     const STATUS_PENDING  = 1; // Submitted for review
     const STATUS_APPROVED = 2; // Approved and public
@@ -275,6 +273,9 @@ public function activeWarranty(): ?Warranty
 {
     return $this->warranties()->where('active', true)->first();
 }
+
+
+
 
 
 }

@@ -50,7 +50,7 @@ class FrontendProductService
             ])
             ->whereHas('product', function ($q) use ($categoryIds) {
                 $q->whereIn('category_id', $categoryIds)
-                  ->where('status_id', 3);
+                  ->where('status_id', 2);
             })
             ->orderBy('created_at', 'desc');
 
@@ -74,7 +74,7 @@ class FrontendProductService
             ])
             ->whereHas('product', function ($q) use ($categoryIds, $product) {
                 $q->whereIn('category_id', $categoryIds)
-                  ->where('status_id', 3)
+                  ->where('status_id', 2)
                   ->where('id', '!=', $product->id);
             })
             ->take($limit)

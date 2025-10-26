@@ -120,7 +120,7 @@ class HomeController extends Controller
     {
         $category = Category::where('slug', $slug)->firstOrFail();
 
-        // Paginated products for category + descendants
+        
         $products = $this->productService->getPaginatedProductsByCategory($category, 20);
 
         return Inertia::render('Frontend/Category', [
