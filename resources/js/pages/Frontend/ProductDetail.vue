@@ -117,7 +117,7 @@ const decreaseQty = () => {
                         <span class="mx-1">/</span>
                     </li>
                     <li v-for="(cat, index) in product.category_hierarchy ?? []" :key="cat.id" class="flex items-center">
-                        <a :href="`/category/${cat.slug}`" class="text-primary hover:underline">{{ cat.name }}</a>
+                        <a :href="`/${cat.slug}`" class="text-primary hover:underline">{{ cat.name }}</a>
                         <span v-if="index < (product.category_hierarchy?.length ?? 0) - 1" class="mx-1">/</span>
                     </li>
                     <li class="truncate font-semibold text-gray-800">/{{ product.name }}</li>

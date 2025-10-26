@@ -72,7 +72,7 @@ const activeCategory = computed(() => {
                 @click.prevent="onCategoryClick(cat.id)"
                 role="button"
             >
-                <a :href="`/category/${cat.slug}`" class="flex-1 text-sm text-gray-800 hover:text-primary" @click.stop>
+                <a :href="`/${cat.slug}`" class="flex-1 text-sm text-gray-800 hover:text-primary" @click.stop>
                     {{ cat.name }}
                 </a>
             </li>
