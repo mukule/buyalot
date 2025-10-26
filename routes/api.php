@@ -1,6 +1,7 @@
 <?php
 
 
+use App\Http\Controllers\Admin\DiscountController;
 use App\Http\Controllers\Api\ApiAuthController;
 use App\Http\Controllers\Orders\OrderController;
 use App\Http\Controllers\Payments\PaymentTransactionController;
@@ -16,11 +17,14 @@ Route::post('login', [ApiAuthController::class, 'login']);
 //    Route::post('callback/{provider}', [PaymentTransactionController::class, 'callback'])->name('callback');
 //});
 
-Route::prefix('v1')->middleware(['auth:api'])->group(function () {
+Route::prefix('v1')->middleware(['auth:sanctum'])->group(function () {
 //Route::prefix('v1')->group(function () {
 //    Route::post('commissions/calculate', [CommissionController::class, 'calculate']);
 //    Route::get('commissions/summary', [CommissionController::class, 'summary']);
 //    require __DIR__ .'/payment.php';
+
+    Route::post('/discounts/calculate', [DiscountController::class, 'calculateDiscounts'])
+        ->name('discounts.calculate');
 
     Route::apiResource('orders', OrderController::class)->names([
         'index'   => 'api.orders.index',

@@ -2,9 +2,12 @@
 
 namespace App\Models;
 
+use App\Models\Payment\Discount;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 
 class ProductVariant extends Model
 {
@@ -37,6 +40,13 @@ class ProductVariant extends Model
     {
         return $this->belongsTo(Product::class);
     }
+    public function discounts()
+    {
+        return $this->morphToMany(Discount::class, 'model', 'discount_applicable_tables')
+            ->activeAndValid();
+    }
+
+
 
     public function values(): HasMany
     {
@@ -118,16 +128,34 @@ class ProductVariant extends Model
     }
 
 
+    public function scopeActiveAndValid(Builder $query): Builder
+    {
+        $now = Carbon::now();
 
-    public function discounts()
-{
-    return $this->belongsToMany(\App\Models\Payment\Discount::class, 'discount_product_variants', 'product_variant_id', 'discount_id')
-        ->where('is_active', true)
-        ->where(function ($q) {
-            $now = now();
-            $q->whereNull('starts_at')->orWhere('starts_at', '<=', $now);
-            $q->whereNull('expires_at')->orWhere('expires_at', '>=', $now);
-        });
-}
+        return $query
+            ->where('is_active', true)
+            ->where(function ($q) use ($now) {
+                $q->where('no_time_limit', true)
+                    ->orWhere(function ($inner) use ($now) {
+                        $inner->where(function ($d) use ($now) {
+                            $d->whereNull('starts_at')->orWhere('starts_at', '<=', $now);
+                        })->where(function ($d) use ($now) {
+                            $d->whereNull('expires_at')->orWhere('expires_at', '>', $now);
+                        });
+                    });
+            });
+    }
+
+
+//    public function discounts()
+//{
+//    return $this->belongsToMany(\App\Models\Payment\Discount::class, 'discount_product_variants', 'product_variant_id', 'discount_id')
+//        ->where('is_active', true)
+//        ->where(function ($q) {
+//            $now = now();
+//            $q->whereNull('starts_at')->orWhere('starts_at', '<=', $now);
+//            $q->whereNull('expires_at')->orWhere('expires_at', '>=', $now);
+//        });
+//}
 
 }

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\BrandCategoryController;
 use App\Http\Controllers\Admin\BrandController;
 use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\DiscountController;
 use App\Http\Controllers\Admin\DiscountController as AdminDiscountController;
 use App\Http\Controllers\Admin\DiscountTypeController;
 use App\Http\Controllers\Admin\DocumentTypeController;
@@ -205,6 +206,9 @@ Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group
     Route::resource('discount-types', DiscountTypeController::class);
     Route::patch('discount-types/{discountType}/toggle', [DiscountTypeController::class, 'toggleStatus'])
         ->name('discount-types.toggle');
+
+    Route::post('/discounts/calculate', [AdminDiscountController::class, 'calculateDiscounts'])
+        ->name('discounts.calculate');
 
     // Sellers management
     Route::middleware(['check_permission:view-sellers'])->group(function () {

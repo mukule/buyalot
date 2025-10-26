@@ -146,7 +146,7 @@ function openEditModal(user: UserWithRoles) {
     editForm.name = user.name;
     editForm.email = user.email;
     editForm.phone = user.phone ?? '';
-    editForm.gender = user.gender ?? '';
+    // editForm.gender = user.gender ?? '';
     editForm.status = !!user.status;
     showEditModal.value = true;
 }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Brand;
 use App\Models\Payment\Discount;
 use App\Models\Payment\DiscountType;
+use App\Models\ProductVariant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -216,5 +217,65 @@ class DiscountController extends Controller
             // Keep as null if invalid JSON
             return null;
         }
+    }
+
+    public function calculateDiscounts(Request $request)
+    {
+        // Validate input
+        $validated = $request->validate([
+            'product_variant_ids' => ['required', 'array'],
+            'product_variant_ids.*' => ['integer', 'exists:product_variants,id'],
+        ]);
+
+        $variants = ProductVariant::with(['discounts'])
+            ->whereIn('id', $validated['product_variant_ids'])
+            ->get();
+
+        $results = [];
+
+        foreach ($variants as $variant) {
+            $markedPrice = $variant->marked_price ?? 0;
+            $totalDiscount = 0;
+            $discountDetails = [];
+
+            foreach ($variant->discounts as $discount) {
+                if (! $discount->is_active) {
+                    continue;
+                }
+
+                // Determine discount value
+                $discountAmount = 0;
+
+                if ($discount->type === 'percentage') {
+                    $discountAmount = ($markedPrice * ($discount->value / 100));
+                } elseif ($discount->type === 'fixed') {
+                    $discountAmount = $discount->value;
+                }
+
+                $discountAmount = min($discountAmount, $markedPrice); // prevent over-discounting
+                $totalDiscount += $discountAmount;
+
+                $discountDetails[] = [
+                    'discount_name' => $discount->name,
+                    'discount_amount' => round($discountAmount, 2),
+                ];
+            }
+
+            $sellingPrice = max($markedPrice - $totalDiscount, 0);
+
+            $results[] = [
+                'product_variant_id' => $variant->id,
+                'marked_price' => round($markedPrice, 2),
+                'discounts' => $discountDetails,
+                'total_discount' => round($totalDiscount, 2),
+                'selling_price' => round($sellingPrice, 2),
+            ];
+        }
+
+        logger("results", $results);
+
+        return response()->json([
+            'data' => $results,
+        ]);
     }
 }
