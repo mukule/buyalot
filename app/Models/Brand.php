@@ -91,5 +91,10 @@ class Brand extends Model
         return $this->logo_path ? asset('storage/' . $this->logo_path) : null;
     }
 
-    // Removed: category(), getCategoryNameAttribute()
+
+    public function products()
+{
+    return $this->hasMany(\App\Models\Product::class, 'brand_id');
+}
+
 }

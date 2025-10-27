@@ -11,6 +11,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Illuminate\Validation\Rule;
+use App\Services\DiscountService;
+
 
 class DiscountController extends Controller
 {
@@ -219,65 +221,78 @@ class DiscountController extends Controller
         }
     }
 
-    public function calculateDiscounts(Request $request)
-    {
+    // public function calculateDiscounts(Request $request)
+    // {
+    //     // Validate input
+    //     $validated = $request->validate([
+    //         'product_variant_ids' => ['required', 'array'],
+    //         'product_variant_ids.*' => ['integer', 'exists:product_variants,id'],
+    //     ]);
 
-        // Validate input
-        $validated = $request->validate([
-            'product_variant_ids' => ['required', 'array'],
-            'product_variant_ids.*' => ['integer', 'exists:product_variants,id'],
-        ]);
+    //     $variants = ProductVariant::with(['discounts'])
+    //         ->whereIn('id', $validated['product_variant_ids'])
+    //         ->get();
 
-        $variants = ProductVariant::with(['discounts'])
-            ->whereIn('id', $validated['product_variant_ids'])
-            ->get();
-        info($variants);
+    //     $results = [];
 
-        $results = [];
+    //     foreach ($variants as $variant) {
+    //         $markedPrice = $variant->marked_price ?? 0;
+    //         $totalDiscount = 0;
+    //         $discountDetails = [];
 
-        foreach ($variants as $variant) {
-            $markedPrice = $variant->marked_price ?? 0;
-            $totalDiscount = 0;
-            $discountDetails = [];
+    //         foreach ($variant->discounts as $discount) {
+    //             if (! $discount->is_active) {
+    //                 continue;
+    //             }
 
-            foreach ($variant->discounts as $discount) {
-                if (! $discount->is_active) {
-                    continue;
-                }
+    //             // Determine discount value
+    //             $discountAmount = 0;
 
-                // Determine discount value
-                $discountAmount = 0;
+    //             if ($discount->type === 'percentage') {
+    //                 $discountAmount = ($markedPrice * ($discount->value / 100));
+    //             } elseif ($discount->type === 'fixed') {
+    //                 $discountAmount = $discount->value;
+    //             }
 
-                if ($discount->type === 'percentage') {
-                    $discountAmount = ($markedPrice * ($discount->value / 100));
-                } elseif ($discount->type === 'fixed') {
-                    $discountAmount = $discount->value;
-                }
+    //             $discountAmount = min($discountAmount, $markedPrice); // prevent over-discounting
+    //             $totalDiscount += $discountAmount;
 
-                $discountAmount = min($discountAmount, $markedPrice); // prevent over-discounting
-                $totalDiscount += $discountAmount;
+    //             $discountDetails[] = [
+    //                 'discount_name' => $discount->name,
+    //                 'discount_amount' => round($discountAmount, 2),
+    //             ];
+    //         }
 
-                $discountDetails[] = [
-                    'discount_name' => $discount->name,
-                    'discount_amount' => round($discountAmount, 2),
-                ];
-            }
+    //         $sellingPrice = max($markedPrice - $totalDiscount, 0);
 
-            $sellingPrice = max($markedPrice - $totalDiscount, 0);
+    //         $results[] = [
+    //             'product_variant_id' => $variant->id,
+    //             'marked_price' => round($markedPrice, 2),
+    //             'discounts' => $discountDetails,
+    //             'total_discount' => round($totalDiscount, 2),
+    //             'selling_price' => round($sellingPrice, 2),
+    //         ];
+    //     }
 
-            $results[] = [
-                'product_variant_id' => $variant->id,
-                'marked_price' => round($markedPrice, 2),
-                'discounts' => $discountDetails,
-                'total_discount' => round($totalDiscount, 2),
-                'selling_price' => round($sellingPrice, 2),
-            ];
-        }
+    //     logger("results", $results);
 
-        logger("results", $results);
+    //     return response()->json([
+    //         'data' => $results,
+    //     ]);
+    // }
 
-        return response()->json([
-            'data' => $results,
-        ]);
-    }
+
+    public function calculateDiscounts(Request $request, DiscountService $discountService)
+{
+    $validated = $request->validate([
+        'product_variant_ids' => ['required', 'array'],
+        'product_variant_ids.*' => ['integer', 'exists:product_variants,id'],
+    ]);
+
+    $results = $discountService->calculateDiscounts($validated['product_variant_ids']);
+
+    return response()->json([
+        'data' => $results,
+    ]);
+}
 }

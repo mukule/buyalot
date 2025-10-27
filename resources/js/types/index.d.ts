@@ -406,10 +406,10 @@ export interface SimplifiedProduct {
     product_slug: string; // product slug for detail link
     name: string;
     image: string | null;
-    regular_price: number | null;
-    selling_price: number | null;
-    discount?: number | null;
-    onSale?: boolean;
+    marked_price: number; // original/marked price
+    final_price: number; // after applying discounts
+    discount_percent: number; // discount percentage if any
+    has_discount: boolean; // whether discount exists
     rating?: number;
 }
 
