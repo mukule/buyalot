@@ -57,7 +57,7 @@ class Product extends Model
         'status' => 'integer',
     ];
 
-   
+
     const STATUS_DRAFT    = 0; // Created but not submitted
     const STATUS_PENDING  = 1; // Submitted for review
     const STATUS_APPROVED = 2; // Approved and public
@@ -70,9 +70,14 @@ class Product extends Model
     protected static function booted()
     {
         static::addGlobalScope(new SellerProductScope);
+
+        static::created(fn() => \App\Services\SearchCacheService::refresh());
+        static::updated(fn() => \App\Services\SearchCacheService::refresh());
+        static::deleted(fn() => \App\Services\SearchCacheService::refresh());
     }
 
-   protected function imageUrls(): Attribute
+
+    protected function imageUrls(): Attribute
     {
         return Attribute::get(fn () =>
             $this->relationLoaded('images')

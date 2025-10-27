@@ -11,6 +11,7 @@ use Illuminate\Support\Carbon;
 
 class ProductVariant extends Model
 {
+
     protected $fillable = [
         'product_id',
         'buying_price',
@@ -35,6 +36,13 @@ class ProductVariant extends Model
     // ----------------------
     // Relationships
     // ----------------------
+
+    protected static function booted()
+    {
+        static::created(fn() => \App\Services\SearchCacheService::refresh());
+        static::updated(fn() => \App\Services\SearchCacheService::refresh());
+        static::deleted(fn() => \App\Services\SearchCacheService::refresh());
+    }
 
     public function product(): BelongsTo
     {

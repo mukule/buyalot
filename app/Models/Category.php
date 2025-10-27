@@ -11,7 +11,7 @@ class Category extends Model
 {
     use HasSlug, HasHashid;
 
-    protected $fillable = ['name', 'slug', 'active', 'parent_id'];
+    protected $fillable = ['name', 'slug', 'active','description','parent_id'];
 
     protected $casts = [
         'active' => 'boolean',
@@ -20,6 +20,14 @@ class Category extends Model
     protected $appends = ['hashid', 'parent_name'];
 
     protected static string $slugSource = 'name';
+
+
+    protected static function booted()
+    {
+        static::created(fn() => \App\Services\SearchCacheService::refresh());
+        static::updated(fn() => \App\Services\SearchCacheService::refresh());
+        static::deleted(fn() => \App\Services\SearchCacheService::refresh());
+    }
 
     /**
      * Parent category relationship
@@ -35,7 +43,7 @@ class Category extends Model
     public function children()
     {
         return $this->hasMany(Category::class, 'parent_id')
-                    ->with('children'); 
+                    ->with('children');
     }
 
     /**
@@ -56,7 +64,7 @@ class Category extends Model
      */
     public function getParentNameAttribute(): ?string
     {
-        return $this->parent?->name; 
+        return $this->parent?->name;
     }
 
     /**

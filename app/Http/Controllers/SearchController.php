@@ -2,24 +2,30 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ProductVariant;
+use App\Services\SearchCacheService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Inertia\Inertia;
 
 class SearchController extends Controller
 {
-    public function products(Request $request)
+    /**
+     * Main search entry point
+     * Supports both Inertia full results and AJAX suggestions.
+     */
+    public function search(Request $request)
     {
-        $q = trim((string) $request->query('q', ''));
-        $perPage = (int) $request->query('per_page', 20);
-        $ajax = (bool) $request->boolean('ajax', false);
+        $q = strtolower(trim($request->input('q', '')));
+        $ajax = $request->boolean('ajax', false);
+        $perPage = (int) $request->input('per_page', 15);
+        $page = (int) $request->input('page', 1);
 
-        if ($q === '') {
+        if (strlen($q) < 2) {
             if ($ajax) {
-                return response()->json(['data' => [], 'q' => $q]);
+                return response()->json(['results' => ['data' => []]]);
             }
+
             return Inertia::render('Frontend/SearchResults', [
                 'q' => $q,
                 'results' => [
@@ -29,152 +35,88 @@ class SearchController extends Controller
                     'current_page' => 1,
                     'last_page' => 1,
                 ],
+                'message' => 'Please enter at least 2 characters to search.',
             ]);
         }
 
-        $normalizedQ = $this->normalize($q);
-        $currentPage = max(1, (int) $request->query('page', 1));
-        $cacheKey = 'search:v1:' . ($ajax ? 'a' : 'f') . ":{$perPage}:{$currentPage}:" . md5($normalizedQ);
+        // 🔹 Load cached search data
+        $cache = SearchCacheService::get();
+        if (!$cache) {
+            SearchCacheService::rebuild();
+            $cache = SearchCacheService::get();
+        }
 
-        $payload = Cache::remember($cacheKey, 60, function () use ($q, $normalizedQ, $perPage, $currentPage, $ajax) {
-            $like = '%' . str_replace(' ', '%', $q) . '%';
-            $baseLimit = $ajax ? 50 : 200;
+        $products = collect($cache['products'] ?? []);
+        $variants = collect($cache['variants'] ?? []);
+        $brands = collect($cache['brands'] ?? []);
+        $categories = collect($cache['categories'] ?? []);
 
-            $prefiltered = ProductVariant::query()
-                ->with([
-                    'product' => function ($p) {
-                        $p->select('id', 'slug', 'name', 'brand_id', 'status_id');
-                    },
-                    'product.brand:id,name',
-                    'product.primaryImage:id,product_id,image_path',
-                ])
-                ->whereHas('product', function ($qp) use ($like) {
-                    $qp->where('status_id', 2)
-                       ->where(function ($w) use ($like) {
-                           $w->where('name', 'like', $like)
-                             ->orWhere('slug', 'like', $like)
-                             ->orWhere('product_code', 'like', $like)
-                             ->orWhere('meta_keywords', 'like', $like);
-                       });
-                })
-                ->orWhere('sku', 'like', $like)
-                ->limit($baseLimit)
-                ->get(['id', 'product_id', 'regular_price', 'selling_price', 'stock', 'sku', 'created_at']);
+        // 🔹 Match variants + products
+        $matches = $variants->filter(function ($variant) use ($products, $q) {
+            $product = $products->firstWhere('id', $variant['product_id']);
+            if (!$product || ($product['status_id'] ?? null) != 2) {
+                return false;
+            }
 
-            $scored = $prefiltered->map(function ($variant) use ($q) {
-                $product = $variant->product;
-                $fields = [
-                    (string) ($variant->display_name ?? ''),
-                    (string) ($product->name ?? ''),
-                    (string) ($variant->sku ?? ''),
-                    (string) ($product->brand->name ?? ''),
-                    (string) ($product->product_code ?? ''),
-                ];
+            $brand = strtolower($product['brand'] ?? '');
+            $name = strtolower($product['name'] ?? '');
+            $sku = strtolower($variant['sku'] ?? '');
 
-                $score = $this->fuzzyScore($q, $fields);
-
-                return [
-                    'score' => $score,
-                    'variant' => $variant,
-                ];
-            })
-            ->filter(fn ($row) => $row['score'] > 0.2)
-            ->sortByDesc('score')
-            ->values();
-
-            $total = $scored->count();
-            $start = ($currentPage - 1) * $perPage;
-            $pageItems = $scored->slice($start, $perPage)->values();
-
-            $data = $pageItems->map(function ($row) {
-                $v = $row['variant'];
-                $p = $v->product;
-
-                $imagePath = optional($p->primaryImage)->image_path;
-                $image = $imagePath ? (str_starts_with($imagePath, 'http') ? $imagePath : Storage::disk('s3')->url($imagePath)) : null;
-
-                return [
-                    'id' => $v->id,
-                    'hashid' => $v->hashid,
-                    'product_slug' => $p->slug,
-                    'name' => $v->display_name ?? $p->name,
-                    'brand' => $p->brand->name ?? null,
-                    'regular_price' => $v->regular_price,
-                    'selling_price' => $v->selling_price,
-                    'discount' => $v->discount_percent ?? null,
-                    'in_stock' => $v->in_stock,
-                    'primary_image_url' => $image,
-                ];
-            });
+            return Str::contains($name, $q)
+                || Str::contains($sku, $q)
+                || Str::contains($brand, $q);
+        })->map(function ($variant) use ($products, $brands, $categories) {
+            $product = $products->firstWhere('id', $variant['product_id']);
+            $brand = $brands->firstWhere('id', $product['brand_id'] ?? null);
+            $category = $categories->firstWhere('id', $product['category_id'] ?? null);
 
             return [
-                'data' => $data,
-                'total' => $total,
-                'per_page' => $perPage,
-                'current_page' => $currentPage,
-                'last_page' => max(1, (int) ceil($total / $perPage)),
+                'id' => $variant['id'],
+                'sku' => $variant['sku'],
+                'name' => $product['name'],
+                'product_slug' => $product['slug'],
+//                'primary_image_url' => $product['primary_image_url'] ?? null,
+                'primary_image_url' => $product['primary_image_url']
+                    ?? $variant['primary_image_url']
+                        ?? '/assets/images/logo.png',
+                'brand' => $brand['name'] ?? null,
+                'category' => $category['name'] ?? null,
             ];
         });
 
-        if ($ajax || $request->wantsJson()) {
-            return response()->json(['q' => $q, 'results' => $payload]);
+        // 🔹 Ranking
+        $scored = $matches->map(function ($item) use ($q) {
+            $nameScore = similar_text(strtolower($item['name']), $q);
+            $skuScore = similar_text(strtolower($item['sku']), $q);
+            $brandScore = similar_text(strtolower($item['brand'] ?? ''), $q);
+            $item['score'] = $nameScore * 2 + $skuScore + $brandScore;
+            return $item;
+        })->sortByDesc('score')->values();
+
+        // AJAX call (auto-suggest)
+        if ($ajax) {
+            $suggestions = $scored->take($perPage)->values();
+            return response()->json(['results' => ['data' => $suggestions]]);
         }
+
+        // Inertia paginated search results
+        $paginated = new LengthAwarePaginator(
+            $scored->forPage($page, $perPage),
+            $scored->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
 
         return Inertia::render('Frontend/SearchResults', [
             'q' => $q,
-            'results' => $payload,
+            'results' => [
+                'data' => $paginated->items(),
+                'total' => $paginated->total(),
+                'per_page' => $paginated->perPage(),
+                'current_page' => $paginated->currentPage(),
+                'last_page' => $paginated->lastPage(),
+            ],
         ]);
-    }
-
-    private function fuzzyScore(string $query, array $fields): float
-    {
-        $queryNorm = $this->normalize($query);
-        if ($queryNorm === '') return 0.0;
-
-        $best = 0.0;
-        foreach ($fields as $field) {
-            $text = $this->normalize($field);
-            if ($text === '') continue;
-
-            if (str_contains($text, $queryNorm)) {
-                $best = max($best, 0.9);
-            }
-
-            $lev = $this->levenshteinSimilarity($queryNorm, $text);
-            $best = max($best, $lev);
-
-            $sound = $this->phoneticSimilarity($queryNorm, $text);
-            $best = max($best, $sound * 0.8);
-        }
-        return $best;
-    }
-
-    private function normalize(string $s): string
-    {
-        $s = mb_strtolower($s);
-        $s = preg_replace('/[^a-z0-9\s]/u', ' ', $s);
-        $s = preg_replace('/\s+/', ' ', $s);
-        return trim($s);
-    }
-
-    private function levenshteinSimilarity(string $a, string $b): float
-    {
-        $la = strlen($a);
-        $lb = strlen($b);
-        if ($la === 0 || $lb === 0) return 0.0;
-        $max = max($la, $lb);
-
-        $distance = levenshtein(substr($a, 0, 255), substr($b, 0, 255));
-        $sim = 1 - ($distance / $max);
-        return max(0.0, min(1.0, $sim));
-    }
-
-    private function phoneticSimilarity(string $a, string $b): float
-    {
-        $ma = metaphone($a);
-        $mb = metaphone($b);
-        if ($ma === '' || $mb === '') return 0.0;
-        similar_text($ma, $mb, $pct);
-        return $pct / 100.0;
     }
 }

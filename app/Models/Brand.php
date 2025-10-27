@@ -8,10 +8,12 @@ use Vinkla\Hashids\Facades\Hashids;
 
 class Brand extends Model
 {
+
     protected $fillable = [
         'name',
         'slug',
         'active',
+        'description',
         'logo_path', // Only brand-specific fields
     ];
 
@@ -23,6 +25,13 @@ class Brand extends Model
         'hashid',
         'logo_url', // Removed 'category_name'
     ];
+
+    protected static function booted()
+    {
+        static::created(fn() => \App\Services\SearchCacheService::refresh());
+        static::updated(fn() => \App\Services\SearchCacheService::refresh());
+        static::deleted(fn() => \App\Services\SearchCacheService::refresh());
+    }
 
     protected static function boot()
     {

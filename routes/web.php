@@ -30,6 +30,7 @@ use App\Http\Controllers\Customer\CustomerController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Payments\PaymentController;
 use App\Http\Controllers\Payments\PaymentTransactionController;
+use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SellController;
 use App\Http\Controllers\SellerAccountController;
 use App\Http\Controllers\Warehouse\WarehouseController;
@@ -47,7 +48,7 @@ require __DIR__.'/customer.php';
 Route::get('/', [HomeController::class, 'index'])->name('home');
 
 // Product search
-Route::get('/search', [\App\Http\Controllers\SearchController::class, 'products'])->name('search.products');
+Route::get('/search', [SearchController::class, 'search'])->name('search');
 
 Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard',[HomeController::class,'dashboard'])->name('dashboard');
