@@ -19,6 +19,7 @@ const limit = props.limit ?? 11;
 
 const activeCategoryId = ref<number | null>(null);
 const pinned = ref(false);
+const hoveringPanel = ref(false);
 
 const visibleCategories = computed(() => props.categories.slice(0, limit));
 const hasMore = computed(() => props.categories.length > limit);
@@ -29,15 +30,19 @@ const onCategoryEnter = (id: number) => {
 };
 
 const onCategoryLeave = () => {
-    if (pinned.value) return;
     setTimeout(() => {
-        if (!pinned.value) activeCategoryId.value = null;
-    }, 60);
+        if (!pinned.value && !hoveringPanel.value) {
+            activeCategoryId.value = null;
+        }
+    }, 150);
 };
 
-const onPanelEnter = () => {};
+const onPanelEnter = () => {
+    hoveringPanel.value = true;
+};
 
 const onPanelLeave = () => {
+    hoveringPanel.value = false;
     if (!pinned.value) activeCategoryId.value = null;
 };
 
@@ -96,26 +101,26 @@ const activeCategory = computed(() => {
                         <h3 class="text-sm font-semibold text-gray-800">
                             {{ activeCategory.name }}
                         </h3>
-                        <a :href="`/category/${activeCategory.id}`" class="text-xs text-gray-500 hover:text-primary"> View all </a>
+                        <a :href="`/${activeCategory.slug}`" class="text-xs text-gray-500 hover:text-primary"> View all </a>
                     </div>
 
                     <div class="grid grid-cols-3 gap-4">
                         <div v-for="child in activeCategory.children" :key="child.id" class="min-h-[40px]">
                             <h4 class="mb-2 text-sm font-medium text-gray-700">
-                                <a :href="`/category/${child.id}`" class="hover:text-primary">
+                                <a :href="`/${child.slug}`" class="hover:text-primary">
                                     {{ child.name }}
                                 </a>
                             </h4>
 
                             <ul class="space-y-1 text-sm">
                                 <li v-for="grand in child.children ?? []" :key="grand.id" class="text-gray-600 hover:text-primary">
-                                    <a :href="`/category/${grand.id}`">
+                                    <a :href="`/category/${grand.slug}`">
                                         {{ grand.name }}
                                     </a>
                                 </li>
 
                                 <li v-if="!(child.children && child.children.length)" class="text-gray-600">
-                                    <a :href="`/category/${child.id}`" class="block hover:text-primary"> Browse {{ child.name }} </a>
+                                    <a :href="`/${child.slug}`" class="block hover:text-primary">{{ child.name }} </a>
                                 </li>
                             </ul>
                         </div>

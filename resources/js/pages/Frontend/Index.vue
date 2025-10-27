@@ -8,13 +8,13 @@ import type { PageProps as InertiaPageProps } from '@inertiajs/core';
 import { usePage } from '@inertiajs/vue3';
 
 // ✅ Shared types
-import type { Brand, Category, Product, SimplifiedProduct } from '@/types';
+import type { Brand, Category, SimplifiedProduct } from '@/types';
 
 interface PageProps extends InertiaPageProps {
     categories?: Category[];
     banners?: string[];
     brands?: Brand[];
-    productsByCategory?: Record<number, Product[]>;
+    productsByCategory?: Record<number, any[]>;
 }
 
 const DEFAULT_BANNERS = [
@@ -31,6 +31,7 @@ const banners = page.props.banners ?? DEFAULT_BANNERS;
 const brands = page.props.brands ?? [];
 const productsByCategory = page.props.productsByCategory ?? {};
 
+// ✅ Transform backend variant data to simplified frontend structure
 const simplifiedProductsByCategory: Record<number, SimplifiedProduct[]> = Object.fromEntries(
     Object.entries(productsByCategory).map(([categoryId, products]) => [
         Number(categoryId),
@@ -40,14 +41,16 @@ const simplifiedProductsByCategory: Record<number, SimplifiedProduct[]> = Object
             product_slug: p.product_slug,
             name: p.name,
             image: p.primary_image_url || '/fallback-image.png',
-            regular_price: p.regular_price ?? null,
-            selling_price: p.selling_price ?? null,
-            discount: p.discount ?? null,
-            rating: 3,
+            marked_price: p.marked_price ?? 0,
+            final_price: p.final_price ?? 0,
+            discount_percent: p.discount_percent ?? 0,
+            has_discount: p.has_discount ?? false,
+            rating: 3, // placeholder rating
         })),
     ]),
 );
 
+// ✅ Only show categories with at least 2 products
 const filteredCategories = categories.filter((category) => (simplifiedProductsByCategory[category.id]?.length ?? 0) >= 2);
 </script>
 

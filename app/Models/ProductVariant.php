@@ -148,7 +148,7 @@ class ProductVariant extends Model
 
 
 //    public function discounts()
-//{
+// {
 //    return $this->belongsToMany(\App\Models\Payment\Discount::class, 'discount_product_variants', 'product_variant_id', 'discount_id')
 //        ->where('is_active', true)
 //        ->where(function ($q) {
@@ -156,6 +156,6 @@ class ProductVariant extends Model
 //            $q->whereNull('starts_at')->orWhere('starts_at', '<=', $now);
 //            $q->whereNull('expires_at')->orWhere('expires_at', '>=', $now);
 //        });
-//}
+// }
 
 }

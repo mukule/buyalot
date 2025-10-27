@@ -108,4 +108,21 @@ class Category extends Model
 
         return $ids;
     }
+
+
+  
+public function getParentCategoryIds(): \Illuminate\Support\Collection
+{
+    $ids = collect();
+
+    $current = $this->parent;
+
+    while ($current) {
+        $ids->push($current->id);
+        $current = $current->parent;
+    }
+
+    return $ids;
+}
+
 }
