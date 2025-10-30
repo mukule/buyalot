@@ -8,12 +8,15 @@ const title = 'Create Variant Category';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: '/admin/dashboard' },
-    { title: 'Variant Categories', href: '/admin/variant-categories' },
+    { title: 'Product Variants', href: '/admin/variant-categories' },
     { title, href: '' },
 ];
 
+// Form includes 'default' and 'active' checkboxes
 const form = useForm({
     name: '',
+    default: false,
+    active: true, // default to active
 });
 </script>
 
@@ -38,12 +41,34 @@ const form = useForm({
                             id="name"
                             type="text"
                             required
-                            placeholder="Enter variant category name"
+                            placeholder="Enter product variant category name"
                             class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:ring-2 focus:ring-[color:var(--primary)] focus:outline-none"
                         />
                         <div v-if="form.errors.name" class="mt-1 text-sm text-red-600">
                             {{ form.errors.name }}
                         </div>
+                    </div>
+
+                    <!-- Default Checkbox -->
+                    <div class="flex items-center space-x-2">
+                        <input
+                            id="default"
+                            type="checkbox"
+                            v-model="form.default"
+                            class="h-4 w-4 rounded border border-gray-300 text-primary focus:ring-primary"
+                        />
+                        <label for="default" class="select-none">Set as default</label>
+                    </div>
+
+                    <!-- Active Checkbox -->
+                    <div class="flex items-center space-x-2">
+                        <input
+                            id="active"
+                            type="checkbox"
+                            v-model="form.active"
+                            class="h-4 w-4 rounded border border-gray-300 text-primary focus:ring-primary"
+                        />
+                        <label for="active" class="select-none">Active</label>
                     </div>
 
                     <button

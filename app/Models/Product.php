@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Payment\Discount;
 use App\Models\Scopes\SellerProductScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -56,9 +57,7 @@ class Product extends Model
         'status' => 'integer',
     ];
 
-    // ----------------------
-    // Status constants
-    // ----------------------
+   
     const STATUS_DRAFT    = 0; // Created but not submitted
     const STATUS_PENDING  = 1; // Submitted for review
     const STATUS_APPROVED = 2; // Approved and public
@@ -72,7 +71,7 @@ class Product extends Model
     {
         static::addGlobalScope(new SellerProductScope);
     }
-    
+
    protected function imageUrls(): Attribute
     {
         return Attribute::get(fn () =>
@@ -127,6 +126,11 @@ class Product extends Model
     public function getMinPriceAttribute(): ?float
     {
         return $this->productVariants()->min('selling_price');
+    }
+
+    public function discounts()
+    {
+        return $this->morphToMany(Discount::class, 'model', 'discount_applicable_tables');
     }
 
     public function getMaxPriceAttribute(): ?float
@@ -269,6 +273,9 @@ public function activeWarranty(): ?Warranty
 {
     return $this->warranties()->where('active', true)->first();
 }
+
+
+
 
 
 }

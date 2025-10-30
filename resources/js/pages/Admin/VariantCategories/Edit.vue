@@ -3,19 +3,22 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem, type VariantCategory, AppPageProps } from '@/types';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 
-const page = usePage<AppPageProps<{ variantCategory: VariantCategory & { hashid: string } }>>();
+const page = usePage<AppPageProps<{ variantCategory: VariantCategory & { hashid: string; default: boolean; active: boolean } }>>();
 const variantCategory = page.props.variantCategory;
 
-const title = `Edit Variant Category: ${variantCategory.name}`;
+const title = `Edit Product Variant: ${variantCategory.name}`;
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: '/admin/dashboard' },
-    { title: 'Variant Categories', href: '/admin/variant-categories' },
+    { title: 'Product Variant', href: '/admin/variant-categories' },
     { title, href: '' },
 ];
 
+// Form includes 'default' and 'active'
 const form = useForm({
     name: variantCategory.name,
+    default: variantCategory.default,
+    active: variantCategory.active ?? true,
 });
 
 function submit() {
@@ -50,6 +53,28 @@ function submit() {
                         <div v-if="form.errors.name" class="mt-1 text-sm text-red-600">
                             {{ form.errors.name }}
                         </div>
+                    </div>
+
+                    <!-- Default Checkbox -->
+                    <div class="flex items-center space-x-2">
+                        <input
+                            id="default"
+                            type="checkbox"
+                            v-model="form.default"
+                            class="h-4 w-4 rounded border border-gray-300 text-primary focus:ring-primary"
+                        />
+                        <label for="default" class="select-none">Set as default</label>
+                    </div>
+
+                    <!-- Active Checkbox -->
+                    <div class="flex items-center space-x-2">
+                        <input
+                            id="active"
+                            type="checkbox"
+                            v-model="form.active"
+                            class="h-4 w-4 rounded border border-gray-300 text-primary focus:ring-primary"
+                        />
+                        <label for="active" class="select-none">Active</label>
                     </div>
 
                     <button

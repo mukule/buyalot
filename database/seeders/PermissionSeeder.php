@@ -260,6 +260,13 @@ class PermissionSeeder extends Seeder
                 'delete-regions',
             ],
 
+            'zones' => [
+                'view-zones',
+                'create-zones',
+                'edit-zones',
+                'delete-zones',
+            ],
+
         ];
 
         // Create all permissions

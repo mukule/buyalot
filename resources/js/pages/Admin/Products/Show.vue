@@ -12,8 +12,8 @@ interface Category {
 
 interface Variant {
     id: number;
-    regular_price: number;
-    selling_price: number;
+    buying_price: number;
+    marked_price: number;
     stock: number;
     sku: string;
     values: { variant_category_id: number; value: string }[];
@@ -21,6 +21,7 @@ interface Variant {
 
 interface Product {
     id: number;
+    hashid: string;
     name: string;
     product_code?: string;
     primary_image_url?: string | null;
@@ -66,7 +67,7 @@ const calcDiscount = (regular: number, selling: number) => {
 
 // Button handlers using Inertia
 const editProduct = () => {
-    router.get(`/products/${props.product.id}/edit`);
+    router.get(route('admin.products.edit', { product: props.product.hashid }));
 };
 
 const backToProducts = () => {
@@ -176,28 +177,18 @@ const backToProducts = () => {
                     <!-- Variants -->
                     <div class="rounded-xl border bg-white p-3 shadow-sm">
                         <div v-if="props.product.variants?.length" class="space-y-2">
-                            <div v-for="variant in props.product.variants" :key="variant.id">
-                                <p><strong>SKU:</strong> {{ variant.sku }}</p>
-                                <p><strong>Stock:</strong> {{ variant.stock }}</p>
-                                <p>
-                                    <strong>Price:</strong>
-                                    <span>{{ formatPrice(variant.selling_price) }}</span>
-                                    <span
-                                        v-if="variant.regular_price && variant.selling_price < variant.regular_price"
-                                        class="ml-2 text-sm text-gray-500 line-through"
-                                    >
-                                        {{ formatPrice(variant.regular_price) }}
-                                    </span>
-                                    <span v-if="calcDiscount(variant.regular_price, variant.selling_price)" class="ml-1 text-sm text-green-600">
-                                        ({{ calcDiscount(variant.regular_price, variant.selling_price) }}% off)
-                                    </span>
-                                </p>
+                            <div v-for="variant in props.product.variants" :key="variant.id" class="mb-3">
                                 <p v-if="variant.values.length">
-                                    <strong>Attributes:</strong>
                                     <span v-for="(val, idx) in variant.values" :key="val.variant_category_id">
                                         {{ val.value }}<span v-if="idx < variant.values.length - 1">, </span>
                                     </span>
                                 </p>
+
+                                <p><strong>Stock:</strong> {{ variant.stock }}</p>
+
+                                <p><strong>Marked Price:</strong> {{ formatPrice(variant.marked_price) }}</p>
+                                <p><strong>Buying Price:</strong> {{ formatPrice(variant.buying_price) }}</p>
+
                                 <hr />
                             </div>
                         </div>
@@ -205,9 +196,13 @@ const backToProducts = () => {
                     </div>
 
                     <!-- What's in the Box -->
-                    <div v-if="props.product.whats_in_the_box" class="rounded-xl bg-white p-4 shadow">
+                    <div v-if="props.product.whats_in_the_box" class="max-w-full overflow-hidden rounded-xl bg-white p-4 shadow">
                         <h4 class="mb-2 font-semibold text-gray-700">What's in the Box</h4>
-                        <p v-html="props.product.whats_in_the_box"></p>
+
+                        <div
+                            v-html="props.product.whats_in_the_box"
+                            class="prose prose-sm max-w-none overflow-hidden break-words text-gray-700 [&>*]:max-w-full [&>img]:max-w-full [&>pre]:overflow-x-auto [&>table]:block [&>table]:w-full [&>table]:overflow-x-auto"
+                        ></div>
                     </div>
                 </div>
             </div>

@@ -1,0 +1,13 @@
+### GET request to example server
+GET https://examples.http-client.intellij.net/get
+    ?generated-in=PhpStorm
+
+###
+POST http://127.0.0.1:8000/api/v1/discounts/calculate
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer 1|2ERwzVzsnKTPvnqUTU90Pd5TVrX8axdHBC0K8qKW6549d431
+
+{
+    "product_variant_ids": [3]
+}

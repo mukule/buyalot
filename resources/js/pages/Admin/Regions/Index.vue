@@ -10,6 +10,7 @@ interface Region {
     hashid: string;
     name: string;
     active: boolean;
+    parent_name?: string | null;
 }
 
 interface PaginationLink {
@@ -53,6 +54,11 @@ function createRegion() {
     router.get(`${basePath.value}/create`);
 }
 
+function viewRegion(hashid: string) {
+    if (!hashid) return console.error('viewRegion called without hashid');
+    router.get(`${basePath.value}/${hashid}`);
+}
+
 function editRegion(hashid: string) {
     if (!hashid) return console.error('editRegion called without hashid');
     router.get(`${basePath.value}/${hashid}/edit`);
@@ -88,6 +94,7 @@ const statusClasses = (active: boolean) => ({
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Parent</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                             </tr>
@@ -95,16 +102,29 @@ const statusClasses = (active: boolean) => ({
                         <tbody class="divide-y divide-gray-200 bg-white">
                             <tr v-for="(region, index) in regions" :key="region.hashid" class="hover:bg-gray-50">
                                 <td class="px-4 py-4 text-sm text-gray-500">{{ index + 1 }}</td>
+
+                                <!-- Name clickable -->
                                 <td class="px-4 py-4 text-sm font-medium text-primary">
-                                    {{ region.name }}
+                                    <button @click.stop="viewRegion(region.hashid)" class="hover:underline">
+                                        {{ region.name }}
+                                    </button>
                                 </td>
+
+                                <!-- Parent Name -->
+                                <td class="px-4 py-4 text-sm">
+                                    {{ region.parent_name || '-' }}
+                                </td>
+
+                                <!-- Status -->
                                 <td class="px-4 py-4 text-sm">
                                     <span :class="statusClasses(region.active)">
                                         {{ region.active ? 'Active' : 'Inactive' }}
                                     </span>
                                 </td>
-                                <td class="px-4 py-4 text-right text-sm">
-                                    <button @click.stop="editRegion(region.hashid)" class="mr-3 text-blue-600 hover:underline">Edit</button>
+
+                                <!-- Actions -->
+                                <td class="flex justify-end gap-3 px-4 py-4 text-right text-sm">
+                                    <button @click.stop="editRegion(region.hashid)" class="text-blue-600 hover:underline">Edit</button>
                                     <button @click.stop="deleteRegion(region.hashid)" class="text-red-600 hover:underline">Delete</button>
                                 </td>
                             </tr>

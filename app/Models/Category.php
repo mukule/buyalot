@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Traits\HasSlug;
 use App\Models\Traits\HasHashid;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Category extends Model
 {
@@ -35,6 +36,19 @@ class Category extends Model
     {
         return $this->hasMany(Category::class, 'parent_id')
                     ->with('children'); 
+    }
+
+    /**
+     * Many-to-many relationship with VariantCategory
+     */
+    public function variantCategories(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            VariantCategory::class,
+            'category_variants',  // pivot table
+            'category_id',        // this model's FK
+            'variant_category_id' // related model's FK
+        )->withTimestamps();
     }
 
     /**
@@ -81,15 +95,34 @@ class Category extends Model
         return implode(' > ', array_map(fn($cat) => $cat['name'], $this->getHierarchy()));
     }
 
-
+    /**
+     * Get all category IDs including children recursively
+     */
     public function getAllCategoryIds(): \Illuminate\Support\Collection
-{
-    $ids = collect([$this->id]);
+    {
+        $ids = collect([$this->id]);
 
-    foreach ($this->children as $child) {
-        $ids = $ids->merge($child->getAllCategoryIds());
+        foreach ($this->children as $child) {
+            $ids = $ids->merge($child->getAllCategoryIds());
+        }
+
+        return $ids;
+    }
+
+
+  
+public function getParentCategoryIds(): \Illuminate\Support\Collection
+{
+    $ids = collect();
+
+    $current = $this->parent;
+
+    while ($current) {
+        $ids->push($current->id);
+        $current = $current->parent;
     }
 
     return $ids;
 }
+
 }

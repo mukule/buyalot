@@ -1,29 +1,26 @@
 <script setup lang="ts">
 import logo from '@/assets/images/logo.png';
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { Heart, Menu, Search, ShoppingCart, X } from 'lucide-vue-next';
+import { ChevronDown, ChevronUp, Heart, Menu, Search, ShoppingCart, X } from 'lucide-vue-next';
 import { computed, inject, ref } from 'vue';
 
 import type { AppPageProps } from '@/types';
 
-// Page props
+// --- Types
+interface Category {
+    id: number;
+    name: string;
+    slug?: string;
+    children?: Category[];
+}
+
+// --- Page & auth
 const page = usePage<AppPageProps>();
-
-// User object
 const user = computed(() => page.props.auth?.user);
-
 const customerId = computed(() => page.props.auth?.customer_id);
-console.log('customer id ' + customerId.value);
-console.log(user.value);
-// Counts
-//const wishlistCount = computed<number>(() => page.props.auth?.counts?.wishlist ?? 0);
-//const wishlistCount = computed(() => page.props.auth.wishlistVariantIds?.length ?? 0);
 
-const wishlistCount = computed(() => {
-    console.log('Computed Wishlist Count:', page.props.auth.wishlistVariantIds);
-    return page.props.auth.wishlistVariantIds?.length ?? 0;
-});
-
+// Wishlist & Cart counts
+const wishlistCount = computed(() => page.props.auth?.wishlistVariantIds?.length ?? 0);
 const cartCount = computed<number>(() => page.props.auth?.counts?.cart ?? 0);
 
 // User initials
@@ -36,9 +33,19 @@ const userInitials = computed(() => {
         .toUpperCase();
 });
 
-// Menu state
+// Menu states
 const mobileMenuOpen = ref(false);
 const showCategories = ref(false);
+const expandedCategories = ref<Record<number, boolean>>({});
+
+// --- Categories: safe typed computed to avoid "slice on {}" error
+const categories = computed<Category[]>(() => {
+    const raw = (page.props as any).categories;
+    return Array.isArray(raw) ? (raw as Category[]) : [];
+});
+
+// precomputed mobile slice so template doesn't call .slice on unknown
+const mobileCategories = computed(() => categories.value.slice(0, 10));
 
 // Top links
 const topLinks = [
@@ -46,27 +53,8 @@ const topLinks = [
     { name: 'Sell on Buyalot', href: '/sell' },
 ];
 
-// Auth links
-// const authLinks = computed(() => {
-//     if (user.value) {
-//         return [
-//             {
-//                 name: 'My Account',
-//                 href: customerId.value ? `/customers/${customerId.value}/dashboard` : '/customers/dashboard',
-//                 isUser: true
-//             },
-//             { name: 'Orders', href: '/orders/my-orders' },
-//             { name: 'Logout', href: '/logout', isLogout: true },
-//         ];
-//     } else {
-//         return [
-//             { name: 'Orders', href: '/orders/my-orders' },
-//             { name: 'Login', href: '/login' },
-//             { name: 'Register', href: '/register' },
-//         ];
-//     }
-// });
-
+// Routes and auth
+const route = inject<((name: string, params?: any) => string) | undefined>('route');
 const authLinks = computed(() => {
     if (user.value) {
         const dashboardUrl =
@@ -75,15 +63,8 @@ const authLinks = computed(() => {
                 : route
                   ? route('admin.dashboard')
                   : '/admin/dashboard';
-
-        console.log('Dashboard URL generated:', dashboardUrl);
-
         return [
-            {
-                name: 'My Account',
-                href: dashboardUrl,
-                isUser: true,
-            },
+            { name: 'My Account', href: dashboardUrl, isUser: true },
             { name: 'Orders', href: '/orders/my-orders' },
             { name: 'Logout', href: '/logout', isLogout: true },
         ];
@@ -95,34 +76,11 @@ const authLinks = computed(() => {
         ];
     }
 });
-//
-// // Categories
-const categoryLinks = [
-    'Electronics',
-    'Apparel',
-    'Home & Garden',
-    'Beauty',
-    'Sports',
-    'Toys',
-    'Books',
-    'Automotive',
-    'Health & Wellness',
-    'Office Supplies',
-    'Grocery',
-    'Mobile Phones',
-    'Computers',
-    'Games',
-    'Music',
-];
 
-// Ziggy route helper (if available)
-const route = inject<((name: string, params?: any) => string) | undefined>('route');
+const wishlistUrl = computed(() => (route ? route('wishlist.index') : '/wishlist'));
+const cartUrl = computed(() => (route ? route('cart.index') : '/cart'));
 
-// Safe URLs with fallbacks
-const wishlistUrl = computed<string>(() => (route ? route('wishlist.index') : '/wishlist'));
-const cartUrl = computed<string>(() => (route ? route('cart.index') : '/cart'));
-
-// Search state
+// Search
 const searchQuery = ref('');
 const suggestions = ref<any[]>([]);
 const showSuggestions = ref(false);
@@ -160,7 +118,6 @@ function submitSearch() {
     router.get('/search', { q }, { preserveScroll: true });
 }
 
-// Methods
 function toggleMobileMenu() {
     mobileMenuOpen.value = !mobileMenuOpen.value;
 }
@@ -168,15 +125,19 @@ function toggleMobileMenu() {
 function logout() {
     router.post('/logout', {}, { preserveScroll: true });
 }
+
+function toggleCategory(catId: number) {
+    expandedCategories.value[catId] = !expandedCategories.value[catId];
+}
 </script>
 
 <template>
     <header class="fixed top-0 left-0 z-50 w-full bg-white shadow-md">
         <div class="container mx-auto flex items-center justify-between px-4 py-3 sm:px-6">
-            <!-- Logo & Top Links -->
+            <!-- Logo -->
             <div class="flex items-center space-x-6">
                 <Link href="/">
-                    <img :src="logo" alt="App Logo" class="h-10 w-auto" />
+                    <img :src="logo" alt="Logo" class="h-10 w-auto" />
                 </Link>
                 <nav class="hidden space-x-4 text-sm md:flex">
                     <template v-for="(link, index) in topLinks" :key="link.name">
@@ -186,13 +147,15 @@ function logout() {
                 </nav>
             </div>
 
-            <!-- Desktop Right Nav -->
+            <!-- Desktop Nav -->
             <nav class="hidden items-center space-x-4 text-sm md:flex">
                 <template v-for="(link, index) in authLinks" :key="link.name">
                     <button v-if="link.isLogout" @click.prevent="logout" class="cursor-pointer text-gray-500 hover:underline">
                         {{ link.name }}
                     </button>
-                    <Link v-else-if="!link.isUser" :href="link.href" class="text-gray-500 hover:underline">{{ link.name }}</Link>
+                    <Link v-else-if="!link.isUser" :href="link.href" class="text-gray-500 hover:underline">
+                        {{ link.name }}
+                    </Link>
                     <Link v-else :href="link.href" class="flex items-center space-x-2 text-gray-700 hover:underline">
                         <div
                             class="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white"
@@ -204,7 +167,7 @@ function logout() {
                     </Link>
                     <span v-if="index < authLinks.length - 1" class="text-gray-400">|</span>
                 </template>
-                <!-- Wishlist -->
+
                 <Link :href="wishlistUrl" class="relative flex items-center justify-center rounded-full bg-secondary p-2">
                     <Heart class="h-4 w-4 text-white" />
                     <span
@@ -215,7 +178,6 @@ function logout() {
                     </span>
                 </Link>
 
-                <!-- Cart -->
                 <Link :href="cartUrl" class="relative flex items-center justify-center">
                     <ShoppingCart class="h-6 w-6 text-primary" />
                     <span
@@ -227,7 +189,7 @@ function logout() {
                 </Link>
             </nav>
 
-            <!-- Mobile Right Controls -->
+            <!-- Mobile Controls -->
             <div class="flex items-center space-x-4 md:hidden">
                 <Link :href="wishlistUrl" class="relative flex items-center justify-center rounded-full bg-secondary p-2">
                     <Heart class="h-5 w-5 text-white" />
@@ -249,7 +211,7 @@ function logout() {
                 </Link>
                 <button
                     @click="toggleMobileMenu"
-                    class="inline-flex items-center justify-center rounded-md p-2 text-gray-700 hover:bg-gray-100 focus:ring-2 focus:ring-secondary focus:outline-none focus:ring-inset"
+                    class="inline-flex items-center justify-center rounded-md p-2 text-gray-700 hover:bg-gray-100 focus:ring-2 focus:ring-secondary"
                 >
                     <Menu v-if="!mobileMenuOpen" class="h-6 w-6" />
                     <X v-else class="h-6 w-6" />
@@ -295,21 +257,51 @@ function logout() {
                         </template>
                     </div>
 
-                    <!-- Categories -->
+                    <!-- Dynamic Categories -->
                     <div class="border-b border-gray-200 pb-3">
                         <button
                             class="w-full rounded-md px-3 py-2 text-left text-gray-700 hover:bg-gray-100 hover:underline"
                             @click="showCategories = !showCategories"
                         >
-                            Search by Categories
+                            Browse Categories
                         </button>
-                        <div v-if="showCategories" class="mt-2 max-h-60 space-y-1 overflow-y-auto pr-2 pl-3">
+
+                        <div v-if="showCategories" class="mt-2 max-h-80 overflow-y-auto pr-2 pl-1">
+                            <template v-for="cat in mobileCategories" :key="'mobile-cat-' + cat.id">
+                                <div>
+                                    <button
+                                        class="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
+                                        @click="toggleCategory(cat.id)"
+                                    >
+                                        <span>{{ cat.name }}</span>
+                                        <component :is="expandedCategories[cat.id] ? ChevronUp : ChevronDown" class="h-4 w-4 text-gray-500" />
+                                    </button>
+
+                                    <transition name="slide-fade">
+                                        <div
+                                            v-if="expandedCategories[cat.id] && cat.children && cat.children.length"
+                                            class="ml-4 border-l border-gray-200 pl-3"
+                                        >
+                                            <Link
+                                                v-for="child in cat.children"
+                                                :key="'mobile-subcat-' + child.id"
+                                                :href="`/category/${child.id}`"
+                                                class="block rounded-md px-2 py-1 text-sm text-gray-600 hover:bg-gray-50"
+                                                @click="mobileMenuOpen = false"
+                                            >
+                                                - {{ child.name }}
+                                            </Link>
+                                        </div>
+                                    </transition>
+                                </div>
+                            </template>
+
                             <button
-                                v-for="(category, index) in categoryLinks"
-                                :key="'mobile-cat-' + index"
-                                class="block w-full rounded-md px-2 py-1 text-left text-sm text-gray-700 hover:bg-gray-100"
+                                v-if="categories.length > 10"
+                                class="block w-full px-3 py-2 text-sm text-primary hover:underline"
+                                @click="router.visit('/categories')"
                             >
-                                {{ category }}
+                                View all categories
                             </button>
                         </div>
                     </div>
@@ -325,9 +317,6 @@ function logout() {
                 <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                     <Search class="h-5 w-5 text-gray-400" />
                 </div>
-                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                    <Search class="h-5 w-5 text-gray-400" />
-                </div>
                 <input
                     v-model="searchQuery"
                     @input="onSearchInput"
@@ -337,7 +326,6 @@ function logout() {
                     placeholder="Search products, brands..."
                     class="w-full rounded-md bg-white py-2 pr-10 pl-10 text-sm text-gray-700 placeholder-gray-500 shadow-sm focus:ring-2 focus:ring-secondary focus:outline-none"
                 />
-                <!-- Suggestions Dropdown -->
                 <div v-if="showSuggestions" class="absolute z-50 mt-2 max-h-80 w-full overflow-auto rounded-md border bg-white shadow">
                     <div
                         v-for="s in suggestions"
@@ -348,7 +336,7 @@ function logout() {
                         <img :src="s.primary_image_url || '/fallback-image.png'" alt="" class="h-10 w-10 flex-none object-contain" />
                         <div class="min-w-0">
                             <div class="truncate text-sm text-gray-800">{{ s.name }}</div>
-                            <div class="truncate text-xs text-gray-500" v-if="s.brand">{{ s.brand }}</div>
+                            <div v-if="s.brand" class="truncate text-xs text-gray-500">{{ s.brand }}</div>
                         </div>
                     </div>
                     <div class="border-t p-2 text-center">
@@ -359,3 +347,25 @@ function logout() {
         </div>
     </div>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+    opacity: 0;
+}
+
+.slide-fade-enter-active,
+.slide-fade-leave-active {
+    transition: all 0.25s ease;
+}
+.slide-fade-enter-from,
+.slide-fade-leave-to {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-4px);
+}
+</style>

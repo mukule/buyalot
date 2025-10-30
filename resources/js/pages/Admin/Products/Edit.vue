@@ -23,7 +23,7 @@ const categories = page.categories ?? [];
 const brands = page.brands ?? [];
 const units = page.units ?? [];
 const variantCategories = page.variantCategories ?? [];
-const productData = page.product ?? null; // ✅ Use product instead of draft
+const productData = page.product ?? null;
 
 // Mapped options
 const brandOptions: OptionItem[] = brands.map((b: any) => ({ id: b.id, name: b.name }));

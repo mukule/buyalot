@@ -2,20 +2,24 @@
 
 namespace App\Models\Payment;
 
+use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Customer\Customer;
 use App\Models\Orders\Order;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Traits\HasHashid;
 use App\Models\Traits\HasSlug;
 use App\Models\User;
 use Hashids\Hashids;
 use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 use LaravelIdea\Helper\App\Models\Payment\_IH_Discount_QB;
 
 class Discount extends Model
@@ -27,9 +31,10 @@ class Discount extends Model
     protected $fillable = [
         'name',
         'slug',
+        'discount_type_code',
         'description',
         'code',
-        'type', // percentage, fixed_amount, buy_x_get_y, free_shipping
+        'type',
         'value',
         'minimum_amount',
         'maximum_discount',
@@ -39,10 +44,11 @@ class Discount extends Model
         'is_active',
         'starts_at',
         'expires_at',
-        'applicable_to', // all, specific_products, specific_categories, specific_customers
+        'applicable_to',
         'conditions',
         'metadata',
         'created_by',
+        'no_time_limit'
     ];
 
     protected $casts = [
@@ -57,12 +63,39 @@ class Discount extends Model
         'expires_at' => 'datetime',
         'conditions' => 'json',
         'metadata' => 'json',
+        'no_time_limit' => 'boolean',
     ];
 
     protected $dates = [
         'starts_at',
         'expires_at',
     ];
+
+
+    public function products()
+    {
+        return $this->morphedByMany(Product::class, 'model', 'discount_applicable_tables');
+    }
+
+    public function categories()
+    {
+        return $this->morphedByMany(Category::class, 'model', 'discount_applicable_tables');
+    }
+
+    public function variants()
+    {
+        return $this->morphedByMany(ProductVariant::class, 'model', 'discount_applicable_tables');
+    }
+
+    public function customers()
+    {
+        return $this->morphedByMany(\App\Models\Customer\Customer::class, 'model', 'discount_applicable_tables');
+    }
+
+    public function brands()
+    {
+        return $this->morphedByMany(Brand::class, 'model', 'discount_applicable_tables');
+    }
 
     // Slug configuration
 //    public function getSlugOptions(): SlugOptions
@@ -77,6 +110,11 @@ class Discount extends Model
     public function getHashidAttribute(): string
     {
         return (new \Hashids\Hashids)->encode($this->id);
+    }
+
+    public function discountType()
+    {
+        return $this->belongsTo(DiscountType::class, 'discount_type_code', 'code');
     }
 
     public static function findByHashid(string $hashid): ?self
@@ -106,20 +144,20 @@ class Discount extends Model
         return $this->hasMany(Order::class);
     }
 
-    public function products(): BelongsToMany
-    {
-        return $this->belongsToMany(Product::class, 'discount_products');
-    }
-
-    public function categories(): BelongsToMany
-    {
-        return $this->belongsToMany(Category::class, 'discount_categories');
-    }
-
-    public function customers(): BelongsToMany
-    {
-        return $this->belongsToMany(Customer::class, 'discount_customers');
-    }
+//    public function products(): BelongsToMany
+//    {
+//        return $this->belongsToMany(Product::class, 'discount_products');
+//    }
+//
+//    public function categories(): BelongsToMany
+//    {
+//        return $this->belongsToMany(Category::class, 'discount_categories');
+//    }
+//
+//    public function customers(): BelongsToMany
+//    {
+//        return $this->belongsToMany(Customer::class, 'discount_customers');
+//    }
 
     public function creator()
     {
@@ -604,5 +642,23 @@ class Discount extends Model
                 $discount->code = strtoupper(\Illuminate\Support\Str::random(8));
             }
         });
+    }
+
+    public function scopeActiveAndValid(Builder $query): Builder
+    {
+        $now = Carbon::now();
+
+        return $query
+            ->where('is_active', true)
+            ->where(function ($q) use ($now) {
+                $q->where('no_time_limit', true)
+                    ->orWhere(function ($inner) use ($now) {
+                        $inner->where(function ($d) use ($now) {
+                            $d->whereNull('starts_at')->orWhere('starts_at', '<=', $now);
+                        })->where(function ($d) use ($now) {
+                            $d->whereNull('expires_at')->orWhere('expires_at', '>', $now);
+                        });
+                    });
+            });
     }
 }

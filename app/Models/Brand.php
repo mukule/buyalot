@@ -12,7 +12,7 @@ class Brand extends Model
         'name',
         'slug',
         'active',
-        'logo_path', // Only brand-specific fields
+        'logo_path', 
     ];
 
     protected $casts = [
@@ -21,7 +21,7 @@ class Brand extends Model
 
     protected $appends = [
         'hashid',
-        'logo_url', // Removed 'category_name'
+        'logo_url', 
     ];
 
     protected static function boot()
@@ -82,5 +82,10 @@ class Brand extends Model
         return $this->logo_path ? asset('storage/' . $this->logo_path) : null;
     }
 
-    // Removed: category(), getCategoryNameAttribute()
+    
+    public function products()
+{
+    return $this->hasMany(\App\Models\Product::class, 'brand_id');
+}
+
 }

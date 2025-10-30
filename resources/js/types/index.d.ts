@@ -75,7 +75,6 @@ export interface Customer {
     orders_count?: number;
 }
 
-
 export interface User {
     id: number;
     name: string;
@@ -101,50 +100,50 @@ export interface MyOrders {
 }
 
 export interface ProductVariant {
-    id: number
-    product: Product
+    id: number;
+    product: Product;
 }
 
 export interface OrderItem {
-    id: number
-    quantity: number
-    price: number
-    product_variant?: ProductVariant
-    seller?: { id: number; name: string }
+    id: number;
+    quantity: number;
+    price: number;
+    product_variant?: ProductVariant;
+    seller?: { id: number; name: string };
 }
 
 export interface Address {
-    id: number
-    address_line1: string
-    address_line2?: string
-    city: string
-    state?: string
-    country: string
-    postal_code?: string
+    id: number;
+    address_line1: string;
+    address_line2?: string;
+    city: string;
+    state?: string;
+    country: string;
+    postal_code?: string;
 }
 export interface Product {
-    id: number
-    name: string
+    id: number;
+    name: string;
 }
 
 export interface Order {
-    id: number
-    order_code: string
-    status: string
-    payment_status: string
-    fulfillment_status: string
-    total_amount: number
-    created_at: string
-    updated_at: string
+    id: number;
+    order_code: string;
+    status: string;
+    payment_status: string;
+    fulfillment_status: string;
+    total_amount: number;
+    created_at: string;
+    updated_at: string;
 
     // Relations
-    customer: Customer
-    order_items: OrderItem[]
-    shipping_address?: Address
-    billing_address?: Address
+    customer: Customer;
+    order_items: OrderItem[];
+    shipping_address?: Address;
+    billing_address?: Address;
 
     // Delivery
-    rider_id?: number
+    rider_id?: number;
 }
 
 export interface Permission {
@@ -407,10 +406,10 @@ export interface SimplifiedProduct {
     product_slug: string; // product slug for detail link
     name: string;
     image: string | null;
-    regular_price: number | null;
-    selling_price: number | null;
-    discount?: number | null;
-    onSale?: boolean;
+    marked_price: number; // original/marked price
+    final_price: number; // after applying discounts
+    discount_percent: number; // discount percentage if any
+    has_discount: boolean; // whether discount exists
     rating?: number;
 }
 
@@ -419,6 +418,7 @@ export interface VariantCategory {
     name: string;
     hashid?: string;
     variants?: Variant[];
+    default: boolean;
 }
 
 export interface Variant {
@@ -452,5 +452,23 @@ declare global {
         axios: any;
     }
 }
+
+interface PickupPoint {
+    id: number;
+    name: string;
+    address: string;
+    contact_phone?: string;
+    contact_email?: string;
+    is_active: boolean;
+    region: { name: string };
+}
+
+const page = usePage<
+    AppPageProps & {
+        region: Region;
+        pickupPoints: PickupPoint[];
+        title: string;
+    }
+>();
 
 export type BreadcrumbItemType = BreadcrumbItem;

@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Category;
+use App\Models\VariantCategory;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Str;
+
+use Illuminate\Support\Facades\Log;
 
 class CategoryController extends Controller
 {
@@ -15,7 +18,7 @@ class CategoryController extends Controller
     {
         $categories = Category::with('parent') 
             ->orderBy('created_at', 'desc')
-            ->paginate(15);
+            ->paginate(40);
 
         return Inertia::render('Admin/Categories/Index', [
             'categories' => $categories,
@@ -23,92 +26,138 @@ class CategoryController extends Controller
     }
 
    
+    
     public function create()
-    {
-        // Fetch all active categories for parent selection
-        $categories = Category::select('id', 'name')
-            ->where('active', true)
-            ->get();
+{
+    
+    $categories = Category::select('id', 'name')
+        ->where('active', true)
+        ->get();
 
-        return Inertia::render('Admin/Categories/Create', [
-            'categories' => $categories,
-        ]);
-    }
+    
+    $variantCategories = \App\Models\VariantCategory::select('id', 'name', 'default')
+        ->get();
+
+    return Inertia::render('Admin/Categories/Create', [
+        'categories' => $categories,
+        'variantCategories' => $variantCategories,
+    ]);
+}
+
 
     /**
      * Store a newly created category.
      */
+   
+
     public function store(Request $request)
-    {
-        $request->validate([
-            'name' => ['required', 'string', 'max:255', 'unique:categories,name'],
-            'parent_id' => ['nullable', 'integer', 'exists:categories,id'], // optional parent
-        ]);
+{
+    $request->validate([
+        'name' => ['required', 'string', 'max:255', 'unique:categories,name'],
+        'parent_id' => ['nullable', 'integer', 'exists:categories,id'],
+        'variant_categories' => ['nullable', 'array'], // array of selected variant IDs
+        'variant_categories.*' => ['integer', 'exists:variant_categories,id'], // each ID must exist
+    ]);
 
-        Category::create([
-            'name' => $request->name,
-            'slug' => Str::slug($request->name),
-            'parent_id' => $request->parent_id, // store parent if selected
-            'active' => $request->boolean('active', true),
-        ]);
+    $category = Category::create([
+        'name' => $request->name,
+        'slug' => Str::slug($request->name),
+        'parent_id' => $request->parent_id,
+        'active' => $request->boolean('active', true),
+    ]);
 
-        return redirect()->route('admin.categories.index')
-            ->with('success', 'Category created successfully.');
+    // Attach selected variants
+    if ($request->filled('variant_categories')) {
+        $category->variantCategories()->sync($request->variant_categories);
     }
 
-    /**
-     * Show the form for editing a category.
-     */
+    return redirect()->route('admin.categories.index')
+        ->with('success', 'Category created successfully.');
+}
+
+
+   
+  
     public function edit(Category $category)
-    {
-        $categories = Category::select('id', 'name')
-            ->where('active', true)
-            ->where('id', '!=', $category->id) // prevent self as parent
-            ->get();
+{
+    
+    $categories = Category::select('id', 'name')
+        ->where('active', true)
+        ->where('id', '!=', $category->id)
+        ->get();
 
-        return Inertia::render('Admin/Categories/Edit', [
-            'category' => $category,
-            'categories' => $categories,
-        ]);
+    
+    $variantCategories = \App\Models\VariantCategory::select('id', 'name', 'default')->get();
+
+    
+    $category->load('variantCategories:id');
+
+    
+    if ($category->variantCategories->isNotEmpty()) {
+        $prechecked = $category->variantCategories->pluck('id')->toArray();
+    } else {
+       
+        $default = $variantCategories->firstWhere('default', true);
+        $prechecked = $default ? [$default->id] : [];
     }
 
-    /**
-     * Update an existing category.
-     */
+    
+    $category->variant_categories = $prechecked;
+
+    return Inertia::render('Admin/Categories/Edit', [
+        'category' => $category,
+        'categories' => $categories,
+        'variantCategories' => $variantCategories,
+    ]);
+}
+
+
+   
+   
     public function update(Request $request, Category $category)
-    {
-        $request->validate([
-            'name' => ['required', 'string', 'max:255', 'unique:categories,name,' . $category->id],
-            'parent_id' => ['nullable', 'integer', 'exists:categories,id'],
-        ]);
+{
+    $request->validate([
+        'name' => ['required', 'string', 'max:255', 'unique:categories,name,' . $category->id],
+        'parent_id' => ['nullable', 'integer', 'exists:categories,id'],
+        'variant_categories' => ['nullable', 'array'], 
+        'variant_categories.*' => ['integer', 'exists:variant_categories,id'], 
+    ]);
 
-        $category->update([
-            'name' => $request->name,
-            'slug' => Str::slug($request->name),
-            'parent_id' => $request->parent_id,
-            'active' => $request->boolean('active', true),
-        ]);
+    
+    $category->update([
+        'name' => $request->name,
+        'slug' => \Str::slug($request->name),
+        'parent_id' => $request->parent_id,
+        'active' => $request->boolean('active', true),
+    ]);
 
-        return redirect()->route('admin.categories.index')
-            ->with('success', 'Category updated successfully.');
+    
+    if ($request->has('variant_categories')) {
+        $category->variantCategories()->sync($request->variant_categories);
+    } else {
+        $category->variantCategories()->sync([]);
     }
 
-    /**
-     * Show a single category (optional: load children if needed).
-     */
-    public function show(Category $category)
-    {
-        $category->load('children'); // load children categories if needed
+    return redirect()->route('admin.categories.index')
+        ->with('success', 'Category updated successfully.');
+}
 
-        return Inertia::render('Admin/Categories/Show', [
-            'category' => $category,
-            'children' => $category->children,
-        ]);
-    }
+   
 
-    /**
-     * Delete a category.
-     */
+
+public function show(Category $category)
+{
+    // Eager load children and parent
+    $category->load(['children', 'parent']);
+
+    return Inertia::render('Admin/Categories/Show', [
+        'category' => $category,
+        'children' => $category->children,
+        'parent' => $category->parent, // null if top-level
+    ]);
+}
+
+   
     public function destroy(Category $category)
     {
         $category->delete();

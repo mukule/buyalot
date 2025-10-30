@@ -26,10 +26,10 @@ class WishlistService
     // --- For authenticated users ---
     if (Auth::check()) {
         $this->wishlist = Wishlist::firstOrCreate(['user_id' => Auth::id()]);
-        Log::info('Wishlist retrieved or created for authenticated user.', [
-            'user_id' => Auth::id(),
-            'wishlist_id' => $this->wishlist->id,
-        ]);
+        // Log::info('Wishlist retrieved or created for authenticated user.', [
+        //     'user_id' => Auth::id(),
+        //     'wishlist_id' => $this->wishlist->id,
+        // ]);
         return $this->wishlist;
     }
 
@@ -37,7 +37,7 @@ class WishlistService
     $token = $request->cookie('wishlist_token');
 
     if ($token) {
-        Log::info('Found existing wishlist token in cookie.', ['token' => $token]);
+       // Log::info('Found existing wishlist token in cookie.', ['token' => $token]);
     } else {
         $token = Str::uuid()->toString();
 
@@ -59,10 +59,10 @@ class WishlistService
 
     $this->wishlist = Wishlist::firstOrCreate(['wishlist_token' => $token]);
 
-    Log::info('Wishlist retrieved or created for guest user.', [
-        'token' => $token,
-        'wishlist_id' => $this->wishlist->id,
-    ]);
+    // Log::info('Wishlist retrieved or created for guest user.', [
+    //     'token' => $token,
+    //     'wishlist_id' => $this->wishlist->id,
+    // ]);
 
     return $this->wishlist;
 }
@@ -76,16 +76,13 @@ public function findWishlist(Request $request): ?Wishlist
     $token = $request->cookie('wishlist_token');
 
     if (!$token) {
-        Log::info('❌ No wishlist token found in cookie.');
+       // Log::info('❌ No wishlist token found in cookie.');
         return null;
     }
 
     $wishlist = Wishlist::where('wishlist_token', $token)->first();
 
-    Log::info('✅ Wishlist retrieved via token (read-only).', [
-        'token' => $token,
-        'wishlist_id' => $wishlist?->id,
-    ]);
+   
 
     return $wishlist;
 }

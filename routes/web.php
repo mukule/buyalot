@@ -3,6 +3,9 @@
 use App\Http\Controllers\Admin\BrandCategoryController;
 use App\Http\Controllers\Admin\BrandController;
 use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\DiscountController;
+use App\Http\Controllers\Admin\DiscountController as AdminDiscountController;
+use App\Http\Controllers\Admin\DiscountTypeController;
 use App\Http\Controllers\Admin\DocumentTypeController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\ProductStatusController;
@@ -15,10 +18,14 @@ use App\Http\Controllers\Admin\UnitTypeController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\VariantCategoryController;
 use App\Http\Controllers\Admin\WarrantyController;
+use App\Http\Controllers\Admin\PickupPointController;
+use App\Http\Controllers\Admin\ZoneController;
+use App\Http\Controllers\Admin\ShippingRateController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\Commission\CommissionCalculationController;
 use App\Http\Controllers\Commission\CommissionInvoiceController;
 use App\Http\Controllers\Commission\CommissionPlanController;
+use App\Http\Controllers\CouponController;
 use App\Http\Controllers\Customer\CustomerController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Payments\PaymentController;
@@ -26,11 +33,9 @@ use App\Http\Controllers\Payments\PaymentTransactionController;
 use App\Http\Controllers\SellController;
 use App\Http\Controllers\SellerAccountController;
 use App\Http\Controllers\Warehouse\WarehouseController;
-use App\Http\Controllers\CouponController;
-use App\Http\Controllers\Admin\DiscountController as AdminDiscountController;
+use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken as VerifyCsrfTokenMiddleware;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken as VerifyCsrfTokenMiddleware;
 
 
 require __DIR__.'/settings.php';
@@ -185,6 +190,9 @@ Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group
     Route::resource('unit-types.units', UnitController::class)->except(['index', 'show']);
     Route::resource('variant-categories', VariantCategoryController::class);
     Route::resource('regions', RegionController::class);
+    Route::resource('zones', ZoneController::class);
+    Route::resource('shipping-rates', ShippingRateController::class);
+    Route::resource('regions.pickup-points', PickupPointController::class)->except(['index']);
     Route::resource('subregions', RegionController::class);
     Route::resource('areas', RegionController::class);
     Route::resource('routes', RegionController::class);
@@ -194,6 +202,13 @@ Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group
 
     // Discounts management
     Route::resource('discounts', AdminDiscountController::class);
+
+    Route::resource('discount-types', DiscountTypeController::class);
+    Route::patch('discount-types/{discountType}/toggle', [DiscountTypeController::class, 'toggleStatus'])
+        ->name('discount-types.toggle');
+
+    Route::post('/discounts/calculate', [AdminDiscountController::class, 'calculateDiscounts'])
+        ->name('discounts.calculate');
 
     // Sellers management
     Route::middleware(['check_permission:view-sellers'])->group(function () {
@@ -290,7 +305,7 @@ Route::post('/shipping/estimate', [CartController::class, 'estimateShipping'])
 Route::post('/coupons/validate', [CouponController::class, 'validateCode'])
     ->name('coupons.validate');
 
-Route::get('/category/{slug}', [HomeController::class, 'category'])
+Route::get('{slug}', [HomeController::class, 'category'])
     ->name('category.show');
 
 

@@ -22,9 +22,10 @@ const props = defineProps<{
         category_hierarchy?: { id: number; name: string; slug: string }[];
         variants: {
             id: number;
-            regular_price: number;
-            selling_price: number;
-            discount?: number | null;
+            marked_price: number;
+            final_price: number;
+            discount_percent?: number | null;
+            has_discount?: boolean;
             stock: number;
         }[];
     };
@@ -58,9 +59,10 @@ const formatPrice = (amount: number | null): string => `KSh ${amount?.toLocaleSt
 const displayPrice = computed(() => {
     if (!selectedVariant.value) return null;
     return {
-        regular: selectedVariant.value.regular_price,
-        selling: selectedVariant.value.selling_price,
-        discount: selectedVariant.value.discount,
+        marked_price: selectedVariant.value.marked_price,
+        final_price: selectedVariant.value.final_price,
+        discount_percent: selectedVariant.value.discount_percent,
+        has_discount: selectedVariant.value.has_discount,
     };
 });
 
@@ -69,7 +71,7 @@ const simplifiedRelatedProducts = computed<SimplifiedProduct[]>(() =>
     (props.relatedProducts ?? []).map((p) => ({
         ...p,
         image: (p as any).primary_image_url || (p as any).image_urls?.[0] || '/fallback-image.png',
-        onSale: p.discount ? true : false,
+        onSale: (p as any).has_discount ?? false,
     })),
 );
 
@@ -84,7 +86,7 @@ const currentCartItem = computed(() => {
     return cartItems.value.find((i: any) => i.product_variant_id === selectedVariant.value.id);
 });
 
-// --- CART ACTIONS (all handled via cart.store) ---
+// --- CART ACTIONS ---
 const addToCart = () => {
     if (!selectedVariant.value) return;
     router.post(route('cart.store'), { product_variant_id: selectedVariant.value.id, quantity: 1 }, { preserveScroll: true });
@@ -117,7 +119,7 @@ const decreaseQty = () => {
                         <span class="mx-1">/</span>
                     </li>
                     <li v-for="(cat, index) in product.category_hierarchy ?? []" :key="cat.id" class="flex items-center">
-                        <a :href="`/category/${cat.slug}`" class="text-primary hover:underline">{{ cat.name }}</a>
+                        <a :href="`/${cat.slug}`" class="text-primary hover:underline">{{ cat.name }}</a>
                         <span v-if="index < (product.category_hierarchy?.length ?? 0) - 1" class="mx-1">/</span>
                     </li>
                     <li class="truncate font-semibold text-gray-800">/{{ product.name }}</li>
@@ -163,16 +165,19 @@ const decreaseQty = () => {
                                 <!-- Price + Discount -->
                                 <div v-if="displayPrice" class="space-y-1">
                                     <p class="text-lg font-bold text-primary">
-                                        {{ formatPrice(displayPrice.selling) }}
+                                        {{ formatPrice(displayPrice.final_price) }}
                                         <span
-                                            v-if="displayPrice.discount"
+                                            v-if="displayPrice.has_discount && displayPrice.discount_percent"
                                             class="ml-2 rounded bg-secondary/75 px-2 py-1 text-xs font-bold text-white"
                                         >
-                                            {{ displayPrice.discount }}% OFF
+                                            {{ displayPrice.discount_percent }}% OFF
                                         </span>
                                     </p>
-                                    <p v-if="displayPrice.regular > displayPrice.selling" class="text-sm text-gray-500 line-through">
-                                        {{ formatPrice(displayPrice.regular) }}
+                                    <p
+                                        v-if="displayPrice.has_discount && displayPrice.marked_price > displayPrice.final_price"
+                                        class="text-sm text-gray-500 line-through"
+                                    >
+                                        {{ formatPrice(displayPrice.marked_price) }}
                                     </p>
                                 </div>
 

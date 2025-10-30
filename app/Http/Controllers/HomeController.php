@@ -17,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 
 
 class HomeController extends Controller
@@ -49,89 +50,148 @@ class HomeController extends Controller
 
 
     public function productDetails(string $slug)
-    {
-//        info("product details "+$slug);
-        $product = Product::with([
-            'brand',
-            'primaryImage',
-            'images',
-            'productVariants.values.variant',
-            'category.parent',
-        ])->where('slug', $slug)->firstOrFail();
+{
+    $product = Product::with([
+        'brand',
+        'primaryImage',
+        'images',
+        'productVariants.values.variant',
+        'category.parent',
+    ])->where('slug', $slug)->firstOrFail();
 
-        $variants = $product->productVariants->map(fn($variant) => [
+    
+    $variantIds = $product->productVariants->pluck('id')->toArray();
+
+    $discountResults = app(\App\Services\DiscountService::class)->calculateDiscounts($variantIds);
+    $discountLookup = collect($discountResults)->keyBy('product_variant_id');
+
+    $variants = $product->productVariants->map(function ($variant) use ($discountLookup) {
+        $discountData = $discountLookup->get($variant->id);
+
+        $markedPrice = (float) $variant->marked_price;
+        $finalPrice = $discountData['final_price'] ?? $markedPrice;
+        $totalDiscount = $discountData['total_discount'] ?? 0;
+
+        $discountPercent = $markedPrice > 0
+            ? round(($totalDiscount / $markedPrice) * 100, 2)
+            : 0;
+
+        return [
             'id' => $variant->id,
-            'regular_price' => $variant->regular_price,
-            'selling_price' => $variant->selling_price,
-//            'discount'       => ($variant->regular_price > 0 && $variant->regular_price > $variant->selling_price)
-//                ? round((($variant->regular_price - $variant->selling_price) / $variant->regular_price) * 100)
-//                : null,
-            'discount' => ($variant->regular_price > 0 && $variant->regular_price > $variant->selling_price)
-                ? (int)round((($variant->regular_price - $variant->selling_price) / $variant->regular_price) * 100)
-                : 0,
+            'marked_price' => round($markedPrice, 2),
+            'final_price' => round($finalPrice, 2),
+            'discount_percent' => $discountPercent,
+            'has_discount' => $totalDiscount > 0,
             'stock' => $variant->stock,
             'sku' => $variant->sku,
             'values' => $variant->values->map(fn($v) => [
                 'variant_category_id' => $v->variant->variant_category_id,
                 'value' => $v->variant->value,
             ]),
-        ]);
-
-        $productData = [
-            'id' => $product->id,
-            'slug' => $product->slug,
-            'name' => $product->name,
-            'primary_image_url' => $product->primary_image_url,
-            'stock' => $product->productVariants->sum('stock'),
-            'category_hierarchy' => $product->category ? $product->category->getHierarchy() : [],
-            'brand' => $product->brand ? [
-                'id' => $product->brand->id,
-                'name' => $product->brand->name,
-            ] : null,
-            'features' => $product->features,
-            'description' => $product->description,
-            'specifications' => $product->specifications,
-            'whats_in_the_box' => $product->whats_in_the_box,
-            'images' => $product->images
-                ->map(fn($img) => Storage::disk('s3')->url($img->image_path))
-                ->toArray(),
-
-            'variants' => $variants,
         ];
+    });
 
-        $relatedProducts = $this->productService->getRelatedProducts($product);
+    
+    $selectedVariant = $product->productVariants->first();
 
-        $cartVariantIds = [];
-        $cart = app(\App\Services\CartService::class)->getCart(request());
-        if ($cart) {
-            $cartVariantIds = $cart->items()->pluck('product_variant_id')->toArray();
+    
+    if (request()->has('variant_id')) {
+        $variantId = request('variant_id');
+        $selectedVariant = $product->productVariants->firstWhere('id', $variantId) ?? $selectedVariant;
+    }
+
+    
+    $relatedProducts = $this->productService->getRelatedProducts($selectedVariant);
+
+    
+    $productData = [
+        'id' => $product->id,
+        'slug' => $product->slug,
+        'name' => $product->name,
+        'primary_image_url' => $product->primary_image_url,
+        'stock' => $product->productVariants->sum('stock'),
+        'category_hierarchy' => $product->category ? $product->category->getHierarchy() : [],
+        'brand' => $product->brand ? [
+            'id' => $product->brand->id,
+            'name' => $product->brand->name,
+        ] : null,
+        'features' => $product->features,
+        'description' => $product->description,
+        'specifications' => $product->specifications,
+        'whats_in_the_box' => $product->whats_in_the_box,
+        'images' => $product->images
+            ->map(fn($img) => Storage::disk('s3')->url($img->image_path))
+            ->toArray(),
+        'variants' => $variants,
+    ];
+
+    // Get variant IDs in the cart
+    $cartVariantIds = [];
+    $cart = app(\App\Services\CartService::class)->getCart(request());
+    if ($cart) {
+        $cartVariantIds = $cart->items()->pluck('product_variant_id')->toArray();
+    }
+
+    return Inertia::render('Frontend/ProductDetail', [
+        'product' => $productData,
+        'relatedProducts' => $relatedProducts,
+        'cartVariantIds' => $cartVariantIds,
+        'title' => $product->name,
+    ]);
+}
+
+
+public function category(string $slug)
+{
+    $category = Category::with('children')->where('slug', $slug)->firstOrFail();
+
+    $categoryIds = $category->getAllCategoryIds()->toArray();
+
+
+    $selectedSubcategory = request('subcategory');
+    $selectedSubcategory = $selectedSubcategory ? (int) $selectedSubcategory : null;
+
+    $selectedBrands = collect(explode(',', request('brands', '')))
+        ->filter()
+        ->map(fn($id) => (int) $id)
+        ->toArray();
+
+    $minPrice = request('min_price') !== null ? (float) request('min_price') : null;
+    $maxPrice = request('max_price') !== null ? (float) request('max_price') : null;
+
+    
+    if ($selectedSubcategory) {
+        $subcategory = Category::find($selectedSubcategory);
+        if ($subcategory && $subcategory->parent_id === $category->id) {
+            $categoryIds = $subcategory->getAllCategoryIds()->toArray();
         }
-
-        return Inertia::render('Frontend/ProductDetail', [
-            'product' => $productData,
-            'relatedProducts' => $relatedProducts,
-            'cartVariantIds' => $cartVariantIds,
-            'title' => $product->name,
-        ]);
     }
 
-    /**
-     * Display products for a specific category (with pagination)
-     */
-    public function category(string $slug)
-    {
-        $category = Category::where('slug', $slug)->firstOrFail();
+    
+    $products = $this->productService->getPaginatedProductsByCategoryIds(
+        $categoryIds,
+        20,
+        $minPrice,
+        $maxPrice,
+        $selectedBrands
+    );
 
-        // Paginated products for category + descendants
-        $products = $this->productService->getPaginatedProductsByCategory($category, 20);
+    
+    return Inertia::render('Frontend/Category', [
+        'category' => $category,
+        'products' => $products,
+        'subcategories' => $category->children()->active()->get(['id', 'name', 'slug']),
+        'selectedSubcategory' => $selectedSubcategory,
+        'brands' => \App\Models\Brand::select('id', 'name')->get(),
+        'selectedBrands' => $selectedBrands,
+        'minPrice' => $minPrice,
+        'maxPrice' => $maxPrice,
+        'breadcrumbs' => $category->getHierarchy(),
+        'title' => $category->name,
+    ]);
+}
 
-        return Inertia::render('Frontend/Category', [
-            'category' => $category,
-            'products' => $products,
-            'breadcrumbs' => $category->getHierarchy(),
-            'title' => $category->name,
-        ]);
-    }
+
 
     public function dashboard(Request $request)
     {
@@ -200,3 +260,5 @@ class HomeController extends Controller
         ]);
     }
 }
+
+

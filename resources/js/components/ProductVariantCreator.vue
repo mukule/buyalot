@@ -9,8 +9,8 @@ interface VariantCategory {
 
 interface VariantRow {
     values: Record<number, string>;
-    regular_price: number;
-    selling_price: number;
+    buying_price: number;
+    marked_price: number;
     stock: number;
 }
 
@@ -23,18 +23,13 @@ const emit = defineEmits<{
     (e: 'update:variantRows', value: VariantRow[]): void;
 }>();
 
-// Local reactive copy of categories
 const localVariantCategories = reactive([...props.variantCategories]);
-
-// Variant rows (reactive)
 const variantRows = reactive<VariantRow[]>([]);
 
-// Track suggestion dropdowns
 const suggestionsOpen = reactive<Record<number, Record<number, boolean>>>({});
 const filteredSuggestions = reactive<Record<number, Record<number, { id: number; value: string }[]>>>({});
 const dropdownPositions = reactive<Record<number, Record<number, { top: number; left: number; width: number }>>>({});
 
-// Initialize suggestion tracking for a row/category
 function initSuggestionTracking(rowIndex: number, categoryId: number, initialOptions: { id: number; value: string }[] = []) {
     if (!suggestionsOpen[rowIndex]) suggestionsOpen[rowIndex] = {};
     if (!filteredSuggestions[rowIndex]) filteredSuggestions[rowIndex] = {};
@@ -45,20 +40,16 @@ function initSuggestionTracking(rowIndex: number, categoryId: number, initialOpt
     dropdownPositions[rowIndex][categoryId] = { top: 0, left: 0, width: 0 };
 }
 
-// Initialize variantRows from prop if available
+// Initialize from props if editing
 if (props.variantRows?.length) {
     props.variantRows.forEach((row, rowIndex) => {
         variantRows.push({
             values: { ...row.values },
-            regular_price: row.regular_price,
-            selling_price: row.selling_price,
+            buying_price: row.buying_price,
+            marked_price: row.marked_price,
             stock: row.stock,
         });
-
-        // Initialize suggestion tracking for prefilled row
-        localVariantCategories.forEach((c) => {
-            initSuggestionTracking(rowIndex, c.id, c.options ?? []);
-        });
+        localVariantCategories.forEach((c) => initSuggestionTracking(rowIndex, c.id, c.options ?? []));
     });
 }
 
@@ -66,8 +57,8 @@ if (props.variantRows?.length) {
 function addRow() {
     const newRow: VariantRow = {
         values: Object.fromEntries(localVariantCategories.map((c) => [c.id, ''])),
-        regular_price: 0,
-        selling_price: 0,
+        buying_price: 0,
+        marked_price: 0,
         stock: 0,
     };
     variantRows.push(newRow);
@@ -83,7 +74,7 @@ function removeRow(index: number) {
     delete dropdownPositions[index];
 }
 
-// Update suggestions on input
+// Suggestions
 function updateSuggestions(rowIndex: number, category: VariantCategory, event: Event) {
     const value = variantRows[rowIndex].values[category.id]?.toLowerCase() || '';
     if (!category.options) return;
@@ -103,20 +94,18 @@ function updateSuggestions(rowIndex: number, category: VariantCategory, event: E
     });
 }
 
-// Select a suggestion
 function selectSuggestion(rowIndex: number, categoryId: number, value: string) {
     variantRows[rowIndex].values[categoryId] = value;
     suggestionsOpen[rowIndex][categoryId] = false;
 }
 
-// Hide suggestions on blur
 function hideSuggestions(rowIndex: number, categoryId: number) {
     window.setTimeout(() => {
         suggestionsOpen[rowIndex][categoryId] = false;
     }, 100);
 }
 
-// Emit updates whenever variantRows change
+// Emit updates
 watch(
     variantRows,
     (newVal) => {
@@ -124,8 +113,8 @@ watch(
             'update:variantRows',
             newVal.map((row) => ({
                 values: { ...row.values },
-                regular_price: row.regular_price,
-                selling_price: row.selling_price,
+                buying_price: row.buying_price,
+                marked_price: row.marked_price,
                 stock: row.stock,
             })),
         );
@@ -146,12 +135,13 @@ watch(
                 <thead>
                     <tr class="bg-gray-100">
                         <th v-for="c in localVariantCategories" :key="c.id" class="px-4 py-2 text-left">{{ c.name }}</th>
-                        <th class="px-4 py-2 text-left">Regular Price</th>
-                        <th class="px-4 py-2 text-left">Selling Price</th>
+                        <th class="px-4 py-2 text-left">Buying Price</th>
+                        <th class="px-4 py-2 text-left">Marked Price</th>
                         <th class="px-4 py-2 text-left">Stock</th>
                         <th class="px-4 py-2 text-left">Actions</th>
                     </tr>
                 </thead>
+
                 <tbody>
                     <tr v-for="(row, rowIndex) in variantRows" :key="rowIndex" class="border-t">
                         <td v-for="c in localVariantCategories" :key="c.id" class="relative px-2 py-1">
@@ -185,9 +175,10 @@ watch(
                                 </ul>
                             </teleport>
                         </td>
+
                         <td class="px-2 py-1">
                             <input
-                                v-model.number="row.regular_price"
+                                v-model.number="row.buying_price"
                                 type="number"
                                 min="0"
                                 step="0.01"
@@ -196,7 +187,7 @@ watch(
                         </td>
                         <td class="px-2 py-1">
                             <input
-                                v-model.number="row.selling_price"
+                                v-model.number="row.marked_price"
                                 type="number"
                                 min="0"
                                 step="0.01"

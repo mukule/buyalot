@@ -3,13 +3,12 @@ import NavMain from '@/components/NavMain.vue';
 import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { usePermissions } from '@/composables/usePermissions';
-import { type NavItem, AppPageProps } from '@/types';
+import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/vue3';
 import {
     BadgePercent,
     BookUserIcon,
     ClipboardList,
-    DiamondPercentIcon,
     FileCheck,
     KeyRound,
     Layers3Icon,
@@ -17,11 +16,13 @@ import {
     ListChecks,
     Lock,
     LucideListOrdered,
+    Map,
     MapPin,
     MapPinCheck,
     RulerIcon,
     ShieldCheck,
     Tag,
+    Truck,
     UserCog2Icon,
     Users,
     Wallet2Icon,
@@ -30,8 +31,6 @@ import {
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from './AppLogo.vue';
-import AppLogoIcon from '@/components/AppLogoIcon.vue';
-import { Label } from '@/components/ui/label';
 const { canAccess } = usePermissions();
 
 // const page = usePage();
@@ -147,7 +146,13 @@ const allNavItems: NavItem[] = [
                 icon: Workflow,
             },
             {
-                title: 'Discounts',
+                title: 'Promotion Types',
+                href: '/admin/discount-types',
+                icon: BadgePercent,
+                permissions: ['view-discounts'],
+            },
+            {
+                title: 'Promotions',
                 href: '/admin/discounts',
                 icon: BadgePercent,
                 permissions: ['view-discounts'],
@@ -224,23 +229,29 @@ const allNavItems: NavItem[] = [
                 permissions: ['view-regions'],
             },
             {
-                title: 'Subregions',
-                href: '/admin/subregions',
-                icon: MapPin,
+                title: 'Zones',
+                href: '/admin/zones',
+                icon: Map,
                 permissions: ['view-regions'],
             },
             {
-                title: 'Areas',
-                href: '/admin/areas',
-                icon: MapPin,
+                title: 'Shipping Rates',
+                href: '/admin/shipping-rates',
+                icon: Truck,
                 permissions: ['view-regions'],
             },
-            {
-                title: 'Routes',
-                href: '/admin/routes',
-                icon: MapPin,
-                permissions: ['view-regions'],
-            },
+            // {
+            //     title: 'Areas',
+            //     href: '/admin/areas',
+            //     icon: MapPin,
+            //     permissions: ['view-regions'],
+            // },
+            // {
+            //     title: 'Routes',
+            //     href: '/admin/routes',
+            //     icon: MapPin,
+            //     permissions: ['view-regions'],
+            // },
         ],
     },
 ];

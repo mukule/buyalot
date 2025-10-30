@@ -65,8 +65,8 @@ class UpdateProductRequest extends FormRequest
 
                 'variant_rows' => 'required|array|min:1',
                 'variant_rows.*.values' => 'required|array',
-                'variant_rows.*.regular_price' => 'required|numeric|min:0',
-                'variant_rows.*.selling_price' => 'required|numeric|min:0',
+                'variant_rows.*.marked_price' => 'required|numeric|min:0',
+                'variant_rows.*.buying_price' => 'required|numeric|min:0',
                 'variant_rows.*.stock' => 'required|integer|min:0',
             ],
 
@@ -85,8 +85,8 @@ class UpdateProductRequest extends FormRequest
     {
         return [
             'variant_rows.*.values.required' => 'Each variant row must have values.',
-            'variant_rows.*.regular_price.required' => 'Each variant row must have a regular price.',
-            'variant_rows.*.selling_price.required' => 'Each variant row must have a selling price.',
+            'variant_rows.*.marked_price.required' => 'Each variant row must have a marked price.',
+            'variant_rows.*.buying_price.required' => 'Each variant row must have a buying price.',
             'variant_rows.*.stock.required' => 'Each variant row must have a stock quantity.',
         ];
     }

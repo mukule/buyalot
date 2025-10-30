@@ -119,7 +119,6 @@ class ProductService
 
 
 
-
     protected function handleStep2(array $data, ?User $user, ?array $images, ?Product $product): Product
     {
         if (!$product) {
@@ -136,12 +135,16 @@ class ProductService
         return $product;
     }
 
+
+
+
+
     protected function handleStep3(array $data, ?User $user, ?array $images, ?Product $product): Product
 {
     if (!$product) throw new \InvalidArgumentException("Product must exist before step 3.");
 
     if (!empty($data['variant_rows']) && is_array($data['variant_rows'])) {
-        $product->variants()->delete();  // ✅ Clears old variants
+        $product->variants()->delete(); 
         $this->processProductVariants($product, $data['variant_rows']);
         Log::info('Product variants updated', ['product_id' => $product->id]);
     }
@@ -174,7 +177,6 @@ protected function handleStep4(array $data, ?User $user, ?array $images, ?Produc
 
         foreach ($images as $index => $img) {
             if (is_array($img) && !empty($img['id'])) {
-                // Track existing IDs submitted
                 $submittedExistingIds[] = $img['id'];
             } elseif ($img instanceof \Illuminate\Http\UploadedFile) {
                 $newImages[] = [
@@ -186,7 +188,6 @@ protected function handleStep4(array $data, ?User $user, ?array $images, ?Produc
             }
         }
 
-        // Remove images that were deleted in the frontend
         if (!empty($submittedExistingIds)) {
             $product->images()
                 ->whereNotIn('id', $submittedExistingIds)
@@ -197,7 +198,6 @@ protected function handleStep4(array $data, ?User $user, ?array $images, ?Produc
                 });
         }
 
-        // Update existing images: primary flag, sort order, alt_text
         foreach ($images as $index => $img) {
             if (is_array($img) && !empty($img['id'])) {
                 $isPrimary = ($primaryIndex === $index);
@@ -212,12 +212,10 @@ protected function handleStep4(array $data, ?User $user, ?array $images, ?Produc
             }
         }
 
-        // Process new uploads
         if (!empty($newImages)) {
             $this->processProductImages($product, $newImages, $primaryIndex);
         }
 
-        // Ensure at least one primary exists
         if (!$product->images()->where('is_primary', 1)->exists()) {
             $first = $product->images()->orderBy('sort_order')->first();
             if ($first) {
@@ -234,6 +232,8 @@ protected function handleStep4(array $data, ?User $user, ?array $images, ?Produc
 
     return $product;
 }
+
+
 
 
 protected function processProductImages(Product $product, array $images, int $primaryIndex): void
@@ -326,15 +326,17 @@ protected function processProductImages(Product $product, array $images, int $pr
         }
     }
 
+    
     protected function createProductVariant(Product $product, array $variantData, int $index): ProductVariant
-    {
-        return $product->variants()->create([
-            'stock'         => $variantData['stock'] ?? 0,
-            'regular_price' => $variantData['regular_price'] ?? 0,
-            'selling_price' => $variantData['selling_price'] ?? ($variantData['regular_price'] ?? 0),
-            'sku'           => $variantData['sku'] ?? $this->generateSku($product, $index),
-        ]);
-    }
+{
+    return $product->variants()->create([
+        'stock'         => $variantData['stock'] ?? 0,
+        'marked_price'  => $variantData['marked_price'] ?? 0,
+        'buying_price'  => $variantData['buying_price'] ?? 0,
+        'sku'           => $variantData['sku'] ?? $this->generateSku($product, $index),
+    ]);
+}
+
 
    
     protected function processVariantValues(ProductVariant $productVariant, array $values, int $rowIndex): void
@@ -386,8 +388,8 @@ protected function processProductImages(Product $product, array $images, int $pr
    protected function setOwnership(array &$data, ?User $user): void
 {
     if ($user) {
-        $roles = $user->getRoleNames(); // returns a collection of role names
-        $data['owner_type'] = $data['owner_type'] ?? ($roles->first() ?? 'user'); // fallback to 'user'
+        $roles = $user->getRoleNames(); 
+        $data['owner_type'] = $data['owner_type'] ?? ($roles->first() ?? 'user'); 
         $data['owner_id']   = $data['owner_id'] ?? $user->id;
     } else {
         $data['owner_type'] = $data['owner_type'] ?? 'admin';
