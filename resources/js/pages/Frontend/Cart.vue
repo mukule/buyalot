@@ -13,8 +13,6 @@ interface Product {
 interface ProductVariant {
     id: number;
     product: Product;
-    regular_price: number;
-    selling_price: number;
 }
 
 interface CartItem {
@@ -23,7 +21,10 @@ interface CartItem {
     product_variant: ProductVariant;
     quantity: number;
     unit_price: number;
-    total_price?: number;
+    marked_price: number;
+    total_price: number;
+    discount_amount?: number;
+    discount_percentage?: number;
     product_image_url?: string | null;
 }
 
@@ -31,19 +32,23 @@ interface Cart {
     items: CartItem[];
 }
 
+interface CartSummary {
+    total_amount: number;
+    total_discount: number;
+    total_payable: number;
+}
+
 // --- Props ---
 const page = usePage();
 const cart = (page.props as any).cart as Cart;
-
-// --- Subtotal ---
-const subtotal = cart.items.reduce((acc: number, item: CartItem) => acc + item.unit_price * item.quantity, 0);
+const summary = (page.props as any).summary as CartSummary;
 
 // --- Cart actions ---
 const increaseQty = (item: CartItem) => {
     router.post(
         route('cart.store'),
         { product_variant_id: item.product_variant.id, quantity: item.quantity + 1 },
-        { onSuccess: () => window.location.reload() }, // refresh page after success
+        { onSuccess: () => window.location.reload() },
     );
 };
 
@@ -52,12 +57,22 @@ const decreaseQty = (item: CartItem) => {
     router.post(
         route('cart.store'),
         { product_variant_id: item.product_variant.id, quantity: newQty },
-        { onSuccess: () => window.location.reload() }, // refresh page after success
+        { onSuccess: () => window.location.reload() },
     );
 };
 
-// --- Format price ---
-const formatPrice = (amount: number) => `KSh ${amount.toLocaleString()}`;
+// --- Format price (always show 2 decimals) ---
+const formatPrice = (amount: number | string) =>
+    `KSh ${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// --- Format discount amount (always with .00) ---
+const formatDiscount = (amount: number) => `KSh ${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// --- Format discount percentage (round to nearest whole number, no decimals) ---
+const formatDiscountPercentage = (percentage: number | undefined) => {
+    if (!percentage || percentage <= 0) return '';
+    return `${Math.round(percentage)}% OFF`;
+};
 </script>
 
 <template>
@@ -80,24 +95,15 @@ const formatPrice = (amount: number) => `KSh ${amount.toLocaleString()}`;
 
                                         <!-- Price & Discount -->
                                         <div class="flex items-center gap-2">
-                                            <span class="font-semibold text-gray-800">{{ formatPrice(item.product_variant.selling_price) }}</span>
-                                            <span
-                                                v-if="item.product_variant.regular_price > item.product_variant.selling_price"
-                                                class="text-sm text-gray-500 line-through"
-                                            >
-                                                {{ formatPrice(item.product_variant.regular_price) }}
+                                            <span class="font-semibold text-gray-800">{{ formatPrice(item.unit_price) }}</span>
+                                            <span v-if="item.discount_amount && item.discount_amount > 0" class="text-sm text-gray-500 line-through">
+                                                {{ formatPrice(item.marked_price) }}
                                             </span>
                                             <span
-                                                v-if="item.product_variant.regular_price > item.product_variant.selling_price"
+                                                v-if="item.discount_amount && item.discount_amount > 0"
                                                 class="ml-2 rounded bg-secondary/75 px-2 py-0.5 text-xs font-bold text-white"
                                             >
-                                                {{
-                                                    Math.round(
-                                                        ((item.product_variant.regular_price - item.product_variant.selling_price) /
-                                                            item.product_variant.regular_price) *
-                                                            100,
-                                                    )
-                                                }}% OFF
+                                                {{ formatDiscountPercentage(item.discount_percentage) }}
                                             </span>
                                         </div>
 
@@ -120,7 +126,7 @@ const formatPrice = (amount: number) => `KSh ${amount.toLocaleString()}`;
                                     </div>
                                 </div>
 
-                                <div class="text-sm font-medium text-gray-700">KSh {{ (item.unit_price * item.quantity).toLocaleString() }}</div>
+                                <div class="text-sm font-medium text-gray-700">{{ formatPrice(item.total_price) }}</div>
                             </div>
 
                             <hr v-if="index < cart.items.length - 1" class="border-gray-200" />
@@ -134,15 +140,20 @@ const formatPrice = (amount: number) => `KSh ${amount.toLocaleString()}`;
                         <h2 class="text-lg font-semibold text-gray-800">Cart Summary</h2>
 
                         <div class="flex justify-between text-gray-700">
-                            <span>Subtotal</span>
-                            <span>{{ formatPrice(subtotal) }}</span>
+                            <span>Total Amount</span>
+                            <span>{{ formatPrice(summary.total_amount) }}</span>
+                        </div>
+
+                        <div class="flex justify-between text-gray-700">
+                            <span>Total Discount</span>
+                            <span>{{ formatDiscount(summary.total_discount) }}</span>
                         </div>
 
                         <hr class="border-gray-200" />
 
                         <div class="flex justify-between text-sm font-medium text-gray-700">
-                            <span>Total</span>
-                            <span>{{ formatPrice(subtotal) }}</span>
+                            <span>Total Payable</span>
+                            <span>{{ formatPrice(summary.total_payable) }}</span>
                         </div>
 
                         <button
@@ -151,9 +162,9 @@ const formatPrice = (amount: number) => `KSh ${amount.toLocaleString()}`;
                         >
                             Proceed to Checkout
                         </button>
-                        <p class="mt-2 text-xs text-gray-600 text-center">
+                        <p class="mt-2 text-center text-xs text-gray-600">
                             By proceeding, you are automatically accepting the
-                            <a :href="route('terms')" class="underline text-primary hover:text-primary/80">Terms &amp; Conditions</a>
+                            <a :href="route('terms')" class="text-primary underline hover:text-primary/80">Terms &amp; Conditions</a>
                         </p>
                     </div>
                 </div>

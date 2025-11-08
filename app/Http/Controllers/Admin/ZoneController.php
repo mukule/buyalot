@@ -10,9 +10,7 @@ use Illuminate\Support\Str;
 
 class ZoneController extends Controller
 {
-    /**
-     * Display a listing of zones.
-     */
+    
    
     public function index()
 {
@@ -26,27 +24,23 @@ class ZoneController extends Controller
 }
 
 
-    /**
-     * Show the form for creating a new zone.
-     */
+   
     public function create()
     {
         return Inertia::render('Admin/Zones/Create');
     }
 
-    /**
-     * Store a newly created zone.
-     */
+   
    
     public function store(Request $request)
 {
     $request->validate([
         'name' => ['required', 'string', 'max:255', 'unique:zones,name'],
-        'tier' => ['required', 'integer', 'min:1', 'unique:zones,tier'], // enforce unique tier
+        'tier' => ['required', 'integer', 'min:1', 'unique:zones,tier'], 
         'is_default_origin' => ['boolean'],
     ]);
 
-    // If this zone is marked as default origin, unset others
+    
     if ($request->boolean('is_default_origin')) {
         Zone::where('is_default_origin', true)->update(['is_default_origin' => false]);
     }
@@ -61,9 +55,7 @@ class ZoneController extends Controller
         ->with('success', 'Zone created successfully.');
 }
 
-    /**
-     * Show the form for editing the specified zone.
-     */
+   
     public function edit(Zone $zone)
     {
         return Inertia::render('Admin/Zones/Edit', [

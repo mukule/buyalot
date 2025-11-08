@@ -10,6 +10,7 @@ interface ShippingRate {
     id: number;
     package_size: 'small' | 'medium' | 'large';
     base_price: number;
+    door_price?: number;
     created_at?: string;
 }
 
@@ -37,7 +38,6 @@ interface PaginatedResponse<T> {
 
 // Page props
 const page = usePage<AppPageProps<{ shippingRates: PaginatedResponse<ShippingRate> }>>();
-
 const shippingRates = computed(() => page.props.shippingRates?.data || []);
 const pagination = computed(() => {
     const { links, meta } = page.props.shippingRates || {};
@@ -93,6 +93,8 @@ function deleteRate(id: number) {
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Package Size</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Base Price</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Door Delivery</th>
+
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                             </tr>
@@ -102,10 +104,11 @@ function deleteRate(id: number) {
                                 <td class="px-4 py-4 text-sm text-gray-500">{{ index + 1 }}</td>
                                 <td class="px-4 py-4 text-sm font-medium text-gray-900 capitalize">{{ rate.package_size }}</td>
                                 <td class="px-4 py-4 text-sm text-gray-700">Ksh. {{ rate.base_price.toFixed(2) }}</td>
+                                <td class="px-4 py-4 text-sm text-gray-700">Ksh. {{ rate.door_price?.toFixed(2) ?? '-' }}</td>
+
                                 <td class="px-4 py-4 text-sm text-gray-500">
                                     {{ rate.created_at ? new Date(rate.created_at).toLocaleDateString() : '-' }}
                                 </td>
-
                                 <td class="px-4 py-4 text-right text-sm">
                                     <button @click.stop="editRate(rate.id)" class="mr-3 cursor-pointer text-blue-600 hover:underline">Edit</button>
                                     <button @click.stop="deleteRate(rate.id)" class="cursor-pointer text-red-600 hover:underline">Delete</button>

@@ -11,6 +11,8 @@ const page = usePage<
             hashid?: string;
             package_size: 'small' | 'medium' | 'large';
             base_price: number;
+            door_price: number;
+            express_price: number;
         };
     }
 >();
@@ -29,6 +31,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 const form = useForm({
     package_size: rate.package_size,
     base_price: rate.base_price,
+    door_price: rate.door_price,
 });
 
 function updateRate() {
@@ -74,7 +77,7 @@ function updateRate() {
 
                     <!-- Base Price -->
                     <div>
-                        <label for="base_price" class="mb-1 block text-sm font-medium text-gray-700"> Base Price (Ksh) </label>
+                        <label for="base_price" class="mb-1 block text-sm font-medium text-gray-700"> Standard/Base Price (Ksh) </label>
                         <input
                             v-model.number="form.base_price"
                             id="base_price"
@@ -82,12 +85,28 @@ function updateRate() {
                             step="0.01"
                             min="0"
                             required
-                            placeholder="e.g. 5.00"
+                            placeholder="e.g. 50.00"
                             class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:ring-2 focus:ring-[color:var(--primary)] focus:outline-none"
                         />
                         <div v-if="form.errors.base_price" class="mt-1 text-sm text-red-600">
                             {{ form.errors.base_price }}
                         </div>
+                    </div>
+
+                    <!-- Door Delivery Price -->
+                    <div>
+                        <label for="door_price" class="mb-1 block text-sm font-medium text-gray-700"> Door Delivery Price (Ksh) </label>
+                        <input
+                            v-model.number="form.door_price"
+                            id="door_price"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            required
+                            placeholder="e.g. 70.00"
+                            class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:ring-2 focus:ring-[color:var(--primary)] focus:outline-none"
+                        />
+                        <div v-if="form.errors.door_price" class="mt-1 text-sm text-red-600">{{ form.errors.door_price }}</div>
                     </div>
 
                     <!-- Submit -->
