@@ -129,6 +129,23 @@ class Order extends Model
         return $query->whereBetween('created_at', [$startDate, $endDate]);
     }
 
+    /**
+     * Scope: limit orders to those that have at least one order item belonging to the given seller(s).
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param int|array|\Illuminate\Support\Collection $sellerIds
+     */
+    public function scopeForSeller($query, $sellerIds)
+    {
+        $ids = collect($sellerIds)->flatten()->filter()->values();
+        if ($ids->isEmpty()) {
+            // Force empty result if no seller id provided
+            return $query->whereRaw('1 = 0');
+        }
+        return $query->whereHas('orderItems', function ($q) use ($ids) {
+            $q->whereIn('seller_id', $ids);
+        });
+    }
+
     // Accessors & Mutators
     public function getFormattedTotalAttribute(): string
     {

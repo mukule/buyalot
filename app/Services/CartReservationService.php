@@ -4,6 +4,7 @@ namespace App\Services;
 use Illuminate\Http\Request;
 use App\Models\CartReservation;
 use App\Models\ProductVariant;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Cart;
@@ -103,7 +104,7 @@ class CartReservationService
                 if ($reservation) {
                     $reservation->delete();
                 }
-                
+
                 return new CartReservation([
                     'cart_id' => $cartId,
                     'product_variant_id' => $productVariantId,

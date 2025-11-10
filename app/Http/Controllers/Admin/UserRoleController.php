@@ -6,12 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Spatie\Permission\Models\Role;
+use App\Models\Role;
 
 class UserRoleController extends Controller
 {
-  
-    
+
+
 
 public function index()
 {
@@ -25,7 +25,7 @@ public function index()
         })
         ->values();
 
-    $roles = Role::pluck('name');
+    $roles = Role::allowedForSeller()->pluck('name');
 
     return Inertia::render('Admin/Roles/ManageRoles', [
         'users' => $users->map(fn($user) => [
@@ -38,7 +38,7 @@ public function index()
 }
 
 
-   
+
 public function update(Request $request, User $user)
 {
     $request->validate([

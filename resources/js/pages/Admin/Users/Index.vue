@@ -132,7 +132,7 @@ function closeModals() {
 function openCreateModal() {
     createForm.reset();
     createForm.status = true;
-    createForm.roles = ['user'];
+    createForm.roles = [];
     showCreateModal.value = true;
 }
 
