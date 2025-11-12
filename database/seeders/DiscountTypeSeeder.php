@@ -36,6 +36,7 @@ class DiscountTypeSeeder extends Seeder
             ['name' => 'New Seller Offer', 'code' => 'new_seller', 'description' => 'Special offer to attract first-time customers of a seller.'],
         ];
 
-        DB::table('discount_types')->insert($types);
+        // Use upsert to avoid duplicate key errors when seeding multiple times
+        DB::table('discount_types')->upsert($types, ['code'], ['name', 'description']);
     }
 }
