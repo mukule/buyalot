@@ -44,7 +44,8 @@ const applyCoupon = () => {
     method: 'get',
     data: { coupon_code: couponInput.value.trim() },
     preserveScroll: true,
-    preserveState: true,
+    preserveState: false,
+    replace: true,
   });
 };
 

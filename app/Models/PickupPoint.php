@@ -23,9 +23,7 @@ class PickupPoint extends Model
         'active' => 'boolean',
     ];
 
-    /**
-     * Automatically generate UUID and code on create
-     */
+   
     protected static function booted()
     {
         static::creating(function ($pickupPoint) {
@@ -34,31 +32,25 @@ class PickupPoint extends Model
             }
 
             if (empty($pickupPoint->code)) {
-                // Generate a code from the name, e.g., "Nairobi Hub" -> "NAIRO"
+                
                 $pickupPoint->code = strtoupper(substr(Str::slug($pickupPoint->name, ''), 0, 5));
             }
         });
     }
 
-    /**
-     * Relationships
-     */
+   
     public function region()
     {
         return $this->belongsTo(Region::class);
     }
 
-    /**
-     * Scope for active pickup points
-     */
+    
     public function scopeActive($query)
     {
         return $query->where('active', true);
     }
 
-    /**
-     * Accessor for full display label
-     */
+   
     public function getDisplayNameAttribute(): string
     {
         return "{$this->name}" . ($this->region ? " ({$this->region->name})" : '');

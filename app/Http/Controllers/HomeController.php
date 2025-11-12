@@ -10,6 +10,8 @@ use App\Models\Orders\OrderItem;
 use App\Models\Product;
 use App\Models\Seller\Seller;
 use App\Models\User;
+use App\Models\Region;
+use App\Models\PickupPoint;
 use App\Models\Warehouse\Warehouse;
 use App\Services\FrontendProductService;
 use Carbon\Carbon;
@@ -49,8 +51,10 @@ class HomeController extends Controller
     }
 
 
-    public function productDetails(string $slug)
+
+public function productDetails(string $slug)
 {
+    // --- Fetch Product with relations ---
     $product = Product::with([
         'brand',
         'primaryImage',
@@ -59,12 +63,12 @@ class HomeController extends Controller
         'category.parent',
     ])->where('slug', $slug)->firstOrFail();
 
-    
+    // --- Prepare variant discounts ---
     $variantIds = $product->productVariants->pluck('id')->toArray();
-
     $discountResults = app(\App\Services\DiscountService::class)->calculateDiscounts($variantIds);
     $discountLookup = collect($discountResults)->keyBy('product_variant_id');
 
+    // --- Map variants with discount info ---
     $variants = $product->productVariants->map(function ($variant) use ($discountLookup) {
         $discountData = $discountLookup->get($variant->id);
 
@@ -91,19 +95,17 @@ class HomeController extends Controller
         ];
     });
 
-    
+    // --- Select default variant ---
     $selectedVariant = $product->productVariants->first();
-
-    
     if (request()->has('variant_id')) {
         $variantId = request('variant_id');
         $selectedVariant = $product->productVariants->firstWhere('id', $variantId) ?? $selectedVariant;
     }
 
-    
+    // --- Related products ---
     $relatedProducts = $this->productService->getRelatedProducts($selectedVariant);
 
-    
+    // --- Product Data ---
     $productData = [
         'id' => $product->id,
         'slug' => $product->slug,
@@ -125,20 +127,45 @@ class HomeController extends Controller
         'variants' => $variants,
     ];
 
-    // Get variant IDs in the cart
+    // --- Cart variant IDs ---
     $cartVariantIds = [];
     $cart = app(\App\Services\CartService::class)->getCart(request());
     if ($cart) {
         $cartVariantIds = $cart->items()->pluck('product_variant_id')->toArray();
     }
 
+    // --- Regions with pickup points ---
+    $shippingService = app(\App\Services\ShippingService::class);
+
+    $regions = Region::with(['pickupPoints' => fn($q) => $q->active()])
+    ->active()
+    ->level('region')
+    ->get()
+    ->map(function ($region) use ($shippingService) {
+        return [
+            'id' => $region->id,
+            'name' => $region->name,
+            'pickup_points' => $region->pickupPoints->map(fn($pp) => [
+                'id' => $pp->id,
+                'name' => $pp->name,
+            ])->values()->toArray(),
+            'shipping_options' => $shippingService->getOptionsByRegion($region->id),
+        ];
+    });
+
+        \Log::info('Regions with shipping options:', $regions->toArray());
+
+
     return Inertia::render('Frontend/ProductDetail', [
         'product' => $productData,
         'relatedProducts' => $relatedProducts,
         'cartVariantIds' => $cartVariantIds,
+        'regions' => $regions,
         'title' => $product->name,
     ]);
 }
+
+
 
 
 public function category(string $slug)
@@ -159,7 +186,7 @@ public function category(string $slug)
     $minPrice = request('min_price') !== null ? (float) request('min_price') : null;
     $maxPrice = request('max_price') !== null ? (float) request('max_price') : null;
 
-    
+
     if ($selectedSubcategory) {
         $subcategory = Category::find($selectedSubcategory);
         if ($subcategory && $subcategory->parent_id === $category->id) {
@@ -167,7 +194,7 @@ public function category(string $slug)
         }
     }
 
-    
+
     $products = $this->productService->getPaginatedProductsByCategoryIds(
         $categoryIds,
         20,
@@ -176,7 +203,7 @@ public function category(string $slug)
         $selectedBrands
     );
 
-    
+
     return Inertia::render('Frontend/Category', [
         'category' => $category,
         'products' => $products,
@@ -197,6 +224,16 @@ public function category(string $slug)
     {
         $now = Carbon::now();
 
+        // Determine user and base order scope
+        $user = $request->user();
+        $sellerIds = null;
+        $orderBase = Order::query();
+        if ($user && $user->hasRole('seller')) {
+            $sellerTable = (new \App\Models\Seller\Seller())->getTable();
+            $sellerIds = $user->sellers()->pluck($sellerTable . '.id');
+            $orderBase->forSeller($sellerIds);
+        }
+
         // Define week ranges
         $startOfThisWeek = $now->startOfWeek();
         $endOfThisWeek   = $now->copy()->endOfWeek();
@@ -204,33 +241,48 @@ public function category(string $slug)
         $startOfLastWeek = $now->copy()->subWeek()->startOfWeek();
         $endOfLastWeek   = $now->copy()->subWeek()->endOfWeek();
 
-        // Weekly orders
-        $ordersThisWeek = Order::whereBetween('created_at', [$startOfThisWeek, $endOfThisWeek])->count();
-        $ordersLastWeek = Order::whereBetween('created_at', [$startOfLastWeek, $endOfLastWeek])->count();
+        // Weekly orders (scoped if seller)
+        $ordersThisWeek = (clone $orderBase)->whereBetween('created_at', [$startOfThisWeek, $endOfThisWeek])->count();
+        $ordersLastWeek = (clone $orderBase)->whereBetween('created_at', [$startOfLastWeek, $endOfLastWeek])->count();
 
         $orderGrowth = $ordersLastWeek > 0
             ? round((($ordersThisWeek - $ordersLastWeek) / $ordersLastWeek) * 100, 2)
             : ($ordersThisWeek > 0 ? 100 : 0);
 
-        $stats = [
-            'sellers'         => Seller::count(),
-            'customers'       => Customer::count(),
-            'users'           => User::count(),
-            'orders'          => Order::count(),
-            'warehouses'      => Warehouse::count(),
-            'orders_this_week' => $ordersThisWeek,
-            'orders_last_week' => $ordersLastWeek,
-            'order_growth'     => $orderGrowth,
-        ];
+        // Build stats with role-aware visibility
+        if ($user && $user->hasRole('seller')) {
+            // For sellers: remove seller and customer totals, and scope orders and users to seller account(s)
+            $stats = [
+                'users'             => User::forSeller($sellerIds)->count(),
+                'orders'            => (clone $orderBase)->count(),
+                'warehouses'        => Warehouse::count(),
+                'orders_this_week'  => $ordersThisWeek,
+                'orders_last_week'  => $ordersLastWeek,
+                'order_growth'      => $orderGrowth,
+            ];
+        } else {
+            // Admins and other roles see global stats
+            $stats = [
+                'sellers'           => Seller::count(),
+                'customers'         => Customer::count(),
+                'users'             => User::count(),
+                'orders'            => Order::count(),
+                'warehouses'        => Warehouse::count(),
+                'orders_this_week'  => $ordersThisWeek,
+                'orders_last_week'  => $ordersLastWeek,
+                'order_growth'      => $orderGrowth,
+            ];
+        }
 
         $startOfMonth = Carbon::now()->startOfMonth();
         $endOfMonth = Carbon::now()->endOfMonth();
 
-        $ordersByStatus = Order::select(
-            DB::raw('DATE(created_at) as date'),
-            'status',
-            DB::raw('COUNT(*) as total')
-        )
+        $ordersByStatus = (clone $orderBase)
+            ->select(
+                DB::raw('DATE(created_at) as date'),
+                'status',
+                DB::raw('COUNT(*) as total')
+            )
             ->whereBetween('created_at', [$startOfMonth, $endOfMonth])
             ->groupBy('date', 'status')
             ->orderBy('date')

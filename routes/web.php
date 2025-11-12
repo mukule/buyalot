@@ -30,8 +30,10 @@ use App\Http\Controllers\Customer\CustomerController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Payments\PaymentController;
 use App\Http\Controllers\Payments\PaymentTransactionController;
+use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SellController;
 use App\Http\Controllers\SellerAccountController;
+use App\Http\Controllers\Seller\UserManagementController as SellerUserManagementController;
 use App\Http\Controllers\Warehouse\WarehouseController;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken as VerifyCsrfTokenMiddleware;
 use Illuminate\Support\Facades\Route;
@@ -47,13 +49,19 @@ require __DIR__.'/customer.php';
 Route::get('/', [HomeController::class, 'index'])->name('home');
 
 // Product search
-Route::get('/search', [\App\Http\Controllers\SearchController::class, 'products'])->name('search.products');
+Route::get('/search', [SearchController::class, 'search'])->name('search');
 
 Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard',[HomeController::class,'dashboard'])->name('dashboard');
 //        function () {
 //        return Inertia::render('Dashboard');
 //    })->name('dashboard');
+
+    // Seller user management (API JSON endpoints)
+    Route::get('/seller-users', [SellerUserManagementController::class, 'index'])->name('seller-users.index');
+    Route::post('/seller-users', [SellerUserManagementController::class, 'store'])->name('seller-users.store');
+    Route::patch('/seller-users/{user}', [SellerUserManagementController::class, 'update'])->name('seller-users.update');
+    Route::delete('/seller-users/{user}', [SellerUserManagementController::class, 'destroy'])->name('seller-users.destroy');
 
     Route::delete('products/destroy-all', [ProductController::class, 'destroyAll'])
         ->name('products.destroyAll');
@@ -108,14 +116,26 @@ Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard']
 
 });
 
-Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group(function () {
+// Allow non-admin users with specific permissions to access listing pages
+Route::middleware(['auth','role_or_permission:admin|view-orders'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/orders', [\App\Http\Controllers\Orders\OrderController::class, 'index'])->name('orders.index');
+});
+
+Route::middleware(['auth','role_or_permission:admin|view-categories'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/categories', [\App\Http\Controllers\Admin\CategoryController::class, 'index'])->name('categories.index');
+});
+
+Route::middleware(['auth','role_or_permission:admin|view-brands'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/brands', [\App\Http\Controllers\Admin\BrandController::class, 'index'])->name('brands.index');
+});
+
+Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
     require __DIR__ . '/roles_permissions.php';
-    require __DIR__.'/order.php';
     Route::resource('customers', CustomerController::class);
 
     Route::prefix('users')->name('users.')->group(function () {
 
-        Route::middleware(['check_permission:view-users'])->group(function () {
+        Route::middleware(['role_or_permission:admin|view-users'])->group(function () {
             Route::get('/{user}', [UserController::class, 'show']);
             Route::get('/', [UserController::class, 'index'])->name('index');
         });
@@ -123,7 +143,7 @@ Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group
             Route::post('/{user}/assign-roles', [UserController::class, 'assignRoles']);
             Route::delete('/{user}/remove-role', [UserController::class, 'removeRole']);
         });
-        Route::middleware(['check_permission:edit-users'])->group(function () {
+        Route::middleware(['role_or_permission:admin|edit-users'])->group(function () {
             Route::get('/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
             Route::put('/{user}', [UserController::class, 'update'])->name('users.update');
         });
@@ -179,12 +199,6 @@ Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group
 
 
     Route::resource('product-statuses', ProductStatusController::class);
-    Route::resource('categories', CategoryController::class);
-    Route::get('/categories/{category}/children', [CategoryController::class, 'children'])
-        ->name('categories.children');
-    Route::resource('categories.subcategories', SubcategoryController::class)->except(['index']);
-    Route::resource('brands', BrandController::class);
-    Route::resource('brand-categories', BrandCategoryController::class);
     Route::resource('units', UnitController::class);
     Route::resource('unit-types', UnitTypeController::class);
     Route::resource('unit-types.units', UnitController::class)->except(['index', 'show']);

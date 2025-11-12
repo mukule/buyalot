@@ -4,9 +4,9 @@ import MainLayout from '@/layouts/MainLayout.vue';
 import type { SimplifiedProduct } from '@/types';
 import { router, usePage } from '@inertiajs/vue3';
 import { Expand, Minus, Plus, ShoppingCart, Star } from 'lucide-vue-next';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
-// Props
+// --- Props ---
 const props = defineProps<{
     product: {
         id: number;
@@ -53,7 +53,7 @@ onMounted(() => {
     }
 });
 
-// --- PRICE/DISCOUNT ---
+// --- PRICE / DISCOUNT ---
 const formatPrice = (amount: number | null): string => `KSh ${amount?.toLocaleString() ?? 0}`;
 
 const displayPrice = computed(() => {
@@ -75,18 +75,16 @@ const simplifiedRelatedProducts = computed<SimplifiedProduct[]>(() =>
     })),
 );
 
-// --- CART STATE FROM INERTIA ---
+// --- CART HANDLING ---
 const page = usePage();
 const auth = computed<any>(() => page.props.auth ?? {});
 const cartItems = computed(() => auth.value.cartItems ?? []);
 
-// Find cart item for this variant
 const currentCartItem = computed(() => {
     if (!selectedVariant.value) return null;
     return cartItems.value.find((i: any) => i.product_variant_id === selectedVariant.value.id);
 });
 
-// --- CART ACTIONS ---
 const addToCart = () => {
     if (!selectedVariant.value) return;
     router.post(route('cart.store'), { product_variant_id: selectedVariant.value.id, quantity: 1 }, { preserveScroll: true });
@@ -106,13 +104,49 @@ const decreaseQty = () => {
     const newQty = currentCartItem.value.quantity - 1;
     router.post(route('cart.store'), { product_variant_id: selectedVariant.value.id, quantity: newQty }, { preserveScroll: true });
 };
+
+// --- REGION / PICKUP POINTS / SHIPPING OPTIONS ---
+interface PickupPoint {
+    id: number;
+    name: string;
+}
+
+interface ShippingOptions {
+    pickup: { cost: number; days: number };
+    door: { cost: number; days: number };
+    express: { cost: number; hours: number };
+}
+
+interface Region {
+    id: number;
+    name: string;
+    pickup_points: PickupPoint[];
+    shipping_options?: ShippingOptions;
+}
+
+const regions = ref<Region[]>((page.props.regions as Region[]) ?? []);
+
+const selectedRegionId = ref<number | ''>('');
+const selectedPickupId = ref<number | ''>('');
+const filteredPickupPoints = ref<PickupPoint[]>([]);
+const selectedShippingOptions = ref<ShippingOptions | null>(null);
+
+const updatePickupPoints = () => {
+    const region = regions.value.find((r) => r.id === selectedRegionId.value);
+    filteredPickupPoints.value = region?.pickup_points ?? [];
+    selectedPickupId.value = '';
+    selectedShippingOptions.value = region?.shipping_options ?? null;
+};
+
+// Watch region selection to update pickup points and shipping
+watch(selectedRegionId, updatePickupPoints);
 </script>
 
 <template>
     <MainLayout>
-        <section class="px-4 py-6">
+        <section class="mt-4 mb-4 flex flex-col">
             <!-- Breadcrumb -->
-            <nav class="mb-6 text-sm text-gray-600" aria-label="Breadcrumb">
+            <nav class="p-4 text-sm text-gray-600" aria-label="Breadcrumb">
                 <ol class="flex flex-wrap items-center gap-1">
                     <li>
                         <a href="/" class="text-primary hover:underline">Home</a>
@@ -126,11 +160,11 @@ const decreaseQty = () => {
                 </ol>
             </nav>
 
-            <div class="flex flex-col gap-6 lg:flex-row">
+            <div class="flex flex-col gap-4 lg:flex-row">
                 <!-- MAIN CONTENT -->
-                <div class="flex w-full flex-col gap-6 lg:w-10/12">
-                    <div class="rounded-xl bg-white p-6 shadow transition hover:shadow-md">
-                        <div class="flex flex-col gap-6 md:flex-row">
+                <div class="flex w-full flex-col gap-4 lg:w-10/12">
+                    <div class="rounded-xl bg-white p-4 shadow transition hover:shadow-md">
+                        <div class="flex flex-col gap-4 md:flex-row">
                             <!-- LEFT: IMAGES -->
                             <div class="w-full md:w-1/2">
                                 <div class="relative">
@@ -238,7 +272,7 @@ const decreaseQty = () => {
 
                     <!-- Features + Specs -->
                     <div v-if="product.features || product.specifications" class="rounded-xl bg-white p-4 text-sm leading-relaxed shadow">
-                        <div class="flex flex-col gap-6 md:flex-row">
+                        <div class="flex flex-col gap-4 md:flex-row">
                             <div v-if="product.features" class="rounded bg-transparent p-4 md:w-1/2">
                                 <h4 class="mb-2 font-semibold text-gray-700">Features</h4>
                                 <div v-html="product.features"></div>
@@ -252,13 +286,72 @@ const decreaseQty = () => {
                 </div>
 
                 <!-- SIDEBAR -->
-                <div class="flex w-full flex-col gap-6 lg:w-2/12">
-                    <!-- Delivery -->
-                    <div class="space-y-2 rounded-xl bg-white p-4 shadow">
-                        <h2 class="text-lg font-semibold text-gray-800">Delivery Options</h2>
-                        <p class="text-sm text-gray-600">Standard delivery: 2–5 days</p>
-                        <p class="text-sm text-gray-600">Express delivery available</p>
-                        <p class="text-sm text-gray-600">Free delivery for orders over KSh 5,000</p>
+                <div class="flex w-full flex-col gap-4 lg:w-2/12">
+                    <!-- Buyalot Swift -->
+                    <!-- Buyalot Swift Section -->
+                    <div class="flex flex-col items-center rounded-xl bg-white p-4 shadow">
+                        <!-- Logo -->
+                        <img src="/storage/images/buyalotswift.png" alt="Buyalot Swift" class="h-10 w-auto object-contain" />
+
+                        <!-- Tagline -->
+                        <p class="text-[11px] text-gray-500">
+                            Fast.Smooth.Reliable
+                            <a href="/buyalot-swift" class="mb-3 text-xs font-medium text-primary hover:underline">more → </a>
+                        </p>
+
+                        <!-- Learn more link -->
+
+                        <!-- Separator -->
+                        <hr class="my-2 w-full border-gray-200" />
+
+                        <!-- Delivery Region + Pickup Point -->
+
+                        <div class="w-full space-y-2 text-sm">
+                            <!-- Select Region -->
+                            <label for="region" class="block font-semibold text-gray-700">Select Region</label>
+                            <select
+                                id="region"
+                                v-model="selectedRegionId"
+                                @change="updatePickupPoints"
+                                class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-primary focus:ring-primary"
+                            >
+                                <option disabled value="">Choose region...</option>
+                                <option v-for="region in regions" :key="region.id" :value="region.id">
+                                    {{ region.name }}
+                                </option>
+                            </select>
+
+                            <!-- Select Pickup Point -->
+                            <label for="pickup" class="block font-semibold text-gray-700">Pickup Point</label>
+                            <select
+                                id="pickup"
+                                v-model="selectedPickupId"
+                                :disabled="filteredPickupPoints.length === 0"
+                                class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-primary focus:ring-primary"
+                            >
+                                <option disabled value="">Choose pickup point...</option>
+                                <option v-for="pickup in filteredPickupPoints" :key="pickup.id" :value="pickup.id">
+                                    {{ pickup.name }}
+                                </option>
+                            </select>
+
+                            <!-- Shipping Options -->
+                            <div v-if="selectedShippingOptions" class="mt-2 space-y-4 text-sm">
+                                <!-- Pickup Option -->
+                                <div class="rounded border border-gray-200 p-3">
+                                    <p class="font-semibold text-gray-700">Pickup Point</p>
+                                    <ul class="mt-1 list-none space-y-1 pl-0 text-[11px] text-gray-500">
+                                        <li>Delivery Cost KSh {{ selectedShippingOptions.pickup.cost.toLocaleString() }}</li>
+                                        <li>Your order will be available for pickup in {{ selectedShippingOptions.pickup.days }} day(s).</li>
+                                    </ul>
+                                    <p class="font-semibold text-gray-700">Door Delivery</p>
+                                    <ul class="mt-1 list-none space-y-1 pl-0 text-[11px] text-gray-500">
+                                        <li>Delivery Cost KSh {{ selectedShippingOptions.door.cost.toLocaleString() }}</li>
+                                        <li>Your order will be delivered in {{ selectedShippingOptions.door.days }} day(s).</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Seller Info -->

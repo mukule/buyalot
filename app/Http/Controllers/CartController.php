@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use App\Services\ShippingService;
+use Illuminate\Support\Facades\Log;
 
 
 class CartController extends Controller
@@ -186,96 +187,124 @@ class CartController extends Controller
     }
 
 
+   
     public function index(Request $request, CartReservationService $cartService)
 {
-   // $cart = $this->getCart($request);
     $cart = $cartService->getCart($request);
 
-
-    // Eager load productVariant and product with primaryImage
+    
     $cart->load('items.productVariant.product.primaryImage');
 
-    // Each cart item will now automatically have a full URL available
-    // via $item->productVariant->product->primaryImageUrl
-    // no need to manually map asset paths here
+    
+    $totalAmount = 0;     
+    $totalDiscount = 0;  
+    $totalPayable = 0;    
+
+    foreach ($cart->items as $item) {
+        $totalAmount += $item->marked_price * $item->quantity;
+        $totalDiscount += $item->discount_amount * $item->quantity;
+        $totalPayable += $item->unit_price * $item->quantity;
+    }
+
+    $summary = [
+        'total_amount'   => round($totalAmount, 2),
+        'total_discount' => round($totalDiscount, 2),
+        'total_payable'  => round($totalPayable, 2),
+    ];
 
     return Inertia::render('Frontend/Cart', [
-        'cart' => $cart,
+        'cart'    => $cart,
+        'summary' => $summary,
     ]);
 }
 
 
-    public function store(Request $request, CartReservationService $cartService)
-    {
-        $cart = $cartService->getCart($request);
 
-        $request->validate([
-            'product_variant_id' => 'required|integer|exists:product_variants,id',
-            'quantity'           => 'required|integer|min:0', // allow 0 to remove
-        ]);
+public function store(Request $request, CartReservationService $cartService)
+{
+    $cart = $cartService->getCart($request);
 
-        $variantId = $request->input('product_variant_id');
-        $quantity  = (int) $request->input('quantity');
+    $request->validate([
+        'product_variant_id' => 'required|integer|exists:product_variants,id',
+        'quantity'           => 'required|integer|min:0',
+    ]);
 
-        $variant   = ProductVariant::with('product')->findOrFail($variantId);
-        //$cart      = $this->getCart($request);
+    $variantId = (int) $request->input('product_variant_id');
+    $quantity  = (int) $request->input('quantity');
 
-        $cartItem = $cart->items()->where('product_variant_id', $variantId)->first();
+    $variant = ProductVariant::with('product')->findOrFail($variantId);
+    $cartItem = $cart->items()->where('product_variant_id', $variantId)->first();
 
-        /** @var \App\Services\CartReservationService $reservationService */
-        $reservationService = app(\App\Services\CartReservationService::class);
+    $reservationService = app(\App\Services\CartReservationService::class);
 
-        if ($quantity === 0) {
-            if ($cartItem) {
-                $cartItem->delete();
-            }
-            // release any existing reservation for this variant
-            $reservationService->release($cart->id, $variantId);
-            return redirect()->back()->with('success', "{$variant->product->name} removed from cart!");
-        }
-
-        // Enforce availability considering reservations by other carts (holds)
-        $available = $reservationService->availableForCart($variantId, $cart->id);
-        // If the cart already has a reservation, include it in the allowable amount
-        $ownReservedQty = (int) \App\Models\CartReservation::query()
-            ->active()
-            ->where('cart_id', $cart->id)
-            ->where('product_variant_id', $variantId)
-            ->value('quantity');
-        $effectiveAvailable = $available + $ownReservedQty; // allow increasing within own hold
-
-        if ($quantity > $effectiveAvailable) {
-            return redirect()->back()->with('error', "Only {$effectiveAvailable} unit(s) are currently available due to other customers holding this item. Please try again later.");
-        }
-
-        $unitPrice      = $variant->selling_price; // authoritative price
-        $discountAmount = $variant->regular_price - $variant->selling_price;
-        $totalPrice     = ($unitPrice - $discountAmount) * $quantity;
-
+    // Handle removing from cart (quantity = 0)
+    if ($quantity === 0) {
         if ($cartItem) {
-            $cartItem->update([
-                'quantity'       => $quantity,
-                'unit_price'     => $unitPrice,
-                'discount_amount'=> $discountAmount,
-                'total_price'    => $totalPrice,
-            ]);
-        } else {
-            $cart->items()->create([
-                'product_id'         => $variant->product_id,
-                'seller_id'          => $variant->product->seller_id ?? null,
-                'product_variant_id' => $variantId,
-                'quantity'           => $quantity,
-                'unit_price'         => $unitPrice,
-                'discount_amount'    => $discountAmount,
-                'total_price'        => $totalPrice,
-            ]);
+            $cartItem->delete();
         }
-
-        // Reserve the requested quantity for this cart for ~20 minutes
-        $reservationService->reserve($cart->id, $variantId, $quantity, 20);
-
-        return redirect()->back()->with('success', "{$variant->product->name} added to cart");
+        $reservationService->release($cart->id, $variantId);
+        return redirect()->back()->with('success', "{$variant->product->name} removed from cart!");
     }
+
+    // Check availability considering other reservations
+    $available = $reservationService->availableForCart($variantId, $cart->id);
+    $ownReservedQty = (int) \App\Models\CartReservation::query()
+        ->active()
+        ->where('cart_id', $cart->id)
+        ->where('product_variant_id', $variantId)
+        ->value('quantity');
+
+    $effectiveAvailable = $available + $ownReservedQty;
+
+    if ($quantity > $effectiveAvailable) {
+        return redirect()->back()->with('error', "Only {$effectiveAvailable} unit(s) are currently available due to other customers holding this item. Please try again later.");
+    }
+
+    // Get price info from DiscountService
+    $frontendProductService = app(\App\Services\FrontendProductService::class);
+    $priceData = $frontendProductService->getPriceForVariants(collect([$variant]));
+    $priceInfo = $priceData[$variant->id] ?? null;
+
+    // Log price info for debugging
+    Log::info('Price info for variant', [
+        'variant_id' => $variantId,
+        'priceInfo'  => $priceInfo,
+    ]);
+
+    $markedPrice = $priceInfo['marked_price'] ?? 0;
+    $unitPrice = $priceInfo['final_price'] ?? $markedPrice;
+    $discountAmount = $priceInfo['total_discount'] ?? 0;
+
+    
+    $discountPercentage = $priceInfo['discount_percentage'] ?? 0;
+
+    $totalPrice = $unitPrice * $quantity;
+
+    $cartItemData = [
+        'quantity'            => $quantity,
+        'marked_price'        => $markedPrice,
+        'unit_price'          => $unitPrice,
+        'discount_amount'     => $discountAmount,
+        'discount_percentage' => $discountPercentage, 
+        'total_price'         => $totalPrice,
+        'product_id'          => $variant->product_id,
+        'seller_id'           => $variant->product->seller_id ?? null,
+        'product_variant_id'  => $variantId,
+    ];
+
+    if ($cartItem) {
+        $cartItem->update($cartItemData);
+    } else {
+        $cart->items()->create($cartItemData);
+    }
+
+    
+    $reservationService->reserve($cart->id, $variantId, $quantity, 20);
+
+    return redirect()->back()->with('success', "{$variant->product->name} added to cart");
+}
+
+
 
     public function decrease(Request $request, CartItem $item, CartReservationService $cartService)
     {

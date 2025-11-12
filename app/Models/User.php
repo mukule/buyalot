@@ -9,6 +9,7 @@ use App\Notifications\UserRegistered;
 use App\Traits\CalculatesCommissions;
 use App\Traits\HasCommissions;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -78,11 +79,11 @@ class User extends Authenticatable
     }
 
     public function products()
-{
-    return $this->hasMany(Product::class, 'owner_id');
-}
+    {
+        return $this->hasMany(Product::class, 'owner_id');
+    }
 
-public function wishlists(): HasMany
+    public function wishlists(): HasMany
     {
         return $this->hasMany(Wishlist::class, 'customer_id');
     }
@@ -98,5 +99,22 @@ public function wishlists(): HasMany
             ->withPivot('role');
     }
 
-
+    /**
+     * Scope: restrict users to those associated with the given seller id(s).
+     * @param Builder $query
+     * @param int|array|\Illuminate\Support\Collection $sellerIds
+     */
+    public function scopeForSeller(Builder $query, $sellerIds): Builder
+    {
+        $ids = collect($sellerIds)->flatten()->filter()->values();
+        if ($ids->isEmpty()) {
+            // No seller ids provided: force empty result to avoid leaking users
+            return $query->whereRaw('1 = 0');
+        }
+        $sellerTable = (new \App\Models\Seller\Seller())->getTable();
+        return $query->whereHas('sellers', function (Builder $q) use ($ids, $sellerTable) {
+            // Filter by the related sellers table primary key, not the pivot alias
+            $q->whereIn($sellerTable . '.id', $ids);
+        });
+    }
 }

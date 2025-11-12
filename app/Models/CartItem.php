@@ -15,7 +15,9 @@ class CartItem extends Model
         'quantity',
         'unit_price',
         'total_price',
+        'marked_price',
         'discount_amount',
+        'discount_percentage',
         'metadata',
     ];
 

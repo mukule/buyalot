@@ -31,9 +31,24 @@ class RegisteredUserController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        // Normalize email to lowercase before validation for consistency
+        // Normalize email and names before validation for consistency
         if ($request->has('email')) {
             $request->merge(['email' => strtolower((string) $request->input('email'))]);
+        }
+        // First letter uppercase, rest lowercase for names
+        $normalizeName = function ($s) {
+            $s = trim((string) $s);
+            if ($s === '') return $s;
+            $lower = mb_strtolower($s, 'UTF-8');
+            $first = mb_strtoupper(mb_substr($lower, 0, 1, 'UTF-8'), 'UTF-8');
+            $rest = mb_substr($lower, 1, null, 'UTF-8');
+            return $first . $rest;
+        };
+        if ($request->has('first_name')) {
+            $request->merge(['first_name' => $normalizeName($request->input('first_name'))]);
+        }
+        if ($request->has('last_name')) {
+            $request->merge(['last_name' => $normalizeName($request->input('last_name'))]);
         }
 
         // Validate core user fields
@@ -51,13 +66,13 @@ class RegisteredUserController extends Controller
             'address.last_name' => 'nullable|string|max:255',
             'address.label' => 'nullable|string|max:255',
             'address.type' => 'nullable|string|in:shipping,billing,both',
-            'address.address_line_1' => 'required|string|max:255',
+            'address.address_line_1' => 'nullable|string|max:255',
             'address.address_line_2' => 'nullable|string|max:255',
-            'address.city' => 'required|string|max:255',
-            'address.state_province' => 'required|string|max:255',
-            'address.postal_code' => 'required|string|max:255',
-            'address.country_code' => 'required|string|size:2',
-            'address.country_name' => 'required|string|max:255',
+            'address.city' => 'nullable|string|max:255',
+            'address.state_province' => 'nullable|string|max:255',
+            'address.postal_code' => 'nullable|string|max:255',
+            'address.country_code' => 'nullable|string|size:2',
+            'address.country_name' => 'nullable|string|max:255',
             'address.phone' => 'nullable|string|max:255',
             'address.delivery_instructions' => 'nullable|string',
             'address.latitude' => 'nullable|numeric|between:-90,90',
@@ -98,30 +113,33 @@ class RegisteredUserController extends Controller
                 'user_id' => $user->id,
             ]);
 
-            // Prepare address data
+            // Prepare address data only if provided
             $addr = $validated['address'] ?? [];
-            $addressData = [
-                'customer_id' => $customer->id,
-                'type' => $addr['type'] ?? 'shipping',
-                'label' => $addr['label'] ?? 'Primary',
-                'first_name' => $addr['first_name'] ?? $validated['first_name'],
-                'last_name' => $addr['last_name'] ?? $validated['last_name'],
-                'company' => $addr['company'] ?? null,
-                'address_line_1' => $addr['address_line_1'] ?? null,
-                'address_line_2' => $addr['address_line_2'] ?? null,
-                'city' => $addr['city'] ?? null,
-                'state_province' => $addr['state_province'] ?? null,
-                'postal_code' => $addr['postal_code'] ?? null,
-                'country_code' => strtoupper($addr['country_code'] ?? ''),
-                'country_name' => $addr['country_name'] ?? null,
-                'phone' => $addr['phone'] ?? $phone,
-                'delivery_instructions' => $addr['delivery_instructions'] ?? null,
-                'latitude' => $addr['latitude'] ?? null,
-                'longitude' => $addr['longitude'] ?? null,
-                'is_default' => true,
-            ];
+            $hasAddress = ($addr['address_line_1'] ?? null) || ($addr['city'] ?? null) || ($addr['country_code'] ?? null);
+            if ($hasAddress) {
+                $addressData = [
+                    'customer_id' => $customer->id,
+                    'type' => $addr['type'] ?? 'shipping',
+                    'label' => $addr['label'] ?? 'Primary',
+                    'first_name' => $addr['first_name'] ?? $validated['first_name'],
+                    'last_name' => $addr['last_name'] ?? $validated['last_name'],
+                    'company' => $addr['company'] ?? null,
+                    'address_line_1' => $addr['address_line_1'] ?? null,
+                    'address_line_2' => $addr['address_line_2'] ?? null,
+                    'city' => $addr['city'] ?? null,
+                    'state_province' => $addr['state_province'] ?? null,
+                    'postal_code' => $addr['postal_code'] ?? null,
+                    'country_code' => strtoupper($addr['country_code'] ?? ''),
+                    'country_name' => $addr['country_name'] ?? null,
+                    'phone' => $addr['phone'] ?? $phone,
+                    'delivery_instructions' => $addr['delivery_instructions'] ?? null,
+                    'latitude' => $addr['latitude'] ?? null,
+                    'longitude' => $addr['longitude'] ?? null,
+                    'is_default' => true,
+                ];
 
-            \App\Models\Customer\CustomerAddress::create($addressData);
+                \App\Models\Customer\CustomerAddress::create($addressData);
+            }
 
             $user->assignRole('customer');
         });

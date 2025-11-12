@@ -32,14 +32,12 @@ class Region extends Model
                 $model->uuid = (string) Str::uuid();
             }
 
-            // Auto-generate code if not set
             if (empty($model->code) && !empty($model->name)) {
                 $model->code = strtoupper(substr(Str::slug($model->name, ''), 0, 5));
             }
         });
     }
 
-    // Relationships
     public function parent()
     {
         return $this->belongsTo(self::class, 'parent_id');
@@ -60,9 +58,15 @@ class Region extends Model
         return $this->belongsTo(Zone::class); 
     }
 
-    // Scopes
+    
     public function scopeLevel($query, string $level)
     {
         return $query->where('level', $level);
     }
+
+    public function scopeActive($query)
+{
+    return $query->where('active', true);
+}
+
 }

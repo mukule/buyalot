@@ -12,19 +12,16 @@ const page = usePage();
 const isAddingWishlist = ref(false);
 const isAddingToCart = ref(false);
 
-// Check if in wishlist
 const isInWishlist = computed(() => {
     const wishlistIds = page.props.auth?.wishlistVariantIds ?? [];
     return wishlistIds.includes(props.product.id);
 });
 
-// Check if in cart
 const isInCart = computed(() => {
     const cartItems = page.props.auth?.cartItems ?? [];
     return cartItems.some((item: any) => item.product_variant_id === props.product.id);
 });
 
-// Format price
 const formatPrice = (amount: number | string | null): string => {
     if (amount === null || amount === undefined) return 'KSh 0';
     const num = typeof amount === 'string' ? parseFloat(amount) : amount;
@@ -70,12 +67,10 @@ const addToCart = () => {
     <div
         class="relative flex h-full w-[calc(50%-0.5rem)] shrink-0 snap-start flex-col justify-between rounded-lg border bg-white p-3 shadow-sm transition-transform duration-300 hover:scale-105 hover:shadow-md sm:w-[calc(33%-0.5rem)] md:w-[calc(25%-0.5rem)] lg:w-[calc(16.66%-0.5rem)]"
     >
-        <!-- Loading overlay -->
         <div v-if="isAddingWishlist || isAddingToCart" class="absolute inset-0 z-20 flex items-center justify-center rounded-lg bg-white/60">
             <span class="loader"></span>
         </div>
 
-        <!-- Discount badge -->
         <span
             v-if="product.has_discount && product.discount_percent > 0"
             class="absolute top-2 right-2 z-10 rounded bg-secondary/75 px-2 py-1 text-xs font-bold text-white"

@@ -1,4 +1,4 @@
-### GET request to example server
+quest to example server
 GET https://examples.http-client.intellij.net/get
     ?generated-in=PhpStorm
 
@@ -9,5 +9,6 @@ Accept: application/json
 Authorization: Bearer 1|2ERwzVzsnKTPvnqUTU90Pd5TVrX8axdHBC0K8qKW6549d431
 
 {
-    "product_variant_ids": [3]
+    "product_variant_ids": [2,3,5,7]
 }
+

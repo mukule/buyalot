@@ -8,11 +8,13 @@ use Vinkla\Hashids\Facades\Hashids;
 
 class Brand extends Model
 {
+
     protected $fillable = [
         'name',
         'slug',
         'active',
-        'logo_path', 
+        'description',
+        'logo_path', // Only brand-specific fields
     ];
 
     protected $casts = [
@@ -21,8 +23,15 @@ class Brand extends Model
 
     protected $appends = [
         'hashid',
-        'logo_url', 
+        'logo_url', // Removed 'category_name'
     ];
+
+    protected static function booted()
+    {
+        static::created(fn() => \App\Services\SearchCacheService::refresh());
+        static::updated(fn() => \App\Services\SearchCacheService::refresh());
+        static::deleted(fn() => \App\Services\SearchCacheService::refresh());
+    }
 
     protected static function boot()
     {
@@ -82,7 +91,7 @@ class Brand extends Model
         return $this->logo_path ? asset('storage/' . $this->logo_path) : null;
     }
 
-    
+
     public function products()
 {
     return $this->hasMany(\App\Models\Product::class, 'brand_id');

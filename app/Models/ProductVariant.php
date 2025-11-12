@@ -11,6 +11,7 @@ use Illuminate\Support\Carbon;
 
 class ProductVariant extends Model
 {
+
     protected $fillable = [
         'product_id',
         'buying_price',
@@ -35,6 +36,13 @@ class ProductVariant extends Model
     // ----------------------
     // Relationships
     // ----------------------
+
+    protected static function booted()
+    {
+        static::created(fn() => \App\Services\SearchCacheService::refresh());
+        static::updated(fn() => \App\Services\SearchCacheService::refresh());
+        static::deleted(fn() => \App\Services\SearchCacheService::refresh());
+    }
 
     public function product(): BelongsTo
     {
@@ -127,6 +135,22 @@ class ProductVariant extends Model
         return round((($this->marked_price - $this->buying_price) / $this->buying_price) * 100, 2);
     }
 
+    /**
+     * Scope: limit product variants to those whose parent product belongs to the given seller application id(s).
+     * Uses seller_applications IDs via products.owner_id when owner_type = 'seller'.
+     * @param Builder $query
+     * @param int|array|\Illuminate\Support\Collection $sellerIds
+     */
+    public function scopeForSeller(Builder $query, $sellerIds): Builder
+    {
+        $ids = collect($sellerIds)->flatten()->filter()->values();
+        if ($ids->isEmpty()) {
+            return $query->whereRaw('1 = 0');
+        }
+        return $query->whereHas('product', function (Builder $q) use ($ids) {
+            $q->where('owner_type', 'seller')->whereIn('owner_id', $ids);
+        });
+    }
 
     public function scopeActiveAndValid(Builder $query): Builder
     {

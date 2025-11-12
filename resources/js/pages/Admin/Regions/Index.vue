@@ -11,6 +11,8 @@ interface Region {
     name: string;
     active: boolean;
     parent_name?: string | null;
+    zone_name?: string | null; // new
+    tier?: number; // new
 }
 
 interface PaginationLink {
@@ -66,7 +68,7 @@ function editRegion(hashid: string) {
 
 function deleteRegion(hashid: string) {
     if (!hashid) return console.error('deleteRegion called without hashid');
-    if (confirm('Are you sure you want to delete this item?')) {
+    if (confirm('Are you sure you want to delete this region?')) {
         router.delete(`${basePath.value}/${hashid}`);
     }
 }
@@ -95,6 +97,8 @@ const statusClasses = (active: boolean) => ({
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Parent</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Zone</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tier</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                             </tr>
@@ -111,9 +115,13 @@ const statusClasses = (active: boolean) => ({
                                 </td>
 
                                 <!-- Parent Name -->
-                                <td class="px-4 py-4 text-sm">
-                                    {{ region.parent_name || '-' }}
-                                </td>
+                                <td class="px-4 py-4 text-sm">{{ region.parent_name || '-' }}</td>
+
+                                <!-- Zone Name -->
+                                <td class="px-4 py-4 text-sm">{{ region.zone_name || '-' }}</td>
+
+                                <!-- Tier -->
+                                <td class="px-4 py-4 text-sm">{{ region.tier ?? '-' }}</td>
 
                                 <!-- Status -->
                                 <td class="px-4 py-4 text-sm">
