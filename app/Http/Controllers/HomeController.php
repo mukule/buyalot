@@ -191,7 +191,7 @@ public function category(string $slug)
     $minPrice = request('min_price') !== null ? (float) request('min_price') : null;
     $maxPrice = request('max_price') !== null ? (float) request('max_price') : null;
 
-    
+
     if ($selectedSubcategory) {
         $subcategory = Category::find($selectedSubcategory);
         if ($subcategory && $subcategory->parent_id === $category->id) {
@@ -199,7 +199,7 @@ public function category(string $slug)
         }
     }
 
-    
+
     $products = $this->productService->getPaginatedProductsByCategoryIds(
         $categoryIds,
         20,
@@ -208,7 +208,7 @@ public function category(string $slug)
         $selectedBrands
     );
 
-    
+
     return Inertia::render('Frontend/Category', [
         'category' => $category,
         'products' => $products,
@@ -229,6 +229,16 @@ public function category(string $slug)
     {
         $now = Carbon::now();
 
+        // Determine user and base order scope
+        $user = $request->user();
+        $sellerIds = null;
+        $orderBase = Order::query();
+        if ($user && $user->hasRole('seller')) {
+            $sellerTable = (new \App\Models\Seller\Seller())->getTable();
+            $sellerIds = $user->sellers()->pluck($sellerTable . '.id');
+            $orderBase->forSeller($sellerIds);
+        }
+
         // Define week ranges
         $startOfThisWeek = $now->startOfWeek();
         $endOfThisWeek   = $now->copy()->endOfWeek();
@@ -236,33 +246,48 @@ public function category(string $slug)
         $startOfLastWeek = $now->copy()->subWeek()->startOfWeek();
         $endOfLastWeek   = $now->copy()->subWeek()->endOfWeek();
 
-        // Weekly orders
-        $ordersThisWeek = Order::whereBetween('created_at', [$startOfThisWeek, $endOfThisWeek])->count();
-        $ordersLastWeek = Order::whereBetween('created_at', [$startOfLastWeek, $endOfLastWeek])->count();
+        // Weekly orders (scoped if seller)
+        $ordersThisWeek = (clone $orderBase)->whereBetween('created_at', [$startOfThisWeek, $endOfThisWeek])->count();
+        $ordersLastWeek = (clone $orderBase)->whereBetween('created_at', [$startOfLastWeek, $endOfLastWeek])->count();
 
         $orderGrowth = $ordersLastWeek > 0
             ? round((($ordersThisWeek - $ordersLastWeek) / $ordersLastWeek) * 100, 2)
             : ($ordersThisWeek > 0 ? 100 : 0);
 
-        $stats = [
-            'sellers'         => Seller::count(),
-            'customers'       => Customer::count(),
-            'users'           => User::count(),
-            'orders'          => Order::count(),
-            'warehouses'      => Warehouse::count(),
-            'orders_this_week' => $ordersThisWeek,
-            'orders_last_week' => $ordersLastWeek,
-            'order_growth'     => $orderGrowth,
-        ];
+        // Build stats with role-aware visibility
+        if ($user && $user->hasRole('seller')) {
+            // For sellers: remove seller and customer totals, and scope orders and users to seller account(s)
+            $stats = [
+                'users'             => User::forSeller($sellerIds)->count(),
+                'orders'            => (clone $orderBase)->count(),
+                'warehouses'        => Warehouse::count(),
+                'orders_this_week'  => $ordersThisWeek,
+                'orders_last_week'  => $ordersLastWeek,
+                'order_growth'      => $orderGrowth,
+            ];
+        } else {
+            // Admins and other roles see global stats
+            $stats = [
+                'sellers'           => Seller::count(),
+                'customers'         => Customer::count(),
+                'users'             => User::count(),
+                'orders'            => Order::count(),
+                'warehouses'        => Warehouse::count(),
+                'orders_this_week'  => $ordersThisWeek,
+                'orders_last_week'  => $ordersLastWeek,
+                'order_growth'      => $orderGrowth,
+            ];
+        }
 
         $startOfMonth = Carbon::now()->startOfMonth();
         $endOfMonth = Carbon::now()->endOfMonth();
 
-        $ordersByStatus = Order::select(
-            DB::raw('DATE(created_at) as date'),
-            'status',
-            DB::raw('COUNT(*) as total')
-        )
+        $ordersByStatus = (clone $orderBase)
+            ->select(
+                DB::raw('DATE(created_at) as date'),
+                'status',
+                DB::raw('COUNT(*) as total')
+            )
             ->whereBetween('created_at', [$startOfMonth, $endOfMonth])
             ->groupBy('date', 'status')
             ->orderBy('date')

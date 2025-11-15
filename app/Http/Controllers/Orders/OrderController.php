@@ -55,6 +55,13 @@ class OrderController extends Controller
             ->when($request->date_from, fn($q) => $q->whereDate('created_at', '>=', $request->date_from))
             ->when($request->date_to, fn($q) => $q->whereDate('created_at', '<=', $request->date_to));
 
+        // If the authenticated user is a seller, limit orders to those containing their items
+        $authUser = $request->user();
+        if ($authUser && method_exists($authUser, 'hasRole') && $authUser->hasRole('seller')) {
+            $sellerIds = $authUser->sellers()->pluck('seller_applications.id');
+            $query->forSeller($sellerIds);
+        }
+
         $sortBy = $request->get('sort_by', 'created_at');
         $sortOrder = $request->get('sort_order', 'desc');
         $query->orderBy($sortBy, $sortOrder);

@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Builder;
 use App\Models\Traits\HasSlug;
 use App\Models\Traits\HasHashid;
 use App\Models\Warranty;
@@ -263,24 +264,35 @@ class Product extends Model
         return true;
     }
 
-
-public function warranties(): HasMany
-{
-    return $this->hasMany(Warranty::class);
-}
-
-public function hasWarranty(): bool
-{
-    return $this->warranties()->exists();
-}
-
-public function activeWarranty(): ?Warranty
-{
-    return $this->warranties()->where('active', true)->first();
-}
-
+    /**
+     * Scope: limit products to those that belong to the given seller application id(s).
+     * Uses seller_applications IDs stored in products.owner_id when owner_type = 'seller'.
+     * @param Builder $query
+     * @param int|array|\Illuminate\Support\Collection $sellerIds
+     */
+    public function scopeForSeller(Builder $query, $sellerIds): Builder
+    {
+        $ids = collect($sellerIds)->flatten()->filter()->values();
+        if ($ids->isEmpty()) {
+            return $query->whereRaw('1 = 0');
+        }
+        return $query->where('owner_type', 'seller')->whereIn('owner_id', $ids);
+    }
 
 
+    public function warranties(): HasMany
+    {
+        return $this->hasMany(Warranty::class);
+    }
 
+    public function hasWarranty(): bool
+    {
+        return $this->warranties()->exists();
+    }
+
+    public function activeWarranty(): ?Warranty
+    {
+        return $this->warranties()->where('active', true)->first();
+    }
 
 }

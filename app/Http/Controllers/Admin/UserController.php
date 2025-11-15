@@ -10,13 +10,15 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
-use Spatie\Permission\Models\Role;
+use App\Models\Role;
+use App\Models\Seller\Seller;
+use App\Models\Seller\SellerUser;
 
 class UserController extends Controller
 {
     public function index(Request $request)
     {
-        $query = User::query()->with('roles');
+        $query = User::query()->with('roles') ->whereNot("user_type",'customer');
 
         if ($request->filled('search')) {
             $query->where(function ($searchQuery) use ($request) {
@@ -41,21 +43,62 @@ class UserController extends Controller
             $query->where('status', $statusValue);
         }
 
+        // If the authenticated user is a seller, restrict users to their seller account(s)
+        $authUser = $request->user();
+        if ($authUser && method_exists($authUser, 'hasRole') && $authUser->hasRole('seller')) {
+            $sellerTable = (new \App\Models\Seller\Seller())->getTable();
+            $sellerIds = $authUser->sellers()->pluck($sellerTable . '.id');
+            $query->forSeller($sellerIds);
+        }
+
         $users = $query->latest()->get();
-        $roles = Role::pluck('name');
-        $userData = $users->map(fn($user) => [
-            'id' => $user->id,
-            'name' => $user->name,
-            'email' => $user->email ?? '',
-            'phone' => $user->phone ?? '',
-            'gender' => $user->gender ?? '',
-            'status' => (bool) $user->status,
-            'created_at' => $user->created_at,
-            'roles' => $user->roles->map(fn($role) => [
+        $roles = Role::allowedForSeller()->pluck('name');
+
+        $isSellerContext = $authUser && (
+            (isset($authUser->user_type) && in_array($authUser->user_type, ['seller','vendor']))
+            || (method_exists($authUser, 'hasRole') && ($authUser->hasRole('seller') || $authUser->hasRole('vendor')))
+        );
+
+        // If seller context, we will display the pivot role from seller_user table instead of Spatie roles
+        $sellerIdsForPivot = collect();
+        if ($isSellerContext) {
+            $sellerTable = (new Seller())->getTable();
+            $sellerIdsForPivot = $authUser->sellers()->pluck($sellerTable . '.id');
+        }
+
+        $userData = $users->map(function ($user) use ($isSellerContext, $sellerIdsForPivot) {
+            $base = [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email ?? '',
+                'phone' => $user->phone ?? '',
+                'gender' => $user->gender ?? '',
+                'status' => (bool) $user->status,
+                'created_at' => $user->created_at,
+            ];
+
+            if ($isSellerContext) {
+                // Fetch pivot role for the first matching seller
+                $pivot = SellerUser::query()
+                    ->where('user_id', $user->id)
+                    ->whereIn('seller_id', $sellerIdsForPivot)
+                    ->first();
+
+                $pivotRoleName = $pivot?->role;
+                $base['roles'] = $pivotRoleName
+                    ? collect([[ 'id' => null, 'name' => $pivotRoleName ]])
+                    : collect();
+
+                return $base;
+            }
+
+            $base['roles'] = $user->roles->map(fn($role) => [
                 'id' => $role->id,
                 'name' => $role->name,
-            ]),
-        ]);
+            ]);
+
+            return $base;
+        });
         if ($request->wantsJson() || $request->is('api/*')) {
             return response()->json([
                 'users' => $userData,
@@ -136,7 +179,7 @@ class UserController extends Controller
         // Return Inertia view for web requests
         return Inertia::render('Admin/Users/Show', [
             'user' => $userData,
-            'roles' => Role::all(),
+            'roles' => Role::allowedForSeller()->get(),
         ]);
     }
 
@@ -161,7 +204,7 @@ class UserController extends Controller
 
         return Inertia::render('Admin/Users/Edit', [
             'user' => $userData,
-            'roles' => Role::all(),
+            'roles' => Role::allowedForSeller()->get(),
         ]);
     }
 
@@ -239,6 +282,7 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
+        $roleNames = Role::allowedForSeller()->pluck('name')->all();
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
@@ -247,12 +291,19 @@ class UserController extends Controller
             'password' => 'required|string|min:8|confirmed',
             'status' => 'required|boolean',
             'roles' => 'required|array|min:1',
-            'roles.*' => 'string|exists:roles,name',
+            'roles.*' => ['string', \Illuminate\Validation\Rule::in($roleNames)],
         ], [
             'roles.required' => 'A user must have at least one role.',
             'roles.min' => 'A user must have at least one role.',
             'password.confirmed' => 'The password confirmation does not match.',
         ]);
+        // Determine if the creator is a seller/vendor
+        $authUser = $request->user();
+        $isSellerContext = $authUser && (
+            (isset($authUser->user_type) && in_array($authUser->user_type, ['seller','vendor']))
+            || (method_exists($authUser, 'hasRole') && ($authUser->hasRole('seller') || $authUser->hasRole('vendor')))
+        );
+
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
@@ -260,10 +311,21 @@ class UserController extends Controller
             'password' => bcrypt($validated['password']),
             'status' => (bool) $validated['status'],
             'email_verified_at' => now(),
+            'user_type' => $isSellerContext ? 'seller' : 'user',
         ]);
         $user->assignRole($validated['roles']);
 
-        if (!$user->hasAnyRole(['customer', 'seller'])) {
+        // If the creator is a seller/vendor, attach the new user to the same seller account(s)
+        if ($isSellerContext) {
+            $sellerTable = (new Seller())->getTable();
+            $sellerIds = $authUser->sellers()->pluck($sellerTable . '.id');
+            $pivotRole = $validated['roles'][0] ?? null; // use first selected role for pivot
+            foreach ($sellerIds as $sid) {
+                $user->sellers()->attach($sid, ['role' => $pivotRole]);
+            }
+        }
+
+        if (!$user->hasAnyRole(['customer', 'seller']) && !$isSellerContext) {
             UserDetail::create([
                 'user_id' => $user->id,
                 'gender' => $validated['gender'] ?? null,

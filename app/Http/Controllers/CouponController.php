@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Payment\Discount;
+use App\Services\CouponEngine;
 use Illuminate\Http\Request;
 
 class CouponController extends Controller
@@ -30,57 +30,19 @@ class CouponController extends Controller
             'shipping_amount' => 'sometimes|numeric|min:0',
         ]);
 
-        /** @var Discount|null $discount */
-        $discount = Discount::query()->active()->byCode($data['coupon_code'])->first();
-        if (!$discount) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Coupon not found or inactive',
-                'data' => [ 'amount' => 0, 'free_shipping' => false ],
-            ], 404);
-        }
+        /** @var CouponEngine $engine */
+        $engine = app(CouponEngine::class);
 
-        // Optionally deny if customer exceeded usage limit
-        $customerId = $data['customer_id'] ?? null;
-        if ($customerId && !$discount->canBeUsedByCustomer((int)$customerId)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Coupon usage limit reached for this customer',
-                'data' => [ 'amount' => 0, 'free_shipping' => false ],
-            ], 422);
-        }
-
-        $subtotal = isset($data['subtotal'])
-            ? (float)$data['subtotal']
-            : collect($data['items'])->sum(fn($it) => (float)$it['unit_price'] * (int)$it['quantity']);
-
-        $amount = (float)$discount->calculateDiscount($subtotal, $data['items'], [
-            'order_subtotal' => $subtotal,
-            'customer_id' => $customerId,
+        $result = $engine->validateCode($data['coupon_code'], $data['items'], [
+            'subtotal' => $data['subtotal'] ?? null,
+            'customer_id' => $data['customer_id'] ?? null,
+            'shipping_amount' => $data['shipping_amount'] ?? null,
         ]);
-
-        $conditions = $discount->conditions ?? [];
-        $appliesTo = $conditions['applies_to'] ?? null;
-        $shippingAmount = (float)($data['shipping_amount'] ?? 0);
-        $freeShipping = false;
-        $shippingSavings = 0.0;
-        if ($discount->type === 'free_shipping' || $appliesTo === 'shipping') {
-            $freeShipping = true;
-            $shippingSavings = $shippingAmount;
-        }
 
         return response()->json([
-            'success' => true,
-            'message' => 'Coupon evaluated',
-            'data' => [
-                'amount' => round($amount + $shippingSavings, 2),
-                'coupon_amount' => round($amount, 2),
-                'shipping_savings' => round($shippingSavings, 2),
-                'free_shipping' => $freeShipping,
-                'code' => $discount->code,
-                'type' => $discount->type,
-                'name' => $discount->name,
-            ],
-        ]);
+            'success' => $result['success'],
+            'message' => $result['message'],
+            'data' => $result['data'],
+        ], $result['status']);
     }
 }

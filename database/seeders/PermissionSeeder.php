@@ -338,6 +338,7 @@ class PermissionSeeder extends Seeder
             'view-products', 'create-products', 'edit-products',
             'manage-product-inventory',
             'view-orders',
+            'view-inventory',
             'view-user-profile', 'edit-user-profile',
         ])->get();
         $seller->givePermissionTo($sellerPermissions);

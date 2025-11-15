@@ -19,22 +19,6 @@ const form = useForm({
     password: '',
     password_confirmation: '',
     customer_type: 'individual',
-    address: {
-        label: 'Home',
-        type: 'shipping',
-        first_name: '',
-        last_name: '',
-        company: '',
-        address_line_1: '',
-        address_line_2: '',
-        city: '',
-        state_province: '',
-        postal_code: '',
-        country_code: '',
-        country_name: '',
-        phone: '',
-        delivery_instructions: '',
-    },
 });
 
 // Always keep email lowercase on the client
@@ -48,7 +32,33 @@ watch(
     }
 );
 
-const step = ref(1);
+// Enforce Firstname/Lastname capitalization live on the form
+const normalizeName = (v: string) => {
+    const t = (v || '').trim();
+    return t ? t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() : '';
+};
+
+watch(
+    () => form.first_name,
+    (val) => {
+        if (typeof val === 'string') {
+            const normalized = normalizeName(val);
+            if (normalized !== val) form.first_name = normalized;
+        }
+    }
+);
+
+watch(
+    () => form.last_name,
+    (val) => {
+        if (typeof val === 'string') {
+            const normalized = normalizeName(val);
+            if (normalized !== val) form.last_name = normalized;
+        }
+    }
+);
+
+/* Single-stage form (address step removed) */
 
 // Helpers for client-side validation
 const clearClientErrors = (keys: string[]) => {
@@ -114,62 +124,7 @@ const validateStep1 = (): boolean => {
     return ok;
 };
 
-const validateStep2 = (): boolean => {
-    const keys = [
-        'address.address_line_1',
-        'address.city',
-        'address.state_province',
-        'address.postal_code',
-        'address.country_code',
-        'address.country_name',
-    ];
-    clearClientErrors(keys);
 
-    let ok = true;
-
-    if (!form.address.address_line_1?.trim()) {
-        setClientError('address.address_line_1', 'Address line 1 is required.');
-        ok = false;
-    }
-    if (!form.address.city?.trim()) {
-        setClientError('address.city', 'City is required.');
-        ok = false;
-    }
-    if (!form.address.state_province?.trim()) {
-        setClientError('address.state_province', 'State/Province is required.');
-        ok = false;
-    }
-    if (!form.address.postal_code?.trim()) {
-        setClientError('address.postal_code', 'Postal code is required.');
-        ok = false;
-    }
-    if (!form.address.country_code?.trim()) {
-        setClientError('address.country_code', 'Country is required.');
-        ok = false;
-    } else {
-        // Ensure country_name matches selected code
-        const c = countries.find((x) => x.iso === form.address.country_code);
-        form.address.country_name = c ? c.name : '';
-        if (!form.address.country_name) {
-            setClientError('address.country_name', 'Country is invalid.');
-            ok = false;
-        }
-    }
-
-    return ok;
-};
-
-const nextStep = () => {
-    if (step.value === 1) {
-        // Validate but do not block progression; show errors if any
-        validateStep1();
-    }
-    if (step.value < 2) step.value++;
-};
-
-const prevStep = () => {
-    if (step.value > 1) step.value--;
-};
 
 const toFlagEmoji = (iso: string): string => {
     if (!iso || iso.length !== 2) return '';
@@ -189,10 +144,6 @@ const countries = allCountries.map((c) => ({
     emoji: toFlagEmoji(c.isoCode2),
 }));
 
-const onAddressCountryChange = () => {
-    const c = countries.find((x) => x.iso === form.address.country_code);
-    form.address.country_name = c ? c.name : '';
-};
 
 
 const submit = () => {
@@ -201,27 +152,22 @@ const submit = () => {
         form.email = form.email.toLowerCase();
     }
 
-    // Validate both steps; block submit only if invalid
-    const ok1 = validateStep1();
-    const ok2 = validateStep2();
-
-    if (!ok1 || !ok2) {
-        // If basic info invalid, show step 1; otherwise show step 2
-        step.value = !ok1 ? 1 : 2;
-        return;
+    // Normalize first and last names: first char uppercase, rest lowercase
+    if (typeof form.first_name === 'string') {
+        const t = form.first_name.trim();
+        form.first_name = t ? t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() : '';
+    }
+    if (typeof form.last_name === 'string') {
+        const t = form.last_name.trim();
+        form.last_name = t ? t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() : '';
     }
 
-    // Compose display name and default address names
+    // Validate basic info only
+    const ok = validateStep1();
+    if (!ok) return;
+
+    // Compose display name
     form.name = `${form.first_name} ${form.last_name}`.trim();
-    if (!form.address.first_name) form.address.first_name = form.first_name;
-    if (!form.address.last_name) form.address.last_name = form.last_name;
-    if (!form.address.phone) form.address.phone = form.phone;
-
-    // Sync country_name with selected code (safety)
-    if (form.address.country_code && !form.address.country_name) {
-        const c = countries.find((x) => x.iso === form.address.country_code);
-        form.address.country_name = c ? c.name : '';
-    }
 
     // Normalize phone number before submit
     const phone = form.phone.replace(/[^0-9]/g, '').replace(/^0/, ''); // digits only, remove leading 0
@@ -246,16 +192,8 @@ const handleGoogleRegister = () => {
 
         <form @submit.prevent="submit" class="flex flex-col gap-6">
             <div class="grid gap-6">
-                <!-- Step indicator -->
-                <div class="flex items-center justify-between">
-                    <div class="text-sm">Step {{ step }} of 2</div>
-                    <div class="flex gap-2">
-                        <div v-for="i in 2" :key="i" class="h-1 w-16 rounded" :class="i <= step ? 'bg-primary' : 'bg-border'"></div>
-                    </div>
-                </div>
-
-                <!-- Step 1: Basic information -->
-                <div v-if="step === 1" class="grid gap-6">
+                <!-- Basic information -->
+                <div class="grid gap-6">
                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div class="grid gap-2">
                             <Input id="first_name" type="text" required autofocus v-model="form.first_name" placeholder="First name" />
@@ -329,67 +267,12 @@ const handleGoogleRegister = () => {
                     </div>
                 </div>
 
-
-                <!-- Step 2: Address -->
-                <div v-else-if="step === 2" class="grid gap-6">
-                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <div class="grid gap-2">
-                            <Input id="address_line_1" type="text" required v-model="form.address.address_line_1" placeholder="Address line 1" />
-                            <InputError :message="form.errors['address.address_line_1']" />
-                        </div>
-                        <div class="grid gap-2">
-                            <Input id="address_line_2" type="text" v-model="form.address.address_line_2" placeholder="Address line 2 (optional)" />
-                            <InputError :message="form.errors['address.address_line_2']" />
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                        <div class="grid gap-2">
-                            <Input id="city" type="text" required v-model="form.address.city" placeholder="City" />
-                            <InputError :message="form.errors['address.city']" />
-                        </div>
-                        <div class="grid gap-2">
-                            <Input id="state_province" type="text" required v-model="form.address.state_province" placeholder="State/Province" />
-                            <InputError :message="form.errors['address.state_province']" />
-                        </div>
-                        <div class="grid gap-2">
-                            <Input id="postal_code" type="text" required v-model="form.address.postal_code" placeholder="Postal code" />
-                            <InputError :message="form.errors['address.postal_code']" />
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <div class="grid gap-2">
-                            <label class="text-sm font-medium">Country</label>
-                            <select v-model="form.address.country_code" @change="onAddressCountryChange" class="rounded-md border px-3 py-2 text-sm text-muted-foreground dark:border-muted dark:bg-background">
-                                <option value="" disabled>Select country</option>
-                                <option v-for="c in countries" :key="c.iso" :value="c.iso">{{ c.name }} {{ c.emoji }}</option>
-                            </select>
-                            <InputError :message="form.errors['address.country_code'] || form.errors['address.country_name']" />
-                        </div>
-                        <div class="grid gap-2">
-                            <Input id="label" type="text" v-model="form.address.label" placeholder="Address label (Home, Work)" />
-                            <InputError :message="form.errors['address.label']" />
-                        </div>
-                    </div>
-
-                    <div class="grid gap-2">
-                        <label for="delivery_instructions" class="text-sm font-medium">Delivery instructions (optional)</label>
-                        <textarea id="delivery_instructions" v-model="form.address.delivery_instructions" rows="3" class="rounded-md border px-3 py-2 text-sm text-muted-foreground dark:border-muted dark:bg-background" placeholder="e.g., Gate code, leave at reception, call on arrival"></textarea>
-                        <InputError :message="form.errors['address.delivery_instructions']" />
-                    </div>
-                </div>
-
-                <!-- Navigation buttons -->
-                <div class="mt-2 flex items-center justify-between">
-                    <Button type="button" variant="outline" @click="prevStep" :disabled="step === 1">Back</Button>
-                    <div class="flex gap-2">
-                        <Button v-if="step < 2" type="button" @click="nextStep">Next</Button>
-                        <Button v-else type="submit" :disabled="form.processing">
-                            <LoaderCircle v-if="form.processing" class="h-4 w-4 animate-spin" />
-                            Submit
-                        </Button>
-                    </div>
+                <!-- Actions -->
+                <div class="mt-2 flex items-center justify-end">
+                    <Button type="submit" :disabled="form.processing">
+                        <LoaderCircle v-if="form.processing" class="h-4 w-4 animate-spin" />
+                        <span v-else>Sign up</span>
+                    </Button>
                 </div>
 
                 <!-- Divider -->
