@@ -155,6 +155,50 @@ class ProductVariant extends Model
     }
 
 
+    
+    public function getOwnerInfo(): array
+{
+    if (! $this->product) {
+        return [
+            'type' => null,
+            'name' => 'Unknown Seller',
+        ];
+    }
+
+    if ($this->product->owner_type === 'admin') {
+        return [
+            'type' => 'admin',
+            'name' => 'Buyalot Store',
+        ];
+    }
+
+    // If owner is a seller
+    $sellerName = $this->product->owner?->sellerApplication?->company_legal_name
+        ?? $this->product->owner?->name
+        ?? 'Unknown Seller';
+
+    return [
+        'type' => 'seller',
+        'name' => $sellerName,
+    ];
+}
+
+
+public function getActiveWarranty(): ?\App\Models\Warranty
+{
+    if (! $this->product) {
+        return null;
+    }
+
+    return $this->product->warranties()
+        ->where('active', true)
+        ->orderBy('id') 
+        ->first();
+}
+
+
+
+
 //    public function discounts()
 // {
 //    return $this->belongsToMany(\App\Models\Payment\Discount::class, 'discount_product_variants', 'product_variant_id', 'discount_id')

@@ -51,24 +51,21 @@ class HomeController extends Controller
     }
 
 
-
 public function productDetails(string $slug)
 {
-    // --- Fetch Product with relations ---
     $product = Product::with([
         'brand',
         'primaryImage',
         'images',
         'productVariants.values.variant',
         'category.parent',
+        'warranties', // Make sure warranties are eager-loaded
     ])->where('slug', $slug)->firstOrFail();
 
-    // --- Prepare variant discounts ---
     $variantIds = $product->productVariants->pluck('id')->toArray();
     $discountResults = app(\App\Services\DiscountService::class)->calculateDiscounts($variantIds);
     $discountLookup = collect($discountResults)->keyBy('product_variant_id');
 
-    // --- Map variants with discount info ---
     $variants = $product->productVariants->map(function ($variant) use ($discountLookup) {
         $discountData = $discountLookup->get($variant->id);
 
@@ -95,17 +92,21 @@ public function productDetails(string $slug)
         ];
     });
 
-    // --- Select default variant ---
+    // Determine selected variant
     $selectedVariant = $product->productVariants->first();
     if (request()->has('variant_id')) {
         $variantId = request('variant_id');
         $selectedVariant = $product->productVariants->firstWhere('id', $variantId) ?? $selectedVariant;
     }
 
-    // --- Related products ---
     $relatedProducts = $this->productService->getRelatedProducts($selectedVariant);
 
-    // --- Product Data ---
+    // Owner info
+    $ownerInfo = $selectedVariant->getOwnerInfo();
+
+    // Active warranty for the selected variant
+    $activeWarranty = $selectedVariant->getActiveWarranty();
+
     $productData = [
         'id' => $product->id,
         'slug' => $product->slug,
@@ -125,36 +126,40 @@ public function productDetails(string $slug)
             ->map(fn($img) => Storage::disk('s3')->url($img->image_path))
             ->toArray(),
         'variants' => $variants,
+        'owner' => [
+            'type' => $ownerInfo['type'],
+            'name' => $ownerInfo['name'],
+        ],
+        'warranty' => $activeWarranty ? [
+            'id' => $activeWarranty->id,
+            'duration' => $activeWarranty->duration,
+            'description' => $activeWarranty->description,
+        ] : null,
     ];
 
-    // --- Cart variant IDs ---
     $cartVariantIds = [];
     $cart = app(\App\Services\CartService::class)->getCart(request());
     if ($cart) {
         $cartVariantIds = $cart->items()->pluck('product_variant_id')->toArray();
     }
 
-    // --- Regions with pickup points ---
     $shippingService = app(\App\Services\ShippingService::class);
 
     $regions = Region::with(['pickupPoints' => fn($q) => $q->active()])
-    ->active()
-    ->level('region')
-    ->get()
-    ->map(function ($region) use ($shippingService) {
-        return [
-            'id' => $region->id,
-            'name' => $region->name,
-            'pickup_points' => $region->pickupPoints->map(fn($pp) => [
-                'id' => $pp->id,
-                'name' => $pp->name,
-            ])->values()->toArray(), 
-            'shipping_options' => $shippingService->getOptionsByRegion($region->id),
-        ];
-    });
-
-        \Log::info('Regions with shipping options:', $regions->toArray());
-
+        ->active()
+        ->level('region')
+        ->get()
+        ->map(function ($region) use ($shippingService) {
+            return [
+                'id' => $region->id,
+                'name' => $region->name,
+                'pickup_points' => $region->pickupPoints->map(fn($pp) => [
+                    'id' => $pp->id,
+                    'name' => $pp->name,
+                ])->values()->toArray(),
+                'shipping_options' => $shippingService->getOptionsByRegion($region->id),
+            ];
+        });
 
     return Inertia::render('Frontend/ProductDetail', [
         'product' => $productData,
