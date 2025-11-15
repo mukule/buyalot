@@ -10,6 +10,7 @@ import {
     BookUserIcon,
     ClipboardList,
     FileCheck,
+    FileText,
     KeyRound,
     Layers3Icon,
     LayoutGrid,
@@ -164,6 +165,12 @@ const allNavItems: NavItem[] = [
         href: '/admin/orders',
         icon: LucideListOrdered,
         permissions: ['view-orders'],
+    },
+    {
+        title: 'Invoices',
+        href: '/admin/invoices',
+        icon: FileText,
+        permissions: ['view-invoices'],
     },
     {
         title: 'Payments',

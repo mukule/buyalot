@@ -52,6 +52,11 @@ Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/search', [SearchController::class, 'search'])->name('search');
 
 Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard'])->prefix('admin')->name('admin.')->group(function () {
+
+    // Invoices management (Admin)
+    Route::get('/invoices', [\App\Http\Controllers\Admin\InvoiceController::class, 'index'])
+        ->name('invoices.index')
+        ->middleware('check_permission:view-invoices');
     Route::get('/dashboard',[HomeController::class,'dashboard'])->name('dashboard');
 //        function () {
 //        return Inertia::render('Dashboard');
@@ -119,6 +124,8 @@ Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard']
 // Allow non-admin users with specific permissions to access listing pages
 Route::middleware(['auth','role_or_permission:admin|view-orders'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/orders', [\App\Http\Controllers\Orders\OrderController::class, 'index'])->name('orders.index');
+    Route::get('/orders/{order}', [\App\Http\Controllers\Admin\OrderController::class, 'show'])
+        ->name('orders.show');
 });
 
 Route::middleware(['auth','role_or_permission:admin|view-categories'])->prefix('admin')->name('admin.')->group(function () {

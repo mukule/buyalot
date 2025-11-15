@@ -5,7 +5,7 @@ namespace App\Models\Orders;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\ProductVariantValue;
-use App\Models\Seller\Seller;
+use App\Models\Seller\SellerAccount;
 use App\Models\Variant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -71,7 +71,7 @@ class OrderItem extends Model
 
     public function seller(): BelongsTo
     {
-        return $this->belongsTo(Seller::class);
+        return $this->belongsTo(SellerAccount::class, 'seller_id');
     }
 
     // Scopes

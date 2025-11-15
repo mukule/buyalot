@@ -266,6 +266,19 @@ class PermissionSeeder extends Seeder
                 'edit-zones',
                 'delete-zones',
             ],
+            'delivery_charges' => [
+                'view-delivery_charges',
+                'create-delivery_charges',
+                'edit-delivery_charges',
+                'delete-delivery_charges',
+            ],
+            'invoices' =>[
+                'view-invoices',
+                'view-invoice-details',
+                'download-invoices',
+                'view-invoice-reports',
+                'manage-invoice-settings',
+            ]
 
         ];
 

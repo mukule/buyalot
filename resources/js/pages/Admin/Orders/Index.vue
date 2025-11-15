@@ -92,7 +92,7 @@ const form = useForm({
 
                     <td class="px-4 py-2">{{ new Date(order.created_at).toLocaleDateString() }}</td>
                     <td class="px-4 py-2 text-right">
-                        <Link :href="route('orders.show', order.id)" class="text-indigo-600 hover:underline">View</Link>
+                        <Link :href="route('admin.orders.show', (order as any).ulid ?? order.id)" class="text-indigo-600 hover:underline">View</Link>
                     </td>
                 </tr>
                 </tbody>
