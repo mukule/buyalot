@@ -22,20 +22,16 @@ class CartItem extends Model
     ];
 
     protected $casts = [
-        'metadata' => 'array', // so metadata JSON is automatically cast
+        'metadata' => 'array', 
     ];
 
-    /**
-     * Cart that owns this item
-     */
+   
     public function cart(): BelongsTo
     {
         return $this->belongsTo(Cart::class);
     }
 
-    /**
-     * The product variant in this cart item
-     */
+   
     public function productVariant(): BelongsTo
     {
         return $this->belongsTo(ProductVariant::class);
@@ -56,4 +52,6 @@ class CartItem extends Model
     {
         return $this->belongsTo(User::class, 'seller_id');
     }
+
+    
 }

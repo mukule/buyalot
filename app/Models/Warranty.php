@@ -24,36 +24,28 @@ class Warranty extends Model
         'active' => 'boolean',
     ];
 
-    // Automatically append hashid to model's array/json representation
+    
     protected $appends = ['hashid'];
 
-    /**
-     * Relation to Product
-     */
+    
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
     }
 
-    /**
-     * Accessor for hashid
-     */
+    
     public function getHashidAttribute(): string
     {
         return Hashids::encode($this->id);
     }
 
-    /**
-     * Use hashid for route key
-     */
+   
     public function getRouteKey(): string
     {
         return $this->hashid;
     }
 
-    /**
-     * Resolve binding from hashid
-     */
+   
     public function resolveRouteBinding($value, $field = null)
     {
         $decoded = Hashids::decode($value);

@@ -3,7 +3,7 @@ import ProductCarouselSection from '@/components/ProductCarouselSection.vue';
 import MainLayout from '@/layouts/MainLayout.vue';
 import type { SimplifiedProduct } from '@/types';
 import { router, usePage } from '@inertiajs/vue3';
-import { Expand, Minus, Plus, ShoppingCart, Star } from 'lucide-vue-next';
+import { Expand, Info, Minus, Plus, ShoppingCart, Star } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 
 // --- Props ---
@@ -20,6 +20,16 @@ const props = defineProps<{
         images: string[];
         brand?: { name: string };
         category_hierarchy?: { id: number; name: string; slug: string }[];
+        owner?: {
+            name?: string | null;
+            company_legal_name?: string | null;
+            type?: string | null;
+        };
+        warranty?: {
+            id: number;
+            duration: string;
+            description: string;
+        } | null;
         variants: {
             id: number;
             marked_price: number;
@@ -64,6 +74,27 @@ const displayPrice = computed(() => {
         discount_percent: selectedVariant.value.discount_percent,
         has_discount: selectedVariant.value.has_discount,
     };
+});
+
+// --- OWNER INFO ---
+const ownerInfo = computed(() => {
+    const owner = props.product.owner;
+    return {
+        type: owner?.type ?? 'Unknown',
+        displayName: owner?.company_legal_name ?? owner?.name ?? 'Unknown Seller',
+    };
+});
+
+// --- WARRANTY INFO ---
+const warrantyInfo = computed(() => {
+    const warranty = props.product.warranty;
+    return warranty
+        ? {
+              id: warranty.id,
+              duration: warranty.duration,
+              description: warranty.description,
+          }
+        : null;
 });
 
 // --- RELATED PRODUCTS ---
@@ -138,13 +169,13 @@ const updatePickupPoints = () => {
     selectedShippingOptions.value = region?.shipping_options ?? null;
 };
 
-// Watch region selection to update pickup points and shipping
 watch(selectedRegionId, updatePickupPoints);
 </script>
 
 <template>
     <MainLayout>
-        <section class="mt-4 mb-4 flex flex-col">
+        <!-- Main Product Section -->
+        <section class="mx-auto mt-4 mb-4 flex max-w-7xl flex-col overflow-x-hidden">
             <!-- Breadcrumb -->
             <nav class="p-4 text-sm text-gray-600" aria-label="Breadcrumb">
                 <ol class="flex flex-wrap items-center gap-1">
@@ -153,7 +184,9 @@ watch(selectedRegionId, updatePickupPoints);
                         <span class="mx-1">/</span>
                     </li>
                     <li v-for="(cat, index) in product.category_hierarchy ?? []" :key="cat.id" class="flex items-center">
-                        <a :href="`/${cat.slug}`" class="text-primary hover:underline">{{ cat.name }}</a>
+                        <a :href="`/${cat.slug}`" class="text-primary hover:underline">
+                            {{ cat.name }}
+                        </a>
                         <span v-if="index < (product.category_hierarchy?.length ?? 0) - 1" class="mx-1">/</span>
                     </li>
                     <li class="truncate font-semibold text-gray-800">/{{ product.name }}</li>
@@ -176,7 +209,9 @@ watch(selectedRegionId, updatePickupPoints);
                                         <Expand class="h-4 w-4" />
                                     </button>
                                 </div>
-                                <div class="mt-4 flex gap-2 overflow-x-auto">
+
+                                <!-- Image Thumbnails -->
+                                <div class="no-scrollbar mt-4 flex gap-2 overflow-x-auto">
                                     <img
                                         v-for="(img, idx) in product.images"
                                         :key="idx"
@@ -288,26 +323,17 @@ watch(selectedRegionId, updatePickupPoints);
                 <!-- SIDEBAR -->
                 <div class="flex w-full flex-col gap-4 lg:w-2/12">
                     <!-- Buyalot Swift -->
-                    <!-- Buyalot Swift Section -->
                     <div class="flex flex-col items-center rounded-xl bg-white p-4 shadow">
-                        <!-- Logo -->
                         <img src="/storage/images/buyalotswift.png" alt="Buyalot Swift" class="h-10 w-auto object-contain" />
 
-                        <!-- Tagline -->
                         <p class="text-[11px] text-gray-500">
                             Fast.Smooth.Reliable
-                            <a href="/buyalot-swift" class="mb-3 text-xs font-medium text-primary hover:underline">more → </a>
+                            <a href="/buyalot-swift" class="mb-3 text-xs font-medium text-primary hover:underline">more →</a>
                         </p>
 
-                        <!-- Learn more link -->
-
-                        <!-- Separator -->
                         <hr class="my-2 w-full border-gray-200" />
 
-                        <!-- Delivery Region + Pickup Point -->
-
                         <div class="w-full space-y-2 text-sm">
-                            <!-- Select Region -->
                             <label for="region" class="block font-semibold text-gray-700">Select Region</label>
                             <select
                                 id="region"
@@ -321,7 +347,6 @@ watch(selectedRegionId, updatePickupPoints);
                                 </option>
                             </select>
 
-                            <!-- Select Pickup Point -->
                             <label for="pickup" class="block font-semibold text-gray-700">Pickup Point</label>
                             <select
                                 id="pickup"
@@ -335,19 +360,29 @@ watch(selectedRegionId, updatePickupPoints);
                                 </option>
                             </select>
 
-                            <!-- Shipping Options -->
                             <div v-if="selectedShippingOptions" class="mt-2 space-y-4 text-sm">
-                                <!-- Pickup Option -->
                                 <div class="rounded border border-gray-200 p-3">
                                     <p class="font-semibold text-gray-700">Pickup Point</p>
                                     <ul class="mt-1 list-none space-y-1 pl-0 text-[11px] text-gray-500">
-                                        <li>Delivery Cost KSh {{ selectedShippingOptions.pickup.cost.toLocaleString() }}</li>
-                                        <li>Your order will be available for pickup in {{ selectedShippingOptions.pickup.days }} day(s).</li>
+                                        <li>
+                                            Delivery Cost KSh
+                                            {{ selectedShippingOptions.pickup.cost.toLocaleString() }}
+                                        </li>
+                                        <li>
+                                            Your order will be available for pickup in
+                                            {{ selectedShippingOptions.pickup.days }} day(s).
+                                        </li>
                                     </ul>
                                     <p class="font-semibold text-gray-700">Door Delivery</p>
                                     <ul class="mt-1 list-none space-y-1 pl-0 text-[11px] text-gray-500">
-                                        <li>Delivery Cost KSh {{ selectedShippingOptions.door.cost.toLocaleString() }}</li>
-                                        <li>Your order will be delivered in {{ selectedShippingOptions.door.days }} day(s).</li>
+                                        <li>
+                                            Delivery Cost KSh
+                                            {{ selectedShippingOptions.door.cost.toLocaleString() }}
+                                        </li>
+                                        <li>
+                                            Your order will be delivered in
+                                            {{ selectedShippingOptions.door.days }} day(s).
+                                        </li>
                                     </ul>
                                 </div>
                             </div>
@@ -356,11 +391,24 @@ watch(selectedRegionId, updatePickupPoints);
 
                     <!-- Seller Info -->
                     <div class="rounded-xl bg-white p-4 shadow">
-                        <h2 class="text-lg font-semibold text-gray-800">Seller Info</h2>
-                        <p class="text-sm text-gray-600">Over Ridge Wood Products</p>
-                        <p class="text-sm text-gray-600">Reliable seller with great reviews.</p>
-                        <p class="text-sm text-gray-600">Contact: 0712 345 678</p>
-                        <button class="mt-3 w-full rounded bg-primary px-3 py-2 text-sm text-white hover:bg-primary/90">View Store</button>
+                        <h2 class="flex items-center gap-2 text-lg font-semibold text-gray-800">
+                            <Info class="text-secondary-500 h-5 w-5" />
+                            Seller Info
+                        </h2>
+                        <p class="mt-2 text-sm font-medium text-gray-700">
+                            {{ ownerInfo.displayName }}
+                        </p>
+                        <p class="mt-1 text-xs text-gray-500">Reliable seller with great reviews.</p>
+                    </div>
+
+                    <!-- Warranty Info -->
+                    <div v-if="warrantyInfo" class="rounded-xl bg-white p-4 shadow">
+                        <h2 class="flex items-center gap-2 text-lg font-semibold text-gray-800">
+                            <Info class="text-secondary-500 h-5 w-5" />
+                            Warranty Info
+                        </h2>
+                        <p class="mt-2 text-sm font-medium text-gray-700">{{ warrantyInfo.duration }} Months</p>
+                        <p class="mt-1 text-xs text-gray-500">{{ warrantyInfo.description }}</p>
                     </div>
 
                     <!-- What's in the Box -->

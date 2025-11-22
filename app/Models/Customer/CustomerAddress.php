@@ -4,14 +4,15 @@ namespace App\Models\Customer;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class CustomerAddress extends Model
 {
     protected $fillable = [
-        'customer_id', 'type', 'label', 'first_name', 'last_name',
+        'customer_id', 'pickup_point_id', 'type', 'label', 'first_name', 'last_name',
         'company', 'address_line_1', 'address_line_2', 'city',
         'state_province', 'postal_code', 'country_code', 'country_name', 'phone', 'is_default',
-        'latitude', 'longitude', 'delivery_instructions', 'is_validated', 'validation_data'
+        'latitude', 'longitude', 'delivery_instructions', 'is_validated', 'validation_data', 'uuid'
     ];
 
     protected $casts = [
@@ -26,31 +27,47 @@ class CustomerAddress extends Model
     {
         parent::boot();
 
+        // Auto-generate UUID on creating
         static::creating(function ($address) {
+            if (empty($address->uuid)) {
+                $address->uuid = (string) Str::uuid();
+            }
+
+            // If a new address is marked default, reset others BEFORE saving
             if ($address->is_default) {
-                // Remove default from other addresses of the same customer and type
-                static::where('customer_id', $address->customer_id)
-                    ->where('type', $address->type)
-                    ->update(['is_default' => false]);
+                static::withoutEvents(function () use ($address) {
+                    static::where('customer_id', $address->customer_id)
+                        ->where('type', $address->type)
+                        ->update(['is_default' => false]);
+                });
             }
         });
 
-        static::updating(function ($address) {
-            if ($address->is_default && $address->isDirty('is_default')) {
-                static::where('customer_id', $address->customer_id)
-                    ->where('type', $address->type)
-                    ->where('id', '!=', $address->id)
-                    ->update(['is_default' => false]);
-            }
-        });
+        // Prevent recursion: remove previous updating() logic completely
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    */
 
     public function customer(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Customer::class);
     }
 
-    // Virtual attributes to align with frontend expectations
+    public function pickupPoint(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(\App\Models\PickupPoint::class, 'pickup_point_id');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Accessors / Virtual Attributes
+    |--------------------------------------------------------------------------
+    */
+
     public function getStateAttribute(): ?string
     {
         return $this->attributes['state_province'] ?? null;
@@ -58,7 +75,6 @@ class CustomerAddress extends Model
 
     public function getCountryAttribute(): ?string
     {
-        // Prefer code (KE) for frontend; adjust if you need country_name instead
         return $this->attributes['country_code'] ?? null;
     }
 
@@ -66,13 +82,14 @@ class CustomerAddress extends Model
     {
         $lat = $this->attributes['latitude'] ?? null;
         $lng = $this->attributes['longitude'] ?? null;
+
         if ($lat === null || $lng === null) {
             return null;
         }
-        return ['lat' => (float)$lat, 'lng' => (float)$lng];
+
+        return ['lat' => (float) $lat, 'lng' => (float) $lng];
     }
 
-    // Accessors
     public function getFullNameAttribute(): string
     {
         return trim($this->first_name . ' ' . $this->last_name);
@@ -91,7 +108,12 @@ class CustomerAddress extends Model
         return implode(', ', $parts);
     }
 
-    // Scopes
+    /*
+    |--------------------------------------------------------------------------
+    | Scopes
+    |--------------------------------------------------------------------------
+    */
+
     public function scopeDefault($query)
     {
         return $query->where('is_default', true);
@@ -102,23 +124,57 @@ class CustomerAddress extends Model
         return $query->where('type', $type);
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Default Logic (Single Default Address)
+    |--------------------------------------------------------------------------
+    */
+
     public function makeDefault(): void
     {
-        $this->customer->addresses()->update(['is_default' => false]);
-        $this->update(['is_default' => true]);
+        \Log::info('--- Running makeDefault() ---', [
+            'target_address_id' => $this->id,
+            'customer_id' => $this->customer_id,
+        ]);
+
+        // Reset all other defaults without triggering events
+        static::withoutEvents(function () {
+            static::where('customer_id', $this->customer_id)
+                ->where('type', $this->type)
+                ->update(['is_default' => false]);
+        });
+
+        // Mark this address as default without triggering recursive update events
+        $this->is_default = true;
+        $this->saveQuietly();
+
+        \Log::info('--- Finished makeDefault() ---', [
+            'target_address_id' => $this->id,
+            'new_is_default' => $this->refresh()->is_default,
+        ]);
     }
 
-    public function getFormattedAddressAttribute(): string
+    /*
+    |--------------------------------------------------------------------------
+    | Simplified Address Accessor
+    |--------------------------------------------------------------------------
+    */
+
+    public function getSimplifiedAddressAttribute(): array
     {
-        $parts = [
-            $this->address_line_1,
-            $this->address_line_2,
-            $this->city,
-            $this->attributes['state_province'] ?? null,
-            $this->postal_code,
-            $this->attributes['country_name'] ?? $this->attributes['country_code'] ?? null,
-        ];
-        return implode(', ', array_filter($parts));
-    }
+        $regionName = null;
 
+        if ($this->pickup_point_id && $this->pickupPoint) {
+            $regionName = $this->pickupPoint->region?->name ?? null;
+        }
+
+        return [
+            'first_name' => $this->first_name,
+            'last_name' => $this->last_name,
+            'phone' => $this->phone,
+            'address' => $this->address_line_1,
+            'region' => $regionName,
+            'pickup_point' => $this->pickup_point_id,
+        ];
+    }
 }

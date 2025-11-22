@@ -60,6 +60,8 @@ public function store(
     WishlistService $wishlistService,
     \App\Services\CartReservationService $cartService
 ): RedirectResponse {
+
+    // Attempt authentication
     $request->authenticate();
 
     if (!Auth::check()) {
@@ -69,16 +71,14 @@ public function store(
         ]);
     }
 
+    // Regenerate session to prevent fixation
     $request->session()->regenerate();
 
     $user = Auth::user();
 
-   
+    // Merge wishlist & cart
     try {
-        
         $wishlistService->mergeGuestWishlist($request, $user);
-
-       
         $cartService->getCart($request);
     } catch (\Throwable $e) {
         \Log::error('Merge failed during login', [
@@ -88,11 +88,14 @@ public function store(
     }
 
    
+
+   
     if (in_array($user->user_type, ['user', 'vendor', 'seller'])) {
         return redirect()->intended(route('admin.dashboard'))
             ->with('success', 'Welcome back, ' . $user->name . '!');
     }
 
+    
     if ($user->user_type === 'customer') {
         $customer = \App\Models\Customer\Customer::where('user_id', $user->id)->first();
 
@@ -105,15 +108,15 @@ public function store(
 
         session(['customer_id' => $customer->id]);
 
-        return redirect()
-            ->route('customers.dashboard', ['customer' => $customer->id])
-            ->with('success', 'Welcome back, ' . $user->name . '!');
+        return redirect()->intended(
+            route('customers.dashboard', ['customer' => $customer->id])
+        )->with('success', 'Welcome back, ' . $user->name . '!');
     }
 
+    
     return redirect()->intended(route('home'))
         ->with('success', 'Welcome back, ' . $user->name . '!');
 }
-
 
 
     public function destroy(Request $request): RedirectResponse
