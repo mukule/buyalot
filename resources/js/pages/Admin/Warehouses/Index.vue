@@ -10,6 +10,7 @@ const selectedWarehouse = ref<WarehouseWithRelations | null>(null);
 const formManagers = ref<WarehouseManager[]>([]);
 
 const assignableUsers = ref<{ id: number; name: string; email: string }[]>([]);
+const assignableRoles = ref<{ id: number; name: string }[]>([]);
 interface WarehouseManager {
     name: string;
     role?: string;
@@ -107,6 +108,9 @@ function openManagerModal(warehouse: WarehouseWithRelations) {
                 phone: m.phone || '',
             })) || [{ name: '', role: '' }];
     });
+    axios.get(route('admin.warehouses.assignable-roles')).then((response) => {
+        assignableRoles.value = response.data.roles || [];
+    });
 }
 
 
@@ -150,7 +154,7 @@ function saveManagers() {
     if (!selectedWarehouse.value) return;
 
     router.post(
-        route('admin.warehouses.assignManagers', { warehouse: selectedWarehouse.value.hashid }),
+        route('admin.warehouses.assign-managers', { warehouse: selectedWarehouse.value.hashid }),
         { managers: formManagers.value },
         {
             onSuccess: () => closeManagerModal(),
@@ -187,7 +191,7 @@ function saveManagers() {
                             <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase">Name</th>
                             <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase">Type</th>
                             <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase">Region</th>
-                            <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase">Managers</th>
+                            <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase">Staff</th>
                             <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase">Receivables</th>
                             <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase">Status</th>
                             <th class="px-4 py-3 text-right font-medium text-gray-500 uppercase">Actions</th>
@@ -227,16 +231,16 @@ function saveManagers() {
                                         @click.stop="openManagerModal(warehouse)"
                                         class="mt-1 text-blue-600 hover:underline text-xs"
                                     >
-                                        Manage Managers
+                                        Manage Staff
                                     </button>
                                 </div>
                                 <div v-else>
-                                    <span class="text-gray-400">No Managers</span>
+                                    <span class="text-gray-400">No Staff</span>
                                     <button
                                         @click.stop="openManagerModal(warehouse)"
                                         class="ml-2 text-green-600 hover:underline text-xs"
                                     >
-                                        Assign Managers
+                                        Assign Staff
                                     </button>
                                 </div>
                             </td>
@@ -371,7 +375,7 @@ function saveManagers() {
                         class="bg-white rounded-lg shadow-2xl w-full max-w-2xl p-6 relative"
                     >
                         <h2 class="text-lg font-semibold mb-4">
-                            {{ selectedWarehouse?.managers?.length ? 'Manage Managers' : 'Assign Managers' }}
+                            {{ selectedWarehouse?.managers?.length ? 'Manage Staff' : 'Assign Staff' }}
                         </h2>
 
                         <form @submit.prevent="saveManagers">
@@ -399,12 +403,12 @@ function saveManagers() {
                                     <!-- Role Dropdown -->
                                     <select
                                         v-model="manager.role"
-                                        class="border rounded-md px-3 py-2 w-40"
+                                        class="border rounded-md px-3 py-2 w-48 capitalize"
                                     >
                                         <option disabled value="">Select Role</option>
-                                        <option value="head_manager">Head Manager</option>
-                                        <option value="assistant_manager">Assistant Manager</option>
-                                        <option value="worker">Worker</option>
+                                        <option v-for="r in assignableRoles" :key="r.id" :value="r.name">
+                                            {{ r.name.replaceAll('_', ' ') }}
+                                        </option>
                                     </select>
 
                                     <!-- Remove Button -->

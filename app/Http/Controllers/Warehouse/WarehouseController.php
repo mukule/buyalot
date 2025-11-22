@@ -19,6 +19,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
+use Spatie\Permission\Models\Role;
 
 
 class WarehouseController extends Controller
@@ -521,10 +522,33 @@ class WarehouseController extends Controller
     public function getAssignableUsers()
     {
         $users = User::whereHas('roles', function ($q) {
-            $q->whereIn('name', ['store_manager', 'warehouse_manager','store_keeper']);
+            $q->whereIn('name', [
+                'warehouse_manager',
+                'store_keeper',
+                'delivery',
+                'store_manager',
+                'assistant_store_manager',
+                'assistant_warehouse_manager',
+                'record_keeper',
+            ]);
         })->select('id', 'name', 'email')->get();
 
         return response()->json(['users' => $users]);
+    }
+
+    public function getAssignableRoles()
+    {
+        $roles = Role::whereIn('name', [
+            'warehouse_manager',
+            'store_keeper',
+            'delivery',
+            'store_manager',
+            'assistant_store_manager',
+            'assistant_warehouse_manager',
+            'record_keeper',
+        ])->get(['id','name']);
+
+        return response()->json(['roles' => $roles]);
     }
 
     public function show(Warehouse $warehouse)

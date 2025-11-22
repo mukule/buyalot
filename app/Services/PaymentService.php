@@ -5,11 +5,14 @@ namespace App\Services;
 use App\Contracts\PaymentProviderInterface;
 use App\Http\DTOs\PaymentRequest;
 use App\Http\DTOs\PaymentResponse;
+use App\Models\Payment\MpesaRequest;
 use App\Models\Payment\Payment;
+use App\Models\Payment\PaymentLog;
 use App\Models\Payment\PaymentProvider;
 use App\Models\Payment\PaymentStatus;
 use App\Providers\MpesaProvider;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class PaymentService
 {
@@ -44,9 +47,9 @@ class PaymentService
         return $payment;
     }
 
-    public function initializePayment(Payment $payment, PaymentRequest $request): PaymentResponse
+    public function initializePayment(MpesaRequest $log, PaymentRequest $request): PaymentResponse
     {
-        $provider = $this->getProvider($payment->provider);
+        $provider = $this->getProvider($log->provider);
 
         if (!$provider) {
             return PaymentResponse::failed('Payment provider not supported');
@@ -56,7 +59,27 @@ class PaymentService
             return PaymentResponse::failed('Payment provider is not available');
         }
 
-        return $provider->initialize($payment, $request);
+        return $provider->initialize($log, $request);
+    }
+
+    public function createMpesaRequest($payable, PaymentRequest $request)
+    {
+        $reference = $this->generateReference();
+        return MpesaRequest::create([
+            'payable_type' => get_class($payable),
+            'payable_id' => $payable->id,
+            'reference' => $reference,
+            'request_code' => $reference,
+            'amount' => $request->amount,
+            'currency' => $request->currency,
+            'status' => 'initialized',
+            'provider' => $request->provider,
+            'provider_request' => $request->toArray(),
+            'provider_response' => [],
+            'method' => $request->method,
+            'callback_payload'=>'',
+            'user_id' => auth()->id(),
+        ]);
     }
 
     public function verifyPayment(Payment $payment): PaymentResponse

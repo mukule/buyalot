@@ -11,6 +11,8 @@ enum PaymentStatus: string
     case REFUNDED = 'refunded';
     case EXPIRED = 'expired';
 
+    case INITIALIZED = 'initialized';
+
     public function label(): string
     {
         return match($this) {
@@ -21,6 +23,7 @@ enum PaymentStatus: string
             self::CANCELLED => 'Cancelled',
             self::REFUNDED => 'Refunded',
             self::EXPIRED => 'Expired',
+            self::INITIALIZED => 'Initialized',
         };
     }
 

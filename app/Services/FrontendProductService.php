@@ -28,7 +28,9 @@ class FrontendProductService
                 ])
                 ->whereHas('product', function ($q) use ($categoryIds) {
                     $q->whereIn('category_id', $categoryIds)
-                      ->where('status_id', 2);
+                      ->where('status_id', 2)
+                      ->whereNotNull('slug')
+                      ->where('slug', '!=', '');
                 })
                 ->take($limit)
                 ->get();
@@ -52,7 +54,9 @@ class FrontendProductService
             ])
             ->whereHas('product', function ($q) use ($categoryIds) {
                 $q->whereIn('category_id', $categoryIds)
-                  ->where('status_id', 2);
+                  ->where('status_id', 2)
+                  ->whereNotNull('slug')
+                  ->where('slug', '!=', '');
             })
             ->orderBy('created_at', 'desc');
 
@@ -68,8 +72,8 @@ class FrontendProductService
     }
 
 
-  
-   
+
+
 public function getPaginatedProductsByCategoryIds(
     array $categoryIds,
     int $perPage = 20,
@@ -114,7 +118,7 @@ public function getPaginatedProductsByCategoryIds(
 
 
 
-  
+
     public function getRelatedProducts(ProductVariant $variant, int $limit = 12)
 {
     $product = $variant->product;
@@ -157,10 +161,12 @@ protected function fetchRelatedVariants(ProductVariant $variant, $categoryIds, $
             'product.images',
         ])
         ->whereNotIn('id', $existingIds)
-        ->where('id', '!=', $variant->id) 
+        ->where('id', '!=', $variant->id)
         ->whereHas('product', function ($q) use ($categoryIds) {
             $q->whereIn('category_id', $categoryIds)
-              ->where('status_id', 2);
+              ->where('status_id', 2)
+              ->whereNotNull('slug')
+              ->where('slug', '!=', '');
         })
         ->take($limit)
         ->get();
@@ -205,7 +211,7 @@ protected function fetchRelatedVariants(ProductVariant $variant, $categoryIds, $
         ];
     }
 
-   
+
     public function getPriceForVariants($variants): array
     {
         $variantIds = $variants->pluck('id')->all();

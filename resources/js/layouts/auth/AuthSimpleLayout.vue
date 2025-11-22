@@ -10,7 +10,7 @@ defineProps<{
 
 <template>
     <div class="flex min-h-svh flex-col items-center justify-center gap-6 bg-primary p-6 md:p-10">
-        <div class="w-full max-w-sm rounded-xl bg-background px-6 py-8 shadow-md sm:px-8 sm:py-10">
+        <div class="w-full max-w-md md:max-w-lg rounded-xl bg-background px-6 py-8 shadow-md sm:px-8 sm:py-10">
             <div class="flex flex-col gap-8">
                 <div class="flex flex-col items-center gap-4">
                     <Link :href="route('home')" class="flex flex-col items-center gap-2 font-medium">

@@ -251,7 +251,7 @@ async function initiateForOrder(order: { id: number; ulid?: string; total_amount
     status.value = 'failed';
     initiating.value = false;
     polling.value = false;
-    message.value = 'Unexpected error while initiating payment. Please try again.';
+    message.value = e.response.data.message || 'Unexpected error while initiating payment. Please try again.';
     console.error(e);
   }
 }

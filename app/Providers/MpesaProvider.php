@@ -6,9 +6,11 @@ use App\Contracts\PaymentProviderInterface;
 use App\Http\DTOs\PaymentRequest;
 use App\Http\DTOs\PaymentResponse;
 use App\Models\Payment\Payment;
+use App\Models\Payment\PaymentLog;
 use App\Models\Payment\PaymentStatus;
 use App\Models\Payment\PaymentTransaction;
 use Carbon\Carbon;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Mockery\Exception;
@@ -24,10 +26,11 @@ class MpesaProvider implements PaymentProviderInterface
         $this->config = (array) (config('payment.providers.mpesa', []) ?? []);
     }
 
-    public function initialize(Payment $payment, PaymentRequest $request): PaymentResponse
+    public function initialize(PaymentLog $payment, PaymentRequest $request): PaymentResponse
     {
         try {
-            $this->logTransaction($payment, 'initialize', 'started', $request->toArray());
+
+//            $this->logTransaction($payment, 'initialize', 'started', $request->toArray());
 
             if (!$request->phone) {
                 return PaymentResponse::failed('Phone number is required for M-Pesa payments');
@@ -44,12 +47,15 @@ class MpesaProvider implements PaymentProviderInterface
             }
             logger("started stk push");
             $stkResponse = $this->initiateStkPush($payment, $phone);
-            logger("stk response: {$stkResponse}");
+            logger("stk response: ");
             logger($stkResponse);
 
             if (!$stkResponse['success']) {
-                $this->logTransaction($payment, 'initialize', 'failed', [], $stkResponse['data']);
-                $payment->markAsFailed($stkResponse['message']);
+                logger("stk push failed");
+                $payment->status = PaymentStatus::FAILED;
+                $payment->provider_response=$stkResponse['data'];
+//                $this->logTransaction($payment, 'initialize', 'failed', [], $stkResponse['data']);
+//                $payment->markAsFailed($stkResponse['message']);
                 return PaymentResponse::failed($stkResponse['message']);
             }
 
@@ -88,7 +94,7 @@ class MpesaProvider implements PaymentProviderInterface
             ]);
 
             $payment->markAsFailed('System error: ' . $e->getMessage());
-            return PaymentResponse::failed('Payment initialization failed');
+            return PaymentResponse::failed('Payment initialization failed, Please try again');
         }
     }
 
@@ -176,8 +182,8 @@ class MpesaProvider implements PaymentProviderInterface
                 return PaymentResponse::failed('Missing checkout request ID');
             }
 
-            $payment = Payment::where('provider_reference', $checkoutRequestId)->first();
-            if (!$payment) {
+            $paymentLog = PaymentLog::where('provider_reference', $checkoutRequestId)->first();
+            if (!$paymentLog) {
                 Log::warning('Payment not found for callback', ['checkout_request_id' => $checkoutRequestId]);
                 return PaymentResponse::failed('Payment not found');
             }
@@ -247,12 +253,8 @@ class MpesaProvider implements PaymentProviderInterface
             return PaymentResponse::failed('Callback processing failed');
         }
     }
-    public function refund(Payment $payment, float $amount = null): PaymentResponse
-    {
-        return PaymentResponse::failed('M-Pesa refunds must be processed manually');
-    }
 
-    private function initiateStkPush(Payment $payment, string $phone): array
+    private function initiateStkPush(PaymentLog $payment, string $phone): array
     {
         $timestamp = Carbon::now()->format('YmdHis');
         $password = base64_encode(
@@ -261,9 +263,16 @@ class MpesaProvider implements PaymentProviderInterface
             $timestamp
         );
         info("initiated stk push: " .$timestamp);
-        info("M-Pesa payment id: " . $payment->id);
-        info("business_short_code ".$this->config['business_short_code']);
+        info("M-Pesa payment log id: " . $payment->id);
+        $phone = $this->formatPhoneNumber($phone);
+        info("M-Pesa phone number: " . $phone);
+        $description = sprintf(
+            "Payment for Buyalot %s %s",
+            $payment->payable->name ?? '',
+            $payment->payable->order_code ?? ''
+        );
 
+        info("M-Pesa description: " . $description);
         try {
             $response = Http::withToken($this->accessToken)
                 ->timeout(60)
@@ -277,8 +286,8 @@ class MpesaProvider implements PaymentProviderInterface
                     'PartyB' => $this->config['business_short_code'],
                     'PhoneNumber' => $phone,
                     'CallBackURL' => $this->config['callback_url'],
-                    'AccountReference' => $payment->ulid,
-                    'TransactionDesc' => $this->config['transaction_desc'] ?? "Payment for {$payment->ulid}",
+                    'AccountReference' => $description,
+                    'TransactionDesc' => $description,
                 ]);
             info("initiated stk push response");
             info($response->body());
@@ -307,7 +316,19 @@ class MpesaProvider implements PaymentProviderInterface
                 'message' => 'Failed to connect to M-Pesa',
                 'data' => $ex->getMessage()
             ];
+    } catch (ConnectionException $e) {
+            \Illuminate\Log\log($e);
+            Log::error('M-Pesa connection error', ['error' => $e->getMessage()]);
+            $payment->status=PaymentStatus::FAILED;
+            $payment->provider_response=json_encode(['error' => 'Failed to connect to M-Pesa ' . $e->getMessage()]);
+            $payment->save();
+            return [];
+        }
     }
+
+    public function refund(Payment $payment, float $amount = null): PaymentResponse
+    {
+        return PaymentResponse::failed('M-Pesa refunds must be processed manually');
     }
 
     private function queryTransaction(string $checkoutRequestId): array

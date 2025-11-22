@@ -12,11 +12,10 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class Payment extends Model
 {
-    use HasFactory, HasUlid, HasHashid;
+    use HasFactory, HasUlid;
 
     protected $fillable = [
-        'payable_type',
-        'payable_id',
+        'ulid',
         'amount',
         'currency',
         'provider',
@@ -28,7 +27,8 @@ class Payment extends Model
         'failure_reason',
         'expires_at',
         'completed_at',
-        'ulid'
+        'payable_type',
+        'payable_id',
     ];
 
     protected $casts = [
@@ -39,16 +39,48 @@ class Payment extends Model
         'status' => PaymentStatus::class,
     ];
 
+
+    // Polymorphic: can belong to Order, Invoice, etc.
     public function payable(): MorphTo
     {
         return $this->morphTo();
     }
-
-    public function transactions(): HasMany
+    public function mpesa()
     {
-        return $this->hasMany(PaymentTransaction::class);
+        return $this->hasOne(MpesaPayment::class);
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Query Scopes
+    |--------------------------------------------------------------------------
+    */
+
+    public function scopeProvider($query, string $provider)
+    {
+        return $query->where('provider', $provider);
+    }
+
+    public function scopeSuccessful($query)
+    {
+        return $query->where('status', 'completed');
+    }
+
+    public function scopePending($query)
+    {
+        return $query->where('status', 'pending');
+    }
+
+    public function scopeFailed($query)
+    {
+        return $query->where('status', 'failed');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Helpers
+    |--------------------------------------------------------------------------
+    */
     public function scopeByProvider($query, string $provider)
     {
         return $query->where('provider', $provider);

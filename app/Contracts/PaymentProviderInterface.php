@@ -4,11 +4,12 @@ namespace App\Contracts;
 
 use App\Http\DTOs\PaymentRequest;
 use App\Http\DTOs\PaymentResponse;
+use App\Models\Payment\MpesaRequest;
 use App\Models\Payment\Payment;
 
 interface PaymentProviderInterface
 {
-    public function initialize(Payment $payment, PaymentRequest $request): PaymentResponse;
+    public function initialize(MpesaRequest $payment, PaymentRequest $request): PaymentResponse;
 
     public function verify(Payment $payment): PaymentResponse;
 

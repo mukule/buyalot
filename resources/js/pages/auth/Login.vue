@@ -50,7 +50,7 @@ const handleGoogleLogin = () => {
 
         <div class="flex flex-col gap-6">
             <!-- Regular Login Form -->
-            <form @submit.prevent="submit" class="flex flex-col gap-6">
+            <form @submit.prevent="submit" class="flex flex-col gap-2">
                 <div class="grid gap-6">
                     <div class="grid gap-2">
                         <Label for="email">Email address</Label>
@@ -97,6 +97,10 @@ const handleGoogleLogin = () => {
                         <LoaderCircle v-if="form.processing" class="h-4 w-4 animate-spin" />
                         Log in
                     </Button>
+
+                    <TextLink v-if="canResetPassword" :href="route('password.request')" class="text-sm" :tabindex="5">
+                       Forgot password?
+                      </TextLink>
                 </div>
             </form>
 

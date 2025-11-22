@@ -385,6 +385,7 @@ class PermissionSeeder extends Seeder
         ]);
         $warehousemanagerPermissions = Permission::whereIn('name', ['view-user-profile','edit-user-profile','view-warehouse']);
         $warehousemanager->givePermissionTo($warehousemanagerPermissions);
+
         $storekeeper = Role::firstOrCreate([
             'name' => 'store_keeper',
             'guard_name' => 'web'
@@ -393,12 +394,40 @@ class PermissionSeeder extends Seeder
         $storekeeperPermissions = Permission::whereIn('name', ['view-user-profile','edit-user-profile','view-warehouse']);
         $storekeeper->givePermissionTo($storekeeperPermissions);
 
+        $record_keeper = Role::firstOrCreate([
+            'name' => 'record_keeper',
+            'guard_name' => 'web'
+
+        ]);
+        $record_keeper->givePermissionTo($storekeeperPermissions);
+
+
+        $warehouse_clerk = Role::firstOrCreate([
+            'name' => 'clerk',
+            'guard_name' => 'web'
+
+        ]);
+        $warehouse_clerk->givePermissionTo($storekeeperPermissions);
+
+
+        $loader = Role::firstOrCreate([
+            'name' => 'loader',
+            'guard_name' => 'web'
+        ]);
+        $loader->givePermissionTo($storekeeperPermissions);
+
 
         $storeManager= Role::firstOrCreate([
             'name' => 'store_manager',
             'guard_name' => 'web'
         ]);
         $storeManager->givePermissionTo($warehousemanagerPermissions);
+
+        $assistantstoreManager= Role::firstOrCreate([
+            'name' => 'assistant_store_manager',
+            'guard_name' => 'web'
+        ]);
+        $assistantstoreManager->givePermissionTo($warehousemanagerPermissions);
 
     }
 }

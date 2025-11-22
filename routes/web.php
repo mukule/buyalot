@@ -1,9 +1,5 @@
 <?php
 
-use App\Http\Controllers\Admin\BrandCategoryController;
-use App\Http\Controllers\Admin\BrandController;
-use App\Http\Controllers\Admin\CategoryController;
-use App\Http\Controllers\Admin\DiscountController;
 use App\Http\Controllers\Admin\DiscountController as AdminDiscountController;
 use App\Http\Controllers\Admin\DiscountTypeController;
 use App\Http\Controllers\Admin\DocumentTypeController;
@@ -12,7 +8,6 @@ use App\Http\Controllers\Admin\ProductStatusController;
 use App\Http\Controllers\Admin\RegionController;
 use App\Http\Controllers\Admin\SellerApplicationController;
 use App\Http\Controllers\Admin\SellerVerificationController;
-use App\Http\Controllers\Admin\SubcategoryController;
 use App\Http\Controllers\Admin\UnitController;
 use App\Http\Controllers\Admin\UnitTypeController;
 use App\Http\Controllers\Admin\UserController;
@@ -28,8 +23,9 @@ use App\Http\Controllers\Commission\CommissionPlanController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\Customer\CustomerController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\Payments\MpesaPaymentController;
+use App\Http\Controllers\Payments\MpesaRequestController;
 use App\Http\Controllers\Payments\PaymentController;
-use App\Http\Controllers\Payments\PaymentTransactionController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SellController;
 use App\Http\Controllers\SellerAccountController;
@@ -93,6 +89,8 @@ Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard']
         ->name('admin.warehouses.assign-managers');
     Route::get('/warehouses/assignable-users', [WarehouseController::class, 'getAssignableUsers'])
         ->name('admin.warehouses.assignable-users');
+    Route::get('/warehouses/assignable-roles', [WarehouseController::class, 'getAssignableRoles'])
+        ->name('admin.warehouses.assignable-roles');
 
     // Inventory & stock routes
     Route::get('{warehouse}/inventory', [WarehouseController::class, 'inventory'])->name('inventory');
@@ -331,8 +329,8 @@ Route::get('{slug}', [HomeController::class, 'category'])
 
 
 Route::prefix('payments')->name('payments.')->group(function () {
-    Route::get('providers', [PaymentTransactionController::class, 'providers'])->name('providers');
-    Route::post('initiate', [PaymentTransactionController::class, 'initiate'])->withoutMiddleware([VerifyCsrfTokenMiddleware::class])->name('initiate');
-    Route::get('{payment}/status', [PaymentTransactionController::class, 'status'])->name('status');
-    Route::post('callback/{provider}', [PaymentTransactionController::class, 'callback'])->withoutMiddleware([VerifyCsrfTokenMiddleware::class])->name('callback');
+    Route::get('providers', [PaymentController::class, 'providers'])->name('providers');
+    Route::post('initiate', [MpesaRequestController::class, 'initiate'])->withoutMiddleware([VerifyCsrfTokenMiddleware::class])->name('initiate');
+    Route::get('{payment}/status', [PaymentController::class, 'status'])->name('status');
+    Route::post('callback/{provider}', [PaymentController::class, 'callback'])->withoutMiddleware([VerifyCsrfTokenMiddleware::class])->name('callback');
 });

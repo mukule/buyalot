@@ -4,13 +4,25 @@ namespace App\Http\Controllers\Payments;
 
 use App\Http\Controllers\Controller;
 use App\Http\DTOs\PaymentRequest;
+use App\Http\Requests\InitiatePaymentRequest;
 use App\Models\Payment\Payment;
 use App\Services\PaymentService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class PaymentController extends Controller
 {
+    public function __construct(
+        private readonly PaymentService $paymentService
+    ) {}
+
+    public function providers(): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->paymentService->getAvailableProviders(),
+        ]);
+    }
     public function index(Request $request)
     {
         $query = Payment::query()
@@ -44,19 +56,6 @@ class PaymentController extends Controller
         ]);
     }
 
-    public function providers()
-    {
-        return response()->json([
-            'success' => true,
-            'providers' => [
-                'mpesa',
-                'credit card',
-                'debit card',
-                'cash_on_delivery',
-            ],
-        ]);
-    }
-
     public function verify(Request $request, Payment $payment): \Illuminate\Http\JsonResponse
     {
         /** @var PaymentService $service */
@@ -70,16 +69,39 @@ class PaymentController extends Controller
         ], $result->success ? 200 : 422);
     }
 
-    public function mpesaCallback(Request $request)
-    {
-        /** @var PaymentService $service */
-        $service = app(PaymentService::class);
-        $result = $service->handleCallback('mpesa', $request->all());
 
-        // Safaricom expects a 200 even on logical failures after we process
+    public function status(Payment $payment): JsonResponse
+    {
+        $response = $this->paymentService->verifyPayment($payment);
+
         return response()->json([
-            'ResultCode' => $result->success ? 0 : 1,
-            'ResultDesc' => $result->message,
+            'payment' => [
+                'id' => $payment->ulid,
+                'reference' => $payment->reference,
+                'amount' => $payment->amount,
+                'currency' => $payment->currency,
+                'status' => $payment->status->value,
+                'provider' => $payment->provider,
+                'method' => $payment->method,
+                'expires_at' => $payment->expires_at,
+                'completed_at' => $payment->completed_at,
+                'created_at' => $payment->created_at,
+            ],
+            'verification' => [
+                'success' => $response->success,
+                'message' => $response->message,
+            ],
         ]);
     }
+
+    public function callback(string $provider, Request $request): JsonResponse
+    {
+        $response = $this->paymentService->handleCallback($provider, $request->all());
+
+        return response()->json([
+            'message' => $response->message,
+            'success' => $response->success,
+        ], $response->success ? 200 : 400);
+    }
+
 }

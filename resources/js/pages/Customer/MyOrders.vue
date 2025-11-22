@@ -95,24 +95,55 @@ const fulfillmentStatusClasses = (status?: string) => ({
     'bg-red-100 text-red-800': status === 'cancelled',
 });
 
-const paying = ref(false);
-const payMessage = ref<string>('');
+// Payment UI state
+const payingOrderId = ref<number | null>(null);
+const showPhoneModal = ref(false);
+const selectedOrder = ref<OrderItem | null>(null);
+const phoneInput = ref<string>('');
+const phoneError = ref<string>('');
 
-async function payNow(order: OrderItem) {
+function openPayModal(order: OrderItem) {
+    selectedOrder.value = order;
+    phoneError.value = '';
+    // Autofill order-specific phone if available, else last used, else customer phone
+    const orderPhone = localStorage.getItem(`mpesa_phone_order_${order.id}`) || '';
+    const lastPhone = localStorage.getItem('mpesa_phone') || '';
+    phoneInput.value = orderPhone || lastPhone || (customerPhone.value?.trim() || '');
+    showPhoneModal.value = true;
+}
+
+function closePayModal() {
+    showPhoneModal.value = false;
+    phoneError.value = '';
+}
+
+function normalizePhone(input: string): string {
+    let p = (input || '').replace(/\D/g, '');
+    if (p.startsWith('07') && p.length === 10) {
+        p = '254' + p.substring(1);
+    }
+    if (p.startsWith('254') && p.length === 12) return p;
+    return input.trim();
+}
+
+function validatePhone(input: string): boolean {
+    const p = normalizePhone(input);
+    return /^(?:2547\d{8})$/.test(p) || /^07\d{8}$/.test(input.replace(/\D/g, ''));
+}
+
+async function confirmPay() {
+    if (!selectedOrder.value) return;
+    if (!phoneInput.value || !validatePhone(phoneInput.value)) {
+        phoneError.value = 'Enter a valid M-Pesa number (07xxxxxxxx or 2547xxxxxxxx)';
+        return;
+    }
+    const normalized = normalizePhone(phoneInput.value);
+    await initiatePayment(selectedOrder.value, normalized);
+}
+
+async function initiatePayment(order: OrderItem, phone: string) {
     try {
-        payMessage.value = '';
-        let phone = customerPhone.value?.trim() || '';
-        if (!phone) {
-            phone = localStorage.getItem('mpesa_phone') || '';
-        }
-        if (!phone) {
-            phone = prompt('Enter your M-Pesa phone number (e.g., 07xxxxxxxx or 2547xxxxxxxx):') || '';
-            if (phone) localStorage.setItem('mpesa_phone', phone);
-        }
-
-        if (!phone) return;
-
-        paying.value = true;
+        payingOrderId.value = order.id;
         const axios = (window as any).axios || (await import('axios')).default;
         const payload = {
             payable_type: 'order',
@@ -129,8 +160,13 @@ async function payNow(order: OrderItem) {
             withCredentials: true,
         });
 
+        // Persist phone for next attempt (order-specific and global last used)
+        localStorage.setItem(`mpesa_phone_order_${order.id}`, phone);
+        localStorage.setItem('mpesa_phone', phone);
+
         if (resp.status >= 200 && resp.status < 300) {
             alert('Payment initiated. Please check your phone for the M-Pesa prompt and enter your PIN.');
+            closePayModal();
         }
     } catch (e: any) {
         const resp = e?.response;
@@ -142,7 +178,7 @@ async function payNow(order: OrderItem) {
             alert(resp?.data?.message || 'Failed to initiate payment.');
         }
     } finally {
-        paying.value = false;
+        payingOrderId.value = null;
     }
 }
 
@@ -234,12 +270,12 @@ async function payNow(order: OrderItem) {
                                     </button>
                                     <button
                                         v-if="order.payment_status === 'pending'"
-                                        :disabled="paying"
-                                        @click="payNow(order)"
+                                        :disabled="payingOrderId === order.id"
+                                        @click="openPayModal(order)"
                                         class="rounded bg-primary px-3 py-1 text-xs text-white hover:bg-primary/90 disabled:opacity-60"
                                         title="Pay for this order"
                                     >
-                                        {{ paying ? 'Processing…' : 'Pay Now' }}
+                                        {{ payingOrderId === order.id ? 'Processing…' : 'Pay Now' }}
                                     </button>
                                 </td>
                             </tr>
@@ -278,6 +314,41 @@ async function payNow(order: OrderItem) {
                 <div v-else class="p-8 text-center">
                     <h3 class="mt-2 text-sm font-medium text-gray-900">No orders found</h3>
                     <p class="mt-1 text-sm text-gray-500">You have not placed any orders yet.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Phone Number Modal -->
+        <div v-if="showPhoneModal" class="fixed inset-0 z-50 flex items-center justify-center">
+            <div class="absolute inset-0 bg-black/50" @click="closePayModal"></div>
+            <div class="relative z-10 w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+                <h3 class="mb-4 text-lg font-semibold text-gray-900">Confirm Phone Number</h3>
+                <p class="mb-3 text-sm text-gray-600">We'll send the M-Pesa STK push to this number:</p>
+                <div class="mb-2">
+                    <label for="mpesa-phone" class="mb-1 block text-sm font-medium text-gray-700">M-Pesa Phone</label>
+                    <input
+                        id="mpesa-phone"
+                        v-model="phoneInput"
+                        type="tel"
+                        inputmode="tel"
+                        placeholder="07xxxxxxxx or 2547xxxxxxxx"
+                        class="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:ring-primary"
+                    />
+                    <p v-if="phoneError" class="mt-1 text-xs text-red-600">{{ phoneError }}</p>
+                </div>
+                <div class="mt-6 flex justify-end gap-2">
+                    <button @click="closePayModal" class="rounded border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button
+                        @click="confirmPay"
+                        :disabled="!phoneInput || (selectedOrder && payingOrderId === selectedOrder.id)"
+                        class="inline-flex items-center gap-2 rounded bg-primary px-4 py-2 text-sm text-white hover:bg-primary/90 disabled:opacity-60"
+                    >
+                        <svg v-if="selectedOrder && payingOrderId === selectedOrder.id" class="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                        </svg>
+                        Pay Now
+                    </button>
                 </div>
             </div>
         </div>

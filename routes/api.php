@@ -4,7 +4,6 @@
 use App\Http\Controllers\Admin\DiscountController;
 use App\Http\Controllers\Api\ApiAuthController;
 use App\Http\Controllers\Orders\OrderController;
-use App\Http\Controllers\Payments\PaymentTransactionController;
 use App\Http\Controllers\Billing\InvoiceController as BillingInvoiceController;
 use App\Http\Controllers\Billing\ReceiptController as BillingReceiptController;
 use Illuminate\Support\Facades\Route;
