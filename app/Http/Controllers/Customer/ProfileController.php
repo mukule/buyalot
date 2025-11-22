@@ -66,7 +66,7 @@ class ProfileController extends Controller
         }
 
         $customer->update([
-            'password' => Hash::make($request->password),
+            'password' => bcrypt($request->password),
         ]);
 
         return redirect()->route('customer.profile.show')

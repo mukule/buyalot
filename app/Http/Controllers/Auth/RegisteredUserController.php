@@ -92,7 +92,7 @@ class RegisteredUserController extends Controller
             $user = User::create([
                 'name' => $name,
                 'email' => $validated['email'],
-                'password' => Hash::make($validated['password']),
+                'password' => bcrypt($validated['password']),
                 'google_id' => null,
                 'provider'   => 'register',
                 'provider_verified_at' => now(),

@@ -238,7 +238,7 @@ class CustomerController extends Controller
         }
 
         $customer->update([
-            'password' => Hash::make($validated['password']),
+            'password' => bcrypt($validated['password']),
         ]);
 
         return back()->with('success', 'Password updated successfully!');

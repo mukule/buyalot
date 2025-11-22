@@ -95,7 +95,7 @@ class SellerApplicationController extends Controller
         $user = User::create([
             'name' => $sellerApplication->first_name . ' ' . $sellerApplication->last_name,
             'email' => $sellerApplication->contact_email,
-            'password' => Hash::make($password),
+            'password' => bcrypt($password),
             'seller_application_id' => $sellerApplication->id,
         ]);
 

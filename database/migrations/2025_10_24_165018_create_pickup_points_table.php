@@ -11,29 +11,29 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('pickup_points', function (Blueprint $table) {
-            // Rename existing column
-            if (Schema::hasColumn('pickup_points', 'contact_number')) {
-                $table->renameColumn('contact_number', 'contact_phone');
-            }
-
-            // Add new columns if they don’t exist
-            if (!Schema::hasColumn('pickup_points', 'code')) {
-                $table->string('code')->unique()->after('name');
-            }
-
-            if (!Schema::hasColumn('pickup_points', 'description')) {
-                $table->text('description')->nullable()->after('code');
-            }
-
-            if (Schema::hasColumn('pickup_points', 'address')) {
-                $table->text('address')->change(); // make it text for map URLs
-            }
-
-            if (!Schema::hasColumn('pickup_points', 'contact_email')) {
-                $table->string('contact_email')->nullable()->after('contact_phone');
-            }
-        });
+//        Schema::table('pickup_points', function (Blueprint $table) {
+//            // Rename existing column
+//            if (Schema::hasColumn('pickup_points', 'contact_number')) {
+//                $table->renameColumn('contact_number', 'contact_phone');
+//            }
+//
+//            // Add new columns if they don’t exist
+//            if (!Schema::hasColumn('pickup_points', 'code')) {
+//                $table->string('code')->unique()->after('name');
+//            }
+//
+//            if (!Schema::hasColumn('pickup_points', 'description')) {
+//                $table->text('description')->nullable()->after('code');
+//            }
+//
+//            if (Schema::hasColumn('pickup_points', 'address')) {
+//                $table->text('address')->change(); // make it text for map URLs
+//            }
+//
+//            if (!Schema::hasColumn('pickup_points', 'contact_email')) {
+//                $table->string('contact_email')->nullable()->after('contact_phone');
+//            }
+//        });
     }
 
     /**
