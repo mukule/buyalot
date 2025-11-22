@@ -16,26 +16,23 @@ use Inertia\Response;
 
 class RegisteredUserController extends Controller
 {
-    /**
-     * Show the registration page.
-     */
+    
+    
     public function create(): Response
     {
         return Inertia::render('auth/Register');
     }
 
-    /**
-     * Handle an incoming registration request.
-     *
-     * @throws \Illuminate\Validation\ValidationException
-     */
+  
+
     public function store(Request $request): RedirectResponse
     {
-        // Normalize email and names before validation for consistency
+        
         if ($request->has('email')) {
             $request->merge(['email' => strtolower((string) $request->input('email'))]);
         }
-        // First letter uppercase, rest lowercase for names
+        
+
         $normalizeName = function ($s) {
             $s = trim((string) $s);
             if ($s === '') return $s;
@@ -51,13 +48,13 @@ class RegisteredUserController extends Controller
             $request->merge(['last_name' => $normalizeName($request->input('last_name'))]);
         }
 
-        // Validate core user fields
+        
         $validated = $request->validate([
             'email' => 'required|string|lowercase|email|max:255|unique:' . User::class,
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
             'phone' => 'required|string|max:255',
 
-            // Customer profile
+            
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
 
@@ -79,13 +76,13 @@ class RegisteredUserController extends Controller
             'address.longitude' => 'nullable|numeric|between:-180,180',
         ]);
 
-        // Build display name if not explicitly provided
+        
         $name = trim(($request->string('name') ?? '') . '');
         if ($name === '') {
             $name = trim($validated['first_name'] . ' ' . $validated['last_name']);
         }
 
-        // Normalize phone (remove leading 0 if present, prefix country code if provided separately on frontend)
+        
         $phone = (string) $validated['phone'];
 
         \DB::transaction(function () use ($validated, $name, $phone, &$user) {
@@ -113,7 +110,7 @@ class RegisteredUserController extends Controller
                 'user_id' => $user->id,
             ]);
 
-            // Prepare address data only if provided
+            
             $addr = $validated['address'] ?? [];
             $hasAddress = ($addr['address_line_1'] ?? null) || ($addr['city'] ?? null) || ($addr['country_code'] ?? null);
             if ($hasAddress) {

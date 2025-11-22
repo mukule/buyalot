@@ -59,7 +59,7 @@ public function productDetails(string $slug)
         'images',
         'productVariants.values.variant',
         'category.parent',
-        'warranties', // Make sure warranties are eager-loaded
+        'warranties', 
     ])->where('slug', $slug)->firstOrFail();
 
     $variantIds = $product->productVariants->pluck('id')->toArray();

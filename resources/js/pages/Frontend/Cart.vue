@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import MainLayout from '@/layouts/MainLayout.vue';
-import { router, usePage } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
 
 // --- Types ---
 interface Product {
     id: number;
     name: string;
+    slug: string;
     primary_image_url?: string | null;
     images: string[];
 }
@@ -65,10 +66,10 @@ const decreaseQty = (item: CartItem) => {
 const formatPrice = (amount: number | string) =>
     `KSh ${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-// --- Format discount amount (always with .00) ---
+// --- Format discount amount ---
 const formatDiscount = (amount: number) => `KSh ${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-// --- Format discount percentage (round to nearest whole number, no decimals) ---
+// --- Format discount percentage ---
 const formatDiscountPercentage = (percentage: number | undefined) => {
     if (!percentage || percentage <= 0) return '';
     return `${Math.round(percentage)}% OFF`;
@@ -77,7 +78,7 @@ const formatDiscountPercentage = (percentage: number | undefined) => {
 
 <template>
     <MainLayout>
-        <section class="mx-auto p-4" style="max-width: 1200px">
+        <section class="mx-auto mt-4 mb-4 flex max-w-7xl flex-col overflow-x-hidden">
             <div v-if="cart.items.length" class="flex flex-col gap-4 lg:flex-row">
                 <!-- LEFT: Cart Items -->
                 <div class="w-full lg:w-9/12">
@@ -90,8 +91,16 @@ const formatDiscountPercentage = (percentage: number | undefined) => {
                                         alt="Product Image"
                                         class="h-16 w-16 rounded object-cover"
                                     />
+
                                     <div class="flex flex-col gap-1">
-                                        <h2 class="text-sm font-medium text-gray-700">{{ item.product_variant.product.name }}</h2>
+                                        <!-- CLICKABLE NAME → DETAILED VARIANT PAGE -->
+
+                                        <Link
+                                            :href="`/products/${encodeURIComponent(item.product_variant.product.slug)}?v=${encodeURIComponent(item.product_variant.id)}`"
+                                            class="text-grey text-sm font-medium hover:underline"
+                                        >
+                                            {{ item.product_variant.product.name }}
+                                        </Link>
 
                                         <!-- Price & Discount -->
                                         <div class="flex items-center gap-2">
@@ -162,6 +171,7 @@ const formatDiscountPercentage = (percentage: number | undefined) => {
                         >
                             Proceed to Checkout
                         </button>
+
                         <p class="mt-2 text-center text-xs text-gray-600">
                             By proceeding, you are automatically accepting the
                             <a :href="route('terms')" class="text-primary underline hover:text-primary/80">Terms &amp; Conditions</a>

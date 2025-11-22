@@ -39,4 +39,35 @@ class Cart extends Model
     {
         return $this->hasMany(CartItem::class);
     }
+
+    // In App\Models\Cart.php
+
+public function calculateTotals(): array
+{
+    $items = $this->items; // Cart hasMany CartItem
+
+    $subtotal = 0;
+    $totalDiscount = 0;
+    $totalQty = 0;
+
+    foreach ($items as $item) {
+        $lineSubtotal = ($item->unit_price ?? 0) * ($item->quantity ?? 0);
+        $lineDiscount = ($item->discount_amount ?? 0) * ($item->quantity ?? 0);
+
+        $subtotal += $lineSubtotal;
+        $totalDiscount += $lineDiscount;
+        $totalQty += $item->quantity ?? 0;
+    }
+
+    $grandTotal = $subtotal - $totalDiscount;
+
+    return [
+        'subtotal' => round($subtotal, 2),
+        'total_discount' => round($totalDiscount, 2),
+        'grand_total' => round($grandTotal, 2),
+        'total_quantity' => $totalQty,
+        'unique_items' => $items->count(),
+    ];
+}
+
 }

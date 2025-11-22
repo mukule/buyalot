@@ -99,21 +99,18 @@ class User extends Authenticatable
             ->withPivot('role');
     }
 
-    /**
-     * Scope: restrict users to those associated with the given seller id(s).
-     * @param Builder $query
-     * @param int|array|\Illuminate\Support\Collection $sellerIds
-     */
+  
+
     public function scopeForSeller(Builder $query, $sellerIds): Builder
     {
         $ids = collect($sellerIds)->flatten()->filter()->values();
         if ($ids->isEmpty()) {
-            // No seller ids provided: force empty result to avoid leaking users
+            
             return $query->whereRaw('1 = 0');
         }
         $sellerTable = (new \App\Models\Seller\Seller())->getTable();
         return $query->whereHas('sellers', function (Builder $q) use ($ids, $sellerTable) {
-            // Filter by the related sellers table primary key, not the pivot alias
+            
             $q->whereIn($sellerTable . '.id', $ids);
         });
     }

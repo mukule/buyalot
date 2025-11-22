@@ -59,10 +59,10 @@ class Product extends Model
     ];
 
 
-    const STATUS_DRAFT    = 0; // Created but not submitted
-    const STATUS_PENDING  = 1; // Submitted for review
-    const STATUS_APPROVED = 2; // Approved and public
-    const STATUS_REJECTED = 3; // Rejected / Not approved
+    const STATUS_DRAFT    = 0; 
+    const STATUS_PENDING  = 1; 
+    const STATUS_APPROVED = 2; 
+    const STATUS_REJECTED = 3; 
 
     // ----------------------
     // Attributes
@@ -264,12 +264,7 @@ class Product extends Model
         return true;
     }
 
-    /**
-     * Scope: limit products to those that belong to the given seller application id(s).
-     * Uses seller_applications IDs stored in products.owner_id when owner_type = 'seller'.
-     * @param Builder $query
-     * @param int|array|\Illuminate\Support\Collection $sellerIds
-     */
+   
     public function scopeForSeller(Builder $query, $sellerIds): Builder
     {
         $ids = collect($sellerIds)->flatten()->filter()->values();

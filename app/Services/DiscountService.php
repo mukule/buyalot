@@ -51,7 +51,7 @@ class DiscountService
             $finalPrice = max($markedPrice - $totalDiscount, 0);
             $hasDiscount = $totalDiscount > 0;
 
-            // Round discount percentage to nearest whole number
+            
             $discountPercentage = $markedPrice > 0 ? (int) round(($totalDiscount / $markedPrice) * 100) : 0;
 
             $variantResult = [

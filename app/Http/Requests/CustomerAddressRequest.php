@@ -6,36 +6,34 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class CustomerAddressRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return true;
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
-     */
     public function rules(): array
     {
         return [
-            'type' => 'required|in:home,work,billing,shipping,other',
-            'label' => 'nullable|string|max:50',
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'company' => 'nullable|string|max:255',
-            'address_line_1' => 'required|string|max:255',
-            'address_line_2' => 'nullable|string|max:255',
-            'city' => 'required|string|max:100',
-            'state' => 'required|string|max:100',
-            'postal_code' => 'required|string|max:20',
-            'country' => 'required|string|max:100',
-            'phone' => 'nullable|string|max:20',
-            'is_default' => 'boolean',
-            'delivery_instructions' => 'nullable|string',
+            'first_name'       => 'required|string|max:255',
+            'last_name'        => 'required|string|max:255',
+            'phone'            => 'nullable|string|max:20',
+            'address_line_1'   => 'required|string|max:255',
+            'region_id'        => 'required|exists:regions,id',
+            'pickup_point_id'  => 'required|exists:pickup_points,id',
+            'is_default'       => 'sometimes|boolean',
         ];
+    }
+
+    /**
+     * Ensure `is_default` is always present in validated data.
+     */
+    public function validated($key = null, $default = null)
+    {
+        $data = parent::validated($key, $default);
+
+        // Force is_default to 1 if present, 0 otherwise
+        $data['is_default'] = $this->has('is_default') ? 1 : 0;
+
+        return $data;
     }
 }

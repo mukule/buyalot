@@ -268,26 +268,8 @@ Route::prefix('seller')->middleware(['auth', 'role:seller'])->name('seller.')->g
 
 });
 
-//Route::get('/{slug}', [HomeController::class, 'productDetails'])->name('product.details');
-
-
 Route::get('products/{slug}', [HomeController::class, 'productDetails'])->name('product.details');
 
-
-//Route::resource('customers', CustomerController::class);
-//Route::get('customers/{customer}/dashboard', [CustomerController::class, 'dashboard'])->name('customers.dashboard');
-//
-//Route::resource('customers.addresses', CustomerAddressController::class)->except(['index']);
-//Route::get('customers/{customer}/addresses', [CustomerAddressController::class, 'index'])->name('customers.addresses.index');
-//Route::post('customers/{customer}/addresses/{address}/make-default', [CustomerAddressController::class, 'makeDefault'])->name('customers.addresses.make-default');
-//
-//Route::resource('customers.loyalty-points', CustomerLoyaltyPointController::class)->only(['index']);
-//Route::post('customers/{customer}/loyalty-points/award', [CustomerLoyaltyPointController::class, 'award'])->name('customers.loyalty-points.award');
-//Route::post('customers/{customer}/loyalty-points/redeem', [CustomerLoyaltyPointController::class, 'redeem'])->name('customers.loyalty-points.redeem');
-//
-//Route::resource('customers.referrals', CustomerReferralController::class)->except(['edit', 'update', 'destroy']);
-//Route::resource('customers.support-tickets', CustomerSupportTicketController::class)->except(['edit', 'destroy']);
-//Route::resource('customers.wishlist', CustomerWishlistsController::class)->only(['index', 'store', 'update', 'destroy']);
 
 
 
@@ -299,8 +281,12 @@ Route::prefix('cart')->name('cart.')->group(function () {
 });
 
 // Checkout Summary (similar to Jumia)
+// Route::get('/checkout/summary', [CartController::class, 'checkout'])
+//     ->name('checkout.summary');
 Route::get('/checkout/summary', [CartController::class, 'checkout'])
+    ->middleware('auth')
     ->name('checkout.summary');
+
 
 // Checkout Payment page
 Route::get('/checkout/payment', [CartController::class, 'payment'])
