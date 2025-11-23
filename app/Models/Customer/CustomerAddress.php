@@ -12,7 +12,7 @@ class CustomerAddress extends Model
         'customer_id', 'pickup_point_id', 'type', 'label', 'first_name', 'last_name',
         'company', 'address_line_1', 'address_line_2', 'city',
         'state_province', 'postal_code', 'country_code', 'country_name', 'phone', 'is_default',
-        'latitude', 'longitude', 'delivery_instructions', 'is_validated', 'validation_data', 'uuid'
+        'latitude', 'longitude', 'delivery_instructions', 'is_validated', 'validation_data',
     ];
 
     protected $casts = [
@@ -29,9 +29,9 @@ class CustomerAddress extends Model
 
         // Auto-generate UUID on creating
         static::creating(function ($address) {
-            if (empty($address->uuid)) {
-                $address->uuid = (string) Str::uuid();
-            }
+//            if (empty($address->uuid)) {
+//                $address->uuid = (string) Str::uuid();
+//            }
 
             // If a new address is marked default, reset others BEFORE saving
             if ($address->is_default) {
@@ -42,8 +42,6 @@ class CustomerAddress extends Model
                 });
             }
         });
-
-        // Prevent recursion: remove previous updating() logic completely
     }
 
     /*

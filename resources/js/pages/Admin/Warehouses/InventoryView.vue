@@ -544,20 +544,20 @@ function confirmPublish() {
                             <input type="number" min="1" v-model.number="addQuantity" class="border rounded-md px-3 py-2 w-40" />
                         </div>
 
-                        <div class="flex items-center gap-3">
-                            <label class="text-sm w-32">Regular Price</label>
-                            <input type="number" step="0.01" v-model.number="regularPrice" class="border rounded-md px-3 py-2 w-40" />
-                        </div>
+<!--                        <div class="flex items-center gap-3">-->
+<!--                            <label class="text-sm w-32">Regular Price</label>-->
+<!--                            <input type="hidden" step="0.01" v-model.number="regularPrice" class="border rounded-md px-3 py-2 w-40" />-->
+<!--                        </div>-->
 
-                        <div class="flex items-center gap-3">
-                            <label class="text-sm w-32">Selling Price</label>
-                            <input type="number" step="0.01" v-model.number="sellingPrice" class="border rounded-md px-3 py-2 w-40" />
-                        </div>
+<!--                        <div class="flex items-center gap-3">-->
+<!--                            <label class="text-sm w-32">Selling Price</label>-->
+<!--                            <input type="hidden" step="0.01" v-model.number="sellingPrice" class="border rounded-md px-3 py-2 w-40" />-->
+<!--                        </div>-->
 
-                        <div class="flex items-center gap-3">
-                            <label class="text-sm w-32">Cost Price</label>
-                            <input type="number" step="0.01" v-model.number="costPrice" class="border rounded-md px-3 py-2 w-40" />
-                        </div>
+<!--                        <div class="flex items-center gap-3">-->
+<!--                            <label class="text-sm w-32">Cost Price</label>-->
+<!--                            <input type="hidden" step="0.01" v-model.number="costPrice" class="border rounded-md px-3 py-2 w-40" />-->
+<!--                        </div>-->
                     </div>
 
 

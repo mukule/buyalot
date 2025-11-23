@@ -16,7 +16,7 @@ class DatabaseSeeder extends Seeder
             BrandSeeder::class,
             CategorySeeder::class,
             SubcategorySeeder::class,
-//            AdminSeeder::class,
+            AdminSeeder::class,
 //            CommissionPlanSeeder::class,
             CountrySeeder::class,
             CustomerSeeder::class,

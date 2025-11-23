@@ -55,7 +55,8 @@ Route::post('checkout/addresses/{address}/make-default', [CustomerAddressControl
         ->name('me.addresses.make-default');
 
     // Loyalty points
-    Route::resource('customers/loyalty-points', CustomerLoyaltyPointController::class)->only(['index']);
+//    Route::resource('customers/loyalty-points', CustomerLoyaltyPointController::class)->only(['index']);
+    Route::get('customers/loyalty-points/index', [CustomerLoyaltyPointController::class, 'index'])->name('customers.loyalty-points.index');
     Route::post('customers/loyalty-points/award', [CustomerLoyaltyPointController::class, 'award'])->name('customers.loyalty-points.award');
     Route::post('customers/loyalty-points/redeem', [CustomerLoyaltyPointController::class, 'redeem'])->name('customers.loyalty-points.redeem');
 

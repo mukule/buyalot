@@ -5,9 +5,9 @@ namespace App\Services;
 use App\Contracts\PaymentProviderInterface;
 use App\Http\DTOs\PaymentRequest;
 use App\Http\DTOs\PaymentResponse;
+use App\Models\Order;
 use App\Models\Payment\MpesaRequest;
 use App\Models\Payment\Payment;
-use App\Models\Payment\PaymentLog;
 use App\Models\Payment\PaymentProvider;
 use App\Models\Payment\PaymentStatus;
 use App\Providers\MpesaProvider;
@@ -37,7 +37,7 @@ class PaymentService
             'currency' => $request->currency,
             'provider' => $request->provider,
             'method' => $request->method,
-            'status' => PaymentStatus::PENDING,
+            'status' => PaymentStatus::PENDING->value,
             'reference' => $this->generateReference(),
             'metadata' => $request->metadata,
             'expires_at' => now()->addMinutes(config('payment.expiry_minutes', 15)),
@@ -64,15 +64,17 @@ class PaymentService
 
     public function createMpesaRequest($payable, PaymentRequest $request)
     {
+        $order=Order::find($payable->id);
         $reference = $this->generateReference();
         return MpesaRequest::create([
             'payable_type' => get_class($payable),
             'payable_id' => $payable->id,
             'reference' => $reference,
+            'account_reference' => $order->order_code,
             'request_code' => $reference,
             'amount' => $request->amount,
             'currency' => $request->currency,
-            'status' => 'initialized',
+            'status' => PaymentStatus::INITIALIZED->value,
             'provider' => $request->provider,
             'provider_request' => $request->toArray(),
             'provider_response' => [],

@@ -2,9 +2,11 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { AppPageProps, Warehouse } from '@/types';
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from 'lucide-vue-next';
+import { ChevronLeftIcon, ChevronRightIcon, PlusIcon,MoreVerticalIcon } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import axios from 'axios';
+import ActionMenu from '@/components/ActionMenu.vue';
+
 const showManagerModal = ref(false);
 const selectedWarehouse = ref<WarehouseWithRelations | null>(null);
 const formManagers = ref<WarehouseManager[]>([]);
@@ -95,11 +97,23 @@ const statusClasses = (active: boolean) => ({
     'text-red-600 bg-red-50 px-2 py-1 rounded-md': !active,
 });
 
+// Build per-row actions for ActionMenu
+const getActionItems = (warehouse: WarehouseWithRelations) => ([
+    { label: 'View', onClick: () => showWarehouse(warehouse.hashid) },
+    { label: 'Edit', onClick: () => editWarehouse(warehouse.hashid) },
+    { label: 'Inventory', onClick: () => viewInventory(warehouse.hashid) },
+    { label: (warehouse.managers?.length ? 'Manage Staff' : 'Assign Staff'), onClick: () => openManagerModal(warehouse) },
+    { label: (warehouse.active ? 'Deactivate' : 'Activate'), onClick: () => toggleWarehouseStatus(warehouse.hashid), danger: !!warehouse.active },
+]);
+
 function openManagerModal(warehouse: WarehouseWithRelations) {
     selectedWarehouse.value = warehouse;
     showManagerModal.value = true;
 
     axios.get(route('admin.warehouses.assignable-users')).then((response) => {
+
+        console.log("assignable-users");
+
         assignableUsers.value = response.data.users || [];
         formManagers.value =
             warehouse.managers?.map((m) => ({
@@ -108,7 +122,9 @@ function openManagerModal(warehouse: WarehouseWithRelations) {
                 phone: m.phone || '',
             })) || [{ name: '', role: '' }];
     });
+
     axios.get(route('admin.warehouses.assignable-roles')).then((response) => {
+        console.log("assignable-roles");
         assignableRoles.value = response.data.roles || [];
     });
 }
@@ -143,7 +159,9 @@ function closeManagerModal() {
 }
 
 function addManager() {
-    formManagers.value.push({ name: '', role: '' });
+    // Default role to the first available assignable role (if loaded) to avoid null role submits
+    const defaultRole = assignableRoles.value?.[0]?.name || '';
+    formManagers.value.push({ name: '', role: defaultRole });
 }
 
 function removeManager(index: number) {
@@ -152,6 +170,13 @@ function removeManager(index: number) {
 
 function saveManagers() {
     if (!selectedWarehouse.value) return;
+
+    // Client-side guard: block submit if any row misses name or role
+    const invalid = formManagers.value.some(m => !m || !m.name || !m.role);
+    if (invalid) {
+        window.alert('Please ensure each manager row has both Name and Role selected before saving.');
+        return;
+    }
 
     router.post(
         route('admin.warehouses.assign-managers', { warehouse: selectedWarehouse.value.hashid }),
@@ -191,7 +216,7 @@ function saveManagers() {
                             <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase">Name</th>
                             <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase">Type</th>
                             <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase">Region</th>
-                            <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase">Staff</th>
+<!--                            <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase">Staff</th>-->
                             <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase">Receivables</th>
                             <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase">Status</th>
                             <th class="px-4 py-3 text-right font-medium text-gray-500 uppercase">Actions</th>
@@ -215,35 +240,35 @@ function saveManagers() {
                             <td class="px-4 py-3 text-gray-700">
                                 {{ warehouse.region?.name ?? '—' }}
                             </td>
-                            <td class="px-4 py-3 text-gray-700">
-                                <div v-if="warehouse.managers?.length">
-                                    <div
-                                        v-for="(m, i) in warehouse.managers"
-                                        :key="i"
-                                        class="text-xs"
-                                    >
-                                        {{ m.name }}
-                                        <span v-if="m.role" class="text-gray-500">
-                                            ({{ m.role.replace('_', ' ') }})
-                                        </span>
-                                    </div>
-                                    <button
-                                        @click.stop="openManagerModal(warehouse)"
-                                        class="mt-1 text-blue-600 hover:underline text-xs"
-                                    >
-                                        Manage Staff
-                                    </button>
-                                </div>
-                                <div v-else>
-                                    <span class="text-gray-400">No Staff</span>
-                                    <button
-                                        @click.stop="openManagerModal(warehouse)"
-                                        class="ml-2 text-green-600 hover:underline text-xs"
-                                    >
-                                        Assign Staff
-                                    </button>
-                                </div>
-                            </td>
+<!--                            <td class="px-4 py-3 text-gray-700">-->
+<!--                                <div v-if="warehouse.managers?.length">-->
+<!--                                    <div-->
+<!--                                        v-for="(m, i) in warehouse.managers"-->
+<!--                                        :key="i"-->
+<!--                                        class="text-xs"-->
+<!--                                    >-->
+<!--                                        {{ m.name }}-->
+<!--                                        <span v-if="m.role" class="text-gray-500">-->
+<!--                                            ({{ m.role.replace('_', ' ') }})-->
+<!--                                        </span>-->
+<!--                                    </div>-->
+<!--                                    <button-->
+<!--                                        @click.stop="openManagerModal(warehouse)"-->
+<!--                                        class="mt-1 text-blue-600 hover:underline text-xs"-->
+<!--                                    >-->
+<!--                                        Manage Staff-->
+<!--                                    </button>-->
+<!--                                </div>-->
+<!--                                <div v-else>-->
+<!--                                    <span class="text-gray-400">No Staff</span>-->
+<!--                                    <button-->
+<!--                                        @click.stop="openManagerModal(warehouse)"-->
+<!--                                        class="ml-2 text-green-600 hover:underline text-xs"-->
+<!--                                    >-->
+<!--                                        Assign Staff-->
+<!--                                    </button>-->
+<!--                                </div>-->
+<!--                            </td>-->
                             <td class="px-4 py-3 text-gray-700">
                                   <span
                                       v-if="warehouse.pending_receivables_count > 0"
@@ -262,36 +287,18 @@ function saveManagers() {
                             </td>
 
 
-                            <td class="px-4 py-3 text-right space-x-2">
-                                <button
-                                    @click.stop="editWarehouse(warehouse.hashid)"
-                                    class="text-blue-600 hover:underline"
+                            <td class="px-4 py-3 text-right">
+                                <ActionMenu
+                                    :items="getActionItems(warehouse)"
+                                    align="right"
+                                    :zIndex="60"
                                 >
-                                    Edit
-                                </button>
-
-                                <button
-                                    @click.stop="viewInventory(warehouse.hashid)"
-                                    class="text-green-600 hover:underline"
-                                >
-                                    Inventory
-                                </button>
-
-<!--                                <button-->
-<!--                                    @click.stop="openManagerModal(warehouse)"-->
-<!--                                    class="text-orange-400 hover:underline"-->
-<!--                                >-->
-<!--                                    {{ warehouse.managers?.length ? 'Manage' : 'Assign' }} Managers-->
-<!--                                </button>-->
-
-                                <button
-                                    @click.stop="toggleWarehouseStatus(warehouse.hashid)"
-                                    class="text-red-600 hover:underline"
-                                >
-                                    {{ warehouse.active ? 'Deactivate' : 'Activate' }}
-                                </button>
-
+                                    <template #button>
+                                        <MoreVerticalIcon class="w-5 h-5" />
+                                    </template>
+                                </ActionMenu>
                             </td>
+
 
 
                         </tr>
@@ -396,7 +403,7 @@ function saveManagers() {
                                             :key="user.id"
                                             :value="user.name"
                                         >
-                                            {{ user.name }} — {{ user.email }}
+                                            {{ user.name }}
                                         </option>
                                     </select>
 

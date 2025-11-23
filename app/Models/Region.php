@@ -8,29 +8,26 @@ use App\Models\Traits\HasHashid;
 
 class Region extends Model
 {
-    use HasHashid;
-
     protected $fillable = [
-        'uuid',
         'name',
         'code',
         'parent_id',
         'level',
         'active',
-        'zone_id', 
+        'zone_id',
     ];
 
-    protected $appends = ['hashid'];
+//    protected $appends = ['hashid'];
 
-    
+
     protected static function boot()
     {
         parent::boot();
 
         static::creating(function ($model) {
-            if (empty($model->uuid)) {
-                $model->uuid = (string) Str::uuid();
-            }
+//            if (empty($model->uuid)) {
+//                $model->uuid = (string) Str::uuid();
+//            }
 
             if (empty($model->code) && !empty($model->name)) {
                 $model->code = strtoupper(substr(Str::slug($model->name, ''), 0, 5));
@@ -55,10 +52,10 @@ class Region extends Model
 
     public function zone()
     {
-        return $this->belongsTo(Zone::class); 
+        return $this->belongsTo(Zone::class);
     }
 
-    
+
     public function scopeLevel($query, string $level)
     {
         return $query->where('level', $level);

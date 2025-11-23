@@ -14,6 +14,7 @@ const page = usePage<
             roles: (Role & { hashid: string })[];
         })[];
         roles: string[];
+        isSellerContext: boolean;
         filters?: {
             search?: string;
             role?: string;
@@ -24,6 +25,7 @@ const page = usePage<
 
 const users = computed(() => page.props.users);
 const availableRoles = computed(() => page.props.roles);
+const isSellerContext = computed(() => Boolean((page.props as any).isSellerContext));
 const filters = computed(() => page.props.filters || {});
 
 const searchForm = useForm({
@@ -40,17 +42,19 @@ const showCreateModal = ref(false);
 const roleForm = useForm({
     roles: [] as string[],
 });
+// Single role helper for seller/vendor context in Role Management modal
+const roleSingle = ref<string>('');
 
 const createForm = useForm({
     name: '',
     email: '',
     phone: '',
     gender: '',
-    password: '',
-    password_confirmation: '',
     status: true,
     roles: [] as string[],
 });
+// Single role helper for seller/vendor context in Create User modal
+const createSingleRole = ref<string>('');
 
 const showViewModal = ref(false);
 const showEditModal = ref(false);
@@ -133,6 +137,7 @@ function openCreateModal() {
     createForm.reset();
     createForm.status = true;
     createForm.roles = [];
+    createSingleRole.value = '';
     showCreateModal.value = true;
 }
 
@@ -154,11 +159,17 @@ function openEditModal(user: UserWithRoles) {
 function openRoleModal(user: UserWithRoles) {
     selectedUser.value = user;
     roleForm.roles = user.roles.map((role) => role.name);
+    // For seller/vendor ensure single role in the modal helper
+    roleSingle.value = roleForm.roles[0] || '';
     showRoleModal.value = true;
 }
 
 // --- FORM SUBMISSION FUNCTIONS ---
 function createUser() {
+    // Normalize roles for seller/vendor to a single-item array
+    if (isSellerContext.value) {
+        createForm.roles = createSingleRole.value ? [createSingleRole.value] : [];
+    }
     createForm.post(route('admin.users.store'), {
         preserveScroll: true,
         onSuccess: () => {
@@ -179,6 +190,11 @@ function updateUser() {
 
 function updateUserRoles() {
     if (!selectedUser.value) return;
+
+    // Normalize roles when seller/vendor context
+    if (isSellerContext.value) {
+        roleForm.roles = roleSingle.value ? [roleSingle.value] : [];
+    }
 
     roleForm.put(route('admin.user.roles.update', selectedUser.value.id), {
         preserveScroll: true,
@@ -446,36 +462,6 @@ watch(
                                 </div>
 
                                 <div>
-                                    <label for="create-password" class="block text-sm font-medium text-gray-700">Password *</label>
-                                    <input
-                                        v-model="createForm.password"
-                                        type="password"
-                                        id="create-password"
-                                        required
-                                        minlength="8"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                                    />
-                                    <div v-if="createForm.errors.password" class="mt-1 text-xs text-red-500">{{ createForm.errors.password }}</div>
-                                </div>
-
-                                <div>
-                                    <label for="create-password-confirmation" class="block text-sm font-medium text-gray-700"
-                                        >Confirm Password *</label
-                                    >
-                                    <input
-                                        v-model="createForm.password_confirmation"
-                                        type="password"
-                                        id="create-password-confirmation"
-                                        required
-                                        minlength="8"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                                    />
-                                    <div v-if="createForm.errors.password_confirmation" class="mt-1 text-xs text-red-500">
-                                        {{ createForm.errors.password_confirmation }}
-                                    </div>
-                                </div>
-
-                                <div>
                                     <label for="create-status" class="block text-sm font-medium text-gray-700">Status</label>
                                     <select
                                         v-model="createForm.status"
@@ -490,7 +476,25 @@ watch(
 
                                 <div>
                                     <label class="mb-2 block text-sm font-medium text-gray-700">Assign Roles</label>
-                                    <div class="space-y-2">
+                                    <!-- Seller/Vendor: single choice -->
+                                    <div v-if="isSellerContext" class="space-y-2">
+                                        <div v-for="role in availableRoles" :key="role" class="flex items-center">
+                                            <input
+                                                v-model="createSingleRole"
+                                                :value="role"
+                                                :id="`create-role-${role}`"
+                                                type="radio"
+                                                name="create-single-role"
+                                                class="h-4 w-4 border-gray-300 text-primary focus:ring-primary"
+                                            />
+                                            <label :for="`create-role-${role}`" class="ml-3 text-sm font-medium text-gray-700 capitalize">
+                                                {{ role.replace('-', ' ') }}
+                                            </label>
+                                        </div>
+<!--                                        <p class="mt-1 text-xs text-gray-500">You can assign only one role.</p>-->
+                                    </div>
+                                    <!-- Admin/others: multiple choice -->
+                                    <div v-else class="space-y-2">
                                         <div v-for="role in availableRoles" :key="role" class="flex items-center">
                                             <input
                                                 v-model="createForm.roles"
@@ -507,6 +511,10 @@ watch(
                                     <div v-if="createForm.errors.roles" class="mt-1 text-xs text-red-500">{{ createForm.errors.roles }}</div>
                                 </div>
                             </div>
+                        </div>
+
+                        <div class="rounded-md bg-blue-50 p-3 text-sm text-blue-800">
+                            A secure password will be generated automatically and emailed to the user.
                         </div>
 
                         <div class="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">

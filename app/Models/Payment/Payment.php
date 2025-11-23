@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class Payment extends Model
 {
-    use HasFactory, HasUlid;
+    use HasUlid;
 
     protected $fillable = [
         'ulid',
@@ -93,12 +93,12 @@ class Payment extends Model
 
     public function isPending(): bool
     {
-        return $this->status === PaymentStatus::PENDING;
+        return $this->status === PaymentStatus::PENDING->value;
     }
 
     public function isCompleted(): bool
     {
-        return $this->status === PaymentStatus::COMPLETED;
+        return $this->status === PaymentStatus::COMPLETED->value;
     }
 
     public function isFailed(): bool

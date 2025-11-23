@@ -14,6 +14,7 @@ use App\Models\Warehouse\WarehouseManager;
 use App\Models\Warehouse\WarehouseProductInventory;
 use App\Models\Warehouse\WarehouseInventoryMovement;
 use App\Models\Warehouse\WarehouseReceivable;
+use App\Models\Warehouse\WarehouseRejectionReason;
 use App\Traits\HasPermissionCheck;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -28,16 +29,40 @@ class WarehouseController extends Controller
 
     protected function logActivity(Warehouse $warehouse, string $action, $reference = null, array $details = []): void
     {
+        $referenceType = null;
+        $referenceId = null;
+
+        if ($reference) {
+            if (is_object($reference)) {
+                $referenceType = get_class($reference);
+                $referenceId = $reference->id ?? null;
+            } else {
+                // Reference is not an object (e.g. int)
+                $referenceId = $reference;
+            }
+        }
+
         WarehouseActivityLog::create([
             'warehouse_id' => $warehouse->id,
             'user_id' => auth()->id(),
             'action' => $action,
-            'reference_type' => $reference ? get_class($reference) : null,
-            'reference_id' => $reference?->id,
+            'reference_type' => $referenceType,
+            'reference_id' => $referenceId,
             'details' => $details,
             'ip_address' => request()->ip(),
             'user_agent' => request()->userAgent(),
         ]);
+
+//        WarehouseActivityLog::create([
+//            'warehouse_id' => $warehouse->id,
+//            'user_id' => auth()->id(),
+//            'action' => $action,
+//            'reference_type' => $reference ? get_class($reference) : null,
+//            'reference_id' => $reference?->id,
+//            'details' => $details,
+//            'ip_address' => request()->ip(),
+//            'user_agent' => request()->userAgent(),
+//        ]);
     }
 
 
@@ -510,17 +535,37 @@ class WarehouseController extends Controller
         $validated = $request->validate([
             'managers' => 'required|array|min:1',
             'managers.*.name' => 'required|string|max:255',
-            'managers.*.role' => 'nullable|string|max:255',
+            // Ensure role is provided to satisfy DB NOT NULL constraint
+            'managers.*.role' => 'required|string|max:255',
             'managers.*.phone' => 'nullable|string|max:255',
         ]);
-        $warehouse->managers()->delete();
-        $warehouse->managers()->createMany($validated['managers']);
+
+        // Normalize, trim, and drop any accidental empty rows
+        $rows = collect($validated['managers'])
+            ->map(function ($m) {
+                return [
+                    'name' => isset($m['name']) ? trim((string)$m['name']) : '',
+                    'role' => isset($m['role']) ? trim((string)$m['role']) : '',
+                    'phone' => isset($m['phone']) ? trim((string)$m['phone']) : null,
+                ];
+            })
+            ->filter(fn ($m) => $m['name'] !== '' && $m['role'] !== '')
+            ->values();
+        if ($rows->isEmpty()) {
+            return back()->withErrors([
+                'managers' => 'Please provide at least one manager with both name and role.',
+            ])->withInput();
+        }
+
+//        $warehouse->managers()->delete();
+        $warehouse->managers()->createMany($rows->all());
 
         return back()->with('success', 'Warehouse managers updated successfully.');
     }
 
     public function getAssignableUsers()
     {
+        info("getAssignableUsers");
         $users = User::whereHas('roles', function ($q) {
             $q->whereIn('name', [
                 'warehouse_manager',
@@ -538,6 +583,7 @@ class WarehouseController extends Controller
 
     public function getAssignableRoles()
     {
+        info('getAssignableUsers called');
         $roles = Role::whereIn('name', [
             'warehouse_manager',
             'store_keeper',
@@ -546,8 +592,10 @@ class WarehouseController extends Controller
             'assistant_store_manager',
             'assistant_warehouse_manager',
             'record_keeper',
+            'delivery',
+            'clerk',
+            'cashier'
         ])->get(['id','name']);
-
         return response()->json(['roles' => $roles]);
     }
 
@@ -559,24 +607,44 @@ class WarehouseController extends Controller
                 return $permissionCheck;
             }
         }
+
         $warehouse->load([
             'region',
             'managers',
-            'inventories.productVariant.product',
         ]);
 
-        return inertia('Admin/Warehouses/InventoryView', [
-            'warehouse' => $warehouse,
-            'inventories' => $warehouse->inventories->map(function ($inv) {
-                return [
-                    'product_name' => $inv->productVariant->product->name ?? 'N/A',
-                    'variant_name' => $inv->productVariant->variant_name ?? '',
-                    'stock' => $inv->stock,
-                    'reserved_stock' => $inv->reserved_stock,
-                    'damaged_stock' => $inv->damaged_stock,
-                    'cost_price' => $inv->cost_price,
-                ];
-            }),
+        // Summary stats
+        $totalUnits = WarehouseProductInventory::where('warehouse_id', $warehouse->id)->sum('stock');
+        $totalVariants = WarehouseProductInventory::where('warehouse_id', $warehouse->id)
+            ->distinct('product_variant_id')->count('product_variant_id');
+
+        return inertia('Admin/Warehouses/Show', [
+            'warehouse' => [
+                'id' => $warehouse->id,
+                'hashid' => $warehouse->hashid,
+                'name' => $warehouse->name,
+                'code' => $warehouse->code,
+                'type' => $warehouse->type,
+                'capacity' => $warehouse->capacity,
+                'active' => (bool)$warehouse->active,
+                'region' => $warehouse->region ? [
+                    'id' => $warehouse->region->id,
+                    'name' => $warehouse->region->name,
+                ] : null,
+                'managers' => $warehouse->managers->map(function ($m) {
+                    return [
+                        'name' => $m->name,
+                        'role' => $m->pivot->role ?? null,
+                        'phone' => $m->pivot->phone ?? null,
+                    ];
+                }),
+            ],
+            'summary' => [
+                'total_units' => (int)$totalUnits,
+                'total_variants' => (int)$totalVariants,
+                'capacity' => (int)($warehouse->capacity ?? 0),
+                'remaining_capacity' => max(0, (int)($warehouse->capacity ?? 0) - (int)$totalUnits),
+            ],
         ]);
     }
 
@@ -668,11 +736,17 @@ class WarehouseController extends Controller
         $data = $request->validate([
             'product_variant_id' => 'required|exists:product_variants,id',
             'quantity' => 'required|integer|min:1',
-            'regular_price' => 'nullable|numeric|min:0',
-            'selling_price' => 'nullable|numeric|min:0',
-            'cost_price' => 'nullable|numeric|min:0',
+//            'regular_price' => 'nullable|numeric|min:0',
+//            'selling_price' => 'nullable|numeric|min:0',
+//            'cost_price' => 'nullable|numeric|min:0',
         ]);
-
+        $product_variant=ProductVariant::find($data['product_variant_id']);
+        if (!$product_variant){
+            return back()->with('error', 'An error occurred trying to get product variant. Please try again later.');
+        }
+        $data['selling_price']=$product_variant->marked_price;
+        $data['regular_price']=$product_variant->regular_price??$product_variant->marked_price;
+        $data['cost_price']=$product_variant->buying_price;
         // Check if this variant already exists in the warehouse
         $inventory = WarehouseProductInventory::where('warehouse_id', $warehouse->id)
             ->where('product_variant_id', $data['product_variant_id'])
@@ -850,35 +924,16 @@ class WarehouseController extends Controller
                 'note' => $request->note,
             ]);
 
-            // Add to target warehouse
-            $targetInventory = WarehouseProductInventory::lockForUpdate()->firstOrCreate([
-                'warehouse_id' => $request->to_warehouse_id,
+            // Instead of immediately adding to target inventory, create a pending receivable for the destination warehouse
+            \App\Models\Warehouse\WarehouseReceivable::create([
+                'warehouse_id' => (int) $request->to_warehouse_id,
                 'product_variant_id' => $inventory->product_variant_id,
-            ], [
-                'stock' => 0,
-                'reserved_stock' => 0,
-                'damaged_stock' => 0,
-                'regular_price' => $inventory->regular_price,
-                'selling_price' => $inventory->selling_price,
-                'cost_price' => $inventory->cost_price,
-            ]);
-
-            $targetBefore = $targetInventory->stock;
-            $targetInventory->stock += $request->quantity;
-            $targetInventory->save();
-
-            // Log transfer in
-            WarehouseInventoryMovement::create([
-                'warehouse_id' => $request->to_warehouse_id,
-                'product_variant_id' => $inventory->product_variant_id,
-                'type' => 'transfer_in',
                 'quantity' => (int) $request->quantity,
-                'from_warehouse_id' => $warehouse->id,
-                'to_warehouse_id' => $request->to_warehouse_id,
-                'user_id' => auth()->id(),
-                'before_stock' => $targetBefore,
-                'after_stock' => $targetInventory->stock,
+                'status' => 'pending',
                 'note' => $request->note,
+                'created_by' => auth()->id(),
+                // extended fields (from_warehouse_id, transfer linkage) will be filled if present in schema
+                'from_warehouse_id' => $warehouse->id,
             ]);
         });
         $this->logActivity($warehouse, 'stock_transferred', $transfer, [
@@ -886,7 +941,7 @@ class WarehouseController extends Controller
             'items' => $transferItems,
         ]);
 
-        return back()->with('success', 'Stock transferred successfully.');
+        return back()->with('success', 'Stock dispatched. Awaiting receipt at destination warehouse.');
     }
 
     // Minimal Receivables/Dispatches implementations
@@ -924,6 +979,13 @@ class WarehouseController extends Controller
             ];
         });
 
+        // Load active rejection reasons for UI select
+        $rejectionReasons = WarehouseRejectionReason::query()
+            ->active()
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id','name','description']);
+
         return \Inertia\Inertia::render('Admin/Warehouses/Receivables', [
             'warehouse' => [
                 'id' => $warehouse->id,
@@ -932,6 +994,66 @@ class WarehouseController extends Controller
                 'code' => $warehouse->code,
             ],
             'receivables' => $receivables,
+            'rejection_reasons' => $rejectionReasons,
+            'pagination' => [
+                'links' => $paginated->toArray()['links'] ?? [],
+                'meta' => $paginated->toArray(),
+            ],
+            'filters' => [
+                'search' => $request->input('search', ''),
+                'per_page' => $perPage,
+            ],
+        ]);
+    }
+
+    public function rejectedReceivables(Request $request, Warehouse $warehouse)
+    {
+        if (!$this->sellerOwns($warehouse)) {
+            $permissionCheck = $this->checkPermissionOrFail('manage-inventory');
+            if ($permissionCheck) {
+                return $permissionCheck;
+            }
+        }
+
+        $query = WarehouseReceivable::with(['productVariant.product', 'fromWarehouse'])
+            ->where('warehouse_id', $warehouse->id)
+            ->where('status', 'rejected');
+
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('productVariant.product', function ($sub) use ($search) {
+                    $sub->where('name', 'like', "%{$search}%");
+                })->orWhereHas('fromWarehouse', function ($sub) use ($search) {
+                    $sub->where('name', 'like', "%{$search}%");
+                })->orWhere('rejected_reason', 'like', "%{$search}%");
+            });
+        }
+
+        $perPage = (int) $request->input('per_page', 20);
+        $paginated = $query->orderByDesc('id')->paginate($perPage)->withQueryString();
+
+        $items = $paginated->getCollection()->map(function ($r) {
+            return [
+                'id' => $r->id,
+                'product_name' => optional($r->productVariant->product)->name,
+                'variant_display' => method_exists($r->productVariant, 'getDisplayNameAttribute') ? $r->productVariant->display_name : null,
+                'quantity' => $r->quantity,
+                'from_warehouse' => optional($r->fromWarehouse)->name,
+                'rejected_reason' => $r->rejected_reason,
+                'rejected_at' => $r->rejected_at?->toDateTimeString(),
+                'note' => $r->note,
+            ];
+        });
+
+        return Inertia::render('Admin/Warehouses/RejectedReceivables', [
+            'warehouse' => [
+                'id' => $warehouse->id,
+                'hashid' => $warehouse->hashid,
+                'name' => $warehouse->name,
+                'code' => $warehouse->code,
+            ],
+            'items' => $items,
             'pagination' => [
                 'links' => $paginated->toArray()['links'] ?? [],
                 'meta' => $paginated->toArray(),
@@ -1043,6 +1165,95 @@ class WarehouseController extends Controller
         });
 
         return back()->with('success', 'Items received successfully.');
+    }
+
+    public function rejectReceivable(Request $request, Warehouse $warehouse)
+    {
+        if (!$this->sellerOwns($warehouse)) {
+            $permissionCheck = $this->checkPermissionOrFail('manage-inventory');
+            if ($permissionCheck) {
+                return $permissionCheck;
+            }
+        }
+
+        // Accept new payload with rejection_reason_id and optional note.
+        // Backwards compatibility: allow legacy 'reason' text.
+        $data = $request->validate([
+            'receivable_id' => 'required|exists:warehouse_receivables,id',
+            'rejection_reason_id' => 'nullable|exists:warehouse_rejection_reasons,id',
+            'note' => 'nullable|string|max:255',
+            'reason' => 'nullable|string|max:255', // legacy
+        ]);
+
+        DB::transaction(function () use ($data, $warehouse) {
+            /** @var \App\Models\Warehouse\WarehouseReceivable $receivable */
+            $receivable = WarehouseReceivable::lockForUpdate()
+                ->where('id', $data['receivable_id'])
+                ->where('warehouse_id', $warehouse->id)
+                ->firstOrFail();
+            if ($receivable->status !== 'pending') {
+                abort(422, 'Receivable is not pending.');
+            }
+            if (empty($receivable->from_warehouse_id)) {
+                abort(422, 'Original warehouse not specified for this receivable.');
+            }
+
+            // Determine reason record and details
+            $reasonRecord = null;
+            $note = trim((string)($data['note'] ?? '')) ?: null;
+            $legacyReasonText = trim((string)($data['reason'] ?? '')) ?: null;
+            if (!empty($data['rejection_reason_id'])) {
+                $reasonRecord = WarehouseRejectionReason::find($data['rejection_reason_id']);
+            } elseif ($legacyReasonText) {
+                // Map legacy text to "Other" reason if exists; otherwise leave null
+                $reasonRecord = WarehouseRejectionReason::where('name', 'Other')->first();
+                // If no Other exists, keep null and store text into rejected_reason field
+            }
+
+            // Mark as rejected
+            $receivable->status = 'rejected';
+            $receivable->rejected_by = auth()->id();
+            $receivable->rejected_reason_id = $reasonRecord?->id;
+            // Store a human-readable reason: reason name + optional note or legacy text
+            if ($reasonRecord) {
+                $receivable->rejected_reason = $reasonRecord->name . ($note ? (': ' . $note) : '');
+            } else {
+                // Fallback to legacy text
+                $receivable->rejected_reason = $legacyReasonText ?: $note;
+            }
+            $receivable->rejected_at = now();
+            $receivable->save();
+
+            // Return stock to source warehouse
+            $sourceWarehouseId = (int) $receivable->from_warehouse_id;
+            $sourceInv = WarehouseProductInventory::lockForUpdate()->firstOrCreate([
+                'warehouse_id' => $sourceWarehouseId,
+                'product_variant_id' => $receivable->product_variant_id,
+            ], [
+                'stock' => 0,
+                'reserved_stock' => 0,
+                'damaged_stock' => 0,
+                'cost_price' => 0,
+            ]);
+            $before = $sourceInv->stock;
+            $sourceInv->stock += (int) $receivable->quantity;
+            $sourceInv->save();
+
+            WarehouseInventoryMovement::create([
+                'warehouse_id' => $sourceWarehouseId,
+                'product_variant_id' => $receivable->product_variant_id,
+                'type' => 'transfer_return',
+                'quantity' => (int) $receivable->quantity,
+                'from_warehouse_id' => $warehouse->id,
+                'to_warehouse_id' => $sourceWarehouseId,
+                'user_id' => auth()->id(),
+                'before_stock' => $before,
+                'after_stock' => $sourceInv->stock,
+                'note' => 'Rejected: ' . ($receivable->rejected_reason ?? 'No reason provided'),
+            ]);
+        });
+
+        return back()->with('success', 'Receivable rejected and stock returned to source warehouse.');
     }
 
     public function dispatches(Request $request, Warehouse $warehouse)

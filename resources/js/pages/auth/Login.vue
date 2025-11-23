@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AuthBase from '@/layouts/AuthLayout.vue';
 import { Head, useForm } from '@inertiajs/vue3';
-import { LoaderCircle } from 'lucide-vue-next';
+import { LoaderCircle, Eye, EyeOff } from 'lucide-vue-next';
+import { ref } from 'vue';
 
 defineProps<{
     status?: string;
@@ -20,6 +21,17 @@ const form = useForm({
     password: '',
     remember: false,
 });
+
+// Toggle visibility for password input
+const showPassword = ref(false);
+
+// Ensure email is always lowercase on input
+const onEmailInput = (e: Event) => {
+    const target = e.target as HTMLInputElement | null;
+    if (target) {
+        form.email = target.value.toLowerCase();
+    }
+};
 
 const submit = () => {
     form.post(route('login'), {
@@ -62,6 +74,10 @@ const handleGoogleLogin = () => {
                             :tabindex="1"
                             autocomplete="email"
                             v-model="form.email"
+                            autocapitalize="none"
+                            autocorrect="off"
+                            inputmode="email"
+                            @input="onEmailInput"
                             placeholder="email@example.com"
                         />
                         <InputError :message="form.errors.email" />
@@ -74,15 +90,28 @@ const handleGoogleLogin = () => {
                             <!--                                Forgot password?-->
                             <!--                            </TextLink>-->
                         </div>
-                        <Input
-                            id="password"
-                            type="password"
-                            required
-                            :tabindex="2"
-                            autocomplete="current-password"
-                            v-model="form.password"
-                            placeholder="Password"
-                        />
+                        <div class="relative">
+                            <Input
+                                id="password"
+                                :type="showPassword ? 'text' : 'password'"
+                                required
+                                :tabindex="2"
+                                autocomplete="current-password"
+                                v-model="form.password"
+                                placeholder="Password"
+                                class="pr-10"
+                            />
+                            <button
+                                type="button"
+                                class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
+                                :aria-label="showPassword ? 'Hide password' : 'Show password'"
+                                @click="showPassword = !showPassword"
+                                tabindex="-1"
+                            >
+                                <Eye v-if="!showPassword" class="h-4 w-4" />
+                                <EyeOff v-else class="h-4 w-4" />
+                            </button>
+                        </div>
                         <InputError :message="form.errors.password" />
                     </div>
 

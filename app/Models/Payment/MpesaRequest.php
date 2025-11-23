@@ -31,8 +31,10 @@ class MpesaRequest extends Model
     ];
 
     protected $casts = [
-        'request_payload' => 'array',
+        'provider_request' => 'array',
+        'provider_response' => 'array',
         'callback_payload' => 'array',
+        'request_payload' => 'array',
     ];
 
     public function mpesaPayments()

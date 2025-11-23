@@ -8,7 +8,7 @@ use Vinkla\Hashids\Facades\Hashids;
 
 class UnitType extends Model
 {
-    protected $fillable = ['name', 'slug'];
+    protected $fillable = ['name', 'slug', 'status'];
 
     protected $appends = ['hashid'];
 

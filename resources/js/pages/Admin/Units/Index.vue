@@ -75,10 +75,10 @@ function deleteUnitType(hashid: string) {
     }
 }
 
-const statusClasses = (active: boolean) => ({
-    'text-green-600': active,
-    'text-red-600': !active,
-});
+// const statusClasses = (active: boolean) => ({
+//     'text-green-600': active,
+//     'text-red-600': !active,
+// });
 </script>
 
 <template>

@@ -82,15 +82,17 @@ Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard']
     ->name('warranties.toggleActive');
 
     // Warehouses (admins and sellers)
+    // NOTE: Define specific helper endpoints BEFORE the resource route to avoid being shadowed by warehouses.show
+    Route::get('warehouses/assignable-users', [WarehouseController::class, 'getAssignableUsers'])
+        ->name('warehouses.assignable-users');
+    Route::get('warehouses/assignable-roles', [WarehouseController::class, 'getAssignableRoles'])
+        ->name('warehouses.assignable-roles');
+
     Route::resource('warehouses', WarehouseController::class);
     Route::patch('warehouses/{warehouse}/toggle-status', [WarehouseController::class, 'toggleStatus'])
         ->name('warehouses.toggle-status');
-    Route::post('/warehouses/{warehouse}/assign-managers', [WarehouseController::class, 'assignManagers'])
-        ->name('admin.warehouses.assign-managers');
-    Route::get('/warehouses/assignable-users', [WarehouseController::class, 'getAssignableUsers'])
-        ->name('admin.warehouses.assignable-users');
-    Route::get('/warehouses/assignable-roles', [WarehouseController::class, 'getAssignableRoles'])
-        ->name('admin.warehouses.assignable-roles');
+    Route::post('warehouses/{warehouse}/assign-managers', [WarehouseController::class, 'assignManagers'])
+        ->name('warehouses.assign-managers');
 
     // Inventory & stock routes
     Route::get('{warehouse}/inventory', [WarehouseController::class, 'inventory'])->name('inventory');
@@ -101,8 +103,10 @@ Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard']
 
     // Receivables & Dispatches
     Route::get('{warehouse}/receivables', [WarehouseController::class, 'receivables'])->name('receivables.index');
+    Route::get('{warehouse}/receivables/rejected', [WarehouseController::class, 'rejectedReceivables'])->name('receivables.rejected');
     Route::post('{warehouse}/receivables/create', [WarehouseController::class, 'createReceivable'])->name('receivables.create');
     Route::post('{warehouse}/receivables/accept', [WarehouseController::class, 'acceptReceivable'])->name('receivables.accept');
+    Route::post('{warehouse}/receivables/reject', [WarehouseController::class, 'rejectReceivable'])->name('receivables.reject');
     Route::get('{warehouse}/dispatches', [WarehouseController::class, 'dispatches'])->name('dispatches.index');
     Route::post('{warehouse}/dispatches/create', [WarehouseController::class, 'createDispatch'])->name('dispatches.create');
 
@@ -216,6 +220,10 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::resource('areas', RegionController::class);
     Route::resource('routes', RegionController::class);
 
+    // Brands management (create/edit/delete)
+    // Note: index is defined under a separate middleware group for users with view-brands permission
+    Route::resource('brands', \App\Http\Controllers\Admin\BrandController::class)->except(['index']);
+
 
     Route::resource('payments', PaymentController::class);
 
@@ -317,6 +325,10 @@ Route::get('{slug}', [HomeController::class, 'category'])
 Route::prefix('payments')->name('payments.')->group(function () {
     Route::get('providers', [PaymentController::class, 'providers'])->name('providers');
     Route::post('initiate', [MpesaRequestController::class, 'initiate'])->withoutMiddleware([VerifyCsrfTokenMiddleware::class])->name('initiate');
-    Route::get('{payment}/status', [PaymentController::class, 'status'])->name('status');
+    // Flexible status endpoint: accepts Payment ULID/numeric ID or MpesaRequest id/reference
+    Route::get('{id}/status', [PaymentController::class, 'statusFlexible'])->name('status');
+    // Poll status of an M-Pesa request by CheckoutRequestID/reference (frontend-friendly)
+    Route::get('requests/{checkout_request_id}/status', [MpesaRequestController::class, 'statusByCheckoutId'])
+        ->name('requests.status');
     Route::post('callback/{provider}', [PaymentController::class, 'callback'])->withoutMiddleware([VerifyCsrfTokenMiddleware::class])->name('callback');
 });

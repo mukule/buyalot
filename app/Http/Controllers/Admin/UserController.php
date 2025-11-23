@@ -13,6 +13,10 @@ use Inertia\Inertia;
 use App\Models\Role;
 use App\Models\Seller\Seller;
 use App\Models\Seller\SellerUser;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\NewUserCredentialsMail;
 
 class UserController extends Controller
 {
@@ -103,13 +107,15 @@ class UserController extends Controller
             return response()->json([
                 'users' => $userData,
                 'roles' => $roles,
+                'isSellerContext' => (bool) $isSellerContext,
             ]);
         }
 
         return Inertia::render('Admin/Users/Index', [
             'users' => $userData,
             'roles' => $roles,
-            'filters' => $request->only(['search', 'role', 'status'])
+            'filters' => $request->only(['search', 'role', 'status']),
+            'isSellerContext' => (bool) $isSellerContext,
         ]);
     }
 
@@ -210,18 +216,35 @@ class UserController extends Controller
 
     public function updateRoles(Request $request, User $user): RedirectResponse
     {
-        $validated = $request->validate([
+        $authUser = $request->user();
+        $isSellerContext = $authUser && (
+            (isset($authUser->user_type) && in_array($authUser->user_type, ['seller','vendor']))
+            || (method_exists($authUser, 'hasRole') && ($authUser->hasRole('seller') || $authUser->hasRole('vendor')))
+        );
+
+        // Build base rules
+        $rules = [
             'roles' => 'required|array|min:1',
-            'roles.*' => 'string|exists:roles,name',
-        ], [
+            'roles.*' => ['string', Rule::in(Role::allowedForSeller()->pluck('name')->all())],
+        ];
+        $messages = [
             'roles.required' => 'A user must have at least one role.',
             'roles.min' => 'A user must have at least one role.',
-        ]);
+        ];
+
+        // If seller/vendor initiating, enforce exactly one role
+        if ($isSellerContext) {
+            $rules['roles'] .= '|size:1';
+        }
+
+        $validated = $request->validate($rules, $messages);
         if (empty($validated['roles'])) {
             return redirect()->back()->withErrors(['roles' => 'A user must have at least one role.']);
         }
 
-        $user->syncRoles($validated['roles']);
+        $rolesToAssign = $isSellerContext ? [ $validated['roles'][0] ] : $validated['roles'];
+
+        $user->syncRoles($rolesToAssign);
 
         return redirect()->back()->with('success', 'User roles updated successfully.');
     }
@@ -288,14 +311,12 @@ class UserController extends Controller
             'email' => 'required|email|unique:users,email',
             'phone' => 'nullable|string|min:10|max:15',
             'gender' => 'nullable|in:male,female,other',
-            'password' => 'required|string|min:8|confirmed',
             'status' => 'required|boolean',
             'roles' => 'required|array|min:1',
             'roles.*' => ['string', \Illuminate\Validation\Rule::in($roleNames)],
         ], [
             'roles.required' => 'A user must have at least one role.',
             'roles.min' => 'A user must have at least one role.',
-            'password.confirmed' => 'The password confirmation does not match.',
         ]);
         // Determine if the creator is a seller/vendor
         $authUser = $request->user();
@@ -304,22 +325,37 @@ class UserController extends Controller
             || (method_exists($authUser, 'hasRole') && ($authUser->hasRole('seller') || $authUser->hasRole('vendor')))
         );
 
+        // If seller/vendor creating, enforce exactly one role selected
+        if ($isSellerContext) {
+            $request->validate([
+                'roles' => 'required|array|size:1',
+            ], [
+                'roles.size' => 'You can assign only one role.',
+            ]);
+        }
+        // Generate a secure random password for the new user
+        $generatedPassword = Str::random(12);
+
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
-            'password' => bcrypt($validated['password']),
+            'password' => Hash::make($generatedPassword),
             'status' => (bool) $validated['status'],
             'email_verified_at' => now(),
             'user_type' => $isSellerContext ? 'seller' : 'user',
         ]);
-        $user->assignRole($validated['roles']);
+        // Assign roles (only one if seller context)
+        $rolesToAssign = $isSellerContext ? ($validated['roles'][0] ?? null) : $validated['roles'];
+        if ($rolesToAssign) {
+            $user->assignRole($rolesToAssign);
+        }
 
         // If the creator is a seller/vendor, attach the new user to the same seller account(s)
         if ($isSellerContext) {
             $sellerTable = (new Seller())->getTable();
             $sellerIds = $authUser->sellers()->pluck($sellerTable . '.id');
-            $pivotRole = $validated['roles'][0] ?? null; // use first selected role for pivot
+            $pivotRole = $validated['roles'][0] ?? null; // first selected role for pivot
             foreach ($sellerIds as $sid) {
                 $user->sellers()->attach($sid, ['role' => $pivotRole]);
             }
@@ -333,6 +369,16 @@ class UserController extends Controller
             ]);
         }
 
+        // Email the generated password to the user with the login URL
+        $emailWarning = null;
+        try {
+            $loginUrl = route('login');
+            Mail::to($user->email)->send(new NewUserCredentialsMail($user, $generatedPassword, $loginUrl));
+        } catch (\Throwable $e) {
+            // Even if email fails, we keep the user creation but note the warning
+            $emailWarning = 'User created but email could not be sent. Please share credentials manually.';
+        }
+
         if ($request->wantsJson() || $request->is('api/*')) {
             $user->load('roles', 'permissions');
 
@@ -344,11 +390,14 @@ class UserController extends Controller
             ];
 
             return response()->json([
-                'message' => 'User created successfully',
+                'message' => $emailWarning ?? 'User created successfully. Login credentials have been emailed to the user.',
                 'user' => $userData
             ], 201);
         }
-        return redirect()->route('admin.users.index')->with('success', 'User created successfully.');
+        if ($emailWarning) {
+            return redirect()->route('admin.users.index')->with('warning', $emailWarning);
+        }
+        return redirect()->route('admin.users.index')->with('success', 'User created successfully. Credentials emailed to the user.');
     }
 
     public function destroy(Request $request, User $user)

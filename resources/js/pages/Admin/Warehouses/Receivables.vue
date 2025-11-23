@@ -6,6 +6,7 @@ import { ref } from 'vue';
 const props = defineProps<{
   warehouse: { id: number; hashid: string; name: string; code: string };
   receivables: { id: number; product_name: string; variant_display?: string|null; quantity: number; note?: string|null; created_at?: string|null }[];
+  rejection_reasons: { id: number; name: string; description?: string|null }[];
   pagination: any;
   filters: { search: string; per_page: number };
 }>();
@@ -24,6 +25,10 @@ function goBack() {
   router.get(route('admin.inventory', { warehouse: props.warehouse.hashid }), {}, { replace: true });
 }
 
+function goToRejected() {
+  router.get(route('admin.receivables.rejected', { warehouse: props.warehouse.hashid }), {}, { replace: true });
+}
+
 function accept(id: number) {
   router.post(route('admin.receivables.accept', { warehouse: props.warehouse.hashid }), { receivable_id: id }, {
     preserveState: true,
@@ -32,6 +37,49 @@ function accept(id: number) {
       router.get(route('admin.receivables.index', { warehouse: props.warehouse.hashid }), {}, { replace: true });
     }
   });
+}
+
+// Reject modal state
+const showReject = ref(false);
+const rejectingId = ref<number|null>(null);
+const selectedReasonId = ref<number|null>(null);
+const extraNote = ref('');
+const submitting = ref(false);
+
+function openRejectModal(id: number) {
+  rejectingId.value = id;
+  // Preselect first active reason if available
+  selectedReasonId.value = props.rejection_reasons?.[0]?.id ?? null;
+  extraNote.value = '';
+  showReject.value = true;
+}
+
+function closeRejectModal() {
+  showReject.value = false;
+  rejectingId.value = null;
+  selectedReasonId.value = null;
+  extraNote.value = '';
+}
+
+function submitReject() {
+  if (!rejectingId.value) return;
+  if (!selectedReasonId.value) {
+    window.alert('Please select a rejection reason.');
+    return;
+  }
+  submitting.value = true;
+  router.post(
+    route('admin.receivables.reject', { warehouse: props.warehouse.hashid }),
+    { receivable_id: rejectingId.value, rejection_reason_id: selectedReasonId.value, note: extraNote.value || undefined },
+    {
+      preserveState: true,
+      onFinish: () => { submitting.value = false; },
+      onSuccess: () => {
+        closeRejectModal();
+        router.get(route('admin.receivables.index', { warehouse: props.warehouse.hashid }), {}, { replace: true });
+      }
+    }
+  );
 }
 </script>
 
@@ -46,7 +94,10 @@ function accept(id: number) {
     <div class="p-4">
       <div class="mb-3 flex justify-between items-center">
         <h1 class="text-2xl font-semibold">Receivables</h1>
-        <button @click="goBack" class="inline-flex items-center gap-2 text-sm bg-orange-600 text-white px-3 py-2 rounded-md hover:bg-primary/80">Back to Inventory</button>
+        <div class="flex items-center gap-2">
+          <button @click="goToRejected" class="inline-flex items-center gap-2 text-sm bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-500">View Rejected Transfers</button>
+          <button @click="goBack" class="inline-flex items-center gap-2 text-sm bg-orange-600 text-white px-3 py-2 rounded-md hover:bg-primary/80">Back to Inventory</button>
+        </div>
       </div>
 
       <div class="flex items-center gap-3 mb-4">
@@ -79,7 +130,10 @@ function accept(id: number) {
               <td class="px-4 py-2">{{ r.note || '—' }}</td>
               <td class="px-4 py-2">{{ r.created_at || '—' }}</td>
               <td class="px-4 py-2 text-right">
-                <button @click="accept(r.id)" class="text-green-700 hover:underline text-xs">Receive</button>
+                <div class="flex items-center gap-3 justify-end">
+                  <button @click="accept(r.id)" class="text-green-700 hover:underline text-xs">Receive</button>
+                  <button @click="openRejectModal(r.id)" class="text-red-600 hover:underline text-xs">Reject</button>
+                </div>
               </td>
             </tr>
             <tr v-if="!props.receivables || props.receivables.length === 0">
@@ -99,6 +153,36 @@ function accept(id: number) {
           ></button>
           <span v-else class="px-3 py-1 border rounded-md text-gray-400" v-html="link.label"></span>
         </template>
+      </div>
+
+      <!-- Reject Modal -->
+      <div v-if="showReject" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/40" @click="closeRejectModal"></div>
+        <div class="relative bg-white rounded-md shadow-lg w-full max-w-md p-5">
+          <h3 class="text-lg font-semibold mb-3">Reject Receivable</h3>
+          <div class="mb-4">
+            <label class="block text-sm font-medium mb-1">Reason</label>
+            <select v-model.number="selectedReasonId" class="w-full border rounded-md px-3 py-2">
+              <option v-for="rr in props.rejection_reasons" :key="rr.id" :value="rr.id">
+                {{ rr.name }}
+              </option>
+            </select>
+            <p v-if="props.rejection_reasons && selectedReasonId" class="text-xs text-gray-500 mt-1">
+              {{ props.rejection_reasons.find(r=>r.id===selectedReasonId)?.description || '' }}
+            </p>
+          </div>
+          <div class="mb-4">
+            <label class="block text-sm font-medium mb-1">Additional details (optional)</label>
+            <textarea v-model="extraNote" rows="3" class="w-full border rounded-md px-3 py-2" placeholder="Add any details..."></textarea>
+          </div>
+          <div class="flex justify-end gap-2">
+            <button @click="closeRejectModal" class="px-4 py-2 rounded-md border">Cancel</button>
+            <button :disabled="submitting" @click="submitReject" class="px-4 py-2 rounded-md bg-red-600 text-white disabled:opacity-50">
+              <span v-if="!submitting">Reject</span>
+              <span v-else>Submitting...</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </AppLayout>

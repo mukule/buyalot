@@ -24,7 +24,7 @@ class UnitTypeController extends Controller
         return Inertia::render('Admin/Units/Create');
     }
 
-   
+
     public function store(Request $request)
 {
     $request->validate([
@@ -35,7 +35,7 @@ class UnitTypeController extends Controller
     UnitType::create([
         'name' => $request->name,
         'slug' => $request->slug,
-        'active' => true,  // Set active true by default here
+        'status' => "active"
     ]);
 
     return redirect()->route('admin.unit-types.index')
@@ -46,7 +46,7 @@ class UnitTypeController extends Controller
 
 public function show(UnitType $unitType)
 {
-    $unitType->load('units'); 
+    $unitType->load('units');
 
     return Inertia::render('Admin/Units/Show', [
         'unitType' => $unitType,

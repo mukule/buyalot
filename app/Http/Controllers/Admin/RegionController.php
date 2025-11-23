@@ -12,8 +12,8 @@ use Inertia\Inertia;
 
 class RegionController extends Controller
 {
-   
-   
+
+
     public function index()
 {
     $regions = Region::with(['parent', 'zone'])
@@ -28,7 +28,7 @@ class RegionController extends Controller
             'name' => $region->name,
             'parent_id' => $region->parent_id,
             'parent_name' => $region->parent?->name ?? null,
-            
+
             'zone_name' => $region->zone?->name ?? null,
             'tier' => $region->zone?->tier ?? null,
             'active' => $region->active,

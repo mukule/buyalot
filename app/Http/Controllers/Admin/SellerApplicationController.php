@@ -97,6 +97,9 @@ class SellerApplicationController extends Controller
             'email' => $sellerApplication->contact_email,
             'password' => bcrypt($password),
             'seller_application_id' => $sellerApplication->id,
+            'phone' => $sellerApplication->contact_phone,
+            'email_verified_at' => now(),
+            'user_type' => 'seller'
         ]);
 
         $user->assignRole('seller');

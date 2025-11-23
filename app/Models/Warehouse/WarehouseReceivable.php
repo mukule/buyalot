@@ -14,6 +14,7 @@ class WarehouseReceivable extends Model
 
     protected $fillable = [
         'warehouse_id',
+        'from_warehouse_id',
         'product_variant_id',
         'quantity',
         'status',
@@ -21,10 +22,15 @@ class WarehouseReceivable extends Model
         'created_by',
         'received_by',
         'received_at',
+        'rejected_reason_id',
+        'rejected_by',
+        'rejected_reason',
+        'rejected_at',
     ];
 
     protected $casts = [
         'received_at' => 'datetime',
+        'rejected_at' => 'datetime',
     ];
 
     public function warehouse(): BelongsTo
@@ -37,6 +43,11 @@ class WarehouseReceivable extends Model
         return $this->belongsTo(ProductVariant::class);
     }
 
+    public function fromWarehouse(): BelongsTo
+    {
+        return $this->belongsTo(Warehouse::class, 'from_warehouse_id');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -45,5 +56,10 @@ class WarehouseReceivable extends Model
     public function receiver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'received_by');
+    }
+
+    public function rejectionReason(): BelongsTo
+    {
+        return $this->belongsTo(WarehouseRejectionReason::class, 'rejected_reason_id');
     }
 }

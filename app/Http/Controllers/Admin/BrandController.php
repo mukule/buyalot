@@ -16,7 +16,7 @@ class BrandController extends Controller
 {
     public function index()
     {
-        $brands = Brand::latest()->paginate(10); 
+        $brands = Brand::latest()->paginate(10);
         return Inertia::render('Admin/Brands/Index', [
             'brands' => $brands,
         ]);
@@ -67,9 +67,7 @@ class BrandController extends Controller
         } else {
             Log::info('No logo file uploaded.');
         }
-
         $brand->save();
-
         Log::info('Brand created successfully', ['id' => $brand->id]);
 
         return redirect()->route('admin.brands.index')->with('success', 'Brand created successfully.');

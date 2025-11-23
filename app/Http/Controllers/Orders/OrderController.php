@@ -278,7 +278,10 @@ class OrderController extends Controller
                     continue;
                 }
 
-                $unitPrice = (float) $variant->selling_price; // authoritative price
+                // Use selling_price when set; otherwise fall back to regular_price,
+                // and as a last resort use the unit_price provided by the client payload
+                // to avoid producing a zero order total when catalog prices are incomplete.
+                $unitPrice = (float) ($variant->selling_price ?? $variant->regular_price ?? ($item['unit_price'] ?? 0)); // authoritative price with sensible fallback
                 $perUnitDiscount = max(0, (float)$variant->regular_price - (float)$variant->selling_price);
                 $lineSubtotal = $unitPrice * $qty; // before any coupon
                 $lineDiscount = $perUnitDiscount * $qty;

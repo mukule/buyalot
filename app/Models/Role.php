@@ -10,10 +10,10 @@ use Vinkla\Hashids\Facades\Hashids;
 class Role extends SpatieRole
 {
     public const SELLER_ALLOWED = [
-        'storekeeper',
+        'store_keeper',
         'cashier',
         'marketer',
-        'seller-account-admins',
+        'seller_account_admins',
         'manager',
         'staff',
         'delivery',
@@ -21,6 +21,11 @@ class Role extends SpatieRole
         'store_manager',
         'store_account-admins',
         'warehouse_manager',
+        'assistant_store_manager',
+        'warehouse_clerk',
+        'loader',
+        'record_keeper',
+        'clerk'
     ];
 
     public function getRouteKey(): string
@@ -60,12 +65,12 @@ class Role extends SpatieRole
         $query = $query->where('guard_name', $guard)->orderBy('name');
 
         $user = auth()->user();
-        $isSeller = $user && (
-            (isset($user->user_type) && $user->user_type === 'seller')
-            || (method_exists($user, 'hasRole') && $user->hasRole('seller'))
+        $isSellerOrVendor = $user && (
+            (isset($user->user_type) && in_array($user->user_type, ['seller', 'vendor']))
+            || (method_exists($user, 'hasRole') && ($user->hasRole('seller') || $user->hasRole('vendor')))
         );
 
-        if ($isSeller) {
+        if ($isSellerOrVendor) {
             // Sellers can only pick from the allowed set
             return $query->whereIn('name', self::SELLER_ALLOWED);
         }

@@ -120,8 +120,8 @@ const statusClass = computed(() => {
                                 <Link
                                     :href="
                                         route
-                                            ? route('customers.addresses.index', { customer: user?.id })
-                                            : `/customers/${user?.id}/addresses`
+                                            ? route('checkout.addresses.index')
+                                            : '/checkout/addresses'
                                     "
                                     class="text-primary hover:underline"
                                 >
@@ -143,8 +143,8 @@ const statusClass = computed(() => {
                                 <Link
                                     :href="
                                         route
-                                            ? route('customers.addresses.create', { customer: user?.id })
-                                            : `/customers/${user?.id}/addresses/create`
+                                            ? route('checkout.addresses.create')
+                                            : '/checkout/addresses/create'
                                     "
                                     class="mt-2 inline-block text-primary hover:underline"
                                 >
