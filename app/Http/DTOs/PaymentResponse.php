@@ -2,6 +2,7 @@
 
 namespace App\Http\DTOs;
 
+use Illuminate\Http\JsonResponse;
 use Spatie\LaravelData\Data;
 
 class PaymentResponse extends Data
@@ -32,5 +33,22 @@ class PaymentResponse extends Data
             message: $message,
             errors: $errors
         );
+    }
+
+    /**
+     * Convert PaymentResponse to a JSON response with status code.
+     */
+    public function toJsonResponse(int $statusCode = null): JsonResponse
+    {
+        $status = $statusCode ?? ($this->success ? 200 : 400);
+
+        return response()->json([
+            'success' => $this->success,
+            'message' => $this->message,
+            'reference' => $this->reference,
+            'data' => $this->data,
+            'redirect_url' => $this->redirectUrl,
+            'errors' => $this->errors,
+        ], $status);
     }
 }

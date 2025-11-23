@@ -91,14 +91,16 @@ class MpesaProvider implements PaymentProviderInterface
 
     public function handleCallback(array $data): PaymentResponse
     {
+        $stk = $data['Body']['stkCallback'] ?? null;
+        if (!$stk) {
+            return PaymentResponse::failed('Invalid callback data');
+        }
+        if (Payment::where('provider_reference', $stk['CheckoutRequestID'])->exists()){
+            return PaymentResponse::failed('Payment already processed');
+//            ->toJsonResponse(400);
+        }
         try {
             Log::info('MPESA callback received', $data);
-
-            $stk = $data['Body']['stkCallback'] ?? null;
-            if (!$stk) {
-                return PaymentResponse::failed('Invalid callback data');
-            }
-
             $checkoutRequestId = $stk['CheckoutRequestID'];
             $mpesaRequest = MpesaRequest::where('checkout_request_id', $checkoutRequestId)->first();
 
@@ -201,8 +203,8 @@ class MpesaProvider implements PaymentProviderInterface
         );
 
         $description = sprintf(
-            "Payment for order %s",
-            $payment->payable->order_code ?? $payment->id
+            "Payment for Buyalot order %s", $payment->account_reference ??
+            $payment->payable->order_code
         );
 
         // Log request for auditing
@@ -268,8 +270,8 @@ class MpesaProvider implements PaymentProviderInterface
         try {
             $checkoutRequestId = $payment->metadata['checkout_request_id'] ?? null;
 
-            $timeout = 20; // seconds
-            $interval = 1; // seconds between retries
+            $timeout = 30; // seconds
+            $interval = 2; // seconds between retries
             $elapsed = 0;
 
             // Retry until we have a checkoutRequestId or timeout reached
