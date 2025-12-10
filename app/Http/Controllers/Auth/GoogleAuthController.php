@@ -41,24 +41,29 @@ class GoogleAuthController extends Controller
             DB::beginTransaction();
 
             // Try find existing customer by google_id or email
-            $customer = User::where('google_id', $googleUser->id)
+            $auth_user = User::where('google_id', $googleUser->id)
                 ->orWhere('email', $googleUser->email)
                 ->first();
 
-            if ($customer) {
-                $user = User::where('user_id', $customer->user_id)->first();
-                $user->update([
+            if ($auth_user) {
+//                $user = User::where('id', $auth_user ->id)->first();
+                $auth_user ->update([
                     'google_id' => $googleUser->id,
                     'avatar' => $googleUser->avatar,
                     'provider' => 'google',
-                    'provider_id' => $googleUser->id,
+//                    'provider_id' => $googleUser->id,
                     'provider_verified_at' => now(),
                     'email_verified_at' => $customer->email_verified_at ?? now(),
                     'last_login_at' => now(),
                 ]);
 
                 DB::commit();
-                Auth::guard('web')->login($user);
+                Auth::guard('web')->login($auth_user);
+                if (in_array($auth_user->user_type, ['user', 'vendor', 'seller'])) {
+                    logger("admin login with google auth");
+                    return redirect()->intended(route('admin.dashboard'))
+                        ->with('success', 'Welcome back, ' . $auth_user->name . '!');
+                }
                 request()->session()->regenerate();
                 return redirect()->intended(route('home'))
                     ->with('success', 'Welcome back, ' . $customer->first_name . '!');

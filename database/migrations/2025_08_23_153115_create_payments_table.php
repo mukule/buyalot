@@ -12,8 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         //TODO: only for the first time to clear old tables implementation
+        Schema::dropIfExists('payment_transactions');
         Schema::dropIfExists('payments');
-        Schema::dropIfExists('payments_transactions');
         Schema::create('payments', function (Blueprint $table) {
             $table->id();
             $table->ulid('ulid')->unique();
