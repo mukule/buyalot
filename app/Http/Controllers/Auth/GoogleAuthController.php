@@ -53,7 +53,7 @@ class GoogleAuthController extends Controller
                     'provider' => 'google',
 //                    'provider_id' => $googleUser->id,
                     'provider_verified_at' => now(),
-                    'email_verified_at' => $customer->email_verified_at ?? now(),
+                    'email_verified_at' => $auth_user->email_verified_at ?? now(),
                     'last_login_at' => now(),
                 ]);
 
@@ -61,12 +61,15 @@ class GoogleAuthController extends Controller
                 Auth::guard('web')->login($auth_user);
                 if (in_array($auth_user->user_type, ['user', 'vendor', 'seller'])) {
                     logger("admin login with google auth");
+                    request()->session()->regenerate();
                     return redirect()->intended(route('admin.dashboard'))
                         ->with('success', 'Welcome back, ' . $auth_user->name . '!');
                 }
-                request()->session()->regenerate();
-                return redirect()->intended(route('home'))
-                    ->with('success', 'Welcome back, ' . $customer->first_name . '!');
+                else {
+                    request()->session()->regenerate();
+                    return redirect()->intended(route('home'))
+                        ->with('success', 'Welcome back, ' . $auth_user->name . '!');
+                }
             }
 
             // Otherwise create a new customer
