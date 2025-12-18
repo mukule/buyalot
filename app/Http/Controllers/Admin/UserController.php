@@ -260,10 +260,12 @@ class UserController extends Controller
             'gender'=>'nullable|in:male,female,other',
         ]);
 
-        $user_details=UserDetail::find($user->id);
+        $user_details=UserDetail::find('user_id',$user->id);
         if ($user_details){
             $user_details->update([
                 "gender"=>$validated['gender'],
+                "phone"=>$validated['phone'],
+                "contact_name"=>$validated['name'],
             ]);
         }
         $user->update([
