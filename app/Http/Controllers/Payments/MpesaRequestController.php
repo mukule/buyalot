@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Payments;
 use App\Http\Controllers\Controller;
 use App\Http\DTOs\PaymentRequest;
 use App\Http\Requests\InitiatePaymentRequest;
+use App\Models\Orders\Order;
 use App\Models\Payment\MpesaRequest;
 use App\Services\PaymentService;
 use Illuminate\Http\JsonResponse;
@@ -27,7 +28,7 @@ class MpesaRequestController extends Controller
             $payable = $request->getPayable();
             // If paying for an order, ensure there is enough stock before allowing payment
             if ($request->input('payable_type') === 'order') {
-                /** @var \App\Models\Orders\Order $order */
+                /** @var Order $order */
                 $order = $payable->loadMissing(['orderItems.productVariant.product']);
 
                 // If already paid, block re-initiation

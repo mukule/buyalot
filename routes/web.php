@@ -79,7 +79,7 @@ Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard']
         ->name('products.updateStatus');
 
     Route::patch('warranties/{warranty}/toggle-active', [WarrantyController::class, 'toggleActive'])
-    ->name('warranties.toggleActive');
+        ->name('warranties.toggleActive');
 
     // Warehouses (admins and sellers)
     // NOTE: Define specific helper endpoints BEFORE the resource route to avoid being shadowed by warehouses.show
@@ -132,6 +132,9 @@ Route::middleware(['auth','role_or_permission:admin|view-orders'])->prefix('admi
 
 Route::middleware(['auth','role_or_permission:admin|view-categories'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/categories', [\App\Http\Controllers\Admin\CategoryController::class, 'index'])->name('categories.index');
+    Route::get('/categories/{id}', [\App\Http\Controllers\Admin\CategoryController::class, 'update'])->name('categories.update');
+    Route::get('/categorie', [\App\Http\Controllers\Admin\CategoryController::class, 'create'])->name('categories.create');
+    Route::post('/categories', [\App\Http\Controllers\Admin\CategoryController::class, 'store'])->name('categories.store');
 });
 
 Route::middleware(['auth','role_or_permission:admin|view-brands'])->prefix('admin')->name('admin.')->group(function () {
@@ -160,7 +163,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::delete('/{user}', [UserController::class, 'destroy'])->name('users.destroy');
         });
         Route::middleware(['check_permission:activate-deactivate-users'])->group(function () {
-        Route::post('/{user}/update-status', [UserController::class, 'updateStatus'])->name('users.update-status');
+            Route::post('/{user}/update-status', [UserController::class, 'updateStatus'])->name('users.update-status');
         });
 
         Route::middleware(['check_permission:view-seller-applications'])->group(function () {

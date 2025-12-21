@@ -1171,7 +1171,7 @@ const resetApplication = async () => {
                                 Opt in to share your contact details, product range and website with South African distributors who are sellers on
                                 buyalot.com.
                                 <br />
-                                For international sellers who cannot sell directly on buyalot.com, allow us to share your contact information with our
+                                For international sellers who cannot sell directly on buyalotltd.com, allow us to share your contact information with our
                                 sellers who may purchase and list your product range.
                             </p>
 

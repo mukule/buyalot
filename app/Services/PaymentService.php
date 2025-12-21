@@ -62,8 +62,7 @@ class PaymentService
         return $provider->initialize($log, $request);
     }
 
-    public function createMpesaRequest($payable, PaymentRequest $request)
-    {
+    public function createMpesaRequest($payable, PaymentRequest $request){
         $order=Order::find($payable->id);
         $reference = $this->generateReference();
         return MpesaRequest::create([
@@ -72,6 +71,7 @@ class PaymentService
             'reference' => $reference,
             'account_reference' => $order->order_code,
             'request_code' => $reference,
+            'phone' => $request->phone,
             'amount' => $request->amount,
             'currency' => $request->currency,
             'status' => PaymentStatus::INITIALIZED->value,

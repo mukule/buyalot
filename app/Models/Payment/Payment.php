@@ -29,6 +29,8 @@ class Payment extends Model
         'completed_at',
         'payable_type',
         'payable_id',
+        'mpesa_receipt_number',
+        'verified_at',
     ];
 
     protected $casts = [
