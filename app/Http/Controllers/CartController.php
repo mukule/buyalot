@@ -21,6 +21,41 @@ use Illuminate\Support\Facades\Storage;
 
 class CartController extends Controller
 {
+
+
+    
+    public function index(Request $request, CartReservationService $cartService)
+{
+    $cart = $cartService->getCart($request);
+
+    
+    $cart->load('items.productVariant.product.primaryImage');
+
+    
+    $totalAmount = 0;     
+    $totalDiscount = 0;  
+    $totalPayable = 0;    
+
+    foreach ($cart->items as $item) {
+        $totalAmount += $item->marked_price * $item->quantity;
+        $totalDiscount += $item->discount_amount * $item->quantity;
+        $totalPayable += $item->unit_price * $item->quantity;
+    }
+
+    $summary = [
+        'total_amount'   => round($totalAmount, 2),
+        'total_discount' => round($totalDiscount, 2),
+        'total_payable'  => round($totalPayable, 2),
+    ];
+
+    return Inertia::render('Frontend/Cart', [
+        'cart'    => $cart,
+        'summary' => $summary,
+    ]);
+}
+
+
+
    
 
     public function checkout(
