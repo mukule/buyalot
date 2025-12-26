@@ -344,19 +344,19 @@
             </div>
 
             <!-- Additional Info -->
-            <div style="background-color: #fef3c7; border: 1px solid #85f142; border-radius: 8px; padding: 20px; margin: 30px 0; text-align: center;">
-                <h4 style="color: #4a7e29; margin: 0 0 10px 0; font-size: 16px;">🎉 New Member Bonus!</h4>
-                <p style="color: #6fa64c; margin: 0; font-size: 14px;">
-                    Use code <strong>WELCOME20</strong> to get 20% off your first order (minimum KES 1,000)
-                </p>
-            </div>
+{{--            <div style="background-color: #fef3c7; border: 1px solid #85f142; border-radius: 8px; padding: 20px; margin: 30px 0; text-align: center;">--}}
+{{--                <h4 style="color: #4a7e29; margin: 0 0 10px 0; font-size: 16px;">🎉 New Member Bonus!</h4>--}}
+{{--                <p style="color: #6fa64c; margin: 0; font-size: 14px;">--}}
+{{--                    Use code <strong>WELCOME20</strong> to get 20% off your first order (minimum KES 1,000)--}}
+{{--                </p>--}}
+{{--            </div>--}}
         </div>
 
         <!-- Footer -->
         <div class="footer">
             <p class="footer-text">
                 Questions? Contact our friendly customer support team at
-                <a href="mailto:support@{{ parse_url(config('app.url'), PHP_URL_HOST) ?? 'buyalot.com' }}" style="color: #667eea;">
+                <a href="mailto:support@{{ parse_url(config('app.url'), PHP_URL_HOST) ?? 'buyalotltd.com' }}" style="color: #667eea;">
                     support@{{ parse_url(config('app.url'), PHP_URL_HOST) ?? 'buyalot.com' }}
                 </a>
             </p>

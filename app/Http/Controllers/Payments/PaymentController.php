@@ -51,7 +51,7 @@ class PaymentController extends Controller
 
     public function show(Payment $payment): \Inertia\Response
     {
-        $payment->load(['transactions', 'payable']);
+        $payment->load(['payable']);
 
         return Inertia::render('Admin/Payments/Show', [
             'payment' => $payment,

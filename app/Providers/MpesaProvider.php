@@ -11,6 +11,7 @@ use App\Models\Payment\Payment;
 use App\Models\Payment\PaymentStatus;
 use App\Models\Payment\PaymentTransaction;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -194,6 +195,7 @@ class MpesaProvider implements PaymentProviderInterface
 
     private function initiateStkPush(MpesaRequest $payment, string $phone): array
     {
+        info("initiateStkPush");
         $timestamp = now()->format('YmdHis');
 
         $password = base64_encode(
@@ -206,6 +208,8 @@ class MpesaProvider implements PaymentProviderInterface
             "Payment for Buyalot order %s", $payment->account_reference ??
             $payment->payable->order_code
         );
+
+        info($description);
 
         // Log request for auditing
         $payment->request_payload = [
@@ -397,12 +401,16 @@ class MpesaProvider implements PaymentProviderInterface
 
         try {
             $credentials = base64_encode(
-                $this->config['consumer_key'] . ':' . $this->config['consumer_secret']
+                trim($this->config['consumer_key']) . ':' . trim($this->config['consumer_secret'])
             );
 
             $response = Http::withHeaders([
                 'Authorization' => 'Basic ' . $credentials,
-            ])->timeout(30)->get($this->config['auth_url']);
+            ])
+                ->timeout(30)
+                ->get($this->config['auth_url'], [
+                    'grant_type' => 'client_credentials',
+                ]);
 
             if ($response->successful()) {
                 $data = $response->json();
@@ -410,14 +418,27 @@ class MpesaProvider implements PaymentProviderInterface
                 return $this->accessToken;
             }
 
-            Log::error('M-Pesa auth failed', $response->json());
+            Log::error('M-Pesa auth failed', [
+                'status' => $response->status(),
+                'response' => $response->json(),
+            ]);
+
             return null;
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('M-Pesa auth exception', ['error' => $e->getMessage()]);
             return null;
         }
     }
+
+    //cache the safaricom token
+    private function getCachedAccessToken(): ?string
+    {
+        return Cache::remember('mpesa_access_token', 3500, function () {
+            return $this->getAccessToken();
+        });
+    }
+
 
     private function formatPhoneNumber(string $phone): ?string
     {
