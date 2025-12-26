@@ -15,53 +15,55 @@ use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use App\Services\ShippingService;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+
 
 
 class CartController extends Controller
 {
    
 
-public function checkout(
+    public function checkout(
     Request $request,
     CartReservationService $cartService,
     FrontendProductService $productService,
     ShippingService $shippingService
 ) {
+    // Load cart with product info
     $cart = $cartService->getCart($request);
-    $cart->load('items.productVariant.product.primaryImage');
+    $cart->load('items.productVariant.product.primaryImage', 'items.productVariant.product.images');
 
     $variantIds = $cart->items->pluck('product_variant_id')->filter()->all();
     $priceData = $productService->getPriceForVariants(
         ProductVariant::whereIn('id', $variantIds)->get()
     );
 
+    // Map cart items
     $presentedItems = $cart->items->map(function ($it) use ($priceData) {
         $variant = $it->productVariant;
         $product = $variant?->product;
 
-        $finalPrice = $priceData[$variant->id]['final_price']
-                    ?? ($variant?->selling_price ?? 0);
-
-        // 🔥 Get owner data using your existing method
-        $ownerInfo = $variant?->getOwnerInfo() ?? null;
+        $finalPrice = $priceData[$variant->id]['final_price'] ?? ($variant?->selling_price ?? 0);
+        $ownerInfo = $variant?->getOwnerInfo();
 
         return [
-            'id'        => $it->id,
-            'quantity'  => $it->quantity,
-            'unit_price'=> $finalPrice,
-
-            'product' => [
+            'id'          => $it->id,
+            'quantity'    => $it->quantity,
+            'unit_price'  => $finalPrice,
+            'total_price' => $finalPrice * $it->quantity,
+            'product'     => [
                 'id'                => $product?->id,
-                'name'              => $product?->name,
-                'primary_image_url' => $product?->primary_image_url ?? null,
+                'name'              => $product?->name ?? '',
+                'slug'              => $product?->slug ?? '',
+                'primary_image_url' => $product?->primary_image_url
+                    ?? ($product?->images->first()?->image_path
+                        ? Storage::disk('s3')->url($product->images->first()->image_path)
+                        : '/fallback-image.png'),
             ],
-
             'variant' => [
                 'id'          => $variant?->id,
                 'final_price' => $finalPrice,
             ],
-
-            // 🔥 Owner (same style as productDetails)
             'owner' => $ownerInfo ? [
                 'type' => $ownerInfo['type'],
                 'name' => $ownerInfo['name'],
@@ -69,7 +71,13 @@ public function checkout(
         ];
     });
 
+    // Cart totals (without shipping)
+    $totals = $cart->calculateTotals();
+    $cartTotal = $totals['grand_total'] ?? 0;
+
+    // Coupon handling
     $couponCode = $request->get('coupon_code');
+    $couponAmount = 0;
     $appliedDiscount = null;
     $couponError = null;
 
@@ -85,96 +93,86 @@ public function checkout(
                 'code' => $discountObj->code,
                 'name' => $discountObj->name,
             ];
+
+            $couponAmount = $discountObj->type === 'percent'
+                ? round($cartTotal * ($discountObj->value / 100), 2)
+                : min($discountObj->value, $cartTotal);
         } else {
             $couponError = 'Coupon code not found or has expired.';
         }
     }
 
+    // Retrieve default address (or first if no default)
     $customer = auth()->user()?->customer;
-    $addresses = collect();
-    $defaultAddressId = null;
+    $shippingCost = 0;
+    $selectedShipping = null;
+    $defaultAddress = null;
 
     if ($customer) {
-        $customerAddresses = $customer->addresses()
+        $defaultAddress = $customer->addresses()
             ->with('pickupPoint.region')
-            ->get();
+            ->orderByDesc('is_default')
+            ->first();
 
-        $addresses = $customerAddresses->map(function ($addr) use ($shippingService) {
-            $regionId = $addr->pickupPoint?->region?->id;
+        if ($defaultAddress) {
+            $regionId = data_get($defaultAddress, 'pickupPoint.region.id');
+            $shippingOptions = $regionId ? $shippingService->getOptionsByRegion($regionId) : [];
 
-            $shippingOptions = $regionId
-                ? $shippingService->getOptionsByRegion($regionId)
-                : null;
+            if (isset($shippingOptions['pickup'])) {
+                $selectedShipping = [
+                    'method' => 'pickup',
+                    'cost'   => $shippingOptions['pickup']['cost'],
+                    'days'   => $shippingOptions['pickup']['days'],
+                    'region' => data_get($defaultAddress, 'pickupPoint.region.name'),
+                ];
 
-            return [
-                'id'           => $addr->id,
-                'first_name'   => $addr->first_name,
-                'last_name'    => $addr->last_name,
-                'phone'        => $addr->phone,
-                'address'      => $addr->address_line_1,
-                'region'       => $addr->pickupPoint?->region?->name,
-                'pickup_point' => $addr->pickupPoint?->name,
-                'is_default'   => $addr->is_default,
-                'shipping'     => $shippingOptions,
-            ];
-        });
+                $shippingCost = $shippingOptions['pickup']['cost'];
 
-        $defaultAddressId = optional($addresses->firstWhere('is_default', true))->id
-            ?? optional($addresses->first())->id;
+                // Log the retrieved address and shipping
+                Log::info('Selected checkout address and shipping', [
+                    'address_id'        => $defaultAddress->id,
+                    'address_name'      => $defaultAddress->first_name . ' ' . $defaultAddress->last_name,
+                    'region'            => data_get($defaultAddress, 'pickupPoint.region.name'),
+                    'pickup_point'      => data_get($defaultAddress, 'pickupPoint.name'),
+                    'selected_shipping' => $selectedShipping,
+                    'shipping_cost'     => $shippingCost,
+                ]);
+            }
+        }
     }
 
-    $totals = $cart->calculateTotals();
+    $defaultAddressId = $defaultAddress?->id ?? null;
+
+    // Final totals
+    $grandTotal = $cartTotal + $shippingCost - $couponAmount;
+
+    // Related products
+    $topVariant = $cart->items->sortByDesc('quantity')->first()?->productVariant;
+    $relatedProducts = $topVariant ? $productService->getRelatedProducts($topVariant) : collect();
 
     return Inertia::render('Frontend/Checkout/Summary', [
         'cart' => [
-            'items'          => $presentedItems,
-            'counts'         => [
-                'unique_items' => $totals['unique_items'],
-                'total_qty'    => $totals['total_quantity'],
+            'items' => $presentedItems,
+            'counts' => [
+                'unique_items' => $totals['unique_items'] ?? 0,
+                'total_qty'    => $totals['total_quantity'] ?? 0,
             ],
-            'totals'         => [
-                'subtotal' => $totals['grand_total'],
+            'totals' => [
+                'subtotal'        => $cartTotal,
+                'shipping'        => $shippingCost,
+                'coupon_discount' => $couponAmount,
+                'grand_total'     => $grandTotal,
             ],
             'applied_coupon' => $appliedDiscount,
             'coupon_code'    => $couponCode,
             'coupon_error'   => $couponError,
         ],
 
-        'customer_addresses'  => $addresses,
+        'selected_shipping'  => $selectedShipping,
+        'customer_addresses' => $defaultAddress ? collect([$defaultAddress]) : collect(),
         'shipping_address_id' => $defaultAddressId,
         'billing_address_id'  => $defaultAddressId,
-    ]);
-}
-
-
-   
-    public function index(Request $request, CartReservationService $cartService)
-{
-    $cart = $cartService->getCart($request);
-
-    
-    $cart->load('items.productVariant.product.primaryImage');
-
-    
-    $totalAmount = 0;     
-    $totalDiscount = 0;  
-    $totalPayable = 0;    
-
-    foreach ($cart->items as $item) {
-        $totalAmount += $item->marked_price * $item->quantity;
-        $totalDiscount += $item->discount_amount * $item->quantity;
-        $totalPayable += $item->unit_price * $item->quantity;
-    }
-
-    $summary = [
-        'total_amount'   => round($totalAmount, 2),
-        'total_discount' => round($totalDiscount, 2),
-        'total_payable'  => round($totalPayable, 2),
-    ];
-
-    return Inertia::render('Frontend/Cart', [
-        'cart'    => $cart,
-        'summary' => $summary,
+        'relatedProducts'     => $relatedProducts,
     ]);
 }
 
@@ -360,161 +358,149 @@ public function store(Request $request, CartReservationService $cartService)
 
    
 
-    public function payment(Request $request, CartReservationService $cartService)
-    {
-        $cart = $cartService->getCart($request);
-        $cart->load('items.productVariant.product.primaryImage');
+public function payment(
+    Request $request,
+    CartReservationService $cartService,
+    FrontendProductService $productService,
+    ShippingService $shippingService
+) {
+    // Load cart with product info
+    $cart = $cartService->getCart($request);
+    $cart->load('items.productVariant.product.primaryImage', 'items.productVariant.product.images');
 
-        $items = $cart->items;
-        $subtotal = 0.0;
-        $perItemDiscountTotal = 0.0;
-        $presentedItems = [];
+    // Map cart items
+    $presentedItems = $cart->items->map(function ($it) {
+        $variant = $it->productVariant;
+        $product = $variant?->product;
 
-        foreach ($items as $it) {
-            $variant = $it->productVariant;
-            $product = $variant?->product;
-            $qty = (int) $it->quantity;
-            $unitPrice = (float) ($variant?->selling_price ?? $it->unit_price ?? 0);
-            $perUnitDiscount = max(0, (float)($variant?->regular_price ?? 0) - (float)($variant?->selling_price ?? 0));
+        $unitPrice = $variant?->selling_price ?? 0;
+        $ownerInfo = $variant?->getOwnerInfo();
 
-            $lineSubtotal = $unitPrice * $qty;
-            $lineDiscount = $perUnitDiscount * $qty;
+        return [
+            'id'          => $it->id,
+            'quantity'    => $it->quantity,
+            'unit_price'  => $unitPrice,
+            'total_price' => $unitPrice * $it->quantity,
+            'product'     => [
+                'id'                => $product?->id,
+                'name'              => $product?->name ?? '',
+                'slug'              => $product?->slug ?? '',
+                'primary_image_url' => $product?->primary_image_url
+                    ?? ($product?->images->first()?->image_path
+                        ? Storage::disk('s3')->url($product->images->first()->image_path)
+                        : '/fallback-image.png'),
+            ],
+            'variant' => [
+                'id'          => $variant?->id,
+                'final_price' => $unitPrice,
+            ],
+            'owner' => $ownerInfo ? [
+                'type' => $ownerInfo['type'],
+                'name' => $ownerInfo['name'],
+            ] : null,
+        ];
+    });
 
-            $subtotal += $lineSubtotal;
-            $perItemDiscountTotal += $lineDiscount;
+    // Cart totals (without shipping)
+    $totals = $cart->calculateTotals();
+    $cartTotal = $totals['grand_total'] ?? 0;
 
-            $presentedItems[] = [
-                'id' => $it->id,
-                'quantity' => $qty,
-                'unit_price' => $unitPrice,
-                'line_subtotal' => $lineSubtotal,
-                'line_discount' => $lineDiscount,
-                'product' => [
-                    'id' => $product?->id,
-                    'name' => $product?->name,
-                    'primary_image_url' => $product?->primary_image_url ?? null,
-                ],
-                'variant' => [
-                    'id' => $variant?->id,
-                    'sku' => $variant?->sku,
-                    'regular_price' => $variant?->regular_price,
-                    'selling_price' => $variant?->selling_price,
-                ],
-            ];
-        }
+    // Coupon handling
+    $couponCode = $request->get('coupon_code');
+    $couponAmount = 0;
+    $appliedDiscount = null;
+    $couponError = null;
 
-        // Coupon (optional - via query or state)
-        $couponCode = $request->get('coupon_code');
-        $couponDiscount = 0.0;
-        $appliedDiscount = null;
-        $discountObj = null;
-        if ($couponCode) {
-            $discountObj = \App\Models\Payment\Discount::query()->active()->byCode($couponCode)->first();
-            if ($discountObj) {
-                $itemsForDiscount = array_map(function ($ci) {
-                    return [
-                        'product_id' => $ci['product']['id'] ?? null,
-                        'product_variant_id' => $ci['variant']['id'] ?? null,
-                        'quantity' => $ci['quantity'],
-                        'unit_price' => $ci['unit_price'],
-                    ];
-                }, $presentedItems);
-                $couponDiscount = (float) $discountObj->calculateDiscount($subtotal, $itemsForDiscount, [
-                    'order_subtotal' => $subtotal,
-                ]);
-                if ($couponDiscount > 0) {
-                    $appliedDiscount = [
-                        'type' => $discountObj->type,
-                        'code' => $discountObj->code,
-                        'name' => $discountObj->name,
-                        'amount' => round($couponDiscount, 2),
-                    ];
-                }
-            }
-        }
-
-        // Shipping estimate (optional)
-        $shippingAmount = 0.0;
-        $shippingEstimate = null;
-        if ($request->filled('distance_km')) {
-            /** @var \App\Services\ShippingService $shippingService */
-            $shippingService = app(\App\Services\ShippingService::class);
-            $itemsForShipping = array_map(function ($ci) {
-                return [
-                    'product_variant_id' => $ci['variant']['id'] ?? null,
-                    'quantity' => $ci['quantity'],
-                    'unit_price' => $ci['unit_price'],
-                ];
-            }, $presentedItems);
-            $shippingEstimate = $shippingService->estimate($itemsForShipping, (float)$request->get('distance_km'));
-            $shippingAmount = (float)$shippingEstimate['amount'];
-        }
+    if ($couponCode) {
+        $discountObj = \App\Models\Payment\Discount::query()
+            ->active()
+            ->byCode($couponCode)
+            ->first();
 
         if ($discountObj) {
-            $conditions = $discountObj->conditions ?? [];
-            $appliesTo = $conditions['applies_to'] ?? null;
-            if ($discountObj->type === 'free_shipping' || $appliesTo === 'shipping') {
-                $shipSave = $shippingAmount;
-                if ($shipSave > 0) {
-                    $shippingAmount = 0.0;
-                    $couponDiscount += $shipSave;
-                    if ($appliedDiscount) {
-                        $appliedDiscount['amount'] = round(($appliedDiscount['amount'] ?? 0) + $shipSave, 2);
-                    } else {
-                        $appliedDiscount = [
-                            'type' => $discountObj->type,
-                            'code' => $discountObj->code,
-                            'name' => $discountObj->name,
-                            'amount' => round($shipSave, 2),
-                        ];
-                    }
-                }
+            $appliedDiscount = [
+                'type' => $discountObj->type,
+                'code' => $discountObj->code,
+                'name' => $discountObj->name,
+            ];
+
+            $couponAmount = $discountObj->type === 'percent'
+                ? round($cartTotal * ($discountObj->value / 100), 2)
+                : min($discountObj->value, $cartTotal);
+        } else {
+            $couponError = 'Coupon code not found or has expired.';
+        }
+    }
+
+    // Customer & default address
+    $customer = auth()->user()?->customer;
+    $defaultAddress = null;
+    $selectedShipping = null;
+    $shippingCost = 0;
+
+    if ($customer) {
+        $defaultAddress = $customer->addresses()
+            ->with('pickupPoint.region')
+            ->orderByDesc('is_default')
+            ->first();
+
+        if ($defaultAddress) {
+            $regionId = data_get($defaultAddress, 'pickupPoint.region.id');
+            $shippingOptions = $regionId ? $shippingService->getOptionsByRegion($regionId) : [];
+
+            if (isset($shippingOptions['pickup'])) {
+                $selectedShipping = [
+                    'method' => 'pickup',
+                    'cost'   => $shippingOptions['pickup']['cost'],
+                    'days'   => $shippingOptions['pickup']['days'],
+                    'region' => data_get($defaultAddress, 'pickupPoint.region.name'),
+                ];
+
+                $shippingCost = $shippingOptions['pickup']['cost'];
             }
         }
-
-        $discountTotal = round($perItemDiscountTotal + $couponDiscount, 2);
-        $taxAmount = 0.0;
-        $grandTotal = round($subtotal + $taxAmount + $shippingAmount - $discountTotal, 2);
-
-        $defaultPhone = optional(auth()->user())->phone
-            ?? optional(auth()->user()?->customer)->phone
-            ?? '';
-
-        $customer = auth()->user()?->customer;
-        $addresses = [];
-        $defaultShippingId = null;
-        if ($customer) {
-            // Fetch all columns; model exposes state, country, and coordinates via accessors/appends
-            $addresses = $customer->addresses()->orderByDesc('is_default')->get();
-            $defaultShippingId = optional($customer->defaultAddress)->id;
-        }
-
-        return Inertia::render('Frontend/Checkout/Payment', [
-            'cart' => [
-                'items' => $presentedItems,
-                'counts' => [
-                    'unique_items' => count($presentedItems),
-                    'total_qty' => array_sum(array_map(fn($i)=>$i['quantity'], $presentedItems)),
-                ],
-                'totals' => [
-                    'subtotal' => $subtotal,
-                    'per_item_discount' => $perItemDiscountTotal,
-                    'coupon_discount' => $couponDiscount,
-                    'discount_total' => $discountTotal,
-                    'shipping' => $shippingAmount,
-                    'tax' => $taxAmount,
-                    'grand_total' => $grandTotal,
-                ],
-                'applied_coupon' => $appliedDiscount,
-                'coupon_code' => $couponCode,
-            ],
-            'shipping_estimate' => $shippingEstimate,
-            'distance_km' => $request->get('distance_km'),
-            'default_phone' => $defaultPhone,
-                        'customer_addresses' => $addresses,
-                        'shipping_address_id' => $defaultShippingId,
-                        'billing_address_id' => $defaultShippingId,
-        ]);
     }
+
+    // Default phone: use address first, fallback to user
+    $defaultPhone = $defaultAddress?->phone
+        ?? optional(auth()->user())->phone
+        ?? '';
+
+    $defaultAddressId = $defaultAddress?->id ?? null;
+
+    // Final totals
+    $grandTotal = $cartTotal + $shippingCost - $couponAmount;
+
+    // Related products
+    $topVariant = $cart->items->sortByDesc('quantity')->first()?->productVariant;
+    $relatedProducts = $topVariant ? $productService->getRelatedProducts($topVariant) : collect();
+
+    return Inertia::render('Frontend/Checkout/Payment', [
+        'cart' => [
+            'items' => $presentedItems,
+            'counts' => [
+                'unique_items' => $presentedItems->count(),
+                'total_qty'    => $presentedItems->sum('quantity'),
+            ],
+            'totals' => [
+                'subtotal'        => $cartTotal,
+                'shipping'        => $shippingCost,
+                'coupon_discount' => $couponAmount,
+                'grand_total'     => $grandTotal,
+            ],
+            'applied_coupon' => $appliedDiscount,
+            'coupon_code'    => $couponCode,
+            'coupon_error'   => $couponError,
+        ],
+
+        'selected_shipping'  => $selectedShipping,
+        'customer_addresses' => $defaultAddress ? collect([$defaultAddress]) : collect(),
+        'shipping_address_id' => $defaultAddressId,
+        'billing_address_id'  => $defaultAddressId,
+        'default_phone'       => $defaultPhone,
+        'relatedProducts'     => $relatedProducts,
+    ]);
+}
+
 
 }

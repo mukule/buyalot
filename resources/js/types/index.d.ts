@@ -401,15 +401,15 @@ export interface Product {
 }
 
 export interface SimplifiedProduct {
-    id: number; // variant id
-    hashid: string; // variant hashid
-    product_slug: string; // product slug for detail link
+    id: number;
+    hashid: string;
+    product_slug: string;
     name: string;
     image: string | null;
-    marked_price: number; // original/marked price
-    final_price: number; // after applying discounts
-    discount_percent: number; // discount percentage if any
-    has_discount: boolean; // whether discount exists
+    marked_price: number;
+    final_price: number;
+    discount_percent: number;
+    has_discount: boolean;
     rating?: number;
 }
 

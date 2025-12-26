@@ -45,12 +45,12 @@ const simplifiedProductsByCategory: Record<number, SimplifiedProduct[]> = Object
             final_price: p.final_price ?? 0,
             discount_percent: p.discount_percent ?? 0,
             has_discount: p.has_discount ?? false,
-            rating: 3, // placeholder rating
+            rating: 3,
         })),
     ]),
 );
 
-// ✅ Only show categories with at least 2 products
+//Only show categories with at least 2 products
 const filteredCategories = categories.filter((category) => (simplifiedProductsByCategory[category.id]?.length ?? 0) >= 2);
 </script>
 

@@ -229,7 +229,7 @@ public function store(CustomerAddressRequest $request)
     }
 
     $data = $request->validated();
-    $data['is_default'] = boolval($request->input('is_default', false)); // ensure boolean
+    $data['is_default'] = boolval($request->input('is_default', false)); 
 
     $address = $customer->addresses()->create($data);
 

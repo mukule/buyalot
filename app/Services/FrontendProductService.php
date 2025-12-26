@@ -173,43 +173,44 @@ protected function fetchRelatedVariants(ProductVariant $variant, $categoryIds, $
 }
 
 
+private function normalizeVariant(ProductVariant $variant, array $priceData = []): array
+{
+    $product = $variant->product;
 
-    private function normalizeVariant(ProductVariant $variant, array $priceData = []): array
-    {
-        $product = $variant->product;
+    $image = $product->primaryImageUrl
+        ?? ($product->images->first()?->image_path
+            ? Storage::disk('s3')->url($product->images->first()->image_path)
+            : '/fallback-image.png');
 
-        $image = $product->primaryImageUrl
-            ?? ($product->images->first()?->image_path
-                ? Storage::disk('s3')->url($product->images->first()->image_path)
-                : '/fallback-image.png');
+    $priceInfo = $priceData[$variant->id] ?? [];
 
-        $priceInfo = $priceData[$variant->id] ?? null;
+    $markedPrice = $variant->marked_price ?? 0;
+    $totalDiscount = $priceInfo['total_discount'] ?? 0;
 
-        $markedPrice = $variant->marked_price ?? 0;
-        $finalPrice = $priceInfo['selling_price'] ?? $markedPrice;
-        $totalDiscount = $priceInfo['total_discount'] ?? 0;
+    // Compute final price by subtracting discount from marked price
+    $finalPrice = max(0, $markedPrice - $totalDiscount);
 
-        $discountPercent = 0;
-        if ($markedPrice > 0 && $totalDiscount > 0) {
-            $discountPercent = round(($totalDiscount / $markedPrice) * 100, 2);
-        }
-
-        return [
-            'id'                => $variant->id,
-            'variant_hashid'    => $variant->hashid,
-            'product_id'        => $product?->id,
-            'product_slug'      => $product?->slug ?? '',
-            'name'              => $variant->display_name ?? $product?->name,
-            'product_name'      => $product?->name,
-            'marked_price'      => round($markedPrice, 2),
-            'final_price'       => round($finalPrice, 2),
-            'discount_percent'  => $discountPercent,
-            'has_discount'      => $totalDiscount > 0,
-            'in_stock'          => $variant->in_stock,
-            'brand'             => $product?->brand?->name,
-            'primary_image_url' => $image,
-        ];
+    $discountPercent = 0;
+    if ($markedPrice > 0 && $totalDiscount > 0) {
+        $discountPercent = round(($totalDiscount / $markedPrice) * 100, 2);
     }
+
+    return [
+        'id'                => $variant->id,
+        'variant_hashid'    => $variant->hashid,
+        'product_id'        => $product?->id,
+        'product_slug'      => $product?->slug ?? '',
+        'name'              => $variant->display_name ?? $product?->name,
+        'product_name'      => $product?->name,
+        'marked_price'      => round($markedPrice, 2),
+        'final_price'       => round($finalPrice, 2),
+        'discount_percent'  => $discountPercent,
+        'has_discount'      => $totalDiscount > 0,
+        'in_stock'          => $variant->in_stock,
+        'brand'             => $product?->brand?->name,
+        'primary_image_url' => $image,
+    ];
+}
 
 
     public function getPriceForVariants($variants): array

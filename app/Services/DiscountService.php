@@ -22,9 +22,9 @@ class DiscountService
 
             $discounts = $variant->discounts->merge($variant->product->discounts ?? collect());
 
-            if ($discounts->isEmpty()) {
-                Log::debug('No discounts found for variant', ['variant_id' => $variant->id]);
-            }
+            // if ($discounts->isEmpty()) {
+            //     Log::debug('No discounts found for variant', ['variant_id' => $variant->id]);
+            // }
 
             foreach ($discounts as $discount) {
                 if (!$discount->is_active) continue;

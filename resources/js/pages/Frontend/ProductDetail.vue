@@ -239,7 +239,7 @@ watch(selectedRegionId, updatePickupPoints);
                                             v-if="displayPrice.has_discount && displayPrice.discount_percent"
                                             class="ml-2 rounded bg-secondary/75 px-2 py-1 text-xs font-bold text-white"
                                         >
-                                            {{ displayPrice.discount_percent }}% OFF
+                                            {{ Math.round(displayPrice.discount_percent) }} % OFF
                                         </span>
                                     </p>
                                     <p

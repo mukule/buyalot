@@ -40,18 +40,18 @@ class Cart extends Model
         return $this->hasMany(CartItem::class);
     }
 
-    // In App\Models\Cart.php
+    
 
 public function calculateTotals(): array
 {
-    $items = $this->items; // Cart hasMany CartItem
+    $items = $this->items; 
 
     $subtotal = 0;
     $totalDiscount = 0;
     $totalQty = 0;
 
     foreach ($items as $item) {
-        $lineSubtotal = ($item->unit_price ?? 0) * ($item->quantity ?? 0);
+        $lineSubtotal = ($item->marked_price ?? 0) * ($item->quantity ?? 0);
         $lineDiscount = ($item->discount_amount ?? 0) * ($item->quantity ?? 0);
 
         $subtotal += $lineSubtotal;

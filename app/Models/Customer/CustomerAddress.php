@@ -8,11 +8,14 @@ use Illuminate\Support\Str;
 
 class CustomerAddress extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'customer_id', 'pickup_point_id', 'type', 'label', 'first_name', 'last_name',
         'company', 'address_line_1', 'address_line_2', 'city',
         'state_province', 'postal_code', 'country_code', 'country_name', 'phone', 'is_default',
         'latitude', 'longitude', 'delivery_instructions', 'is_validated', 'validation_data',
+        'uuid',
     ];
 
     protected $casts = [
@@ -27,13 +30,14 @@ class CustomerAddress extends Model
     {
         parent::boot();
 
-        // Auto-generate UUID on creating
         static::creating(function ($address) {
-//            if (empty($address->uuid)) {
-//                $address->uuid = (string) Str::uuid();
-//            }
 
-            // If a new address is marked default, reset others BEFORE saving
+            // 🔹 Auto-generate UUID if missing
+            if (empty($address->uuid)) {
+                $address->uuid = (string) Str::uuid();
+            }
+
+            // 🔹 If a new address is marked default, reset others BEFORE saving
             if ($address->is_default) {
                 static::withoutEvents(function () use ($address) {
                     static::where('customer_id', $address->customer_id)
@@ -135,20 +139,18 @@ class CustomerAddress extends Model
             'customer_id' => $this->customer_id,
         ]);
 
-        // Reset all other defaults without triggering events
         static::withoutEvents(function () {
             static::where('customer_id', $this->customer_id)
                 ->where('type', $this->type)
                 ->update(['is_default' => false]);
         });
 
-        // Mark this address as default without triggering recursive update events
         $this->is_default = true;
         $this->saveQuietly();
 
         \Log::info('--- Finished makeDefault() ---', [
             'target_address_id' => $this->id,
-            'new_is_default' => $this->refresh()->is_default,
+            'new_is_default'   => $this->refresh()->is_default,
         ]);
     }
 
@@ -167,11 +169,11 @@ class CustomerAddress extends Model
         }
 
         return [
-            'first_name' => $this->first_name,
-            'last_name' => $this->last_name,
-            'phone' => $this->phone,
-            'address' => $this->address_line_1,
-            'region' => $regionName,
+            'first_name'   => $this->first_name,
+            'last_name'    => $this->last_name,
+            'phone'        => $this->phone,
+            'address'      => $this->address_line_1,
+            'region'       => $regionName,
             'pickup_point' => $this->pickup_point_id,
         ];
     }

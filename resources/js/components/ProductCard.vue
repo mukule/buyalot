@@ -75,7 +75,7 @@ const addToCart = () => {
             v-if="product.has_discount && product.discount_percent > 0"
             class="absolute top-2 right-2 z-10 rounded bg-secondary/75 px-2 py-1 text-xs font-bold text-white"
         >
-            {{ product.discount_percent }}% OFF
+            {{ Math.round(product.discount_percent) }} % OFF
         </span>
 
         <Link :href="`/products/${encodeURIComponent(product.product_slug)}?v=${encodeURIComponent(product.id)}`" class="relative block flex-1">
@@ -97,10 +97,6 @@ const addToCart = () => {
                 <div class="mt-1 space-x-2 text-sm">
                     <span class="font-semibold text-primary">
                         {{ formatPrice(product.final_price) }}
-                    </span>
-
-                    <span v-if="product.has_discount && product.marked_price > product.final_price" class="text-xs text-gray-400 line-through">
-                        {{ formatPrice(product.marked_price) }}
                     </span>
                 </div>
 

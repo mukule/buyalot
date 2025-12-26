@@ -258,7 +258,7 @@ const formatPrice = (amount: number | string | null) => {
                             <span
                                 v-if="product.discount_percent > 0"
                                 class="absolute top-2 right-2 z-10 rounded bg-secondary/75 px-2 py-1 text-xs font-bold text-white"
-                                >{{ product.discount_percent }}% OFF</span
+                                >{{ Math.round(product.discount_percent) }} % OFF</span
                             >
                             <Link :href="`/products/${product.product_slug}?v=${product.id}`" class="block">
                                 <div class="relative flex h-40 w-full justify-center overflow-hidden rounded-md bg-gray-50 sm:h-48 md:h-56">
