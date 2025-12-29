@@ -1,18 +1,20 @@
 <?php
 
 namespace App\Services;
-
 use App\Contracts\PaymentProviderInterface;
 use App\Http\DTOs\PaymentRequest;
 use App\Http\DTOs\PaymentResponse;
 use App\Models\Order;
+use App\Models\Cart;
 use App\Models\Payment\MpesaRequest;
 use App\Models\Payment\Payment;
+use App\Models\CheckoutSession;
 use App\Models\Payment\PaymentProvider;
 use App\Models\Payment\PaymentStatus;
 use App\Providers\MpesaProvider;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 class PaymentService
 {
@@ -48,41 +50,90 @@ class PaymentService
     }
 
     public function initializePayment(MpesaRequest $log, PaymentRequest $request): PaymentResponse
-    {
-        $provider = $this->getProvider($log->provider);
+{
 
-        if (!$provider) {
-            return PaymentResponse::failed('Payment provider not supported');
-        }
+    $provider = $this->getProvider($log->provider);
 
-        if (!$provider->isAvailable()) {
-            return PaymentResponse::failed('Payment provider is not available');
-        }
-
-        return $provider->initialize($log, $request);
+    if (!$provider) {
+        return PaymentResponse::failed('Payment provider not supported');
     }
 
-    public function createMpesaRequest($payable, PaymentRequest $request){
-        $order=Order::find($payable->id);
-        $reference = $this->generateReference();
-        return MpesaRequest::create([
-            'payable_type' => get_class($payable),
-            'payable_id' => $payable->id,
-            'reference' => $reference,
-            'account_reference' => $order->order_code,
-            'request_code' => $reference,
-            'phone' => $request->phone,
-            'amount' => $request->amount,
-            'currency' => $request->currency,
-            'status' => PaymentStatus::INITIALIZED->value,
-            'provider' => $request->provider,
-            'provider_request' => $request->toArray(),
-            'provider_response' => [],
-            'method' => $request->method,
-            'callback_payload'=>'',
-            'user_id' => auth()->id(),
+    if (!$provider->isAvailable()) {
+        return PaymentResponse::failed('Payment provider is not available');
+    }
+
+    try {
+        $response = $provider->initialize($log, $request);
+        \Log::info('Payment provider response', [
+            'payment_id' => $log->id,
+            'response' => $response->toArray()
         ]);
+        return $response;
+    } catch (\Exception $e) {
+        \Log::error('Payment initialization failed', [
+            'payment_id' => $log->id,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString(),
+        ]);
+        return PaymentResponse::failed('Server error while processing payment: ' . $e->getMessage());
     }
+}
+
+
+public function getOrCreateMpesaRequest($payable, PaymentRequest $request)
+{
+    // Only consider records that can still be updated
+    $updatableStatuses = [
+        PaymentStatus::INITIALIZED->value,
+        PaymentStatus::PROCESSING->value,
+        PaymentStatus::FAILED->value,
+        PaymentStatus::EXPIRED->value,
+    ];
+
+    // Get the latest updatable payment request for this payable
+    $mpesaLog = MpesaRequest::where('payable_type', get_class($payable))
+        ->where('payable_id', $payable->id)
+        ->whereIn('status', $updatableStatuses)
+        ->latest('created_at')
+        ->first();
+
+    if ($mpesaLog) {
+        // Update the existing one
+        $mpesaLog->update([
+            'amount'           => $request->amount,
+            'currency'         => $request->currency,
+            'phone'            => $request->phone,
+            'provider_request' => $request->toArray(),
+            'updated_at'       => now(),
+        ]);
+
+        return $mpesaLog;
+    }
+
+    // No updatable record found — create a new one
+    $reference = $payable->ref_num;
+
+    return MpesaRequest::create([
+        'payable_type'      => get_class($payable),
+        'payable_id'        => $payable->id,
+        'reference'         => $reference,
+        'account_reference' => $reference,
+        'request_code'      => $reference,
+        'phone'             => $request->phone,
+        'amount'            => $request->amount,
+        'currency'          => $request->currency,
+        'status'            => PaymentStatus::INITIALIZED->value,
+        'provider'          => $request->provider,
+        'provider_request'  => $request->toArray(),
+        'provider_response' => [],
+        'method'            => $request->method,
+        'callback_payload'  => '',
+        'user_id'           => auth()->id(),
+    ]);
+}
+
+
+
 
     public function verifyPayment(Payment $payment): PaymentResponse
     {

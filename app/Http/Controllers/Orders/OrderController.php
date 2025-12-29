@@ -8,6 +8,7 @@ use App\Models\Orders\Order;
 use App\Models\Orders\OrderItem;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\CheckoutSession;
 use App\Models\ProductVariantValue;
 use App\Models\User;
 use App\Models\Payment\Discount;
@@ -21,6 +22,9 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Log;
+use App\Models\Cart;
+
 
 class OrderController extends Controller
 {
@@ -183,443 +187,99 @@ class OrderController extends Controller
     /**
      * Store a newly created resource in storage.
      */
+
     public function store(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'customer_id' => 'sometimes|integer|exists:customers,id',
-            'items' => 'required|array|min:1',
-            'items.*.product_variant_id' => 'required|integer|exists:product_variants,id',
-            'items.*.quantity' => 'required|integer|min:1',
-            'items.*.unit_price' => 'sometimes|numeric|min:0',
-            'billing_address_id'=>'sometimes:exists:customer_address,id',
-            'shipping_address_id'=>'sometimes:exists:customer_address,id',
-            'currency' => 'sometimes|string|size:3|in:KES,USD,EUR',
-            'tax_amount' => 'sometimes|numeric|min:0',
-            'shipping_amount' => 'sometimes|numeric|min:0',
-            'distance_km' => 'sometimes|numeric|min:0',
-            'discount_amount' => 'sometimes|numeric|min:0',
-            'coupon_code' => 'sometimes|string|max:50',
-            'notes' => 'sometimes|string|max:1000',
-            'source' => 'sometimes|string|in:web,mobile,api,admin',
-            'channel' => 'sometimes|string|max:50',
-            'metadata' => 'sometimes|array',
-                        'payment_provider' => 'sometimes|string|in:mpesa',
-                        'phone' => 'required_if:payment_provider,mpesa|nullable|string'
-        ]);
-        logger($validator->errors()->all());
-        if ($validator->fails()) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'message' => 'Validation failed',
-                    'errors' => $validator->errors()
-                ], 400);
-            }
-            return back()->withErrors($validator)->withInput();
-        }
-
-        DB::beginTransaction();
-
-        try {
-            // Resolve customer id from request or authenticated user
-            $customerId = (int)($request->get('customer_id') ?? optional(auth()->user()?->customer)->id);
-            if (!$customerId) {
-                DB::rollBack();
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Customer not identified',
-                ], 422);
-            }
-
-            // Server-side compute prices, discounts, and validate inventory
-            $itemsInput = $request->items;
-            $computedItems = [];
-            $subtotal = 0.0;
-            $perItemDiscountTotal = 0.0;
-
-            $insufficient = [];
-            foreach ($itemsInput as $item) {
-                $variant = ProductVariant::query()->lockForUpdate()->find($item['product_variant_id']);
-                if (!$variant) {
-                    DB::rollBack();
-                    return response()->json([
-                        'success' => false,
-                        'status' => 'error',
-                        'message' => 'Product variant not found',
-                    ], 404);
-                }
-
-                $product = Product::find($variant->product_id);
-                if (!$product) {
-                    DB::rollBack();
-                    return response()->json([
-                        'success' => false,
-                        'status' => 'error',
-                        'message' => 'Product not found',
-                    ], 404);
-                }
-
-                $qty = (int) $item['quantity'];
-                if ($qty <= 0) {
-                    DB::rollBack();
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Quantity must be at least 1',
-                    ], 422);
-                }
-
-                if ($qty > $variant->stock) {
-                    $insufficient[] = [
-                        'product_variant_id' => $variant->id,
-                        'requested' => $qty,
-                        'available' => (int) $variant->stock,
-                        'product_name' => $product->name,
-                    ];
-                    // do not break; collect all
-                    continue;
-                }
-
-                // Use selling_price when set; otherwise fall back to regular_price,
-                // and as a last resort use the unit_price provided by the client payload
-                // to avoid producing a zero order total when catalog prices are incomplete.
-                $unitPrice = (float) ($variant->selling_price ?? $variant->regular_price ?? ($item['unit_price'] ?? 0)); // authoritative price with sensible fallback
-                $perUnitDiscount = max(0, (float)$variant->regular_price - (float)$variant->selling_price);
-                $lineSubtotal = $unitPrice * $qty; // before any coupon
-                $lineDiscount = $perUnitDiscount * $qty;
-
-                $subtotal += $lineSubtotal;
-                $perItemDiscountTotal += $lineDiscount;
-
-                $computedItems[] = [
-                    'variant' => $variant,
-                    'product' => $product,
-                    'quantity' => $qty,
-                    'unit_price' => $unitPrice,
-                    'line_subtotal' => $lineSubtotal,
-                    'line_discount' => $lineDiscount,
-                ];
-            }
-
-            if (!empty($insufficient)) {
-                DB::rollBack();
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Some items are out of stock or have insufficient quantity. You can remove them and retry.',
-                    'code' => 'insufficient_stock',
-                    'items' => $insufficient,
-                ], 409);
-            }
-
-            $taxAmount = (float) $request->get('tax_amount', 0);
-            $shippingAmount = 0.0;
-            $shippingBreakdown = null;
-            if ($request->filled('distance_km')) {
-                /** @var ShippingService $shippingService */
-                $shippingService = app(ShippingService::class);
-                $itemsForShipping = array_map(function ($ci) {
-                    return [
-                        'product_variant_id' => $ci['variant']->id,
-                        'quantity' => $ci['quantity'],
-                        'unit_price' => $ci['unit_price'],
-                    ];
-                }, $computedItems);
-                $estimate = $shippingService->estimate($itemsForShipping, (float)$request->get('distance_km'));
-                $shippingAmount = (float) $estimate['amount'];
-                $shippingBreakdown = $estimate;
-            } else {
-                $shippingAmount = (float) $request->get('shipping_amount', 0);
-            }
-
-            // Apply coupon/discount code if provided and active
-            $couponCode = $request->get('coupon_code');
-            $couponDiscount = 0.0;
-            $shippingDiscountAmount = 0.0;
-            $discountId = null;
-            $appliedDiscounts = [];
-            if ($couponCode) {
-                $discount = Discount::query()->active()->byCode($couponCode)->first();
-                if ($discount && $discount->canBeUsedByCustomer($customerId)) {
-                    // Build items payload for discount calculation if needed
-                    $itemsForDiscount = array_map(function ($ci) {
-                        /** @var \App\Models\Product $product */
-                        $product = $ci['product'];
-                        $categoryIds = [];
-                        if ($product->category) {
-                            // collect hierarchy ids from root to leaf
-                            $hier = $product->category->getHierarchy();
-                            $categoryIds = array_map(fn($c) => $c['id'], $hier);
-                        }
-
-                        $sellerId = null;
-                        if ($ci['product']->owner_type === 'App\\Models\\Seller') {
-                            $sellerId = $ci['product']->owner_id;
-                        } elseif ($ci['product']->owner_type === 'App\\Models\\User') {
-                            $sellerId = null;
-                        }
-
-                        return [
-                            'product_id' => $product->id,
-                            'product_variant_id' => $ci['variant']->id,
-                            'seller_id' => $sellerId,
-                            'brand_id' => $product->brand_id ?? null,
-                            'category_ids' => $categoryIds,
-                            'quantity' => $ci['quantity'],
-                            'unit_price' => $ci['unit_price'],
-                        ];
-                    }, $computedItems);
-
-                    // First, compute monetary discount on items/order
-                    $couponDiscount = (float) $discount->calculateDiscount(
-                        $subtotal,
-                        $itemsForDiscount,
-                        [
-                            'customer_id' => $customerId,
-                            'order_subtotal' => $subtotal,
-                            // 'region_id' could be derived from shipping address if available
-                        ]
-                    );
-
-                    // Then, handle free shipping or shipping-applied discounts
-                    $conditions = $discount->conditions ?? [];
-                    $appliesTo = $conditions['applies_to'] ?? null;
-                    if ($discount->type === 'free_shipping' || $appliesTo === 'shipping') {
-                        // Apply shipping discount up to current shippingAmount
-                        if ($shippingAmount > 0) {
-                            $shippingDiscountAmount = $shippingAmount;
-                            $shippingAmount = 0.0;
-                        }
-                    }
-
-                    // Record applied discount(s)
-                    if ($discount->type === 'free_shipping' || $shippingDiscountAmount > 0) {
-                        $discountId = $discount->id;
-                        $appliedDiscounts[] = [
-                            'type' => $discount->type,
-                            'code' => $discount->code,
-                            'name' => $discount->name,
-                            'amount' => round($shippingDiscountAmount, 2),
-                        ];
-                    }
-                    if ($couponDiscount > 0) {
-                        $discountId = $discount->id;
-                        $appliedDiscounts[] = [
-                            'type' => $discount->type,
-                            'code' => $discount->code,
-                            'name' => $discount->name,
-                            'amount' => round($couponDiscount, 2),
-                        ];
-                    }
-                }
-            }
-
-            $discountAmount = round($perItemDiscountTotal + $couponDiscount + $shippingDiscountAmount, 2);
-            $totalAmount = round($subtotal + $taxAmount + $shippingAmount - $discountAmount, 2);
-
-            // Build metadata (include shipping breakdown if available)
-            $orderMetadata = $request->get('metadata', []);
-            if ($shippingBreakdown) {
-                $orderMetadata['shipping_estimate'] = $shippingBreakdown;
-            }
-
-            // Idempotency: if a pending order exists for the same customer with the same items and totals, reuse it
-            try {
-                // Build a normalized fingerprint of requested items (variant_id => qty)
-                $requestedItemsMap = [];
-                foreach ($computedItems as $ci) {
-                    $vid = $ci['variant']->id;
-                    $requestedItemsMap[$vid] = ($requestedItemsMap[$vid] ?? 0) + (int)$ci['quantity'];
-                }
-                ksort($requestedItemsMap);
-
-                $recentPendingOrders = Order::query()
-                    ->where('customer_id', $customerId)
-                    ->where('payment_status', 'pending')
-                    ->whereBetween('created_at', [now()->subHours(2), now()])
-                    ->with('orderItems')
-                    ->get();
-
-                foreach ($recentPendingOrders as $existing) {
-                    // Quick sanity checks on totals and meta
-                    $totalsMatch = ((float)$existing->total_amount) == $totalAmount
-                        && ((float)$existing->shipping_amount) == $shippingAmount
-                        && (string)$existing->currency === (string)$request->get('currency', 'KES')
-                        && (string)($existing->coupon_code ?? '') === (string)($couponCode ?? '');
-
-                    if (!$totalsMatch) {
-                        continue;
-                    }
-
-                    // Build existing items map
-                    $existingItemsMap = [];
-                    foreach ($existing->orderItems as $oi) {
-                        $existingItemsMap[(int)$oi->product_variant_id] = ($existingItemsMap[(int)$oi->product_variant_id] ?? 0) + (int)$oi->quantity;
-                    }
-                    ksort($existingItemsMap);
-
-                    if ($existingItemsMap === $requestedItemsMap) {
-                        // Reuse this order; do not recreate or adjust stock
-                        DB::commit();
-
-                        // Clear current cart so it no longer shows these items
-                        $this->clearCurrentCart($request);
-
-                        $existing->load(['orderItems.productVariant.product:id,name', 'orderItems.seller:id,name']);
-
-                        if ($request->expectsJson()) {
-                            $payment = null;
-                            $paymentInit = null;
-                            if ($request->get('payment_provider') === 'mpesa' && $request->filled('phone')) {
-                                /** @var PaymentService $paymentService */
-                                $paymentService = app(PaymentService::class);
-                                $paymentRequest = new PaymentRequest(
-                                    provider: 'mpesa',
-                                    method: 'stk_push',
-                                    amount: (float)$existing->total_amount,
-                                    currency: $existing->currency,
-                                    phone: $request->get('phone'),
-                                    email: null,
-                                    metadata: ['order_ulid' => $existing->ulid],
-                                    callbackUrl: null,
-                                    returnUrl: null,
-                                );
-                                $payment = $paymentService->createPayment($existing, $paymentRequest);
-                                $paymentInit = $paymentService->initializePayment($payment, $paymentRequest);
-                            }
-
-                            return response()->json([
-                                'message' => 'Existing pending order found. Reusing for payment.',
-                                'data' => $existing,
-                                'payment' => $payment,
-                                'payment_init' => isset($paymentInit) ? $paymentInit->toArray() : null,
-                            ], 200);
-                        }
-
-                        return redirect()->route('orders.show', $existing)
-                            ->with('info', 'Existing pending order found. Reusing the same order.');
-                    }
-                }
-            } catch (\Throwable $e) {
-                // Non-fatal: proceed to create a new order if idempotency check fails
-                \Log::warning('Order idempotency check failed', ['error' => $e->getMessage()]);
-            }
-
-            // Create order
-            $order = Order::create([
-                'order_code' => $this->generateOrderCode(),
-                'customer_id' => $customerId,
-                'subtotal' => $subtotal,
-                'tax_amount' => $taxAmount,
-                'shipping_amount' => $shippingAmount,
-                'discount_amount' => $discountAmount,
-                'total_amount' => $totalAmount,
-                'currency' => $request->get('currency', 'KES'),
-                'billing_address_id' => $request->billing_address_id,
-                'shipping_address_id' => $request->billing_address_id,
-                'notes' => $request->get('notes'),
-                'source' => $request->get('source', 'web'),
-                'channel' => $request->get('channel'),
-                'coupon_code' => $couponCode,
-                'discount_id' => $discountId,
-                'applied_discounts' => $appliedDiscounts,
-                'payment_status' => 'pending',
-                'metadata' => $orderMetadata
-            ]);
-
-            // Create order items and decrement stock
-            foreach ($computedItems as $ci) {
-                // Determine the correct seller_id based on owner_type
-                $sellerId = null;
-                if ($ci['product']->owner_type === 'App\\Models\\Seller') {
-                    $sellerId = $ci['product']->owner_id;
-                } elseif ($ci['product']->owner_type === 'App\\Models\\User') {
-                    $sellerId = null;
-                }
-                OrderItem::create([
-                    'ulid' => Str::ulid(),
-                    'order_id' => $order->id,
-                    'product_variant_id' => $ci['variant']->id,
-                    'seller_id' => $sellerId,
-                    'quantity' => $ci['quantity'],
-                    'unit_price' => $ci['unit_price'],
-                    'total_price' => $ci['line_subtotal'],
-                    'discount_amount' => $ci['line_discount'],
-                    'tax_amount' => 0,
-                    'product_snapshot' => [
-                        'id' => $ci['product']->id,
-                        'name' => $ci['product']->name,
-                        'sku' => $ci['variant']->sku,
-                        'current_stock' => $ci['variant']->stock,
-                    ]
-                ]);
-
-                // reduce stock quantity
-                $ci['variant']->decrement('stock', $ci['quantity']);
-            }
-
-            // Increment coupon usage if applied
-            if ($discountId) {
-                try {
-                    \App\Models\Payment\Discount::find($discountId)?->incrementUsage();
-                } catch (\Throwable $e) {
-                    // Do not fail order creation because of usage counter
-                    logger('Failed to increment discount usage: ' . $e->getMessage());
-                }
-            }
-
-            DB::commit();
-
-            // Clear current cart so it no longer shows these items
-            $this->clearCurrentCart($request);
-
-            $order->load(['orderItems.productVariant.product:id,name', 'orderItems.seller:id,name']);
-
-            // API Response
-            if ($request->expectsJson()) {
-                $payment = null;
-                $paymentInit = null;
-                if ($request->get('payment_provider') === 'mpesa') {
-                    /** @var PaymentService $paymentService */
-                    $paymentService = app(PaymentService::class);
-                    $paymentRequest = new PaymentRequest(
-                        provider: 'mpesa',
-                        method: 'stk_push',
-                        amount: (float)$order->total_amount,
-                        currency: $order->currency,
-                        phone: $request->get('phone'),
-                        email: null,
-                        metadata: ['order_ulid' => $order->ulid],
-                        callbackUrl: null,
-                        returnUrl: null,
-                    );
-                    $payment = $paymentService->createPayment($order, $paymentRequest);
-                    $paymentInit = $paymentService->initializePayment($payment, $paymentRequest);
-                }
-
-                return response()->json([
-                    'message' => 'Order created successfully',
-                    'data' => $order,
-                    'payment' => $payment,
-                    'payment_init' => isset($paymentInit) ? $paymentInit->toArray() : null,
-                ], 201);
-            }
-
-            // Inertia Response
-            return redirect()->route('orders.show', $order)
-                ->with('success', 'Order created successfully');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            info("error making payments");
-            info($e->getMessage());
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'message' => 'Failed to create order',
-                    'error' => config('app.debug') ? $e->getMessage() : null
-                ], 500);
-            }
-
-            return back()->with('error', 'Failed to create order')->withInput();
-        }
+{
+    if (!$request->filled('cart_id')) {
+        return back()->with('error', 'Invalid request: cart_id is required')->withInput();
     }
+
+    $cart = Cart::with(['items.productVariant.product'])->find($request->get('cart_id'));
+
+    if (!$cart || $cart->items->isEmpty()) {
+        return back()->with('error', 'Invalid request, try again')->withInput();
+    }
+
+    // Compute totals
+    $cartAmount = $cart->items->sum(fn($i) => ($i->marked_price ?? 0) * $i->quantity);
+    $discountAmount = $cart->items->sum(fn($i) => ($i->discount_amount ?? 0) * $i->quantity);
+    $taxAmount = 0; // keeping tax 0 for now
+    $shippingAmount = (float) $request->get('shipping_amount', 0);
+    $totalAmount = round($cartAmount + $taxAmount + $shippingAmount - $discountAmount, 2);
+
+    // Default payment provider
+    if (!$request->has('payment_provider')) {
+        $request->merge(['payment_provider' => 'mpesa']);
+    }
+
+    $validator = Validator::make($request->all(), [
+        'payment_provider' => 'required|string|in:mpesa',
+        'phone' => 'required_if:payment_provider,mpesa|nullable|string',
+    ]);
+
+    if ($validator->fails()) {
+        return back()->withErrors($validator)->withInput();
+    }
+
+    $checkoutSession = null;
+    $paymentInit = null;
+
+    if ($request->get('payment_provider') === 'mpesa' && $request->filled('phone')) {
+        /** @var PaymentService $paymentService */
+        $paymentService = app(PaymentService::class);
+
+        // Fetch existing session or create new
+        $checkoutSession = CheckoutSession::firstOrNew(['cart_id' => $cart->id]);
+
+        if (empty($checkoutSession->ref_num)) {
+            $checkoutSession->ref_num = CheckoutSession::generateRefNum();
+        }
+
+        // Update session with full amounts and customer id
+        $checkoutSession->customer_id = (int)($request->get('customer_id') ?? optional(auth()->user()?->customer)->id);
+        $checkoutSession->cart_amount = $cartAmount;
+        $checkoutSession->discount_amount = $discountAmount;
+        $checkoutSession->tax_amount = $taxAmount;
+        $checkoutSession->shipping_amount = $shippingAmount;
+        $checkoutSession->amount = $totalAmount;
+        $checkoutSession->currency = $cart->currency ?? 'KES';
+        $checkoutSession->status = 'pending';
+        $checkoutSession->save();
+
+        $paymentRequest = new PaymentRequest(
+            provider: 'mpesa',
+            method: 'stk_push',
+            amount: $totalAmount,
+            currency: $checkoutSession->currency,
+            phone: $request->get('phone'),
+            email: null,
+            metadata: ['checkout_session_ref' => $checkoutSession->ref_num],
+            callbackUrl: null,
+            returnUrl: null,
+        );
+
+        $mpesaLog = $paymentService->getOrCreateMpesaRequest($checkoutSession, $paymentRequest);
+        $paymentInit = $paymentService->initializePayment($mpesaLog, $paymentRequest);
+
+        info('M-Pesa STK Push initialized', [
+            'checkout_session_ref' => $checkoutSession->ref_num,
+            'payment_init' => $paymentInit ? $paymentInit->toArray() : null,
+        ]);
+    }
+
+    if ($request->expectsJson()) {
+        return response()->json([
+            'checkout_session' => $checkoutSession,
+            'payment_init' => $paymentInit ? $paymentInit->toArray() : null,
+        ], 200);
+    }
+
+    return redirect()->route('checkout.payment', $cart)
+                     ->with('success', 'Payment initialized. Complete payment to create your order.');
+}
+
+
+
 
     /**
      * Display the specified resource.

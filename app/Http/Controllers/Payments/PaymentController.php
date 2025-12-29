@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 class PaymentController extends Controller
 {
@@ -76,6 +77,14 @@ class PaymentController extends Controller
     {
         $response = $this->paymentService->verifyPayment($payment);
 
+        \Log::info('Payment status checked', [
+        'payment_ulid' => $payment->ulid,
+        'payment_id' => $payment->id,
+        'status' => $payment->status->value,
+        'verification_success' => $response->success,
+        'verification_message' => $response->message,
+    ]);
+
         return response()->json([
             'payment' => [
                 'id' => $payment->ulid,
@@ -98,6 +107,7 @@ class PaymentController extends Controller
 
     public function callback(string $provider, Request $request): JsonResponse
     {
+       // \Log::info("MPESA callback received", $request->all());
         $response = $this->paymentService->handleCallback($provider, $request->all());
 
         return response()->json([
@@ -112,85 +122,87 @@ class PaymentController extends Controller
      * - Payment ULID or numeric ID, or
      * - MpesaRequest ID/reference/CheckoutRequestID
      */
+
     public function statusFlexible(string $id): JsonResponse
-    {
-        $maxTries = 10; // 10 * 2s = 20 seconds
-        $sleepSeconds = 2;
-        // In tests, do not actually sleep or loop for long
-        if (app()->environment('testing')) {
-            $maxTries = 1;
-            $sleepSeconds = 0;
-        }
+{
+    Log::info('Flexible payment status check hit', [
+        'id' => $id,
+        'ip' => request()->ip(),
+        'user_id' => auth()->id(),
+    ]);
 
-        for ($i = 0; $i < $maxTries; $i++) {
-            // 1) Try to resolve a Payment by ULID or numeric id
-            $payment = $this->findPaymentByAnyId($id);
-            if ($payment) {
-                $response = $this->paymentService->verifyPayment($payment);
-
-                return response()->json([
-                    'payment' => [
-                        'id' => $payment->ulid ?? (string)$payment->id,
-                        'reference' => $payment->reference,
-                        'amount' => $payment->amount,
-                        'currency' => $payment->currency,
-                        'status' => is_string($payment->status)
-                            ? $payment->status
-                            : ((is_object($payment->status) && property_exists($payment->status, 'value'))
-                                ? (string)$payment->status->value
-                                : (is_scalar($payment->status) ? (string)$payment->status : '')),
-                        'provider' => $payment->provider,
-                        'method' => $payment->method,
-                        'expires_at' => $payment->expires_at,
-                        'completed_at' => $payment->completed_at,
-                        'created_at' => $payment->created_at,
-                    ],
-                    'verification' => [
-                        'success' => $response->success,
-                        'message' => $response->message,
-                    ],
-                ]);
-            }
-
-            // 2) Try to resolve MpesaRequest by id/reference/checkout id
-            $log = $this->findMpesaLogByAnyId($id);
-            if ($log) {
-                [$success, $message, $normalizedStatus] = $this->mapMpesaVerification($log);
-                // If we have a terminal state (success or explicit failure), return immediately
-                if ($success === true || ($success === false && $message !== 'Payment is being processed.' && $message !== 'Awaiting payment confirmation.')) {
-                    return response()->json([
-                        'log' => [
-                            'id' => $log->id,
-                            'reference' => $log->reference,
-                            'checkout_request_id' => $log->checkout_request_id,
-                            'amount' => $log->amount,
-                            'currency' => $log->currency,
-                            'status' => $normalizedStatus,
-                            'created_at' => $log->created_at,
-                        ],
-                        'verification' => [
-                            'success' => $success,
-                            'message' => $message,
-                        ],
-                    ]);
-                }
-                // else: still processing → keep waiting
-            }
-
-            // If not last try, wait before retrying
-            if ($i < $maxTries - 1 && $sleepSeconds > 0) {
-                sleep($sleepSeconds);
-            }
-        }
+    // 1) Check Payment model first
+    $payment = $this->findPaymentByAnyId($id);
+    if ($payment) {
+        $response = $this->paymentService->verifyPayment($payment);
 
         return response()->json([
-            'message' => 'Payment verification timed out. If you approved on your phone, your order will update shortly. Please try again.',
-            'verification' => [
-                'success' => false,
-                'message' => 'Payment verification timed out. If you approved on your phone, your order will update shortly. Please try again.',
+            'payment' => [
+                'id' => $payment->ulid ?? (string)$payment->id,
+                'reference' => $payment->reference,
+                'amount' => $payment->amount,
+                'currency' => $payment->currency,
+                'status' => is_string($payment->status)
+                    ? $payment->status
+                    : ((is_object($payment->status) && property_exists($payment->status, 'value'))
+                        ? (string)$payment->status->value
+                        : (is_scalar($payment->status) ? (string)$payment->status : '')),
+                'provider' => $payment->provider,
+                'method' => $payment->method,
+                'expires_at' => $payment->expires_at,
+                'completed_at' => $payment->completed_at,
+                'created_at' => $payment->created_at,
             ],
-        ], 404);
+            'verification' => [
+                'success' => $response->success,
+                'message' => $response->message,
+                'resultCode' => $response->resultCode ?? null,
+                'state' => $response->state ?? 'PENDING',
+            ],
+        ]);
     }
+
+    // 2) Check MpesaRequest
+    $log = $this->findMpesaLogByAnyId($id);
+    if ($log) {
+        [$success, $message, $normalizedStatus, $resultCode, $state] = $this->mapMpesaVerification($log);
+
+        return response()->json([
+            'log' => [
+                'id' => $log->id,
+                'reference' => $log->reference,
+                'checkout_request_id' => $log->checkout_request_id,
+                'amount' => $log->amount,
+                'currency' => $log->currency,
+                'status' => $normalizedStatus,
+                'created_at' => $log->created_at,
+            ],
+            'verification' => [
+                'success' => $success,
+                'message' => $message,
+                'resultCode' => $resultCode,
+                'state' => $state,
+            ],
+        ]);
+    }
+
+    // 3) Payment not found
+    return response()->json([
+        'message' => 'Payment not found',
+        'verification' => [
+            'success' => false,
+            'message' => 'Payment not found',
+            'resultCode' => null,
+            'state' => 'PENDING',
+        ],
+    ], 404);
+}
+
+
+
+
+
+
 
     private function findPaymentByAnyId(string $id): ?Payment
     {
@@ -219,55 +231,94 @@ class PaymentController extends Controller
     /**
      * Map MpesaRequest row to verification tuple [success, message, normalizedStatus]
      */
+  
+
+    
     private function mapMpesaVerification(MpesaRequest $log): array
-    {
-        // Normalize status to safe string
-        if (is_string($log->status)) {
-            $status = strtolower($log->status);
-            $normalizedStatus = $log->status;
-        } elseif (is_object($log->status) && property_exists($log->status, 'value')) {
-            $status = strtolower((string)$log->status->value);
-            $normalizedStatus = (string)$log->status->value;
-        } else {
-            $status = '';
-            $normalizedStatus = '';
+{
+    $normalizedStatus = $this->normalizeStatus($log);
+
+    $resultCode = null;
+    $resultDesc = null;
+
+    // Extract STK callback if available
+    if (is_array($log->callback_payload)) {
+        $stk = $log->callback_payload['Body']['stkCallback'] ?? null;
+        if (is_array($stk)) {
+            $resultCode = isset($stk['ResultCode']) ? (string) $stk['ResultCode'] : null;
+            $resultDesc = $stk['ResultDesc'] ?? null;
         }
-
-        $success = false;
-        $message = 'Awaiting payment confirmation.';
-
-        $resultCode = null;
-        $resultDesc = null;
-        if (is_array($log->callback_payload)) {
-            $stk = $log->callback_payload['Body']['stkCallback'] ?? null;
-            if (is_array($stk)) {
-                $resultCode = $stk['ResultCode'] ?? null;
-                $resultDesc = $stk['ResultDesc'] ?? null;
-            }
-        }
-
-        if ($resultCode !== null) {
-            if ((string)$resultCode === '0' || $resultCode === 0) {
-                $success = true;
-                $message = 'Payment completed successfully.';
-            } else {
-                $success = false;
-                $message = $resultDesc ?: 'Payment failed.';
-            }
-        } else {
-            if (in_array($status, ['completed', 'success', 'paid'], true)) {
-                $success = true;
-                $message = 'Payment completed successfully.';
-            } elseif (in_array($status, ['failed', 'cancelled', 'canceled', 'expired'], true)) {
-                $success = false;
-                $message = $log->result_desc ?: 'Payment failed.';
-            } else {
-                $success = false;
-                $message = 'Payment is being processed.';
-            }
-        }
-
-        return [$success, $message, $normalizedStatus];
     }
+
+    // Determine if this request is truly finalized
+    $isFinalized =
+        in_array($normalizedStatus, ['COMPLETED', 'SUCCESS', 'FAILED', 'CANCELED'], true)
+        || $log->completed_at !== null;
+
+    // Determine success / message
+    $success = null; // null = still pending
+    $message = 'Payment is being processed.';
+
+    if ($resultCode !== null) {
+        switch ($resultCode) {
+            case '0': // Success
+                $success = true;
+                $message = 'Payment completed successfully.';
+                break;
+
+            case '1032': // User cancelled
+            case '1037': // Timeout / no response
+                if ($isFinalized) {
+                    $success = false;
+                    $message = $resultDesc
+                        ?? ($resultCode === '1032'
+                            ? 'Payment cancelled by user.'
+                            : 'Payment request expired or no response from user.');
+                } else {
+                    // STK still processing — do not mark as canceled yet
+                    $success = null;
+                    $message = 'Awaiting user confirmation.';
+                }
+                break;
+
+            default:
+                $success = null;
+                $message = $resultDesc ?? 'Payment is being processed.';
+                break;
+        }
+    }
+
+    // Canonical state machine
+    $state = match (true) {
+        $success === true => 'SUCCESS',
+        $success === false && $isFinalized => 'CANCELED',
+        $success === false => 'FAILED',
+        default => 'PENDING',
+    };
+
+    return [
+        $success,
+        $message,
+        $normalizedStatus,
+        $resultCode,
+        $state,
+    ];
+}
+
+
+
+private function normalizeStatus(MpesaRequest $log): string
+{
+    if (is_string($log->status)) {
+        return $log->status;
+    }
+
+    if (is_object($log->status) && property_exists($log->status, 'value')) {
+        return (string) $log->status->value;
+    }
+
+    return '';
+}
+
 
 }

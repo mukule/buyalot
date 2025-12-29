@@ -9,6 +9,7 @@ use App\Models\Orders\Order;
 use App\Models\Payment\MpesaRequest;
 use App\Services\PaymentService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Log;
 
 class MpesaRequestController extends Controller
 {
@@ -115,6 +116,13 @@ class MpesaRequestController extends Controller
      */
     public function statusByCheckoutId(string $checkout_request_id): JsonResponse
     {
+
+        Log::info('Payment status check hit', [
+        'checkout_request_id' => $checkout_request_id,
+        'ip' => request()->ip(),
+        'user_id' => auth()->id(),
+    ]);
+    
         /** @var MpesaRequest|null $log */
         $log = MpesaRequest::query()
             ->where('checkout_request_id', $checkout_request_id)

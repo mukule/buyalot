@@ -3,15 +3,19 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
 
 class Cart extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'user_id',
         'cart_token',
+        'status', // new field for cart status
     ];
 
     protected static function booted()
@@ -20,6 +24,11 @@ class Cart extends Model
             // Generate a UUID token for guests if not provided
             if (!$cart->cart_token) {
                 $cart->cart_token = (string) Str::uuid();
+            }
+
+            // Default status
+            if (!$cart->status) {
+                $cart->status = 'active';
             }
         });
     }
@@ -40,34 +49,53 @@ class Cart extends Model
         return $this->hasMany(CartItem::class);
     }
 
-    
+    /**
+     * Calculate cart totals
+     */
+    public function calculateTotals(): array
+    {
+        $items = $this->relationLoaded('items') ? $this->items : $this->items()->get();
 
-public function calculateTotals(): array
-{
-    $items = $this->items; 
+        $subtotal = 0;
+        $grandTotal = 0;
+        $totalQty = 0;
+        $totalDiscount = 0;
 
-    $subtotal = 0;
-    $totalDiscount = 0;
-    $totalQty = 0;
+        foreach ($items as $item) {
+            $qty = (int) $item->quantity;
+            $marked = (float) ($item->marked_price ?? $item->unit_price);
+            $lineSubtotal = $marked * $qty;
 
-    foreach ($items as $item) {
-        $lineSubtotal = ($item->marked_price ?? 0) * ($item->quantity ?? 0);
-        $lineDiscount = ($item->discount_amount ?? 0) * ($item->quantity ?? 0);
+            $lineTotal = (float) ($item->total_price ?? ($item->unit_price * $qty));
 
-        $subtotal += $lineSubtotal;
-        $totalDiscount += $lineDiscount;
-        $totalQty += $item->quantity ?? 0;
+            $subtotal += $lineSubtotal;
+            $grandTotal += $lineTotal;
+            $totalQty += $qty;
+            $totalDiscount += max(0, $lineSubtotal - $lineTotal);
+        }
+
+        return [
+            'subtotal'       => round($subtotal, 2),
+            'total_discount' => round($totalDiscount, 2),
+            'grand_total'    => round(max(0, $grandTotal), 2),
+            'total_quantity' => $totalQty,
+            'unique_items'   => $items->count(),
+        ];
     }
 
-    $grandTotal = $subtotal - $totalDiscount;
+    /**
+     * Scope for active carts
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('status', 'active');
+    }
 
-    return [
-        'subtotal' => round($subtotal, 2),
-        'total_discount' => round($totalDiscount, 2),
-        'grand_total' => round($grandTotal, 2),
-        'total_quantity' => $totalQty,
-        'unique_items' => $items->count(),
-    ];
-}
-
+    /**
+     * Scope for ordered carts
+     */
+    public function scopeOrdered($query)
+    {
+        return $query->where('status', 'ordered');
+    }
 }

@@ -23,110 +23,72 @@ public function getCart(Request $request): Cart
 {
     if (Auth::check()) {
 
-        // Log::info('Cart check: authenticated user', [
-        //     'user_id' => Auth::id()
-        // ]);
-
-        // Logged-in user cart
         $cart = Cart::firstOrCreate(['user_id' => Auth::id()]);
 
-        // Log::info('Using authenticated cart', [
-        //     'cart_id' => $cart->id,
-        //     'user_id' => $cart->user_id
-        // ]);
-
-        // Check if guest cart exists via cookie
         if ($guestToken = $request->cookie('cart_token')) {
 
             $guestCart = Cart::where('cart_token', $guestToken)->first();
 
-            // Log::info('Guest cart detected for logged-in user', [
-            //     'guest_token'   => $guestToken,
-            //     'guest_cart_id' => optional($guestCart)->id
-            // ]);
-
             if ($guestCart && $guestCart->id !== $cart->id) {
-
-                // Log::info('Merging guest cart into user cart', [
-                //     'user_cart_id'  => $cart->id,
-                //     'guest_cart_id' => $guestCart->id,
-                // ]);
 
                 DB::transaction(function () use ($cart, $guestCart) {
 
                     foreach ($guestCart->items as $item) {
 
-                        // Check if this item was already merged (prevents duplication)
+                        // Prevent duplicate variant merge
                         $existing = $cart->items()
                             ->where('product_variant_id', $item->product_variant_id)
                             ->first();
 
                         if ($existing) {
-
-                            // Log::warning('Skipping duplicate merge of item (already exists)', [
-                            //     'variant_id' => $item->product_variant_id,
-                            //     'existing_qty' => $existing->quantity,
-                            //     'guest_qty' => $item->quantity,
-                            // ]);
-
-                            // If you ever want to increment instead, change logic here.
                             continue;
                         }
 
-                        // Log::info('Creating new cart item during merge', [
-                        //     'variant_id' => $item->product_variant_id,
-                        //     'guest_qty'  => $item->quantity,
-                        //     'user_cart_id' => $cart->id,
-                        // ]);
-
+                        // 🟢 Preserve the same pricing semantics as add-to-cart
                         $cart->items()->create([
-                            'product_variant_id' => $item->product_variant_id,
-                            'quantity'           => $item->quantity,
-                            'unit_price'         => $item->unit_price,
-                            'discount_amount'    => $item->discount_amount,
-                            'total_price'        => ($item->unit_price - $item->discount_amount) * $item->quantity,
-                            'product_id'         => $item->product_id,
-                            'seller_id'          => $item->seller_id,
-                        ]);
+                            'product_variant_id'  => $item->product_variant_id,
+                            'quantity'            => $item->quantity,
 
-                        // Log::info('Item created in user cart after merge', [
-                        //     'variant_id' => $item->product_variant_id,
-                        //     'final_qty'  => $item->quantity,
-                        // ]);
+                            'marked_price'        => $item->marked_price,
+                            'unit_price'          => $item->unit_price,
+                            'discount_amount'     => $item->discount_amount,
+                            'discount_percentage' => $item->discount_percentage,
+
+                            // total = final payable price × qty
+                            'total_price'         => $item->unit_price * $item->quantity,
+
+                            'product_id'          => $item->product_id,
+                            'seller_id'           => $item->seller_id,
+                        ]);
                     }
 
-                    // Log::info('Merge complete — deleting guest cart', [
-                    //     'guest_cart_id' => $guestCart->id,
-                    // ]);
-
+                    // Remove guest cart after merge
                     $guestCart->items()->delete();
                     $guestCart->delete();
                 });
 
                 Cookie::queue(Cookie::forget('cart_token'));
-
-                // Log::info('Guest cart cookie removed after merge');
             }
         }
 
     } else {
-        // Handle guest cart
+
+        // Guest cart handling stays unchanged
         $token = $request->cookie('cart_token') ?? Str::uuid()->toString();
 
-        Log::info('Guest cart access', [
-            'token' => $token,
-            'has_cookie' => (bool) $request->cookie('cart_token'),
-        ]);
+        // Log::info('Guest cart access', [
+        //     'token' => $token,
+        //     'has_cookie' => (bool) $request->cookie('cart_token'),
+        // ]);
 
         $cart = Cart::firstOrCreate(['cart_token' => $token]);
 
-        Log::info('Using guest cart', [
-            'cart_id'    => $cart->id,
-            'cart_token' => $token,
-        ]);
+        // Log::info('Using guest cart', [
+        //     'cart_id'    => $cart->id,
+        //     'cart_token' => $token,
+        // ]);
 
         if (!$request->cookie('cart_token')) {
-
             Cookie::queue(Cookie::make(
                 'cart_token',
                 $token,
@@ -137,10 +99,6 @@ public function getCart(Request $request): Cart
                 false,
                 false
             ));
-
-            Log::info('Guest cart cookie created', [
-                'token' => $token,
-            ]);
         }
     }
 

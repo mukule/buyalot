@@ -23,18 +23,20 @@ class CartController extends Controller
 {
 
 
-    
-    public function index(Request $request, CartReservationService $cartService)
-{
+    public function index(
+    Request $request,
+    CartReservationService $cartService,
+    FrontendProductService $productService
+) {
     $cart = $cartService->getCart($request);
 
-    
+    // Load primary image for products
     $cart->load('items.productVariant.product.primaryImage');
 
-    
-    $totalAmount = 0;     
-    $totalDiscount = 0;  
-    $totalPayable = 0;    
+    // Totals
+    $totalAmount = 0;
+    $totalDiscount = 0;
+    $totalPayable = 0;
 
     foreach ($cart->items as $item) {
         $totalAmount += $item->marked_price * $item->quantity;
@@ -48,9 +50,14 @@ class CartController extends Controller
         'total_payable'  => round($totalPayable, 2),
     ];
 
+    // Related products: pick top item by quantity
+     $topVariant = $cart->items->sortByDesc('quantity')->first()?->productVariant;
+    $relatedProducts = $topVariant ? $productService->getRelatedProducts($topVariant) : collect();
+
     return Inertia::render('Frontend/Cart', [
-        'cart'    => $cart,
-        'summary' => $summary,
+        'cart'            => $cart,
+        'summary'         => $summary,
+        'relatedProducts' => $relatedProducts,
     ]);
 }
 
@@ -163,15 +170,7 @@ class CartController extends Controller
 
                 $shippingCost = $shippingOptions['pickup']['cost'];
 
-                // Log the retrieved address and shipping
-                Log::info('Selected checkout address and shipping', [
-                    'address_id'        => $defaultAddress->id,
-                    'address_name'      => $defaultAddress->first_name . ' ' . $defaultAddress->last_name,
-                    'region'            => data_get($defaultAddress, 'pickupPoint.region.name'),
-                    'pickup_point'      => data_get($defaultAddress, 'pickupPoint.name'),
-                    'selected_shipping' => $selectedShipping,
-                    'shipping_cost'     => $shippingCost,
-                ]);
+               
             }
         }
     }
@@ -393,7 +392,7 @@ public function store(Request $request, CartReservationService $cartService)
 
    
 
-public function payment(
+    public function payment(
     Request $request,
     CartReservationService $cartService,
     FrontendProductService $productService,
@@ -408,7 +407,7 @@ public function payment(
         $variant = $it->productVariant;
         $product = $variant?->product;
 
-        $unitPrice = $variant?->selling_price ?? 0;
+        $unitPrice = $variant?->marked_price ?? 0;
         $ownerInfo = $variant?->getOwnerInfo();
 
         return [
@@ -479,16 +478,21 @@ public function payment(
             ->orderByDesc('is_default')
             ->first();
 
-        if ($defaultAddress) {
-            $regionId = data_get($defaultAddress, 'pickupPoint.region.id');
-            $shippingOptions = $regionId ? $shippingService->getOptionsByRegion($regionId) : [];
+        if ($defaultAddress && $defaultAddress->pickupPoint) {
+            $regionName = $defaultAddress->pickupPoint->region?->name ?? '';
+            $pickupPointName = $defaultAddress->pickupPoint->name ?? '';
+
+            $shippingOptions = $defaultAddress->pickupPoint->region
+                ? $shippingService->getOptionsByRegion($defaultAddress->pickupPoint->region->id)
+                : [];
 
             if (isset($shippingOptions['pickup'])) {
                 $selectedShipping = [
                     'method' => 'pickup',
                     'cost'   => $shippingOptions['pickup']['cost'],
                     'days'   => $shippingOptions['pickup']['days'],
-                    'region' => data_get($defaultAddress, 'pickupPoint.region.name'),
+                    'region' => $regionName,
+                    'pickup_point' => $pickupPointName,
                 ];
 
                 $shippingCost = $shippingOptions['pickup']['cost'];
@@ -512,6 +516,7 @@ public function payment(
 
     return Inertia::render('Frontend/Checkout/Payment', [
         'cart' => [
+            'cart_id' => $cart->id,
             'items' => $presentedItems,
             'counts' => [
                 'unique_items' => $presentedItems->count(),
@@ -536,6 +541,7 @@ public function payment(
         'relatedProducts'     => $relatedProducts,
     ]);
 }
+
 
 
 }

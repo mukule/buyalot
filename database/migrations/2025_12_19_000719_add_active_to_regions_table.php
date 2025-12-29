@@ -12,11 +12,11 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('regions', function (Blueprint $table) {
-            Schema::table('regions', function (Blueprint $table) {
+            if (!Schema::hasColumn('regions', 'active')) {
                 $table->boolean('active')
                     ->default(true)
                     ->after('level');
-            });
+            }
         });
     }
 
@@ -25,8 +25,10 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('regions', function (Blueprint $table) {
-            $table->dropColumn('active');
-        });
+        if (Schema::hasColumn('regions', 'active')) {
+            Schema::table('regions', function (Blueprint $table) {
+                $table->dropColumn('active');
+            });
+        }
     }
 };

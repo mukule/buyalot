@@ -44,9 +44,10 @@ interface CartSummary {
 
 // ---------------- PAGE PROPS ----------------
 const page = usePage();
-
 const cart = (page.props as any).cart as Cart;
 const summary = (page.props as any).summary as CartSummary;
+
+// Related products from backend
 const relatedProducts = (page.props as any).relatedProducts ?? [];
 
 // ---------------- RELATED PRODUCTS ----------------
@@ -56,17 +57,14 @@ const simplifiedRelatedProducts = computed<SimplifiedProduct[]>(() =>
         hashid: p.hashid ?? p.id,
         name: p.name,
         product_slug: p.product_slug,
-        image: p.image || '/fallback-image.png',
+        image: p.primary_image_url || p.image_urls?.[0] || '/fallback-image.png',
         marked_price: p.marked_price ?? p.final_price ?? 0,
         final_price: p.final_price ?? p.marked_price ?? 0,
-        discount_percent: p.discount_percent ?? 0,
-        has_discount: p.has_discount ?? false,
+        discount_percent:
+            p.discount_percent ?? (p.marked_price && p.final_price ? Math.round(((p.marked_price - p.final_price) / p.marked_price) * 100) : 0),
+        has_discount: p.has_discount ?? (p.discount_percent ? true : false),
     })),
 );
-
-const goToProduct = (product: SimplifiedProduct) => {
-    router.visit(route('products.show', { slug: product.product_slug }));
-};
 
 // ---------------- CART ACTIONS ----------------
 const increaseQty = (item: CartItem) => {
@@ -79,7 +77,6 @@ const increaseQty = (item: CartItem) => {
 
 const decreaseQty = (item: CartItem) => {
     const newQty = item.quantity - 1;
-
     router.post(
         route('cart.store'),
         { product_variant_id: item.product_variant.id, quantity: newQty },
@@ -89,12 +86,14 @@ const decreaseQty = (item: CartItem) => {
 
 // ---------------- FORMATTERS ----------------
 const formatPrice = (amount: number | string) =>
-    `KSh ${Number(amount).toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    })}`;
+    `KSh ${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const formatDiscountPercentage = (percentage?: number) => (percentage && percentage > 0 ? `${Math.round(percentage)}% OFF` : '');
+
+// Navigate to product
+const goToProduct = (product: SimplifiedProduct) => {
+    router.visit(route('products.show', { slug: product.product_slug }));
+};
 </script>
 
 <template>
@@ -127,7 +126,7 @@ const formatDiscountPercentage = (percentage?: number) => (percentage && percent
                                             </span>
 
                                             <span v-if="item.discount_amount && item.discount_amount > 0" class="text-sm text-gray-500 line-through">
-                                                {{ formatPrice(item.marked_price) }}
+                                                {{ formatPrice(item.unit_price) }}
                                             </span>
 
                                             <span
@@ -208,11 +207,8 @@ const formatDiscountPercentage = (percentage?: number) => (percentage && percent
             <div v-else class="rounded-lg bg-white p-6 text-center text-gray-600 shadow">Your cart is empty.</div>
         </section>
 
-        <!-- RELATED PRODUCTS -->
-        <section class="mx-auto mt-8 mb-8 max-w-7xl">
-            <div v-if="simplifiedRelatedProducts.length">
-                <ProductCarouselSection title="You may also like" :products="simplifiedRelatedProducts" @click-item="goToProduct" />
-            </div>
+        <section class="mx-auto mt-8 mb-8 max-w-7xl" v-if="simplifiedRelatedProducts.length">
+            <ProductCarouselSection title="Related Products" :products="simplifiedRelatedProducts" @click-item="goToProduct" />
         </section>
     </MainLayout>
 </template>

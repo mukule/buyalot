@@ -335,3 +335,5 @@ Route::prefix('payments')->name('payments.')->group(function () {
         ->name('requests.status');
     Route::post('callback/{provider}', [PaymentController::class, 'callback'])->withoutMiddleware([VerifyCsrfTokenMiddleware::class])->name('callback');
 });
+
+

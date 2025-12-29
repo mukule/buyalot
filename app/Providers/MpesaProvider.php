@@ -10,6 +10,7 @@ use App\Models\Payment\MpesaRequest;
 use App\Models\Payment\Payment;
 use App\Models\Payment\PaymentStatus;
 use App\Models\Payment\PaymentTransaction;
+use App\Models\CheckoutSession;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -90,179 +91,231 @@ class MpesaProvider implements PaymentProviderInterface
         }
     }
 
+   
     public function handleCallback(array $data): PaymentResponse
-    {
-        $stk = $data['Body']['stkCallback'] ?? null;
-        if (!$stk) {
-            return PaymentResponse::failed('Invalid callback data');
+{
+    $stk = $data['Body']['stkCallback'] ?? null;
+    if (!$stk) {
+        return PaymentResponse::failed('Invalid callback data');
+    }
+
+    // Avoid duplicate processing
+    if (Payment::where('provider_reference', $stk['CheckoutRequestID'])->exists()) {
+        return PaymentResponse::failed('Payment already processed');
+    }
+
+    try {
+        Log::info('MPESA callback received', $data);
+
+        $checkoutRequestId = $stk['CheckoutRequestID'];
+        $mpesaRequest = MpesaRequest::where('checkout_request_id', $checkoutRequestId)->first();
+
+        if (!$mpesaRequest) {
+            return PaymentResponse::failed('Payment not found');
         }
-        if (Payment::where('provider_reference', $stk['CheckoutRequestID'])->exists()){
-            return PaymentResponse::failed('Payment already processed');
-//            ->toJsonResponse(400);
+
+        // Store full callback payload
+        $mpesaRequest->callback_payload = $data;
+
+        $resultCode = $stk['ResultCode'];
+
+        // Map callback metadata
+        $callbackMetadata = $stk['CallbackMetadata']['Item'] ?? [];
+        $metadata = [];
+        foreach ($callbackMetadata as $item) {
+            $metadata[strtolower($item['Name'])] = $item['Value'] ?? null;
         }
-        try {
-            Log::info('MPESA callback received', $data);
-            $checkoutRequestId = $stk['CheckoutRequestID'];
-            $mpesaRequest = MpesaRequest::where('checkout_request_id', $checkoutRequestId)->first();
 
-            if (!$mpesaRequest) {
-                return PaymentResponse::failed('Payment not found');
-            }
+        // Convert M-Pesa timestamp to MySQL datetime
+        $transactionDate = null;
+        if (!empty($metadata['transactiondate'])) {
+            $transactionDate = \DateTime::createFromFormat('YmdHis', $metadata['transactiondate'])
+                ?->format('Y-m-d H:i:s');
+        }
 
-            $mpesaRequest->callback_payload = $data;
+        // Fetch related checkout session
+        $checkoutSession = CheckoutSession::where('ref_num', $mpesaRequest->account_reference)->first();
 
-            // Result Code
-            $resultCode = $stk['ResultCode'];
-
-            if ($resultCode == 0) {
-                // SUCCESS
-                $metadata = $this->parseCallbackMetadata(
-                    $stk['CallbackMetadata']['Item'] ?? []
-                );
-            // 1. Mark MpesaRequest as completed
-                $mpesaRequest->update([
-                    'status' => PaymentStatus::COMPLETED->value,
-                    'result_code' => 0,
-                    'result_desc' => 'Success',
-                    'completed_at' => now(),
-                ]);
-
-                // 2. Create Payment record
-                $payment =Payment::create([
-                    'ulid' => \Str::ulid(), // generate ULID
-                    'amount' => $mpesaRequest->amount,
-                    'currency' => 'KES', // or $mpesaRequest->currency
-                    'provider' => 'mpesa',
-                    'method' => $mpesaRequest->method ?? 'mobile_money',
-                    'status' => PaymentStatus::COMPLETED->value,
-                    'reference' => $mpesaRequest->reference,
-                    'provider_reference' => $mpesaRequest->checkout_request_id,
-                    'metadata' => [
-                        'mpesa_callback' => $mpesaRequest->callback_payload,
-                        'account_reference' => $mpesaRequest->account_reference,
-                    ],
-                    'completed_at' => now(),
-                    'payable_type' => $mpesaRequest->payable_type,
-                    'payable_id' => $mpesaRequest->payable_id,
-                ]);
-
-                $callbackMetadata = $mpesaRequest->callback_payload['Body']['stkCallback']['CallbackMetadata']['Item'] ?? [];
-                $metadata = [];
-                foreach ($callbackMetadata as $item) {
-                    $metadata[strtolower($item['Name'])] = $item['Value'] ?? null;
-                }
-
-            // 4. Create MpesaPayment record
-                MpesaPayment::create([
-                    'payment_id' => $payment->id,
-                    'mpesa_request_id' => $mpesaRequest->id,
-                    'transaction_type' => 'STK_PUSH',
-                    'phone' => $metadata['phonenumber'] ?? null,
-                    'amount' => $metadata['amount'] ?? $mpesaRequest->amount,
-                    'mpesa_receipt' => $metadata['mpesareceiptnumber'] ?? null,
-                    'transaction_id' => $metadata['mpesareceiptnumber'] ?? null,
-                    'account_reference' => $mpesaRequest->account_reference,
-                    'result_code' => $mpesaRequest->result_code,
-                    'result_desc' => $mpesaRequest->result_desc,
-                    'transaction_date' => $metadata['transactiondate'] ?? null,
-                    'raw_payload' => $mpesaRequest->callback_payload,
-                ]);
-                // Update related order
-                $this->markPayableAsPaid($mpesaRequest);
-
-                return PaymentResponse::success('Payment completed successfully');
-
-            } else {
-                // FAILURE
-                $mpesaRequest->update([
-                    'status' => PaymentStatus::FAILED->value,
-                    'result_code' => $resultCode,
-                    'result_desc' => $stk['ResultDesc'] ?? 'Failed',
-                ]);
-
-                return PaymentResponse::failed($stk['ResultDesc'] ?? 'Payment failed');
-            }
-
-        } catch (\Throwable $e) {
-            Log::error('MPESA callback error', [
-                'error' => $e->getMessage()
+        if ($resultCode == 0) {
+            // SUCCESS
+            $mpesaRequest->update([
+                'status' => PaymentStatus::COMPLETED->value,
+                'result_code' => 0,
+                'result_desc' => 'Success',
+                'completed_at' => now(),
             ]);
 
-            return PaymentResponse::failed('Callback processing failed');
+            // Update checkout session status first
+            if ($checkoutSession) {
+                $checkoutSession->status = 'completed';
+                $checkoutSession->save();
+            }
+
+            // Record payment
+            $payment = Payment::create([
+                'ulid' => \Str::ulid(),
+                'amount' => $mpesaRequest->amount,
+                'currency' => 'KES',
+                'provider' => 'mpesa',
+                'method' => $mpesaRequest->method ?? 'mobile_money',
+                'status' => PaymentStatus::COMPLETED->value,
+                'reference' => $mpesaRequest->reference,
+                'provider_reference' => $mpesaRequest->checkout_request_id,
+                'metadata' => [
+                    'mpesa_callback' => $mpesaRequest->callback_payload,
+                    'account_reference' => $mpesaRequest->account_reference,
+                ],
+                'completed_at' => now(),
+                'payable_type' => $mpesaRequest->payable_type,
+                'payable_id' => $mpesaRequest->payable_id,
+            ]);
+
+            MpesaPayment::create([
+                'payment_id' => $payment->id,
+                'mpesa_request_id' => $mpesaRequest->id,
+                'transaction_type' => 'STK_PUSH',
+                'phone' => $metadata['phonenumber'] ?? null,
+                'amount' => $metadata['amount'] ?? $mpesaRequest->amount,
+                'mpesa_receipt' => $metadata['mpesareceiptnumber'] ?? null,
+                'transaction_id' => $metadata['mpesareceiptnumber'] ?? null,
+                'account_reference' => $mpesaRequest->account_reference,
+                'result_code' => $mpesaRequest->result_code,
+                'result_desc' => $mpesaRequest->result_desc,
+                'transaction_date' => $transactionDate,
+                'raw_payload' => $mpesaRequest->callback_payload,
+            ]);
+
+            // Update related payable
+            $this->markPayableAsPaid($mpesaRequest);
+
+            // Create order from completed checkout session
+            if ($checkoutSession) {
+                try {
+                    $order = app(\App\Services\OrderPlacementService::class)
+                        ->placeOrder($checkoutSession->id);
+
+                    Log::info('Order successfully created from checkout session', [
+                        'checkout_session_id' => $checkoutSession->id,
+                        'order_id' => $order->id,
+                    ]);
+                } catch (\Throwable $e) {
+                    Log::error('Order creation failed after payment', [
+                        'checkout_session_id' => $checkoutSession->id,
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
+
+                    return PaymentResponse::failed('Payment succeeded but order creation failed');
+                }
+            }
+
+            return PaymentResponse::success('Payment completed successfully');
+
+        } else {
+            // FAILURE
+            $mpesaRequest->update([
+                'status' => PaymentStatus::FAILED->value,
+                'result_code' => $resultCode,
+                'result_desc' => $stk['ResultDesc'] ?? 'Payment failed',
+            ]);
+
+            // Keep checkout session pending on failure
+            if ($checkoutSession) {
+                $checkoutSession->status = 'pending';
+                $checkoutSession->save();
+            }
+
+            return PaymentResponse::failed($stk['ResultDesc'] ?? 'Payment failed');
         }
+
+    } catch (\Throwable $e) {
+        Log::error('MPESA callback error', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString(),
+        ]);
+
+        return PaymentResponse::failed('Callback processing failed');
     }
+}
+
 
 
     private function initiateStkPush(MpesaRequest $payment, string $phone): array
-    {
-        info("initiateStkPush");
-        $timestamp = now()->format('YmdHis');
+{
+    info("initiateStkPush");
 
-        $password = base64_encode(
-            $this->config['business_short_code'] .
-            $this->config['passkey'] .
-            $timestamp
-        );
+    $timestamp = now()->format('YmdHis');
 
-        $description = sprintf(
-            "Payment for Buyalot order %s", $payment->account_reference ??
-            $payment->payable->order_code
-        );
+    $password = base64_encode(
+        $this->config['business_short_code'] .
+        $this->config['passkey'] .
+        $timestamp
+    );
 
-        info($description);
+    $description = sprintf(
+        "Payment for Buyalot order %s",
+        $payment->account_reference ?? ($payment->payable->order_code ?? 'N/A')
+    );
 
-        // Log request for auditing
-        $payment->request_payload = [
-            'stk_push_url' => $this->config['stk_push_url'],
-            'payload' => [
-                'BusinessShortCode' => $this->config['business_short_code'],
-                'Password' => $password,
-                'Timestamp' => $timestamp,
-                'TransactionType' => 'CustomerPayBillOnline',
-                'Amount' => (int)$payment->amount,
-                'PartyA' => $phone,
-                'PartyB' => $this->config['business_short_code'],
-                'PhoneNumber' => $phone,
-                'CallBackURL' => $this->config['callback_url'],
-                'AccountReference' => $description,
-                'TransactionDesc' => $description,
-            ],
-        ];
-        $payment->save();
+    $payment->request_payload = [
+        'stk_push_url' => $this->config['stk_push_url'],
+        'payload' => [
+            'BusinessShortCode' => $this->config['business_short_code'],
+            'Password' => $password,
+            'Timestamp' => $timestamp,
+            'TransactionType' => 'CustomerPayBillOnline',
+            //'Amount' => (int)$payment->amount,
+            'Amount' => 1,
+            'PartyA' => $phone,
+            'PartyB' => $this->config['business_short_code'],
+            'PhoneNumber' => $phone,
+            'CallBackURL' => $this->config['callback_url'],
+            'AccountReference' => $description,
+            'TransactionDesc' => $description,
+        ],
+    ];
 
-        try {
-            $response = Http::withToken($this->accessToken)
-                ->timeout(60)
-                ->post($this->config['stk_push_url'], $payment->request_payload['payload']);
+    $payment->save();
 
-            if (!$response->successful()) {
-                return [
-                    'success' => false,
-                    'message' => 'Failed to connect to M-Pesa',
-                    'data' => $response->body()
-                ];
-            }
+    // Log payload after saving
+    info('STK push payload', $payment->request_payload['payload']);
 
-            $data = $response->json();
+    try {
+        $response = Http::withToken($this->accessToken)
+            ->timeout(60)
+            ->post($this->config['stk_push_url'], $payment->request_payload['payload']);
 
-            if (isset($data['ResponseCode']) && $data['ResponseCode'] === '0') {
-                return ['success' => true, 'data' => $data];
-            }
+        // Log raw response
+        info('STK push response', [
+            'status' => $response->status(),
+            'body' => $response->body()
+        ]);
 
-            return [
-                'success' => false,
-                'message' => $data['errorMessage'] ?? 'STK push failed',
-                'data' => $data
-            ];
-        } catch (\Throwable $e) {
-            Log::error('M-Pesa STK push error', ['error' => $e->getMessage()]);
-            return [
-                'success' => false,
-                'message' => 'Failed to connect to M-Pesa',
-                'data' => $e->getMessage()
-            ];
+        $data = $response->json() ?? [];
+
+        if (!is_array($data)) {
+            $data = [];
         }
+
+        if (isset($data['ResponseCode']) && $data['ResponseCode'] === '0') {
+            return ['success' => true, 'data' => $data];
+        }
+
+        return [
+            'success' => false,
+            'message' => $data['errorMessage'] ?? 'STK push failed',
+            'data' => $data
+        ];
+    } catch (\Throwable $e) {
+        Log::error('M-Pesa STK push error', ['error' => $e->getMessage()]);
+        return [
+            'success' => false,
+            'message' => 'Failed to connect to M-Pesa',
+            'data' => $e->getMessage()
+        ];
     }
+}
+
 
     public function refund(Payment $payment, float $amount = null): PaymentResponse
     {
