@@ -11,6 +11,9 @@ use App\Models\Customer\CustomerAddress;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\CustomerOrderConfirmation;
+use App\Mail\AdminOrderNotification;
 
 class OrderPlacementService
 {
@@ -34,19 +37,19 @@ class OrderPlacementService
             throw new \Exception("Cart is empty or not found");
         }
 
-        // Log cart and cart items for debugging
-        Log::info('Placing order for checkout session', [
-            'checkout_session_id' => $checkoutSessionId,
-            'cart_id' => $cart->id,
-            'cart_items_count' => $cart->items->count(),
-            'cart_items' => $cart->items->map(fn($ci) => [
-                'cart_item_id' => $ci->id,
-                'product_variant_id' => $ci->product_variant_id,
-                'quantity' => $ci->quantity,
-                'unit_price' => $ci->unit_price,
-                'discount_amount' => $ci->discount_amount,
-            ])->toArray(),
-        ]);
+        // // Log cart and cart items for debugging
+        // Log::info('Placing order for checkout session', [
+        //     'checkout_session_id' => $checkoutSessionId,
+        //     'cart_id' => $cart->id,
+        //     'cart_items_count' => $cart->items->count(),
+        //     'cart_items' => $cart->items->map(fn($ci) => [
+        //         'cart_item_id' => $ci->id,
+        //         'product_variant_id' => $ci->product_variant_id,
+        //         'quantity' => $ci->quantity,
+        //         'unit_price' => $ci->unit_price,
+        //         'discount_amount' => $ci->discount_amount,
+        //     ])->toArray(),
+        // ]);
 
         DB::beginTransaction();
 
@@ -55,33 +58,35 @@ class OrderPlacementService
 
             // Determine default addresses
             $billingAddress = CustomerAddress::where('customer_id', $customerId)
-               // ->where('type', 'billing')
                 ->default()
                 ->first() 
-                ?? CustomerAddress::where('customer_id', $customerId)->where('type', 'billing')->first();
+                ?? CustomerAddress::where('customer_id', $customerId)
+                   // ->where('type', 'billing')
+                    ->first();
 
             $shippingAddress = CustomerAddress::where('customer_id', $customerId)
-              //  ->where('type', 'shipping')
                 ->default()
                 ->first() 
-                ?? CustomerAddress::where('customer_id', $customerId)->where('type', 'shipping')->first();
+                ?? CustomerAddress::where('customer_id', $customerId)
+                  //  ->where('type', 'shipping')
+                    ->first();
 
             $itemsInput = $cart->items->map(function ($ci) {
                 if (!$ci->product_variant_id) {
-                    Log::error('Cart item missing product_variant_id', [
-                        'cart_item_id' => $ci->id,
-                        'cart_id' => $ci->cart_id,
-                        'ci' => $ci->toArray(),
-                    ]);
+                    // Log::error('Cart item missing product_variant_id', [
+                    //     'cart_item_id' => $ci->id,
+                    //     'cart_id' => $ci->cart_id,
+                    //     'ci' => $ci->toArray(),
+                    // ]);
                     throw new \Exception("Cart item missing product_variant_id");
                 }
 
                 $variant = $ci->productVariant;
                 if (!$variant) {
-                    Log::error('Product variant not found for cart item', [
-                        'cart_item_id' => $ci->id,
-                        'product_variant_id' => $ci->product_variant_id,
-                    ]);
+                    // Log::error('Product variant not found for cart item', [
+                    //     'cart_item_id' => $ci->id,
+                    //     'product_variant_id' => $ci->product_variant_id,
+                    // ]);
                     throw new \Exception("Product variant not found: {$ci->product_variant_id}");
                 }
 
@@ -162,6 +167,28 @@ class OrderPlacementService
                 'checkout_session_id' => $checkoutSessionId,
                 'cart_id' => $cart->id,
             ]);
+
+            // ------------------- Send Emails -------------------
+            try {
+                // Customer confirmation
+                if ($order->customer?->email) {
+                    Mail::to($order->customer->email)
+                        ->send(new CustomerOrderConfirmation($order));
+                }
+
+                // Admin notifications
+                $adminEmails = explode(',', env('MAIL_ADMIN_ADDRESS', ''));
+                if (!empty($adminEmails)) {
+                    Mail::to($adminEmails)
+                        ->send(new AdminOrderNotification($order));
+                }
+            } catch (\Throwable $e) {
+                Log::error('Failed to send order emails', [
+                    'order_id' => $order->id,
+                    'error' => $e->getMessage(),
+                    'stack' => $e->getTraceAsString(),
+                ]);
+            }
 
             return $order;
 
