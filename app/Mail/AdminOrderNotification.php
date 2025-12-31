@@ -9,7 +9,7 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class CustomerOrderConfirmation extends Mailable
+class AdminOrderNotification extends Mailable
 {
     use Queueable, SerializesModels;
 
@@ -23,14 +23,14 @@ class CustomerOrderConfirmation extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Your Order #' . $this->order->order_code . ' is Confirmed',
+            subject: "New Order: {$this->order->order_code}",
         );
     }
 
     public function content(): Content
     {
         return new Content(
-            view: 'emails.customer.order_confirmation',
+            markdown: 'emails.orders.admin_order_notification', // <-- Markdown version
             with: [
                 'order' => $this->order,
             ],

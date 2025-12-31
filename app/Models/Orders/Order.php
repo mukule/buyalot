@@ -266,4 +266,10 @@ class Order extends Model
         return $this->belongsTo(User::class, 'delivery_id');
     }
 
+
+    public function items(): HasMany
+{
+    return $this->orderItems();
+}
+
 }
