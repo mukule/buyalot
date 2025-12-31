@@ -128,7 +128,7 @@ const formatPrice = (amount: number | string | null) => {
         <section class="mt-4 mb-4 flex flex-col gap-6">
             <!-- Banner -->
             <div class="relative w-full overflow-hidden rounded-sm">
-                <img src="/images/buyalot1.png" alt="Category banner" class="h-auto w-full object-cover" loading="lazy" />
+                <img src="/buyalot1.png" alt="Category banner" class="h-auto w-full object-cover" loading="lazy" />
             </div>
 
             <!-- Breadcrumb -->
