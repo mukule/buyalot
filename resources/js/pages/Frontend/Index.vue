@@ -17,6 +17,7 @@ interface PageProps extends InertiaPageProps {
     productsByCategory?: Record<number, any[]>;
 }
 
+// Default banners
 const DEFAULT_BANNERS = [
     'https://osx-tal.gumlet.io/onlinesales/image/upload/v1748506085/xnghnkspb2gxrem9ccid.png',
     'https://media.takealot.com/b/2/cms/p/1292x300/smart/filters:format(jpeg):background_color(white):focal(483x0:809x300)/original_images/95f37d1908b3b66ae8ee2cf8ec208cc36e46b576.png',
@@ -50,29 +51,65 @@ const simplifiedProductsByCategory: Record<number, SimplifiedProduct[]> = Object
     ]),
 );
 
-//Only show categories with at least 2 products
+// Only show categories with at least 2 products
 const filteredCategories = categories.filter((category) => (simplifiedProductsByCategory[category.id]?.length ?? 0) >= 2);
 </script>
 
 <template>
     <MainLayout>
-        <!-- Sidebar + Hero + Brands -->
-        <section class="mt-4 mb-4 flex flex-col gap-6 bg-white lg:flex-row">
-            <CategorySidebar :categories="categories" class="hidden lg:block" />
-            <div class="w-full lg:w-[79.17%]">
-                <Hero :banners="banners" link="/" />
+        <!-- Row 1: Sidebar + Banner -->
+        <section class="mt-4 mb-4 flex flex-col gap-4 lg:flex-row lg:items-stretch">
+            <!-- Categories Sidebar -->
+            <div class="w-full lg:w-2/12">
+                <div class="h-full">
+                    <CategorySidebar :categories="categories" class="hidden lg:block" />
+                </div>
+            </div>
+
+            <!-- Hero Banner -->
+            <div class="w-full lg:w-10/12">
+                <div class="relative h-full overflow-hidden rounded-lg shadow">
+                    <Hero :banners="banners" link="/" class="h-full" animation="fade" lazy />
+                </div>
+            </div>
+        </section>
+
+        <!-- Featured Brands -->
+        <section class="mb-4">
+            <div class="rounded-lg bg-white p-4 shadow">
                 <FeaturedBrands :brands="brands" />
             </div>
         </section>
 
         <!-- Product Carousels -->
-        <section class="space-y-10 px-4">
+        <section class="mb-4 space-y-10">
             <ProductCarouselSection
                 v-for="category in filteredCategories"
                 :key="category.id"
                 :title="category.name"
+                :slug="category.slug"
                 :products="simplifiedProductsByCategory[category.id] || []"
             />
         </section>
     </MainLayout>
 </template>
+
+<style scoped>
+.h-full {
+    height: 100%;
+}
+
+/* Hero banner fade animation */
+.hero-slide-enter-active,
+.hero-slide-leave-active {
+    transition: opacity 0.5s ease;
+}
+.hero-slide-enter-from,
+.hero-slide-leave-to {
+    opacity: 0;
+}
+.hero-slide-enter-to,
+.hero-slide-leave-from {
+    opacity: 1;
+}
+</style>

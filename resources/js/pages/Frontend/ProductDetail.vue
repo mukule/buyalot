@@ -175,7 +175,7 @@ watch(selectedRegionId, updatePickupPoints);
 <template>
     <MainLayout>
         <!-- Main Product Section -->
-        <section class="mx-auto mt-4 mb-4 flex max-w-7xl flex-col overflow-x-hidden">
+        <section class="mx-auto mt-4 mb-4 flex flex-col overflow-x-hidden">
             <!-- Breadcrumb -->
             <nav class="p-4 text-sm text-gray-600" aria-label="Breadcrumb">
                 <ol class="flex flex-wrap items-center gap-1">
@@ -296,7 +296,11 @@ watch(selectedRegionId, updatePickupPoints);
 
                     <!-- Related -->
                     <div v-if="simplifiedRelatedProducts.length">
-                        <ProductCarouselSection title="Related Products" :products="simplifiedRelatedProducts" />
+                        <ProductCarouselSection
+                            title="Related Products"
+                            :products="simplifiedRelatedProducts"
+                            :slug="simplifiedRelatedProducts[0]?.category_slug ?? 'all-products'"
+                        />
                     </div>
 
                     <!-- Description -->

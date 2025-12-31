@@ -313,7 +313,7 @@ const goToAddressPage = () => {
 
 <template>
     <MainLayout>
-        <section class="mx-auto mt-4 mb-4 max-w-7xl px-2">
+        <section class="mx-auto mt-4 mb-4 px-2">
             <div class="grid gap-4 lg:grid-cols-12">
                 <!-- LEFT — Payment (8/12) -->
                 <div class="lg:col-span-8">
@@ -486,8 +486,13 @@ const goToAddressPage = () => {
             </div>
         </section>
 
-        <section class="mx-auto mt-8 mb-8 max-w-7xl" v-if="simplifiedRelatedProducts.length">
-            <ProductCarouselSection title="Related Products" :products="simplifiedRelatedProducts" @click-item="goToProduct" />
+        <section class="mx-auto mt-8 mb-8" v-if="simplifiedRelatedProducts.length">
+            <ProductCarouselSection
+                title="Related Products"
+                :products="simplifiedRelatedProducts"
+                :slug="simplifiedRelatedProducts[0]?.category_slug ?? '/'"
+                @click-item="goToProduct"
+            />
         </section>
     </MainLayout>
 </template>

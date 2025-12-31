@@ -127,7 +127,7 @@ const proceedToPayment = () => {
 
 <template>
     <MainLayout>
-        <section class="mx-auto mt-4 mb-4 flex max-w-7xl flex-col gap-4 lg:flex-row">
+        <section class="mx-auto mt-4 mb-4 flex flex-col gap-4 lg:flex-row">
             <!-- LEFT -->
             <div class="flex w-full flex-col gap-4 lg:w-8/12">
                 <!-- Delivery Address -->
@@ -242,9 +242,14 @@ const proceedToPayment = () => {
         </section>
 
         <!-- Related Products -->
-        <section class="mx-auto mt-8 mb-8 max-w-7xl">
+        <section class="mx-auto mt-8 mb-8">
             <div v-if="simplifiedRelatedProducts.length">
-                <ProductCarouselSection title="Related Products" :products="simplifiedRelatedProducts" @click-item="goToProduct" />
+                <ProductCarouselSection
+                    title="Related Products"
+                    :products="simplifiedRelatedProducts"
+                    @click-item="goToProduct"
+                    :slug="simplifiedRelatedProducts[0]?.category_slug ?? '/'"
+                />
             </div>
         </section>
     </MainLayout>

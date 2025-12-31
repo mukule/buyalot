@@ -42,6 +42,10 @@ class HomeController extends Controller
         $productsByCategory = $this->productService->getProductsGroupedByCategory($categories);
         // info($productsByCategory);
 
+        foreach ($categories as $category) {
+        info($this->logCategoryWithChildren($category));
+    }
+
         return Inertia::render('Frontend/Index', [
             'title' => 'Online Shopping Store',
             'categories' => $categories,
@@ -316,6 +320,25 @@ public function category(string $slug)
             'productVariantPerformance' => $productVariantPerformance,
         ]);
     }
+
+
+
+    protected function logCategoryWithChildren(Category $category, int $level = 0): array
+{
+    $data = [
+        'id' => $category->id,
+        'name' => $category->name,
+        'children' => [],
+    ];
+
+    foreach ($category->children as $child) {
+        $data['children'][] = $this->logCategoryWithChildren($child, $level + 1);
+    }
+
+    return $data;
+}
+
+
 }
 
 

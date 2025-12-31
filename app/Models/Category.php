@@ -6,12 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 use App\Models\Traits\HasSlug;
 use App\Models\Traits\HasHashid;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Category extends Model
 {
-    use HasSlug, HasHashid;
+    use HasSlug, HasHashid, SoftDeletes;
 
-    protected $fillable = ['name', 'slug', 'active','description','parent_id'];
+    protected $fillable = ['name', 'slug', 'active', 'description', 'parent_id'];
 
     protected $casts = [
         'active' => 'boolean',
@@ -21,29 +22,35 @@ class Category extends Model
 
     protected static string $slugSource = 'name';
 
-
+    /**
+     * Booted callbacks for model events
+     */
     protected static function booted()
     {
         static::created(fn() => \App\Services\SearchCacheService::refresh());
         static::updated(fn() => \App\Services\SearchCacheService::refresh());
         static::deleted(fn() => \App\Services\SearchCacheService::refresh());
+        static::restored(fn() => \App\Services\SearchCacheService::refresh());
     }
 
     /**
      * Parent category relationship
+     * Include soft-deleted parent if exists
      */
     public function parent()
     {
-        return $this->belongsTo(Category::class, 'parent_id');
+        return $this->belongsTo(Category::class, 'parent_id')->withTrashed();
     }
 
     /**
      * Children categories relationship (recursive)
+     * Include soft-deleted children
      */
     public function children()
     {
         return $this->hasMany(Category::class, 'parent_id')
-                    ->with('children');
+                    ->with('children')
+                    ->withTrashed();
     }
 
     /**
@@ -68,7 +75,7 @@ class Category extends Model
     }
 
     /**
-     * Scope for active categories
+     * Scope for active categories (excludes soft-deleted by default)
      */
     public function scopeActive($query)
     {
@@ -84,15 +91,15 @@ class Category extends Model
         $current = $this;
 
         while ($current) {
-            array_unshift($categories, [
+            $categories[] = [
                 'id' => $current->id,
                 'name' => $current->name,
                 'slug' => $current->slug,
-            ]);
+            ];
             $current = $current->parent;
         }
 
-        return $categories;
+        return array_reverse($categories);
     }
 
     /**
@@ -117,20 +124,19 @@ class Category extends Model
         return $ids;
     }
 
+    /**
+     * Get all parent category IDs (recursive)
+     */
+    public function getParentCategoryIds(): \Illuminate\Support\Collection
+    {
+        $ids = collect();
+        $current = $this->parent;
 
-  
-public function getParentCategoryIds(): \Illuminate\Support\Collection
-{
-    $ids = collect();
+        while ($current) {
+            $ids->push($current->id);
+            $current = $current->parent;
+        }
 
-    $current = $this->parent;
-
-    while ($current) {
-        $ids->push($current->id);
-        $current = $current->parent;
+        return $ids;
     }
-
-    return $ids;
-}
-
 }

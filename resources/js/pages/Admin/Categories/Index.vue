@@ -37,7 +37,7 @@ const page = usePage<AppPageProps<{ categories: PaginatedResponse<CategoryWithHa
 const categories = computed(() => page.props.categories?.data || []);
 const pagination = computed(() => {
     const { links, meta } = page.props.categories || {};
-    return { links, meta };
+    return { links: links || [], meta: meta || {} };
 });
 
 const breadcrumbs = [
@@ -60,6 +60,11 @@ function deleteCategory(hashid: string) {
         router.delete(route('admin.categories.destroy', { category: hashid }));
     }
 }
+
+function goToPage(url: string | null) {
+    if (!url) return;
+    router.get(url);
+}
 </script>
 
 <template>
@@ -75,31 +80,49 @@ function deleteCategory(hashid: string) {
                 </div>
 
                 <!-- Table -->
-                <!-- Table -->
                 <div v-if="categories.length" class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Parent Category</th>
-                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                        </tr>
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Parent Category</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                            </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white">
-                        <tr v-for="(category, index) in categories" :key="category.hashid" class="hover:bg-gray-50">
-                            <td class="px-4 py-4 text-sm text-gray-500">{{ index + 1 }}</td>
-                            <td class="px-4 py-4 text-sm font-medium text-gray-800">{{ category.name }}</td>
-                            <td class="px-4 py-4 text-sm text-gray-600">
-                                {{ category.parent_name ?? '-' }}
-                            </td>
-                            <td class="px-4 py-4 text-right text-sm">
-                                <button @click.stop="editCategory(category.hashid)" class="mr-3 text-blue-600 hover:underline">Edit</button>
-                                <button @click.stop="deleteCategory(category.hashid)" class="text-red-600 hover:underline">Delete</button>
-                            </td>
-                        </tr>
+                            <tr v-for="(category, index) in categories" :key="category.hashid" class="hover:bg-gray-50">
+                                <td class="px-4 py-4 text-sm text-gray-500">
+                                    {{ index + 1 + ((pagination.meta.current_page || 1) - 1) * (pagination.meta.per_page || categories.length || 1) }}
+                                </td>
+
+                                <td class="px-4 py-4 text-sm font-medium text-gray-800">{{ category.name }}</td>
+                                <td class="px-4 py-4 text-sm text-gray-600">
+                                    {{ category.parent_name ?? '-' }}
+                                </td>
+                                <td class="px-4 py-4 text-right text-sm">
+                                    <button @click.stop="editCategory(category.hashid)" class="mr-3 text-blue-600 hover:underline">Edit</button>
+                                    <button @click.stop="deleteCategory(category.hashid)" class="text-red-600 hover:underline">Delete</button>
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
+
+                    <!-- Pagination -->
+                    <div class="mt-4 flex items-center justify-between">
+                        <div class="text-sm text-gray-600">Page {{ pagination.meta.current_page }} of {{ pagination.meta.last_page }}</div>
+                        <div class="flex space-x-1">
+                            <button
+                                v-for="link in pagination.links"
+                                :key="link.label"
+                                :disabled="!link.url"
+                                @click="goToPage(link.url)"
+                                class="rounded border border-gray-300 px-3 py-1 hover:bg-gray-100 disabled:opacity-50"
+                                :class="{ 'bg-gray-200 font-semibold': link.active }"
+                                v-html="link.label"
+                            ></button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Empty State -->

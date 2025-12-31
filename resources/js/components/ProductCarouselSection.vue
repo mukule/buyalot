@@ -3,12 +3,13 @@
         <!-- Header -->
         <div class="mb-4 flex items-center justify-between px-2">
             <h2 class="text-xl font-bold text-gray-800">{{ title }}</h2>
-            <button
+            <a
+                :href="`/${slug}`"
                 class="flex items-center rounded-md border border-primary bg-transparent px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary hover:text-white"
             >
                 View all
                 <ChevronRight class="ml-1 h-4 w-4" />
-            </button>
+            </a>
         </div>
 
         <div class="relative">
@@ -46,6 +47,7 @@ import ProductCard from './ProductCard.vue';
 
 const props = defineProps<{
     title: string;
+    slug: string;
     products: SimplifiedProduct[];
 }>();
 

@@ -339,22 +339,22 @@ function toggleCategory(catId: number) {
                     placeholder="Search products, brands..."
                     class="w-full rounded-md bg-white py-2 pr-10 pl-10 text-sm text-gray-700 placeholder-gray-500 shadow-sm focus:ring-2 focus:ring-secondary focus:outline-none"
                 />
-<!--                <div v-if="showSuggestions" class="absolute z-50 mt-2 max-h-80 w-full overflow-auto rounded-md border bg-white shadow">-->
-<!--                    <div-->
-<!--                        v-for="s in suggestions"-->
-<!--                        :key="s.hashid"-->
-<!--                        @mousedown.prevent="router.get(route('search'), { q: s.name })"-->
-<!--                        class="flex cursor-pointer items-center gap-3 p-2 hover:bg-gray-50"-->
-<!--                    >-->
-<!--                        <img :src="s.primary_image_url || '/fallback-image.png'" alt="" class="h-10 w-10 flex-none object-contain" />-->
-<!--                        <div class="min-w-0">-->
-<!--                            <div class="truncate text-sm text-gray-800">{{ s.name }}</div>-->
-<!--                            <div v-if="s.brand" class="truncate text-xs text-gray-500">{{ s.brand }}</div>-->
-<!--                        </div>-->
-<!--                    </div>-->
-<!--                    <div class="border-t p-2 text-center">-->
-<!--                        <button class="text-sm text-primary hover:underline" @mousedown.prevent="submitSearch">See all results</button>-->
-<!--                    </div>-->
+                <!--                <div v-if="showSuggestions" class="absolute z-50 mt-2 max-h-80 w-full overflow-auto rounded-md border bg-white shadow">-->
+                <!--                    <div-->
+                <!--                        v-for="s in suggestions"-->
+                <!--                        :key="s.hashid"-->
+                <!--                        @mousedown.prevent="router.get(route('search'), { q: s.name })"-->
+                <!--                        class="flex cursor-pointer items-center gap-3 p-2 hover:bg-gray-50"-->
+                <!--                    >-->
+                <!--                        <img :src="s.primary_image_url || '/fallback-image.png'" alt="" class="h-10 w-10 flex-none object-contain" />-->
+                <!--                        <div class="min-w-0">-->
+                <!--                            <div class="truncate text-sm text-gray-800">{{ s.name }}</div>-->
+                <!--                            <div v-if="s.brand" class="truncate text-xs text-gray-500">{{ s.brand }}</div>-->
+                <!--                        </div>-->
+                <!--                    </div>-->
+                <!--                    <div class="border-t p-2 text-center">-->
+                <!--                        <button class="text-sm text-primary hover:underline" @mousedown.prevent="submitSearch">See all results</button>-->
+                <!--                    </div>-->
                 <div v-if="showSuggestions" class="absolute z-50 mt-2 max-h-80 w-full overflow-auto rounded-md border bg-white shadow">
                     <div
                         v-for="s in suggestions"
@@ -362,25 +362,16 @@ function toggleCategory(catId: number) {
                         @mousedown.prevent="router.get('/search', { q: s.name }, { preserveScroll: true })"
                         class="flex cursor-pointer items-center gap-3 p-2 hover:bg-gray-50"
                     >
-                        <img
-                            :src="s.primary_image_url || '/fallback-image.png'"
-                            alt=""
-                            class="h-10 w-10 flex-none object-contain rounded"
-                        />
+                        <img :src="s.primary_image_url || '/fallback-image.png'" alt="" class="h-10 w-10 flex-none rounded object-contain" />
                         <div class="min-w-0">
                             <div class="truncate text-sm text-gray-800">{{ s.name }}</div>
                             <div v-if="s.brand" class="truncate text-xs text-gray-500">{{ s.brand }}</div>
                         </div>
                     </div>
                     <div class="border-t p-2 text-center">
-                        <button
-                            class="text-sm text-primary hover:underline"
-                            @mousedown.prevent="submitSearch"
-                        >
-                            See all results
-                        </button>
+                        <button class="text-sm text-primary hover:underline" @mousedown.prevent="submitSearch">See all results</button>
                     </div>
-            </div>
+                </div>
             </div>
         </div>
     </div>
