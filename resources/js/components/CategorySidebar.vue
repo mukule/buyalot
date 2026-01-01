@@ -72,7 +72,6 @@ const goToCategoriesPage = () => router.visit('/categories');
 </script>
 
 <template>
-    <!-- SINGLE HOVER CONTAINER -->
     <aside class="relative w-full rounded-lg bg-white shadow-md" @mouseleave="onMenuLeave">
         <!-- LEFT: DEPARTMENTS -->
         <ul class="p-1">
@@ -99,7 +98,7 @@ const goToCategoriesPage = () => router.visit('/categories');
         <transition name="fade">
             <div
                 v-if="activeCategory && activeCategory.children?.length"
-                class="absolute inset-y-0 left-full z-50 ml-2 overflow-x-auto rounded-lg border bg-white shadow-xl"
+                class="mega-panel absolute inset-y-0 left-full z-50 ml-2 rounded-lg border bg-white shadow-xl"
                 @mouseenter="onPanelEnter"
                 @mouseleave="onPanelLeave"
             >
@@ -155,19 +154,24 @@ a {
     text-decoration: none;
 }
 
+.mega-panel {
+    /* Allow width to grow naturally but limit to banner container */
+    max-width: inherit; /* will inherit parent container width (sidebar + banner) */
+    overflow-x: visible; /* let it grow horizontally if space allows */
+}
+
+/* MEGA-MENU COLUMNS */
 .mega-columns {
-    column-width: 240px;
+    column-width: 240px; /* ideal width per column */
     column-gap: 1.5rem;
-    height: 100%;
-    max-width: calc(100vw - 3rem);
-    overflow-x: auto;
-    overflow-y: hidden;
+    height: 100%; /* match parent height (inset-y-0) */
+    overflow-y: hidden; /* no vertical scroll */
 }
 
 .mega-group {
-    display: inline-block;
-    width: 100%;
-    break-inside: avoid;
+    display: inline-block; /* required for multi-column layout */
+    width: 100%; /* full column width */
+    break-inside: avoid; /* prevent splitting a group across columns */
     margin-bottom: 1rem;
 }
 </style>
