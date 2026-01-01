@@ -32,6 +32,22 @@ const hasMore = computed(() => props.categories.length > limit);
 
 const activeCategory = computed(() => props.categories.find((c) => c.id === activeCategoryId.value) ?? null);
 
+// Dynamic panel width based on banner area (10/12 of container)
+const megaPanelWidth = computed(() => {
+    if (!activeCategory.value?.children?.length) return '0px';
+    const columnWidth = 220; // width of each column
+    const gap = 16; // 1rem gap in px
+    const numColumns = activeCategory.value.children.length;
+
+    // Banner width fraction and container max-width
+    const bannerFraction = 10 / 12;
+    const containerMaxWidth = 1280; // Tailwind container xl breakpoint
+    const maxPanelWidth = bannerFraction * containerMaxWidth;
+
+    const totalWidth = Math.min(numColumns * columnWidth + (numColumns - 1) * gap, maxPanelWidth);
+    return `${totalWidth}px`;
+});
+
 /**
  * EVENTS
  */
@@ -98,23 +114,26 @@ const goToCategoriesPage = () => router.visit('/categories');
         <transition name="fade">
             <div
                 v-if="activeCategory && activeCategory.children?.length"
-                class="mega-panel absolute inset-y-0 left-full z-50 ml-2 rounded-lg border bg-white shadow-xl"
+                class="mega-panel absolute inset-y-0 left-full z-50 ml-2 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border bg-white shadow-xl"
+                :style="{ width: megaPanelWidth }"
                 @mouseenter="onPanelEnter"
                 @mouseleave="onPanelLeave"
             >
-                <div class="mega-columns p-4">
+                <div class="mega-columns p-6">
                     <div v-for="group in activeCategory.children" :key="group.id" class="mega-group">
-                        <h4 class="mb-1 truncate text-sm font-medium text-gray-700">
-                            <a :href="`/${group.slug}`" class="hover:text-primary">
-                                {{ group.name }}
-                            </a>
+                        <h4 class="mb-3 truncate text-sm font-medium text-gray-700">
+                            <a :href="`/${group.slug}`" class="hover:text-primary">{{ group.name }}</a>
                         </h4>
-
-                        <ul class="space-y-1 text-sm">
+                        <ul class="space-y-2 text-sm">
                             <li v-for="child in group.children ?? []" :key="child.id" class="truncate text-gray-600 hover:text-primary">
                                 <a :href="`/${child.slug}`">{{ child.name }}</a>
                             </li>
                         </ul>
+                    </div>
+
+                    <!-- More Menus link if content exceeds banner width -->
+                    <div v-if="activeCategory.children.length * 220 > (10 / 12) * 1280" class="mega-group flex items-center justify-center">
+                        <a href="/categories" class="text-sm font-medium text-primary">More Menus ›</a>
                     </div>
                 </div>
             </div>
@@ -123,7 +142,7 @@ const goToCategoriesPage = () => router.visit('/categories');
 </template>
 
 <style scoped>
-/* FADE + SLIDE */
+/* FADE + SLIDE ANIMATION */
 .fade-enter-active,
 .fade-leave-active {
     transition:
@@ -143,35 +162,29 @@ const goToCategoriesPage = () => router.visit('/categories');
     transform: translateX(0);
 }
 
-/* MOBILE SAFETY */
-@media (max-width: 1024px) {
-    .absolute.left-full {
-        left: calc(100% + 0.25rem);
-    }
-}
-
-a {
-    text-decoration: none;
-}
-
+/* MEGA PANEL */
 .mega-panel {
-    /* Allow width to grow naturally but limit to banner container */
-    max-width: inherit; /* will inherit parent container width (sidebar + banner) */
-    overflow-x: visible; /* let it grow horizontally if space allows */
+    height: 100%; /* Matches sidebar height */
 }
 
-/* MEGA-MENU COLUMNS */
+/* NEWSPAPER-STYLE MULTI-COLUMNS */
 .mega-columns {
-    column-width: 240px; /* ideal width per column */
-    column-gap: 1.5rem;
-    height: 100%; /* match parent height (inset-y-0) */
-    overflow-y: hidden; /* no vertical scroll */
+    column-width: 220px; /* width of each column */
+    column-gap: 1rem; /* space between columns */
+    column-fill: auto; /* fill top -> bottom first */
+    max-height: 100%;
+    overflow: hidden;
 }
 
 .mega-group {
-    display: inline-block; /* required for multi-column layout */
-    width: 100%; /* full column width */
-    break-inside: avoid; /* prevent splitting a group across columns */
-    margin-bottom: 1rem;
+    display: inline-block; /* required for columns to work */
+    width: 100%;
+    break-inside: avoid; /* prevent a group from splitting across columns */
+    margin-bottom: 1.5rem; /* space below each group */
+}
+
+/* Links */
+a {
+    text-decoration: none;
 }
 </style>
