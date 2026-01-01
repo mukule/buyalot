@@ -99,36 +99,23 @@ const goToCategoriesPage = () => router.visit('/categories');
         <transition name="fade">
             <div
                 v-if="activeCategory && activeCategory.children?.length"
-                class="absolute inset-y-0 left-full z-50 ml-2 max-w-[900px] min-w-[600px] rounded-lg border bg-white shadow-xl"
+                class="absolute inset-y-0 left-full z-50 ml-2 overflow-x-auto rounded-lg border bg-white shadow-xl"
                 @mouseenter="onPanelEnter"
                 @mouseleave="onPanelLeave"
             >
-                <div class="p-4">
-                    <!-- Header -->
-                    <div class="mb-3 flex items-center justify-between border-b pb-2">
-                        <h3 class="max-w-[70%] truncate text-sm font-semibold text-gray-800">
-                            {{ activeCategory.name }}
-                        </h3>
-                        <a :href="`/${activeCategory.slug}`" class="text-xs text-gray-500 hover:text-primary"> View all </a>
-                    </div>
+                <div class="mega-columns p-4">
+                    <div v-for="group in activeCategory.children" :key="group.id" class="mega-group">
+                        <h4 class="mb-1 truncate text-sm font-medium text-gray-700">
+                            <a :href="`/${group.slug}`" class="hover:text-primary">
+                                {{ group.name }}
+                            </a>
+                        </h4>
 
-                    <!-- CATEGORY GROUPS -->
-                    <div class="grid grid-cols-3 gap-x-8 gap-y-4">
-                        <div v-for="group in activeCategory.children" :key="group.id">
-                            <h4 class="mb-1 truncate text-sm font-medium text-gray-700">
-                                <a :href="`/${group.slug}`" class="hover:text-primary">
-                                    {{ group.name }}
-                                </a>
-                            </h4>
-
-                            <ul class="space-y-1 text-sm">
-                                <li v-for="child in group.children ?? []" :key="child.id" class="truncate text-gray-600 hover:text-primary">
-                                    <a :href="`/${child.slug}`">
-                                        {{ child.name }}
-                                    </a>
-                                </li>
-                            </ul>
-                        </div>
+                        <ul class="space-y-1 text-sm">
+                            <li v-for="child in group.children ?? []" :key="child.id" class="truncate text-gray-600 hover:text-primary">
+                                <a :href="`/${child.slug}`">{{ child.name }}</a>
+                            </li>
+                        </ul>
                     </div>
                 </div>
             </div>
@@ -166,5 +153,21 @@ const goToCategoriesPage = () => router.visit('/categories');
 
 a {
     text-decoration: none;
+}
+
+.mega-columns {
+    column-width: 240px;
+    column-gap: 1.5rem;
+    height: 100%;
+    max-width: calc(100vw - 3rem);
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.mega-group {
+    display: inline-block;
+    width: 100%;
+    break-inside: avoid;
+    margin-bottom: 1rem;
 }
 </style>
