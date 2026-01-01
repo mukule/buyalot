@@ -180,7 +180,7 @@ function createUser() {
 function updateUser() {
     if (!selectedUser.value) return;
 
-    editForm.put(route('admin.user-roles.update', selectedUser.value.id), {
+    editForm.put(route('admin.users.update', selectedUser.value.id), {
         preserveScroll: true,
         onSuccess: () => {
             closeModals();

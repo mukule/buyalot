@@ -8,11 +8,15 @@ return new class extends Migration
 {
      public function up(): void
     {
-        // migration neutralized — uuid already exists
+        Schema::table('customer_addresses', function (Blueprint $table) {
+            $table->uuid('uuid')->nullable();
+        });
     }
 
     public function down(): void
     {
-        // intentionally left blank
+        Schema::table('customer_addresses', function (Blueprint $table) {
+            $table->dropColumn('uuid');
+        });
     }
 };
