@@ -78,25 +78,47 @@ class Product extends Model
     }
 
 
-    protected function imageUrls(): Attribute
-    {
-        return Attribute::get(fn () =>
-            $this->relationLoaded('images')
-                ? $this->images
-                    ->map(fn ($img) => Storage::disk('s3')->url($img->image_path))
-                    ->toArray()
-                : []
-        );
-    }
+    // protected function imageUrls(): Attribute
+    // {
+    //     return Attribute::get(fn () =>
+    //         $this->relationLoaded('images')
+    //             ? $this->images
+    //                 ->map(fn ($img) => Storage::disk('s3')->url($img->image_path))
+    //                 ->toArray()
+    //             : []
+    //     );
+    // }
 
-    protected function primaryImageUrl(): Attribute
-    {
-        return Attribute::get(fn () =>
-            $this->relationLoaded('primaryImage') && $this->primaryImage
-                ? Storage::disk('s3')->url($this->primaryImage->image_path)
-                : null
-        );
-    }
+    // protected function primaryImageUrl(): Attribute
+    // {
+    //     return Attribute::get(fn () =>
+    //         $this->relationLoaded('primaryImage') && $this->primaryImage
+    //             ? Storage::disk('s3')->url($this->primaryImage->image_path)
+    //             : null
+    //     );
+    // }
+
+
+    protected function imageUrls(): Attribute
+{
+    return Attribute::get(fn () =>
+        $this->relationLoaded('images')
+            ? $this->images
+                ->map(fn ($img) => url("storage/{$img->image_path}"))
+                ->toArray()
+            : []
+    );
+}
+
+protected function primaryImageUrl(): Attribute
+{
+    return Attribute::get(fn () =>
+        $this->relationLoaded('primaryImage') && $this->primaryImage
+            ? url("storage/{$this->primaryImage->image_path}")
+            : null
+    );
+}
+
 
 
     protected function statusLabel(): Attribute

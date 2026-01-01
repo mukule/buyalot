@@ -17,33 +17,28 @@ interface Props {
 const props = defineProps<Props>();
 const limit = props.limit ?? 11;
 
+/**
+ * STATE
+ */
 const activeCategoryId = ref<number | null>(null);
 const pinned = ref(false);
 const hoveringPanel = ref(false);
 
+/**
+ * COMPUTED
+ */
 const visibleCategories = computed(() => props.categories.slice(0, limit));
 const hasMore = computed(() => props.categories.length > limit);
 
+const activeCategory = computed(() => props.categories.find((c) => c.id === activeCategoryId.value) ?? null);
+
+/**
+ * EVENTS
+ */
 const onCategoryEnter = (id: number) => {
-    if (pinned.value) return;
-    activeCategoryId.value = id;
-};
-
-const onCategoryLeave = () => {
-    setTimeout(() => {
-        if (!pinned.value && !hoveringPanel.value) {
-            activeCategoryId.value = null;
-        }
-    }, 150);
-};
-
-const onPanelEnter = () => {
-    hoveringPanel.value = true;
-};
-
-const onPanelLeave = () => {
-    hoveringPanel.value = false;
-    if (!pinned.value) activeCategoryId.value = null;
+    if (!pinned.value) {
+        activeCategoryId.value = id;
+    }
 };
 
 const onCategoryClick = (id: number) => {
@@ -56,71 +51,81 @@ const onCategoryClick = (id: number) => {
     }
 };
 
-const goToCategoriesPage = () => {
-    router.visit('/categories');
+const onMenuLeave = () => {
+    if (!pinned.value && !hoveringPanel.value) {
+        activeCategoryId.value = null;
+    }
 };
 
-const activeCategory = computed(() => {
-    return props.categories.find((c) => c.id === activeCategoryId.value) ?? null;
-});
+const onPanelEnter = () => {
+    hoveringPanel.value = true;
+};
+
+const onPanelLeave = () => {
+    hoveringPanel.value = false;
+    if (!pinned.value) {
+        activeCategoryId.value = null;
+    }
+};
+
+const goToCategoriesPage = () => router.visit('/categories');
 </script>
 
 <template>
-    <aside class="relative w-full rounded-lg bg-white shadow-md lg:w-[20.83%]">
+    <!-- SINGLE HOVER CONTAINER -->
+    <aside class="relative w-full rounded-lg bg-white shadow-md" @mouseleave="onMenuLeave">
+        <!-- LEFT: DEPARTMENTS -->
         <ul class="p-1">
             <li
                 v-for="cat in visibleCategories"
                 :key="cat.id"
-                class="relative flex items-center justify-between rounded-md px-3 py-2 transition hover:bg-gray-50"
+                class="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm text-gray-800 transition hover:bg-gray-100"
                 @mouseenter="onCategoryEnter(cat.id)"
-                @mouseleave="onCategoryLeave"
                 @click.prevent="onCategoryClick(cat.id)"
-                role="button"
             >
-                <a :href="`/${cat.slug}`" class="flex-1 text-sm text-gray-800 hover:text-primary" @click.stop>
+                <a :href="`/${cat.slug}`" class="flex-1 truncate hover:text-primary" @click.stop>
                     {{ cat.name }}
                 </a>
+
+                <span class="text-xs text-gray-400">›</span>
             </li>
 
-            <!-- 'Other Categories' -->
             <li v-if="hasMore" class="px-3 py-2">
                 <button class="w-full text-left text-sm text-gray-600 hover:text-primary" @click="goToCategoriesPage">Other Categories</button>
             </li>
         </ul>
 
-        <!-- Right-side mega panel -->
+        <!-- RIGHT: MEGA PANEL -->
         <transition name="fade">
             <div
                 v-if="activeCategory && activeCategory.children?.length"
-                class="absolute top-0 left-full z-40 ml-2 w-[520px] rounded-lg border bg-white shadow-lg"
+                class="absolute inset-y-0 left-full z-50 ml-2 max-w-[900px] min-w-[600px] rounded-lg border bg-white shadow-xl"
                 @mouseenter="onPanelEnter"
                 @mouseleave="onPanelLeave"
             >
                 <div class="p-4">
+                    <!-- Header -->
                     <div class="mb-3 flex items-center justify-between border-b pb-2">
-                        <h3 class="text-sm font-semibold text-gray-800">
+                        <h3 class="max-w-[70%] truncate text-sm font-semibold text-gray-800">
                             {{ activeCategory.name }}
                         </h3>
                         <a :href="`/${activeCategory.slug}`" class="text-xs text-gray-500 hover:text-primary"> View all </a>
                     </div>
 
-                    <div class="grid grid-cols-3 gap-4">
-                        <div v-for="child in activeCategory.children" :key="child.id" class="min-h-[40px]">
-                            <h4 class="mb-2 text-sm font-medium text-gray-700">
-                                <a :href="`/${child.slug}`" class="hover:text-primary">
-                                    {{ child.name }}
+                    <!-- CATEGORY GROUPS -->
+                    <div class="grid grid-cols-3 gap-x-8 gap-y-4">
+                        <div v-for="group in activeCategory.children" :key="group.id">
+                            <h4 class="mb-1 truncate text-sm font-medium text-gray-700">
+                                <a :href="`/${group.slug}`" class="hover:text-primary">
+                                    {{ group.name }}
                                 </a>
                             </h4>
 
                             <ul class="space-y-1 text-sm">
-                                <li v-for="grand in child.children ?? []" :key="grand.id" class="text-gray-600 hover:text-primary">
-                                    <a :href="`/category/${grand.slug}`">
-                                        {{ grand.name }}
+                                <li v-for="child in group.children ?? []" :key="child.id" class="truncate text-gray-600 hover:text-primary">
+                                    <a :href="`/${child.slug}`">
+                                        {{ child.name }}
                                     </a>
-                                </li>
-
-                                <li v-if="!(child.children && child.children.length)" class="text-gray-600">
-                                    <a :href="`/${child.slug}`" class="block hover:text-primary">{{ child.name }} </a>
                                 </li>
                             </ul>
                         </div>
@@ -132,26 +137,30 @@ const activeCategory = computed(() => {
 </template>
 
 <style scoped>
+/* FADE + SLIDE */
 .fade-enter-active,
 .fade-leave-active {
     transition:
         opacity 0.15s ease,
         transform 0.15s ease;
 }
+
 .fade-enter-from,
 .fade-leave-to {
     opacity: 0;
     transform: translateX(-6px);
 }
+
 .fade-enter-to,
 .fade-leave-from {
     opacity: 1;
     transform: translateX(0);
 }
 
+/* MOBILE SAFETY */
 @media (max-width: 1024px) {
     .absolute.left-full {
-        left: calc(100% + 0.25rem) !important;
+        left: calc(100% + 0.25rem);
     }
 }
 

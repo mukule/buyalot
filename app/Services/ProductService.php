@@ -236,6 +236,67 @@ protected function handleStep4(array $data, ?User $user, ?array $images, ?Produc
 
 
 
+// protected function processProductImages(Product $product, array $images, int $primaryIndex): void
+// {
+//     foreach ($images as $index => $image) {
+//         $file = $image instanceof \Illuminate\Http\UploadedFile
+//             ? $image
+//             : (is_array($image) ? ($image['file'] ?? null) : null);
+
+//         \Log::info('processProductImages: inspecting file', [
+//             'index' => $index,
+//             'type'  => is_object($file) ? get_class($file) : gettype($file),
+//             'name'  => $file instanceof \Illuminate\Http\UploadedFile ? $file->getClientOriginalName() : null,
+//         ]);
+
+//         if ($file instanceof \Illuminate\Http\UploadedFile) {
+//             try {
+                
+//                 $path = $file->store('products', 's3');
+
+//                 \Log::info('processProductImages: image stored', [
+//                     'product_id' => $product->id,
+//                     'path'       => $path,
+//                     'url'        => Storage::disk('s3')->url($path),
+//                 ]);
+
+//                 // Save in DB
+//                 $product->images()->create([
+//                     'image_path' => $path,
+//                     'is_primary' => $primaryIndex === $index ? 1 : 0,
+//                     'sort_order' => $index,
+//                     'alt_text'   => substr($product->name, 0, 15),
+//                 ]);
+//             } catch (\Exception $e) {
+//                 \Log::error('processProductImages: upload failed', [
+//                     'error' => $e->getMessage(),
+//                 ]);
+//             }
+//         } else {
+//             \Log::warning('processProductImages: skipped file', [
+//                 'index' => $index,
+//                 'value' => $image,
+//             ]);
+//         }
+//     }
+
+    
+//     if (!$product->images()->where('is_primary', 1)->exists()) {
+//         $firstImage = $product->images()->orderBy('sort_order')->first();
+//         if ($firstImage) {
+//             $firstImage->update(['is_primary' => 1]);
+//         }
+//     }
+
+//     \Log::info('processProductImages completed', [
+//         'product_id'   => $product->id,
+//         'final_count'  => $product->images()->count(),
+//         'primary_index'=> $primaryIndex,
+//         'has_primary'  => $product->images()->where('is_primary', 1)->exists(),
+//     ]);
+// }
+
+
 protected function processProductImages(Product $product, array $images, int $primaryIndex): void
 {
     foreach ($images as $index => $image) {
@@ -251,13 +312,13 @@ protected function processProductImages(Product $product, array $images, int $pr
 
         if ($file instanceof \Illuminate\Http\UploadedFile) {
             try {
-                
-                $path = $file->store('products', 's3');
+                // Store locally in "storage/app/public/products"
+                $path = $file->store('products', 'public');
 
                 \Log::info('processProductImages: image stored', [
                     'product_id' => $product->id,
                     'path'       => $path,
-                    'url'        => Storage::disk('s3')->url($path),
+                    'url'        => url("storage/{$path}"), // Local URL
                 ]);
 
                 // Save in DB
@@ -280,7 +341,7 @@ protected function processProductImages(Product $product, array $images, int $pr
         }
     }
 
-    
+    // Ensure a primary image exists
     if (!$product->images()->where('is_primary', 1)->exists()) {
         $firstImage = $product->images()->orderBy('sort_order')->first();
         if ($firstImage) {
@@ -295,6 +356,7 @@ protected function processProductImages(Product $product, array $images, int $pr
         'has_primary'  => $product->images()->where('is_primary', 1)->exists(),
     ]);
 }
+
 
 
     protected function createBaseProduct(array $data, ?User $user = null): Product

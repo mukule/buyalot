@@ -98,7 +98,7 @@ const goToProduct = (product: SimplifiedProduct) => {
 
 <template>
     <MainLayout>
-        <section class="mx-auto mt-4 mb-4 flex max-w-7xl flex-col overflow-x-hidden">
+        <section class="mx-auto mt-4 mb-4 flex flex-col overflow-x-hidden">
             <div v-if="cart.items.length" class="flex flex-col gap-4 lg:flex-row">
                 <div class="w-full lg:w-9/12">
                     <div class="space-y-4 rounded-lg bg-white p-4 shadow">
@@ -207,8 +207,13 @@ const goToProduct = (product: SimplifiedProduct) => {
             <div v-else class="rounded-lg bg-white p-6 text-center text-gray-600 shadow">Your cart is empty.</div>
         </section>
 
-        <section class="mx-auto mt-8 mb-8 max-w-7xl" v-if="simplifiedRelatedProducts.length">
-            <ProductCarouselSection title="Related Products" :products="simplifiedRelatedProducts" @click-item="goToProduct" />
+        <section class="mx-auto mt-8 mb-8" v-if="simplifiedRelatedProducts.length">
+            <ProductCarouselSection
+                title="Related Products"
+                :products="simplifiedRelatedProducts"
+                @click-item="goToProduct"
+                :slug="simplifiedRelatedProducts[0]?.category_slug ?? '/'"
+            />
         </section>
     </MainLayout>
 </template>

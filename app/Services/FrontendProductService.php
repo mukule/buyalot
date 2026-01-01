@@ -199,6 +199,7 @@ private function normalizeVariant(ProductVariant $variant, array $priceData = []
         'id'                => $variant->id,
         'variant_hashid'    => $variant->hashid,
         'product_id'        => $product?->id,
+        'category_slug'     => $product->category?->slug ?? '',
         'product_slug'      => $product?->slug ?? '',
         'name'              => $variant->display_name ?? $product?->name,
         'product_name'      => $product?->name,

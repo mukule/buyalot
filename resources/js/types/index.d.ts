@@ -411,6 +411,7 @@ export interface SimplifiedProduct {
     discount_percent: number;
     has_discount: boolean;
     rating?: number;
+    category_slug?: string;
 }
 
 export interface VariantCategory {

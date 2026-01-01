@@ -175,7 +175,7 @@ watch(selectedRegionId, updatePickupPoints);
 <template>
     <MainLayout>
         <!-- Main Product Section -->
-        <section class="mx-auto mt-4 mb-4 flex max-w-7xl flex-col overflow-x-hidden">
+        <section class="mx-auto mt-4 mb-4 flex flex-col overflow-x-hidden">
             <!-- Breadcrumb -->
             <nav class="p-4 text-sm text-gray-600" aria-label="Breadcrumb">
                 <ol class="flex flex-wrap items-center gap-1">
@@ -296,7 +296,11 @@ watch(selectedRegionId, updatePickupPoints);
 
                     <!-- Related -->
                     <div v-if="simplifiedRelatedProducts.length">
-                        <ProductCarouselSection title="Related Products" :products="simplifiedRelatedProducts" />
+                        <ProductCarouselSection
+                            title="Related Products"
+                            :products="simplifiedRelatedProducts"
+                            :slug="simplifiedRelatedProducts[0]?.category_slug ?? 'all-products'"
+                        />
                     </div>
 
                     <!-- Description -->
@@ -324,7 +328,7 @@ watch(selectedRegionId, updatePickupPoints);
                 <div class="flex w-full flex-col gap-4 lg:w-2/12">
                     <!-- Buyalot Swift -->
                     <div class="flex flex-col items-center rounded-xl bg-white p-4 shadow">
-                        <img src="/storage/images/buyalotswift.png" alt="Buyalot Swift" class="h-10 w-auto object-contain" />
+                        <img src="/buyalotswift.png" alt="Buyalot Swift" class="h-10 w-auto object-contain" />
 
                         <p class="text-[11px] text-gray-500">
                             Fast.Smooth.Reliable
