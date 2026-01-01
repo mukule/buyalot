@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
-import type { AppPageProps, Role, User } from '@/types';
+import { useConfirm } from '@/composables/useConfirm';
+import type { AppPageProps, Role, User, UserDetails } from '@/types';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 
 type UserWithRoles = User & { roles: Role[] };
+
+const { confirmDelete } = useConfirm();
 
 const page = usePage<
     AppPageProps<{
@@ -13,6 +16,10 @@ const page = usePage<
             phone?: string;
             roles: (Role & { hashid: string })[];
         })[];
+        userDetails: UserDetails & {
+            user_id: string;
+            gender: string;
+        };
         roles: string[];
         isSellerContext: boolean;
         filters?: {
@@ -25,7 +32,6 @@ const page = usePage<
 
 const users = computed(() => page.props.users);
 const availableRoles = computed(() => page.props.roles);
-const isSellerContext = computed(() => Boolean((page.props as any).isSellerContext));
 const filters = computed(() => page.props.filters || {});
 
 const searchForm = useForm({
@@ -50,11 +56,10 @@ const createForm = useForm({
     email: '',
     phone: '',
     gender: '',
+    idno: '',
     status: true,
     roles: [] as string[],
 });
-// Single role helper for seller/vendor context in Create User modal
-const createSingleRole = ref<string>('');
 
 const showViewModal = ref(false);
 const showEditModal = ref(false);
@@ -65,6 +70,7 @@ const editForm = useForm({
     email: '',
     phone: '',
     gender: '',
+    idno: '',
     status: true,
     errors: {},
     processing: false,
@@ -77,7 +83,7 @@ const breadcrumbs = [
 
 function search() {
     router.get(
-        route('admin.user-roles.index'),
+        route('admin.users.index'),
         {
             search: searchForm.search,
             role: searchForm.role,
@@ -105,8 +111,13 @@ function toggleSelectAll() {
     }
 }
 
-function deleteUser(userId: string) {
-    if (confirm('Are you sure you want to delete this user?')) {
+async function deleteUser(userId: string) {
+    const confirmed = await confirmDelete({
+        title: 'Delete User',
+        text: 'Are you sure you want to delete this user? This action cannot be undone.',
+    });
+
+    if (confirmed) {
         router.delete(route('admin.users.destroy', userId));
     }
 }
@@ -137,7 +148,6 @@ function openCreateModal() {
     createForm.reset();
     createForm.status = true;
     createForm.roles = [];
-    createSingleRole.value = '';
     showCreateModal.value = true;
 }
 
@@ -146,13 +156,25 @@ function openViewModal(user: UserWithRoles) {
     showViewModal.value = true;
 }
 
-function openEditModal(user: UserWithRoles) {
+// function openEditModal(user: UserWithRoles) {
+//     selectedUser.value = user;
+//     editForm.name = user.name;
+//     editForm.email = user.email;
+//     editForm.phone = user.phone ?? '';
+//     editForm.gender = user.gender ?? '';
+//     editForm.idno = user.idno ?? '';
+//     editForm.status = user.status;
+//     showEditModal.value = true;
+// }
+
+function openEditModal(user: any) {
     selectedUser.value = user;
     editForm.name = user.name;
     editForm.email = user.email;
     editForm.phone = user.phone ?? '';
-    // editForm.gender = user.gender ?? '';
-    editForm.status = !!user.status;
+    editForm.gender = user.gender ?? '';
+    editForm.idno = user.idno ?? '';
+    editForm.status = user.status;
     showEditModal.value = true;
 }
 
@@ -166,10 +188,7 @@ function openRoleModal(user: UserWithRoles) {
 
 // --- FORM SUBMISSION FUNCTIONS ---
 function createUser() {
-    // Normalize roles for seller/vendor to a single-item array
-    if (isSellerContext.value) {
-        createForm.roles = createSingleRole.value ? [createSingleRole.value] : [];
-    }
+    createForm.roles = roleSingle.value ? [roleSingle.value] : [];
     createForm.post(route('admin.users.store'), {
         preserveScroll: true,
         onSuccess: () => {
@@ -191,10 +210,7 @@ function updateUser() {
 function updateUserRoles() {
     if (!selectedUser.value) return;
 
-    // Normalize roles when seller/vendor context
-    if (isSellerContext.value) {
-        roleForm.roles = roleSingle.value ? [roleSingle.value] : [];
-    }
+    roleForm.roles = roleSingle.value ? [roleSingle.value] : [];
 
     roleForm.put(route('admin.user.roles.update', selectedUser.value.id), {
         preserveScroll: true,
@@ -225,12 +241,6 @@ watch(
                         <h1 class="text-2xl font-semibold">Users</h1>
                         <p class="mt-1 text-sm text-gray-600">Manage user accounts and role assignments</p>
                     </div>
-                    <!--                    <button-->
-                    <!--                        @click="router.get(route('admin.users.create'))"-->
-                    <!--                        class="hover:bg-primary-dark rounded-xl bg-primary px-4 py-2 text-white"-->
-                    <!--                    >-->
-                    <!--                        + New User-->
-                    <!--                    </button>-->
                     <button @click="openCreateModal" class="hover:bg-primary-dark rounded-xl bg-primary px-4 py-2 text-white">+ New User</button>
                 </div>
 
@@ -268,8 +278,8 @@ watch(
                             class="rounded-lg border border-gray-300 px-4 py-2 focus:border-primary focus:outline-none"
                         >
                             <option value="">All Status</option>
-                            <option :value="true">Active</option>
-                            <option :value="false">Suspended</option>
+                            <option value="true">Active</option>
+                            <option value="false">Suspended</option>
                         </select>
 
                         <button
@@ -399,147 +409,157 @@ watch(
             </div>
         </div>
 
-        <!-- Create User Modal -->
-        <div v-if="showCreateModal" class="fixed inset-0 z-50 overflow-y-auto">
-            <div class="flex min-h-screen items-center justify-center px-4 pt-4 pb-20 text-center">
-                <div class="fixed inset-0 bg-gray-500/75 transition-opacity" @click="closeModals"></div>
+        <Transition
+            enter-active-class="ease-out duration-300"
+            enter-from-class="opacity-0"
+            enter-to-class="opacity-100"
+            leave-active-class="ease-in duration-200"
+            leave-from-class="opacity-100"
+            leave-to-class="opacity-0"
+        >
+            <div v-if="showCreateModal" class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
+                <div class="flex min-h-screen items-center justify-center p-4 text-center sm:p-0">
+                    <div class="fixed inset-0 bg-gray-500/75 transition-opacity" @click="closeModals"></div>
 
-                <div
-                    class="relative z-10 inline-block w-full max-w-lg transform overflow-hidden rounded-lg bg-white text-left align-middle shadow-xl transition-all"
-                >
-                    <form @submit.prevent="createUser">
-                        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                            <h3 class="mb-4 text-xl leading-6 font-semibold text-gray-900">Create New User</h3>
-                            <div class="space-y-4">
-                                <div>
-                                    <label for="create-name" class="block text-sm font-medium text-gray-700">Full Name *</label>
-                                    <input
-                                        v-model="createForm.name"
-                                        type="text"
-                                        id="create-name"
-                                        required
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                                    />
-                                    <div v-if="createForm.errors.name" class="mt-1 text-xs text-red-500">{{ createForm.errors.name }}</div>
-                                </div>
+                    <div
+                        class="relative z-10 w-full max-w-lg transform overflow-hidden rounded-lg bg-white text-left shadow-2xl transition-all sm:my-8"
+                    >
+                        <div class="flex items-center justify-between border-b border-gray-100 bg-white px-6 py-4">
+                            <h3 class="background- text-lg font-bold text-gray-900">Create New User</h3>
+                            <button
+                                @click="closeModals"
+                                class="rounded-full p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-500"
+                            >
+                                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
 
-                                <div>
-                                    <label for="create-email" class="block text-sm font-medium text-gray-700">Email *</label>
-                                    <input
-                                        v-model="createForm.email"
-                                        type="email"
-                                        id="create-email"
-                                        required
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                                    />
-                                    <div v-if="createForm.errors.email" class="mt-1 text-xs text-red-500">{{ createForm.errors.email }}</div>
-                                </div>
-
-                                <div>
-                                    <label for="create-phone" class="block text-sm font-medium text-gray-700">Phone</label>
-                                    <input
-                                        v-model="createForm.phone"
-                                        type="tel"
-                                        id="create-phone"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                                    />
-                                    <div v-if="createForm.errors.phone" class="mt-1 text-xs text-red-500">{{ createForm.errors.phone }}</div>
-                                </div>
-
-                                <div>
-                                    <label for="create-gender" class="block text-sm font-medium text-gray-700">Gender</label>
-                                    <select
-                                        v-model="createForm.gender"
-                                        id="create-gender"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                                    >
-                                        <option value="">Select Gender</option>
-                                        <option value="male">Male</option>
-                                        <option value="female">Female</option>
-                                        <option value="other">Other</option>
-                                    </select>
-                                    <div v-if="createForm.errors.gender" class="mt-1 text-xs text-red-500">{{ createForm.errors.gender }}</div>
-                                </div>
-
-                                <div>
-                                    <label for="create-status" class="block text-sm font-medium text-gray-700">Status</label>
-                                    <select
-                                        v-model="createForm.status"
-                                        id="create-status"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                                    >
-                                        <option :value="true">Active</option>
-                                        <option :value="false">Suspended</option>
-                                    </select>
-                                    <div v-if="createForm.errors.status" class="mt-1 text-xs text-red-500">{{ createForm.errors.status }}</div>
-                                </div>
-
-                                <div>
-                                    <label class="mb-2 block text-sm font-medium text-gray-700">Assign Roles</label>
-                                    <!-- Seller/Vendor: single choice -->
-                                    <div v-if="isSellerContext" class="space-y-2">
-                                        <div v-for="role in availableRoles" :key="role" class="flex items-center">
-                                            <input
-                                                v-model="createSingleRole"
-                                                :value="role"
-                                                :id="`create-role-${role}`"
-                                                type="radio"
-                                                name="create-single-role"
-                                                class="h-4 w-4 border-gray-300 text-primary focus:ring-primary"
-                                            />
-                                            <label :for="`create-role-${role}`" class="ml-3 text-sm font-medium text-gray-700 capitalize">
-                                                {{ role.replace('-', ' ') }}
-                                            </label>
-                                        </div>
-<!--                                        <p class="mt-1 text-xs text-gray-500">You can assign only one role.</p>-->
+                        <form @submit.prevent="createUser">
+                            <div class="bg-white px-6 py-6">
+                                <div class="grid grid-cols-1 gap-y-5">
+                                    <div>
+                                        <label for="create-name" class="block text-sm font-semibold text-gray-700">Full Name *</label>
+                                        <input
+                                            v-model="createForm.name"
+                                            type="text"
+                                            id="create-name"
+                                            required
+                                            placeholder="Enter full name"
+                                            class="mt-1.5 block w-full rounded-md border-gray-300 px-4 py-2.5 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                                        />
+                                        <p v-if="createForm.errors.name" class="mt-1 text-xs font-medium text-red-600">
+                                            {{ createForm.errors.name }}
+                                        </p>
                                     </div>
-                                    <!-- Admin/others: multiple choice -->
-                                    <div v-else class="space-y-2">
-                                        <div v-for="role in availableRoles" :key="role" class="flex items-center">
+
+                                    <div>
+                                        <label for="create-email" class="block text-sm font-semibold text-gray-700">Email Address *</label>
+                                        <input
+                                            v-model="createForm.email"
+                                            type="email"
+                                            id="create-email"
+                                            required
+                                            placeholder="email@example.com"
+                                            class="mt-1.5 block w-full rounded-md border-gray-300 px-4 py-2.5 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                                        />
+                                        <p v-if="createForm.errors.email" class="mt-1 text-xs font-medium text-red-600">
+                                            {{ createForm.errors.email }}
+                                        </p>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                        <div>
+                                            <label for="create-phone" class="block text-sm font-semibold text-gray-700">Phone</label>
                                             <input
-                                                v-model="createForm.roles"
-                                                :value="role"
-                                                :id="`create-role-${role}`"
-                                                type="checkbox"
-                                                class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                                v-model="createForm.phone"
+                                                type="tel"
+                                                id="create-phone"
+                                                class="mt-1.5 block w-full rounded-md border-gray-300 px-4 py-2.5 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
                                             />
-                                            <label :for="`create-role-${role}`" class="ml-3 text-sm font-medium text-gray-700 capitalize">
-                                                {{ role.replace('-', ' ') }}
-                                            </label>
+                                        </div>
+
+                                        <div>
+                                            <label for="create-gender" class="block text-sm font-semibold text-gray-700">Gender</label>
+                                            <select
+                                                v-model="createForm.gender"
+                                                id="create-gender"
+                                                class="mt-1.5 block w-full rounded-md border-gray-300 px-4 py-2.5 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                                            >
+                                                <option value="">Select Gender</option>
+                                                <option value="male">Male</option>
+                                                <option value="female">Female</option>
+                                                <option value="other">Other</option>
+                                            </select>
                                         </div>
                                     </div>
-                                    <div v-if="createForm.errors.roles" class="mt-1 text-xs text-red-500">{{ createForm.errors.roles }}</div>
+
+                                    <div>
+                                        <label for="create-status" class="block text-sm font-semibold text-gray-700">Account Status</label>
+                                        <select
+                                            v-model="createForm.status"
+                                            id="create-status"
+                                            class="mt-1.5 block w-full rounded-md border-gray-300 px-4 py-2.5 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                                        >
+                                            <option :value="true">Active</option>
+                                            <option :value="false">Suspended</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="rounded-md border border-gray-200 bg-gray-50 p-4">
+                                        <label class="mb-3 block text-xs font-bold tracking-widest text-gray-500 uppercase">Assign One Role</label>
+                                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                            <template v-for="role in availableRoles" :key="role">
+                                                <div
+                                                    v-if="!['seller', 'buyer', 'customer', 'super-admin', 'vendor'].includes(role)"
+                                                    class="flex items-center"
+                                                >
+                                                    <input
+                                                        v-model="roleSingle"
+                                                        :value="role"
+                                                        :id="`create-role-${role}`"
+                                                        type="radio"
+                                                        name="user-role-selection"
+                                                        class="h-4 w-4 cursor-pointer border-gray-300 text-primary focus:ring-primary"
+                                                    />
+                                                    <label
+                                                        :for="`create-role-${role}`"
+                                                        class="ml-3 cursor-pointer text-sm font-medium text-gray-700 capitalize"
+                                                    >
+                                                        {{ role.replace('-', ' ') }}
+                                                    </label>
+                                                </div>
+                                            </template>
+                                        </div>
+                                        <p v-if="createForm.errors.roles" class="mt-2 text-xs font-medium text-red-600">
+                                            {{ createForm.errors.roles }}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div class="rounded-md bg-blue-50 p-3 text-sm text-blue-800">
-                            A secure password will be generated automatically and emailed to the user.
-                        </div>
-
-                        <div class="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
-                            <button
-                                type="submit"
-                                :disabled="createForm.processing"
-                                :class="[
-                                    'inline-flex w-full justify-center rounded-md px-4 py-2 text-sm font-semibold text-white shadow-sm focus:ring-2 focus:ring-offset-2 focus:outline-none sm:ml-3 sm:w-auto',
-                                    createForm.processing ? 'cursor-not-allowed bg-gray-400' : 'hover:bg-primary-dark bg-primary focus:ring-primary',
-                                ]"
-                            >
-                                {{ createForm.processing ? 'Creating...' : 'Create User' }}
-                            </button>
-                            <button
-                                type="button"
-                                @click="closeModals"
-                                class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 ring-inset hover:bg-gray-50 sm:mt-0 sm:w-auto"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    </form>
+                            <div class="flex flex-col-reverse gap-3 bg-gray-50 px-6 py-4 sm:flex-row sm:justify-end">
+                                <button
+                                    type="button"
+                                    @click="closeModals"
+                                    class="inline-flex justify-center rounded-md bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm ring-1 ring-gray-300 ring-inset hover:bg-gray-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    :disabled="createForm.processing"
+                                    class="inline-flex justify-center rounded-md bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:opacity-90 focus:ring-2 focus:ring-primary focus:outline-none disabled:bg-gray-400"
+                                >
+                                    {{ createForm.processing ? 'Creating User...' : 'Create User' }}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             </div>
-        </div>
+        </Transition>
 
         <!-- Role Management Modal -->
         <div v-if="showRoleModal" class="fixed inset-0 z-50 overflow-y-auto">
@@ -558,18 +578,24 @@ watch(
                                     <h3 class="mb-4 text-lg leading-6 font-medium text-gray-900">Manage Roles for {{ selectedUser?.name }}</h3>
 
                                     <div class="space-y-3">
-                                        <div v-for="role in availableRoles" :key="role" class="flex items-center">
-                                            <input
-                                                v-model="roleForm.roles"
-                                                :value="role"
-                                                :id="`role-${role}`"
-                                                type="checkbox"
-                                                class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                                            />
-                                            <label :for="`role-${role}`" class="ml-3 text-sm font-medium text-gray-700 capitalize">
-                                                {{ role.replace('-', ' ') }}
-                                            </label>
-                                        </div>
+                                        <template v-for="role in availableRoles" :key="role">
+                                            <div
+                                                v-if="!['seller', 'buyer', 'customer', 'super-admin', 'vendor'].includes(role)"
+                                                class="flex items-center"
+                                            >
+                                                <input
+                                                    v-model="roleSingle"
+                                                    :value="role"
+                                                    :id="`role-${role}`"
+                                                    type="radio"
+                                                    name="manage-roles"
+                                                    class="h-4 w-4 border-gray-300 text-primary focus:ring-primary"
+                                                />
+                                                <label :for="`role-${role}`" class="ml-3 text-sm font-medium text-gray-700 capitalize">
+                                                    {{ role.replace('-', ' ') }}
+                                                </label>
+                                            </div>
+                                        </template>
                                     </div>
                                 </div>
                             </div>
@@ -693,7 +719,7 @@ watch(
                                         v-model="editForm.name"
                                         type="text"
                                         id="name"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                                        class="mt-1 block w-full rounded-md border-gray-300 py-2.5 shadow-sm focus:border-primary focus:ring-primary sm:text-base"
                                     />
                                     <div v-if="editForm.errors.name" class="mt-1 text-xs text-red-500">{{ editForm.errors.name }}</div>
                                 </div>
@@ -703,7 +729,7 @@ watch(
                                         v-model="editForm.email"
                                         type="email"
                                         id="email"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                                        class="mt-1 block w-full rounded-md border-gray-300 py-2.5 shadow-sm focus:border-primary focus:ring-primary sm:text-base"
                                     />
                                     <div v-if="editForm.errors.email" class="mt-1 text-xs text-red-500">{{ editForm.errors.email }}</div>
                                 </div>
@@ -714,7 +740,7 @@ watch(
                                         type="tel"
                                         id="phone"
                                         name="phone"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                                        class="mt-1 block w-full rounded-md border-gray-300 py-2.5 shadow-sm focus:border-primary focus:ring-primary sm:text-base"
                                     />
                                     <div v-if="editForm.errors.phone" class="mt-1 text-xs text-red-500">{{ editForm.errors.phone }}</div>
                                 </div>
@@ -724,7 +750,7 @@ watch(
                                         v-model="editForm.gender"
                                         id="gender"
                                         name="gender"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                                        class="mt-1 block w-full rounded-md border-gray-300 py-2.5 shadow-sm focus:border-primary focus:ring-primary sm:text-base"
                                     >
                                         <option value="male">Male</option>
                                         <option value="female">Female</option>
@@ -738,7 +764,7 @@ watch(
                                     <select
                                         v-model="editForm.status"
                                         id="status"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                                        class="mt-1 block w-full rounded-md border-gray-300 py-2.5 shadow-sm focus:border-primary focus:ring-primary sm:text-base"
                                     >
                                         <option :value="true">Active</option>
                                         <option :value="false">Suspended</option>

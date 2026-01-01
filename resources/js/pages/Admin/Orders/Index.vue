@@ -27,7 +27,7 @@ const form = useForm({
         <h1 class="text-2xl font-bold mb-4">Orders</h1>
 
         <!-- Filters -->
-        <form @submit.prevent="form.get(route('orders.index'))" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <form @submit.prevent="form.get(route('admin.orders.index'))" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div>
                 <label class="block text-sm font-medium">Order Code</label>
                 <input v-model="form.order_code" type="text" class="mt-1 w-full rounded border-gray-300" />

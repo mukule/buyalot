@@ -92,6 +92,10 @@ class User extends Authenticatable
     {
         return $this->hasOne(\App\Models\Customer\Customer::class, 'user_id');
     }
+    public function userDetail()
+    {
+        return $this->hasOne(UserDetail::class, 'user_id');
+    }
 
     public function sellers()
     {
@@ -99,18 +103,18 @@ class User extends Authenticatable
             ->withPivot('role');
     }
 
-  
+
 
     public function scopeForSeller(Builder $query, $sellerIds): Builder
     {
         $ids = collect($sellerIds)->flatten()->filter()->values();
         if ($ids->isEmpty()) {
-            
+
             return $query->whereRaw('1 = 0');
         }
         $sellerTable = (new \App\Models\Seller\Seller())->getTable();
         return $query->whereHas('sellers', function (Builder $q) use ($ids, $sellerTable) {
-            
+
             $q->whereIn($sellerTable . '.id', $ids);
         });
     }

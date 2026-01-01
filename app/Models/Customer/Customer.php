@@ -50,7 +50,7 @@ class Customer extends Model
 //        'provider_verified_at',
     ];
 
-    protected $appends = ['name'];
+    protected $appends = ['name', 'hashid'];
     public function getNameAttribute()
     {
         return trim("{$this->first_name} {$this->last_name}");

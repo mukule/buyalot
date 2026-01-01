@@ -43,7 +43,7 @@ class UserController extends Controller
         }
 
         if ($request->filled('status')) {
-            $statusValue = $request->status === true;
+            $statusValue = filter_var($request->status, FILTER_VALIDATE_BOOLEAN);
             $query->where('status', $statusValue);
         }
 
@@ -72,11 +72,12 @@ class UserController extends Controller
 
         $userData = $users->map(function ($user) use ($isSellerContext, $sellerIdsForPivot) {
             $base = [
-                'id' => $user->id,
+                'id' => $user->hashid,
                 'name' => $user->name,
                 'email' => $user->email ?? '',
                 'phone' => $user->phone ?? '',
-                'gender' => $user->gender ?? '',
+                'gender' => $user->userDetail->gender ?? '',
+                'idno' => $user->userDetail->idno ?? '',
                 'status' => (bool) $user->status,
                 'created_at' => $user->created_at,
             ];
@@ -152,13 +153,15 @@ class UserController extends Controller
     public function show(Request $request, User $user)
     {
         $user->load('roles', 'permissions');
+        $user_details=UserDetail::where('user_id', $user->id)->first();
+        info($user_details->gender);
 
         $userData = [
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
             'status' => $user->status ?? true,
-            'gender' => $user->gender,
+            'gender' => $user_details->gender ?? '',
             'phone' => $user->phone,
             'created_at' => $user->created_at,
             'updated_at' => $user->updated_at,
@@ -216,35 +219,17 @@ class UserController extends Controller
 
     public function updateRoles(Request $request, User $user): RedirectResponse
     {
-        $authUser = $request->user();
-        $isSellerContext = $authUser && (
-            (isset($authUser->user_type) && in_array($authUser->user_type, ['seller','vendor']))
-            || (method_exists($authUser, 'hasRole') && ($authUser->hasRole('seller') || $authUser->hasRole('vendor')))
-        );
+        $roleNames = Role::allowedForSeller()->pluck('name')->all();
 
-        // Build base rules
-        $rules = [
-            'roles' => 'required|array|min:1',
-            'roles.*' => ['string', Rule::in(Role::allowedForSeller()->pluck('name')->all())],
-        ];
-        $messages = [
+        $validated = $request->validate([
+            'roles' => 'required|array|size:1',
+            'roles.*' => ['string', Rule::in($roleNames)],
+        ], [
             'roles.required' => 'A user must have at least one role.',
-            'roles.min' => 'A user must have at least one role.',
-        ];
+            'roles.size' => 'Please select exactly one role.',
+        ]);
 
-        // If seller/vendor initiating, enforce exactly one role
-        if ($isSellerContext) {
-            $rules['roles'] .= '|size:1';
-        }
-
-        $validated = $request->validate($rules, $messages);
-        if (empty($validated['roles'])) {
-            return redirect()->back()->withErrors(['roles' => 'A user must have at least one role.']);
-        }
-
-        $rolesToAssign = $isSellerContext ? [ $validated['roles'][0] ] : $validated['roles'];
-
-        $user->syncRoles($rolesToAssign);
+        $user->syncRoles($validated['roles']);
 
         return redirect()->back()->with('success', 'User roles updated successfully.');
     }
@@ -258,14 +243,16 @@ class UserController extends Controller
             'status' => 'required|boolean',
             'phone' => 'nullable|min:10|max:15',
             'gender'=>'nullable|in:male,female,other',
+            'idno' => 'nullable|string|max:20',
         ]);
 
-        $user_details=UserDetail::find('user_id',$user->id);
+        $user_details=UserDetail::where('user_id',$user->id)->first();
         if ($user_details){
             $user_details->update([
                 "gender"=>$validated['gender'],
                 "phone"=>$validated['phone'],
                 "contact_name"=>$validated['name'],
+                "idno" => $validated['idno'],
             ]);
         }
         $user->update([
@@ -276,7 +263,7 @@ class UserController extends Controller
         ]);
         if ($request->wantsJson() || $request->is('api/*')) {
             $userData = [
-                'id' => $user->id,
+                'id' => $user->hashid,
                 'name' => $user->name,
                 'email' => $user->email,
                 'phone' => $user->phone,
@@ -298,7 +285,7 @@ class UserController extends Controller
         return response()->json([
             'message' => 'User status updated successfully',
             'user' => [
-                'id' => $user->id,
+                'id' => $user->hashid,
                 'name' => $user->name,
                 'status' => (bool) $user->status,
             ]
@@ -314,11 +301,12 @@ class UserController extends Controller
             'phone' => 'nullable|string|min:10|max:15',
             'gender' => 'nullable|in:male,female,other',
             'status' => 'required|boolean',
-            'roles' => 'required|array|min:1',
-            'roles.*' => ['string', \Illuminate\Validation\Rule::in($roleNames)],
+            'idno' => 'nullable|string|max:20',
+            'roles' => 'required|array|size:1',
+            'roles.*' => ['string', Rule::in($roleNames)],
         ], [
             'roles.required' => 'A user must have at least one role.',
-            'roles.min' => 'A user must have at least one role.',
+            'roles.size' => 'You must assign exactly one role.',
         ]);
         // Determine if the creator is a seller/vendor
         $authUser = $request->user();
@@ -327,14 +315,6 @@ class UserController extends Controller
             || (method_exists($authUser, 'hasRole') && ($authUser->hasRole('seller') || $authUser->hasRole('vendor')))
         );
 
-        // If seller/vendor creating, enforce exactly one role selected
-        if ($isSellerContext) {
-            $request->validate([
-                'roles' => 'required|array|size:1',
-            ], [
-                'roles.size' => 'You can assign only one role.',
-            ]);
-        }
         // Generate a secure random password for the new user
         $generatedPassword = Str::random(12);
 
@@ -347,17 +327,14 @@ class UserController extends Controller
             'email_verified_at' => now(),
             'user_type' => $isSellerContext ? 'seller' : 'user',
         ]);
-        // Assign roles (only one if seller context)
-        $rolesToAssign = $isSellerContext ? ($validated['roles'][0] ?? null) : $validated['roles'];
-        if ($rolesToAssign) {
-            $user->assignRole($rolesToAssign);
-        }
+        // Assign roles (exactly one)
+        $user->assignRole($validated['roles'][0]);
 
         // If the creator is a seller/vendor, attach the new user to the same seller account(s)
         if ($isSellerContext) {
             $sellerTable = (new Seller())->getTable();
             $sellerIds = $authUser->sellers()->pluck($sellerTable . '.id');
-            $pivotRole = $validated['roles'][0] ?? null; // first selected role for pivot
+            $pivotRole = $validated['roles'][0]; // selected role for pivot
             foreach ($sellerIds as $sid) {
                 $user->sellers()->attach($sid, ['role' => $pivotRole]);
             }
@@ -368,6 +345,7 @@ class UserController extends Controller
                 'user_id' => $user->id,
                 'gender' => $validated['gender'] ?? null,
                 'phone'  => $validated['phone'] ?? null,
+                'idno'   => $validated['idno'] ?? null,
             ]);
         }
 
