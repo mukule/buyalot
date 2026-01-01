@@ -59,14 +59,14 @@ class OrderPlacementService
             // Determine default addresses
             $billingAddress = CustomerAddress::where('customer_id', $customerId)
                 ->default()
-                ->first() 
+                ->first()
                 ?? CustomerAddress::where('customer_id', $customerId)
                    // ->where('type', 'billing')
                     ->first();
 
             $shippingAddress = CustomerAddress::where('customer_id', $customerId)
                 ->default()
-                ->first() 
+                ->first()
                 ?? CustomerAddress::where('customer_id', $customerId)
                   //  ->where('type', 'shipping')
                     ->first();
@@ -129,7 +129,7 @@ class OrderPlacementService
                 'notes' => $cart->notes,
             ]);
 
-            // Create order items and decrement stock
+            // Decrement stock
             foreach ($itemsInput as $ci) {
                 OrderItem::create([
                     'ulid' => Str::ulid(),
@@ -146,10 +146,12 @@ class OrderPlacementService
                         'current_stock' => $ci['variant']->stock,
                     ],
                 ]);
-
-                // Decrement stock
-                $ci['variant']->decrement('stock', $ci['quantity']);
             }
+
+            // Release reservations WITHOUT returning stock (already deducted)
+            /** @var \App\Services\CartReservationService $reservationService */
+            $reservationService = app(\App\Services\CartReservationService::class);
+            $reservationService->releaseAllForCart($cart->id, false);
 
             // Soft delete the cart and mark as ordered
             $cart->status = 'ordered';

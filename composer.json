@@ -13,15 +13,15 @@
         "http-interop/http-factory-guzzle": "^1.2",
         "inertiajs/inertia-laravel": "^2.0",
         "intervention/image": "^3.11",
-        "laravel/framework": "^12.0",
+        "laravel/framework": "^12.44",
         "laravel/sanctum": "^4.0",
         "laravel/socialite": "^5.23",
         "laravel/tinker": "^2.10.1",
         "league/flysystem-aws-s3-v3": "3.0",
         "meilisearch/meilisearch-php": "^1.16",
         "spatie/laravel-data": "^4.18",
-        "spatie/laravel-permission": "^6.20",
-        "tightenco/ziggy": "^2.4",
+        "spatie/laravel-permission": "^6.24.0",
+        "tightenco/ziggy": "^v2.6.0",
         "vinkla/hashids": "^13.0"
     },
     "require-dev": {

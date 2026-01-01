@@ -8,7 +8,7 @@ use App\Http\Controllers\Customer\CustomerWishlistsController;
 use App\Http\Controllers\Orders\OrderController;
 use App\Http\Controllers\WishlistController;
 
-Route::middleware(['auth','web'])->group(function () {
+Route::middleware(['auth'])->group(function () {
 
     // Customer dashboard and profile
     Route::get('customers/dashboard', [CustomerController::class, 'dashboard'])->name('customers.dashboard');

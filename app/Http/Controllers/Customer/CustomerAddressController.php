@@ -12,7 +12,7 @@ use Illuminate\Http\Request;
 class CustomerAddressController extends Controller
 {
 
-   
+
     public function apiList(): \Illuminate\Http\JsonResponse
     {
         $customer = auth()->user()?->customer;
@@ -229,7 +229,7 @@ public function store(CustomerAddressRequest $request)
     }
 
     $data = $request->validated();
-    $data['is_default'] = boolval($request->input('is_default', false)); 
+    $data['is_default'] = boolval($request->input('is_default', false));
 
     $address = $customer->addresses()->create($data);
 

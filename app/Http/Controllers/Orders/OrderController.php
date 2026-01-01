@@ -246,6 +246,18 @@ class OrderController extends Controller
         $checkoutSession->status = 'pending';
         $checkoutSession->save();
 
+        // Reserve stock for 60 seconds
+        /** @var \App\Services\CartReservationService $reservationService */
+        $reservationService = app(\App\Services\CartReservationService::class);
+        foreach ($cart->items as $item) {
+            // Check availability again before reserving
+            $available = $reservationService->availableForCart($item->product_variant_id, $cart->id);
+            if ($item->quantity > $available) {
+                return back()->with('error', "Sorry, some items in your cart became unavailable. Please review your cart.")->withInput();
+            }
+            $reservationService->reserve($cart->id, $item->product_variant_id, $item->quantity, 60);
+        }
+
         $paymentRequest = new PaymentRequest(
             provider: 'mpesa',
             method: 'stk_push',
@@ -258,13 +270,29 @@ class OrderController extends Controller
             returnUrl: null,
         );
 
-        $mpesaLog = $paymentService->getOrCreateMpesaRequest($checkoutSession, $paymentRequest);
-        $paymentInit = $paymentService->initializePayment($mpesaLog, $paymentRequest);
+        try {
+            $mpesaLog = $paymentService->getOrCreateMpesaRequest($checkoutSession, $paymentRequest);
+            $paymentInit = $paymentService->initializePayment($mpesaLog, $paymentRequest);
 
-        info('M-Pesa STK Push initialized', [
-            'checkout_session_ref' => $checkoutSession->ref_num,
-            'payment_init' => $paymentInit ? $paymentInit->toArray() : null,
-        ]);
+            if (!$paymentInit->success) {
+                // Return stock if payment initialization fails
+                $reservationService->releaseAllForCart($cart->id);
+                return back()->with('error', $paymentInit->message)->withInput();
+            }
+
+            info('M-Pesa STK Push initialized', [
+                'checkout_session_ref' => $checkoutSession->ref_num,
+                'payment_init' => $paymentInit ? $paymentInit->toArray() : null,
+            ]);
+        } catch (\Exception $e) {
+            // Return stock on exception
+            $reservationService->releaseAllForCart($cart->id);
+            Log::error('M-Pesa initialization error', [
+                'error' => $e->getMessage(),
+                'cart_id' => $cart->id
+            ]);
+            return back()->with('error', 'Could not initialize payment. Please try again.')->withInput();
+        }
     }
 
     if ($request->expectsJson()) {

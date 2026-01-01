@@ -7,14 +7,21 @@ use App\Models\ShippingRate;
 
 class ShippingService
 {
-   
+
     public function getOptionsByRegion(int $regionId): array
     {
         $region = Region::with('zone')->findOrFail($regionId);
         $tier = $region->zone->tier ?? 1;
 
-        
-        $rate = ShippingRate::firstOrFail();
+
+        $rate = ShippingRate::first();
+
+        if (!$rate) {
+            return [
+                'pickup' => ['cost' => 0, 'days' => 0],
+                'door'   => ['cost' => 0, 'days' => 0],
+            ];
+        }
 
         return [
             'pickup' => [

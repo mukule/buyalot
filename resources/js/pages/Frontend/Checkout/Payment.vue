@@ -86,6 +86,7 @@ const phone = ref<string>(defaultPhone);
 const initiating = ref(false);
 const polling = ref(false);
 const progress = ref(0);
+const animatedDots = ref('.');
 const status = ref<'idle' | 'initiating' | 'polling' | 'success' | 'failed'>('idle');
 const message = ref<string>('');
 const insufficientItems = ref<Array<{ product_variant_id: number; requested: number; available: number; product_name: string }>>([]);
@@ -98,11 +99,31 @@ const currentOrder = ref<null | { id: number; ulid?: string; total_amount: numbe
 const canPay = computed(() => !!phone.value && phone.value.trim().length >= 9 && !!selectedAddressId.value && !initiating.value && !polling.value);
 
 let pollTimer: any = null;
+let dotsTimer: any = null;
 
 onMounted(() => {
     status.value = 'idle';
     message.value = '';
 });
+
+function startDotsAnimation() {
+    animatedDots.value = '.';
+    if (dotsTimer) clearInterval(dotsTimer);
+    dotsTimer = setInterval(() => {
+        if (animatedDots.value === '...') {
+            animatedDots.value = '.';
+        } else {
+            animatedDots.value += '.';
+        }
+    }, 500);
+}
+
+function stopDotsAnimation() {
+    if (dotsTimer) {
+        clearInterval(dotsTimer);
+        dotsTimer = null;
+    }
+}
 
 // --- CART QUANTITY FUNCTIONS ---
 async function increaseQty(item: SummaryItem) {
@@ -139,6 +160,7 @@ async function startPayment() {
     try {
         status.value = 'initiating';
         initiating.value = true;
+        startDotsAnimation();
 
         if (currentOrder.value) {
             message.value = 'Retrying payment for your existing checkout session...';
@@ -187,6 +209,7 @@ async function startPayment() {
         status.value = 'failed';
         initiating.value = false;
         polling.value = false;
+        stopDotsAnimation();
         message.value = e?.response?.data?.message || e?.message || 'Failed to start payment.';
         console.error(e);
     }
@@ -199,14 +222,25 @@ async function pollPayment(order: { paymentInit: any }) {
         status.value = 'polling';
         initiating.value = false;
         polling.value = true;
+        startDotsAnimation();
         message.value = 'Awaiting your M-Pesa approval. Check your phone and enter your PIN.';
         startProgressBar();
 
         await pollVerifyUntilComplete(checkoutRequestId);
+
+        if (status.value === 'success') {
+            const customerId = (page.props as any)?.auth?.customer_id;
+            setTimeout(() => {
+                router.visit(route('customers.dashboard', { customer: customerId }), {
+                    data: { success: message.value }
+                });
+            }, 2000);
+        }
     } catch (e: any) {
         status.value = 'failed';
         initiating.value = false;
         polling.value = false;
+        stopDotsAnimation();
         message.value = e?.message || 'Unexpected error while polling payment.';
         console.error(e);
     }
@@ -250,6 +284,7 @@ async function pollVerifyUntilComplete(checkoutRequestId: string) {
                     stopped = true;
                     clearInterval(iv);
                     if (pollTimer) clearInterval(pollTimer);
+                    stopDotsAnimation();
                     polling.value = false;
                     status.value = success === true ? 'success' : 'failed';
                     message.value = msg || (success === true ? 'Payment completed successfully.' : 'Payment failed. Please try again.');
@@ -261,6 +296,7 @@ async function pollVerifyUntilComplete(checkoutRequestId: string) {
                     stopped = true;
                     clearInterval(iv);
                     if (pollTimer) clearInterval(pollTimer);
+                    stopDotsAnimation();
                     polling.value = false;
                     status.value = 'failed';
                     message.value = 'Payment Failed, Please try again';
@@ -270,6 +306,7 @@ async function pollVerifyUntilComplete(checkoutRequestId: string) {
                 stopped = true;
                 clearInterval(iv);
                 if (pollTimer) clearInterval(pollTimer);
+                stopDotsAnimation();
                 polling.value = false;
                 status.value = 'failed';
                 message.value = 'Could not verify payment. Please try again.';
@@ -398,11 +435,17 @@ const goToAddressPage = () => {
                                 class="w-full rounded border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none"
                             />
                             <p class="mt-1 text-xs text-gray-500">We prefilled your phone number. You can change it before paying.</p>
+                            <div v-if="status === 'polling'" class="mt-2 text-sm font-medium text-primary">
+                                Awaiting M-Pesa payment {{ animatedDots }}
+                            </div>
                         </div>
 
                         <!-- Status + Progress -->
                         <div v-if="status === 'initiating' || status === 'polling'" class="space-y-2">
-                            <div class="h-2 w-full overflow-hidden rounded bg-gray-200">
+                            <div v-if="status === 'initiating'" class="text-sm font-medium text-primary">
+                                Sending Payment request {{ animatedDots }}
+                            </div>
+                            <div v-if="status === 'polling'" class="hidden h-2 w-full overflow-hidden rounded bg-gray-200">
                                 <div class="h-2 bg-primary transition-all" :style="{ width: `${Math.min(100, Math.round(progress))}%` }"></div>
                             </div>
                             <div class="text-sm text-gray-700">{{ message }}</div>
@@ -415,6 +458,11 @@ const goToAddressPage = () => {
 
                         <!-- Success -->
                         <div v-if="status === 'success'" class="rounded border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                            {{ message }}
+                        </div>
+
+                        <!-- Failed -->
+                        <div v-if="status === 'failed'" class="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
                             {{ message }}
                         </div>
 
