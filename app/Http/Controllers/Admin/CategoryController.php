@@ -15,20 +15,42 @@ class CategoryController extends Controller
     /**
      * Display a paginated listing of categories (excluding soft-deleted).
      */
-    public function index()
-    {
-        $categories = Category::with('parent')
-            ->orderBy('created_at', 'desc')
-            ->paginate(20);
+   
 
-        return Inertia::render('Admin/Categories/Index', [
-            'categories' => $categories,
-        ]);
+    public function index(Request $request)
+{
+    
+    $query = Category::with('parent');
+
+    
+    if ($request->filled('name')) {
+        $query->where('name', 'like', '%' . $request->name . '%');
     }
 
-    /**
-     * Show the form for creating a new category.
-     */
+    
+    if ($request->filled('active')) {
+        $query->where('active', $request->boolean('active'));
+    }
+
+    
+    if ($request->boolean('with_deleted')) {
+        $query->withTrashed(); 
+    }
+
+    
+    $categories = $query->orderBy('created_at', 'desc')
+                        ->paginate(20)
+                        ->withQueryString();
+
+    return Inertia::render('Admin/Categories/Index', [
+        'categories' => $categories,
+        'filters' => $request->only(['name', 'active', 'with_deleted']),
+    ]);
+}
+
+
+
+   
     public function create()
     {
         $categories = Category::select('id', 'name')
