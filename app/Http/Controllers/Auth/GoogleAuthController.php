@@ -29,6 +29,9 @@ class GoogleAuthController extends Controller
             ->redirect();
     }
 
+    /**
+     * @throws \Throwable
+     */
     public function callback()
     {
         try {
@@ -67,8 +70,11 @@ class GoogleAuthController extends Controller
                 }
                 else {
                     request()->session()->regenerate();
-                    return redirect()->intended(route('home'))
-                        ->with('success', 'Welcome back, ' . $auth_user->name . '!');
+                    $customer = Customer::where('user_id', $auth_user->id)->first();
+                    session(['customer_id' => $customer->id]);
+                    return redirect()->intended(
+                        route('customers.dashboard', ['customer' => $customer->id])
+                    )->with('success', 'Welcome back, ' . $customer->first_name .' '. $customer->last_name . '!');
                 }
             }
 

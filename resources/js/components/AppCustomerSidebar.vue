@@ -2,7 +2,7 @@
 import NavMain from '@/components/NavMain.vue';
 import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
-import { type AppPageProps, type NavItem} from '@/types';
+import { type AppPageProps, type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
 import { User, Package, Mail, Star, Tag, Heart, Store, Eye, Settings, CreditCard, MapPin, Bell, LogOut, LayoutDashboard } from 'lucide-vue-next';
 import { computed } from 'vue';
@@ -17,7 +17,7 @@ const customerId = computed(() => page.props.auth?.customer_id);
 const allNavItems: NavItem[] = [
     {
         title: 'Dashboard',
-        href: customerId.value ? `/customers/${customerId.value}/dashboard` : '#',
+        href: customerId.value ? `/customers/dashboard?customer=${customerId.value}` : '#',
         icon: LayoutDashboard,
         isActive: true,
     },
@@ -25,46 +25,46 @@ const allNavItems: NavItem[] = [
     //     title: 'My Account',
     //     icon: User,
     //     children: [
-            {
-                title: 'Account Overview',
-                href: customerId.value ? `/customers/${customerId.value}/dashboard` : '#',
-                icon: User,
-            },
-            {
-                title: 'Orders',
-                href: '/orders/my-orders',
-                icon: Package,
-            },
-            // {
-            //     title: 'Inbox',
-            //     href: '#',
-            //     icon: Mail,
-            // },
-            {
-                title: 'Pending Reviews',
-                href: '#',
-                icon: Star,
-            },
-            // {
-            //     title: 'Vouchers',
-            //     href: '#',
-            //     icon: Tag,
-            // },
-            {
-                title: 'Wishlist',
-                href: '/wishlist',
-                icon: Heart,
-            },
-            // {
-            //     title: 'Followed Vendors',
-            //     href: '#',
-            //     icon: Store,
-            // },
-            {
-                title: 'Recently Viewed',
-                href: '#',
-                icon: Eye,
-            },
+    {
+        title: 'Account Overview',
+        href: customerId.value ? `/customers/dashboard?customer=${customerId.value}` : '#',
+        icon: User,
+    },
+    {
+        title: 'Orders',
+        href: '/orders/my-orders',
+        icon: Package,
+    },
+    // {
+    //     title: 'Inbox',
+    //     href: '#',
+    //     icon: Mail,
+    // },
+    {
+        title: 'Pending Reviews',
+        href: '#',
+        icon: Star,
+    },
+    // {
+    //     title: 'Vouchers',
+    //     href: '#',
+    //     icon: Tag,
+    // },
+    {
+        title: 'Wishlist',
+        href: '/wishlist',
+        icon: Heart,
+    },
+    // {
+    //     title: 'Followed Vendors',
+    //     href: '#',
+    //     icon: Store,
+    // },
+    {
+        title: 'Recently Viewed',
+        href: '#',
+        icon: Eye,
+    },
     //     ],
     // },
     {
@@ -102,6 +102,7 @@ const allNavItems: NavItem[] = [
                 icon: LogOut,
             },
         ],
+        href: '',
     },
 ];
 

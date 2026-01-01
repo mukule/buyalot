@@ -291,49 +291,49 @@
             </div>
 
             <!-- Benefits -->
-            <div class="benefits">
-                <h3>What You Get as a Member</h3>
+{{--            <div class="benefits">--}}
+{{--                <h3>What You Get as a Member</h3>--}}
 
-                <div class="benefit-item">
-                    <div class="benefit-icon">
-                        <span style="color: white; font-size: 18px;">🛍️</span>
-                    </div>
-                    <div class="benefit-text">
-                        <div class="benefit-title">Exclusive Deals</div>
-                        <p class="benefit-description">Access to member-only discounts and early sale notifications</p>
-                    </div>
-                </div>
+{{--                <div class="benefit-item">--}}
+{{--                    <div class="benefit-icon">--}}
+{{--                        <span style="color: white; font-size: 18px;">🛍️</span>--}}
+{{--                    </div>--}}
+{{--                    <div class="benefit-text">--}}
+{{--                        <div class="benefit-title">Exclusive Deals</div>--}}
+{{--                        <p class="benefit-description">Access to member-only discounts and early sale notifications</p>--}}
+{{--                    </div>--}}
+{{--                </div>--}}
 
-                <div class="benefit-item">
-                    <div class="benefit-icon">
-                        <span style="color: white; font-size: 18px;">🚚</span>
-                    </div>
-                    <div class="benefit-text">
-                        <div class="benefit-title">Free Delivery</div>
-                        <p class="benefit-description">Free shipping on orders over KES 2,000 within Nairobi</p>
-                    </div>
-                </div>
+{{--                <div class="benefit-item">--}}
+{{--                    <div class="benefit-icon">--}}
+{{--                        <span style="color: white; font-size: 18px;">🚚</span>--}}
+{{--                    </div>--}}
+{{--                    <div class="benefit-text">--}}
+{{--                        <div class="benefit-title">Free Delivery</div>--}}
+{{--                        <p class="benefit-description">Free shipping on orders over KES 2,000 within Nairobi</p>--}}
+{{--                    </div>--}}
+{{--                </div>--}}
 
-                <div class="benefit-item">
-                    <div class="benefit-icon">
-                        <span style="color: white; font-size: 18px;">⭐</span>
-                    </div>
-                    <div class="benefit-text">
-                        <div class="benefit-title">Loyalty Rewards</div>
-                        <p class="benefit-description">Earn points on every purchase and redeem for discounts</p>
-                    </div>
-                </div>
+{{--                <div class="benefit-item">--}}
+{{--                    <div class="benefit-icon">--}}
+{{--                        <span style="color: white; font-size: 18px;">⭐</span>--}}
+{{--                    </div>--}}
+{{--                    <div class="benefit-text">--}}
+{{--                        <div class="benefit-title">Loyalty Rewards</div>--}}
+{{--                        <p class="benefit-description">Earn points on every purchase and redeem for discounts</p>--}}
+{{--                    </div>--}}
+{{--                </div>--}}
 
-                <div class="benefit-item">
-                    <div class="benefit-icon">
-                        <span style="color: white; font-size: 18px;">🔒</span>
-                    </div>
-                    <div class="benefit-text">
-                        <div class="benefit-title">Secure Shopping</div>
-                        <p class="benefit-description">Safe and secure payment processing with buyer protection</p>
-                    </div>
-                </div>
-            </div>
+{{--                <div class="benefit-item">--}}
+{{--                    <div class="benefit-icon">--}}
+{{--                        <span style="color: white; font-size: 18px;">🔒</span>--}}
+{{--                    </div>--}}
+{{--                    <div class="benefit-text">--}}
+{{--                        <div class="benefit-title">Secure Shopping</div>--}}
+{{--                        <p class="benefit-description">Safe and secure payment processing with buyer protection</p>--}}
+{{--                    </div>--}}
+{{--                </div>--}}
+{{--            </div>--}}
 
             <!-- Call to Action -->
             <div class="cta-section">
@@ -357,7 +357,7 @@
             <p class="footer-text">
                 Questions? Contact our friendly customer support team at
                 <a href="mailto:support@{{ parse_url(config('app.url'), PHP_URL_HOST) ?? 'buyalotltd.com' }}" style="color: #667eea;">
-                    support@{{ parse_url(config('app.url'), PHP_URL_HOST) ?? 'buyalot.com' }}
+                    support@{{ parse_url(config('app.url'), PHP_URL_HOST) ?? 'buyalotltd.com' }}
                 </a>
             </p>
 
