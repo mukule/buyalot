@@ -510,7 +510,7 @@ class OrderController extends Controller
             }
 
             // Inertia Response
-            return redirect()->route('orders.index')
+            return redirect()->route('admin.orders.index')
                 ->with('success', 'Order deleted successfully');
 
         } catch (\Exception $e) {

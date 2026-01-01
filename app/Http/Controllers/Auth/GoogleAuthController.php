@@ -47,6 +47,9 @@ class GoogleAuthController extends Controller
             $auth_user = User::where('google_id', $googleUser->id)
                 ->orWhere('email', $googleUser->email)
                 ->first();
+            if (!$auth_user->status){
+                return redirect()->back()->withErrors("account is active, please contact admin for help");
+            }
 
             if ($auth_user) {
 //                $user = User::where('id', $auth_user ->id)->first();

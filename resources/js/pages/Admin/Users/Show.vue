@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
+import { useConfirm } from '@/composables/useConfirm';
 import type { AppPageProps, Permission, Role, User } from '@/types';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
+
+const { confirmDelete } = useConfirm();
 
 const page = usePage<
     AppPageProps<{
@@ -24,6 +27,7 @@ const availableRoles = computed(() => page.props.roles);
 
 const showRoleModal = ref(false);
 const showStatusModal = ref(false);
+const roleSingle = ref<string>('');
 
 const roleForm = useForm({
     roles: user.value.roles.map((role) => role.name),
@@ -41,11 +45,13 @@ const breadcrumbs = [
 
 function openRoleModal() {
     roleForm.roles = user.value.roles.map((role) => role.name);
+    roleSingle.value = roleForm.roles[0] || '';
     showRoleModal.value = true;
 }
 
 function updateUserRoles() {
-    roleForm.put(route('admin.users.update', user.value.id), {
+    roleForm.roles = roleSingle.value ? [roleSingle.value] : [];
+    roleForm.put(route('admin.user.roles.update', user.value.id), {
         onSuccess: () => {
             showRoleModal.value = false;
         },
@@ -71,8 +77,13 @@ function updateUserStatus() {
     );
 }
 
-function deleteUser() {
-    if (confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+async function deleteUser() {
+    const confirmed = await confirmDelete({
+        title: 'Delete User',
+        text: 'Are you sure you want to delete this user? This action cannot be undone.',
+    });
+
+    if (confirmed) {
         router.delete(route('admin.users.destroy', user.value.id));
     }
 }
@@ -313,18 +324,24 @@ function formatDate(dateString: string): string {
                                     <h3 class="mb-4 text-lg leading-6 font-medium text-gray-900">Manage Roles for {{ user.name }}</h3>
 
                                     <div class="space-y-3">
-                                        <div v-for="role in availableRoles" :key="role.id" class="flex items-center">
-                                            <input
-                                                v-model="roleForm.roles"
-                                                :value="role.name"
-                                                :id="`role-${role.id}`"
-                                                type="checkbox"
-                                                class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                                            />
-                                            <label :for="`role-${role.id}`" class="ml-3 text-sm font-medium text-gray-700 capitalize">
-                                                {{ role.name.replace('-', ' ') }}
-                                            </label>
-                                        </div>
+                                        <template v-for="role in availableRoles" :key="role.id">
+                                            <div
+                                                v-if="!['seller', 'buyer', 'customer', 'super-admin', 'vendor'].includes(role.name)"
+                                                class="flex items-center"
+                                            >
+                                                <input
+                                                    v-model="roleSingle"
+                                                    :value="role.name"
+                                                    :id="`role-${role.id}`"
+                                                    type="radio"
+                                                    name="manage-roles"
+                                                    class="h-4 w-4 border-gray-300 text-primary focus:ring-primary"
+                                                />
+                                                <label :for="`role-${role.id}`" class="ml-3 text-sm font-medium text-gray-700 capitalize">
+                                                    {{ role.name.replace('-', ' ') }}
+                                                </label>
+                                            </div>
+                                        </template>
                                     </div>
                                 </div>
                             </div>

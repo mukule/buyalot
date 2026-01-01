@@ -18,6 +18,7 @@ const user = computed(() => page.props.user);
 const availableRoles = computed(() => page.props.roles);
 
 const showPasswordSection = ref(false);
+const roleSingle = ref<string>(user.value.roles[0]?.name || '');
 
 const form = useForm({
     name: user.value.name,
@@ -36,6 +37,8 @@ const breadcrumbs = [
 ];
 
 function submit() {
+    form.roles = roleSingle.value ? [roleSingle.value] : [];
+
     const data = {
         name: form.name,
         email: form.email,
@@ -216,49 +219,49 @@ function togglePasswordSection() {
                         </p>
 
                         <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                            <div
-                                v-for="role in availableRoles"
-                                :key="role.id"
-                                :class="[
-                                    'relative cursor-pointer rounded-lg border-2 p-4 transition-all',
-                                    form.roles.includes(role.name) ? getRoleColor(role.name) : 'border-gray-200 hover:border-gray-300',
-                                ]"
-                            >
-                                <label :for="`role-${role.id}`" class="cursor-pointer">
-                                    <div class="flex items-start space-x-3">
-                                        <input
-                                            v-model="form.roles"
-                                            :value="role.name"
-                                            :id="`role-${role.id}`"
-                                            type="checkbox"
-                                            class="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                                        />
-                                        <div class="flex-1">
-                                            <h3 class="text-sm font-medium capitalize">
-                                                {{ role.name.replace('-', ' ') }}
-                                            </h3>
-                                            <p class="mt-1 text-xs text-gray-600">
-                                                {{ getRoleDescription(role.name) }}
-                                            </p>
+                            <template v-for="role in availableRoles" :key="role.id">
+                                <div
+                                    v-if="!['seller', 'buyer', 'customer', 'super-admin', 'vendor'].includes(role.name)"
+                                    :class="[
+                                        'relative cursor-pointer rounded-lg border-2 p-4 transition-all',
+                                        roleSingle === role.name ? getRoleColor(role.name) : 'border-gray-200 hover:border-gray-300',
+                                    ]"
+                                >
+                                    <label :for="`role-${role.id}`" class="cursor-pointer">
+                                        <div class="flex items-start space-x-3">
+                                            <input
+                                                v-model="roleSingle"
+                                                :value="role.name"
+                                                :id="`role-${role.id}`"
+                                                type="radio"
+                                                name="user-roles"
+                                                class="mt-0.5 h-4 w-4 border-gray-300 text-primary focus:ring-primary"
+                                            />
+                                            <div class="flex-1">
+                                                <h3 class="text-sm font-medium capitalize">
+                                                    {{ role.name.replace('-', ' ') }}
+                                                </h3>
+                                                <p class="mt-1 text-xs text-gray-600">
+                                                    {{ getRoleDescription(role.name) }}
+                                                </p>
+                                            </div>
                                         </div>
-                                    </div>
-                                </label>
-                            </div>
+                                    </label>
+                                </div>
+                            </template>
                         </div>
 
                         <p v-if="form.errors.roles" class="mt-2 text-sm text-red-600">{{ form.errors.roles }}</p>
                     </div>
 
-                    <!-- Current Roles Preview -->
-                    <div v-if="form.roles.length > 0" class="rounded-lg bg-blue-50 p-4">
-                        <h3 class="mb-2 text-sm font-medium text-blue-900">Selected Roles Preview</h3>
+                    <!-- Current Role Preview -->
+                    <div v-if="roleSingle" class="rounded-lg bg-blue-50 p-4">
+                        <h3 class="mb-2 text-sm font-medium text-blue-900">Selected Role Preview</h3>
                         <div class="flex flex-wrap gap-2">
                             <span
-                                v-for="roleName in form.roles"
-                                :key="roleName"
-                                :class="['inline-flex items-center rounded-full px-3 py-1 text-xs font-medium', getRoleColor(roleName)]"
+                                :class="['inline-flex items-center rounded-full px-3 py-1 text-xs font-medium', getRoleColor(roleSingle)]"
                             >
-                                {{ roleName.replace('-', ' ') }}
+                                {{ roleSingle.replace('-', ' ') }}
                             </span>
                         </div>
                     </div>

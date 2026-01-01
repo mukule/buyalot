@@ -48,7 +48,7 @@ const breadcrumbs = [
 // Filter search
 function search() {
     router.get(
-        route('orders.index'),
+        route('admin.orders.index'),
         {
             order_code: searchForm.order_code,
             status: searchForm.status,

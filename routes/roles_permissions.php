@@ -7,23 +7,6 @@ use Illuminate\Support\Facades\Route;
 
 
 //Route::middleware(['auth','web'])->group(function () {
-    // Users
-    Route::middleware(['check_permission:view-users'])->group(function () {
-        Route::get('/users', [UserController::class, 'index'])->name('users.index');
-        Route::get('/users/{user}', [UserController::class, 'show'])->name('users.show');
-    });
-    Route::middleware(['check_permission:create-users'])->group(function () {
-//        Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
-        Route::post('/users', [UserController::class, 'store'])->name('users.store');
-    });
-    Route::middleware(['check_permission:edit-users'])->group(function () {
-        Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
-        Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
-        Route::post('/users/{user}/update-status', [UserController::class, 'updateStatus'])->name('users.update-status');
-    });
-    Route::middleware(['check_permission:delete-users'])->group(function () {
-        Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
-    });
     // Roles
     Route::middleware(['check_permission:view-roles'])->group(function () {
         Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
@@ -61,8 +44,6 @@ use Illuminate\Support\Facades\Route;
 
     // User Roles
     Route::middleware(['check_permission:manage-user-roles'])->group(function () {
-        Route::get('/user-roles', [UserController::class, 'index'])->name('user-roles.index');
-        Route::put('/user-roles/{user}', [UserController::class, 'update'])->name('user-roles.update');
         Route::put('/users/{user}/roles', [UserController::class, 'updateRoles'])->name('user.roles.update');
 //    });
 

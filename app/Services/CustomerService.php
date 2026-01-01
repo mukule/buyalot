@@ -23,6 +23,29 @@ class CustomerService
     public function updateCustomer(Customer $customer, array $data): Customer
     {
         $customer->update($data);
+
+        // Update linked user if exists
+        if ($customer->user) {
+            $userData = [];
+            if (isset($data['first_name']) || isset($data['last_name'])) {
+                $userData['name'] = trim(($data['first_name'] ?? $customer->first_name) . ' ' . ($data['last_name'] ?? $customer->last_name));
+            }
+            if (isset($data['email'])) {
+                $userData['email'] = $data['email'];
+            }
+            if (isset($data['phone'])) {
+                $userData['phone'] = $data['phone'];
+            }
+            if (isset($data['status'])) {
+                // Check if user status column is boolean or string
+                $userData['status'] = is_string($data['status']) ? ($data['status'] === 'active') : (bool)$data['status'];
+            }
+
+            if (!empty($userData)) {
+                $customer->user->update($userData);
+            }
+        }
+
         return $customer->fresh();
     }
 

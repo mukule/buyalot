@@ -33,7 +33,9 @@ class CustomerController extends Controller
                         ->orWhere('email', 'like', "%{$search}%");
                 });
             })
-            ->when($request->status, fn($q) => $q->where('status', $request->status))
+            ->when($request->filled('status'), function ($query) use ($request) {
+                $query->where('status', $request->status);
+            })
             ->when($request->customer_type, fn($q) => $q->byType($request->customer_type))
             ->latest()
             ->paginate(20);
@@ -75,8 +77,7 @@ class CustomerController extends Controller
     {
         $customer = $this->customerService->updateCustomer($customer, $request->validated());
 
-        return redirect()->route('customers.show', $customer)
-            ->with('success', 'Customer updated successfully.');
+        return back()->with('success', 'Customer updated successfully.');
     }
 
     public function destroy(Customer $customer)

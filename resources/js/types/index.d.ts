@@ -87,6 +87,21 @@ export interface User {
     updated_at: string;
 }
 
+export interface UserDetails {
+    id: number;
+    user_id: string;
+    email: string;
+    phone: string;
+    alt_phone: string;
+    gender: string;
+    address: string;
+    position: string;
+    idno?: string;
+    contact_name: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
 export interface MyOrders {
     id: number;
     hashid: string;

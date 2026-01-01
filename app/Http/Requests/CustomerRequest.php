@@ -30,7 +30,6 @@ class CustomerRequest extends FormRequest
             'phone' => 'nullable|string|max:20',
             'date_of_birth' => 'nullable|date|before:today',
             'gender' => 'nullable|in:male,female,other,prefer_not_to_say',
-            'customer_type' => 'required|in:regular,premium,vip,enterprise',
             'status' => 'required|in:active,inactive,suspended',
             'language' => 'nullable|string|max:5',
             'timezone' => 'nullable|string|max:50',
