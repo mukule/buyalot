@@ -42,9 +42,9 @@ class HomeController extends Controller
         $productsByCategory = $this->productService->getProductsGroupedByCategory($categories);
         // info($productsByCategory);
 
-        foreach ($categories as $category) {
-        info($this->logCategoryWithChildren($category));
-    }
+    //     foreach ($categories as $category) {
+    //     info($this->logCategoryWithChildren($category));
+    // }
 
         return Inertia::render('Frontend/Index', [
             'title' => 'Online Shopping Store',
