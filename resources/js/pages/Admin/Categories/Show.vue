@@ -51,6 +51,12 @@ function deleteChild(childHashid: string) {
     }
 }
 
+function forceDeleteCategory(hashid: string) {
+    if (confirm('This will permanently delete the category and ALL its subcategories. This cannot be undone. Continue?')) {
+        router.delete(route('admin.categories.force-destroy', { category: hashid }));
+    }
+}
+
 function showCategory(categoryHashid: string) {
     if (!categoryHashid) return console.error('showCategory called without hashid');
     router.get(route('admin.categories.show', { category: categoryHashid }));
@@ -82,7 +88,7 @@ function showCategory(categoryHashid: string) {
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                <!-- <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th> -->
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white">
@@ -95,10 +101,13 @@ function showCategory(categoryHashid: string) {
                                     {{ child.name }}
                                 </td>
 
-                                <!-- <td class="px-4 py-4 text-right align-top text-sm">
-                                    <button @click.stop="editChild(child.hashid)" class="mr-3 text-blue-600 hover:underline">Edit</button>
-                                    <button @click.stop="deleteChild(child.hashid)" class="text-red-600 hover:underline">Delete</button>
-                                </td> -->
+                                <td class="px-4 py-4 text-right align-top text-sm">
+                                    <button @click.stop="editChild(child.hashid)" class="mr-3 text-blue-600 hover:underline">Edit</button> |
+                                    <button @click.stop="deleteChild(child.hashid)" class="text-red-600 hover:underline">Delete</button> |
+                                    <button @click="forceDeleteCategory(category.hashid)" class="text-red-600 hover:underline">
+                                        Delete Permanently
+                                    </button>
+                                </td>
                             </tr>
                         </tbody>
                     </table>
