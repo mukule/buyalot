@@ -190,27 +190,19 @@ class CategoryController extends Controller
         ]);
     }
 
-    /**
-     * Soft delete the category and optionally cascade to children.
-     */
-    public function destroy(Category $category)
-    {
-        DB::transaction(function () use ($category) {
-           
-            foreach ($category->children as $child) {
-                $this->destroy($child);
-            }
+   public function destroy(Category $category)
+{
+    DB::transaction(function () use ($category) {
+        $this->deleteCategoryTree($category);
+    });
 
-            $category->delete();
-        });
+    return redirect()
+        ->route('admin.categories.index')
+        ->with('success', 'Category deleted successfully.');
+}
 
-        return redirect()->route('admin.categories.index')
-            ->with('success', 'Category deleted successfully.');
-    }
 
-    /**
-     * Restore a soft-deleted category and optionally cascade to children.
-     */
+
     public function restore(int $id)
     {
         $category = Category::withTrashed()->findOrFail($id);
@@ -229,39 +221,42 @@ class CategoryController extends Controller
     }
 
 
-
-   
 public function forceDestroy(Category $category)
 {
     DB::transaction(function () use ($category) {
 
-        // If this category has products — block deletion
         if ($category->products()->exists()) {
-            abort(400, 'Cannot delete this category because it has products attached.');
+            throw new \RuntimeException('Cannot delete this category because it has products attached.');
         }
 
-        // Recursively check children
         foreach ($category->children()->withTrashed()->get() as $child) {
-
             if ($child->products()->exists()) {
-                abort(400, 'Cannot delete child category "' . $child->name . '" because it has products attached.');
+                throw new \RuntimeException(
+                    'Cannot delete child category "' . $child->name . '" because it has products attached.'
+                );
             }
-
-            // Detach pivot relations before permanent delete
-            $child->variantCategories()->detach();
-            $child->forceDelete();
         }
 
-        // Detach pivot relations for parent category
-        $category->variantCategories()->detach();
-
-        // Permanently delete this category
-        $category->forceDelete();
+        $this->deleteCategoryTree($category, true);
     });
 
     return redirect()
         ->route('admin.categories.index')
         ->with('success', 'Category permanently deleted.');
 }
+
+
+
+private function deleteCategoryTree(Category $category, bool $force = false): void
+{
+    foreach ($category->children()->withTrashed()->get() as $child) {
+        $this->deleteCategoryTree($child, $force);
+    }
+
+    $category->variantCategories()->detach();
+
+    $force ? $category->forceDelete() : $category->delete();
+}
+
 
 }
