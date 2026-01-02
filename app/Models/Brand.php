@@ -23,14 +23,14 @@ class Brand extends Model
 
     protected $appends = [
         'hashid',
-        'logo_url', // Removed 'category_name'
+        'logo_url',
     ];
 
     protected static function booted()
     {
-        static::created(fn() => \App\Services\SearchCacheService::refresh());
-        static::updated(fn() => \App\Services\SearchCacheService::refresh());
-        static::deleted(fn() => \App\Services\SearchCacheService::refresh());
+        // static::created(fn() => \App\Services\SearchCacheService::refresh());
+        // static::updated(fn() => \App\Services\SearchCacheService::refresh());
+        // static::deleted(fn() => \App\Services\SearchCacheService::refresh());
     }
 
     protected static function boot()
