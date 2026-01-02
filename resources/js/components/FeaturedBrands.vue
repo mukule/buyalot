@@ -35,7 +35,7 @@ const scrollBrands = (direction: 'left' | 'right') => {
         <!-- Brands list -->
         <div ref="brandsContainer" class="scrollbar-hide flex space-x-4 overflow-x-auto scroll-smooth px-2 pb-4">
             <div v-for="brand in brands" :key="brand.hashid ?? brand.id" class="w-1/2 flex-none px-2 py-2 sm:w-1/3 md:w-1/6">
-                <Link :href="`/brands/${brand.slug}`">
+                <Link href="#">
                     <img v-if="brand.logo_url" :src="brand.logo_url" :alt="brand.name" class="mx-auto h-[70px] w-[160px] object-contain" />
                     <div v-else class="flex h-[70px] w-[160px] items-center justify-center bg-gray-100">
                         <span class="text-sm font-medium">{{ brand.name }}</span>
