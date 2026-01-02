@@ -65,12 +65,12 @@ const authLinks = computed(() => {
                   : '/admin/dashboard';
         return [
             { name: 'My Account', href: dashboardUrl, isUser: true },
-            { name: 'Orders', href: '/orders/my-orders' },
+            { name: 'Orders', href: route ? route('orders.index') : '/orders/my-orders' },
             { name: 'Logout', href: '/logout', isLogout: true },
         ];
     } else {
         return [
-            { name: 'Orders', href: '/orders/my-orders' },
+            { name: 'Orders', href: route ? route('orders.index') : '/orders/my-orders' },
             { name: 'Login', href: '/login' },
             { name: 'Register', href: '/register' },
         ];

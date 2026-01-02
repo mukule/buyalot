@@ -32,7 +32,7 @@ const allNavItems: NavItem[] = [
     },
     {
         title: 'Orders',
-        href: '/orders/my-orders',
+        href: route('orders.index'),
         icon: Package,
     },
     // {

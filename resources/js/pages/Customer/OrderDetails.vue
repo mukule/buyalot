@@ -84,7 +84,7 @@ function statusBadgeClass(status?: string) {
           <p class="text-xs text-gray-500">Placed on {{ order?.created_at }}</p>
         </div>
         <div class="space-x-2">
-          <Link :href="route('orders.my-orders')" class="rounded-md border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Back to My Orders</Link>
+          <Link :href="route('orders.index')" class="rounded-md border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Back to My Orders</Link>
           <button
             v-if="canPay"
             :disabled="paying"

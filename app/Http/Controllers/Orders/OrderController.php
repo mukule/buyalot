@@ -91,8 +91,12 @@ class OrderController extends Controller
     public function show(Order $order)
     {
         logger("view order details");
-        $order->load(['customer', 'orderItems.productVariant.product', 'shippingAddress', 'billingAddress', 'assignedRider:id,name,email']);
+        $order->load(['customer.defaultAddress', 'orderItems.productVariant.product', 'shippingAddress', 'billingAddress', 'assignedRider:id,name,email']);
         logger($order);
+
+        $shippingAddress = $order->shippingAddress ?: $order->customer?->getDefaultAddress();
+        $billingAddress = $order->billingAddress ?: $order->customer?->getDefaultAddress();
+
         // Transform order to a plain array structure that the frontend expects
         $payload = [
             'id' => $order->id,
@@ -126,33 +130,33 @@ class OrderController extends Controller
                     ] : null,
                 ];
             })->toArray(),
-            'shipping_address' => $order->shippingAddress ? [
-                'first_name' => $order->shippingAddress->first_name,
-                'last_name' => $order->shippingAddress->last_name,
-                'address_line_1' => $order->shippingAddress->address_line_1,
-                'address_line_2' => $order->shippingAddress->address_line_2,
-                'city' => $order->shippingAddress->city,
-                'state' => $order->shippingAddress->state ?? $order->shippingAddress->state_province,
-                'state_province' => $order->shippingAddress->state_province,
-                'postal_code' => $order->shippingAddress->postal_code,
-                'country' => $order->shippingAddress->country ?? $order->shippingAddress->country_code,
-                'country_code' => $order->shippingAddress->country_code,
-                'country_name' => $order->shippingAddress->country_name,
-                'phone' => $order->shippingAddress->phone,
+            'shipping_address' => $shippingAddress ? [
+                'first_name' => $shippingAddress->first_name,
+                'last_name' => $shippingAddress->last_name,
+                'address_line_1' => $shippingAddress->address_line_1,
+                'address_line_2' => $shippingAddress->address_line_2,
+                'city' => $shippingAddress->city,
+                'state' => $shippingAddress->state ?? $shippingAddress->state_province,
+                'state_province' => $shippingAddress->state_province,
+                'postal_code' => $shippingAddress->postal_code,
+                'country' => $shippingAddress->country ?? $shippingAddress->country_code,
+                'country_code' => $shippingAddress->country_code,
+                'country_name' => $shippingAddress->country_name,
+                'phone' => $shippingAddress->phone,
             ] : null,
-            'billing_address' => $order->billingAddress ? [
-                'first_name' => $order->billingAddress->first_name,
-                'last_name' => $order->billingAddress->last_name,
-                'address_line_1' => $order->billingAddress->address_line_1,
-                'address_line_2' => $order->billingAddress->address_line_2,
-                'city' => $order->billingAddress->city,
-                'state' => $order->billingAddress->state ?? $order->billingAddress->state_province,
-                'state_province' => $order->billingAddress->state_province,
-                'postal_code' => $order->billingAddress->postal_code,
-                'country' => $order->billingAddress->country ?? $order->billingAddress->country_code,
-                'country_code' => $order->billingAddress->country_code,
-                'country_name' => $order->billingAddress->country_name,
-                'phone' => $order->billingAddress->phone,
+            'billing_address' => $billingAddress ? [
+                'first_name' => $billingAddress->first_name,
+                'last_name' => $billingAddress->last_name,
+                'address_line_1' => $billingAddress->address_line_1,
+                'address_line_2' => $billingAddress->address_line_2,
+                'city' => $billingAddress->city,
+                'state' => $billingAddress->state ?? $billingAddress->state_province,
+                'state_province' => $billingAddress->state_province,
+                'postal_code' => $billingAddress->postal_code,
+                'country' => $billingAddress->country ?? $billingAddress->country_code,
+                'country_code' => $billingAddress->country_code,
+                'country_name' => $billingAddress->country_name,
+                'phone' => $billingAddress->phone,
             ] : null,
         ];
 

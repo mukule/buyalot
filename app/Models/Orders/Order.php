@@ -83,14 +83,12 @@ class Order extends Model
     }
     public function shippingAddress()
     {
-        return $this->belongsTo(CustomerAddress::class, 'shipping_address_id')
-            ->where('type', 'shipping');
+        return $this->belongsTo(CustomerAddress::class, 'shipping_address_id');
     }
 
     public function billingAddress()
     {
-        return $this->belongsTo(CustomerAddress::class, 'billing_address_id')
-            ->where('type', 'billing');
+        return $this->belongsTo(CustomerAddress::class, 'billing_address_id');
     }
 
     // Scopes

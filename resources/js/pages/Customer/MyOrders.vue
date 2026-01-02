@@ -68,7 +68,7 @@ const pagination = computed(() => {
 });
 
 function viewOrder(ulid: string) {
-    router.get(route('orders.show', { orders: ulid }));
+    router.get(route('orders.show', { order: ulid }));
 }
 
 const statusClasses = (status: string) => ({

@@ -202,7 +202,7 @@ const statusClass = computed(() => {
                         <div class="mb-4 flex items-center justify-between">
                             <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-700">RECENT ORDERS</h2>
                             <Link
-                                :href="route ? route('orders.index') : '/orders/my-orders'"
+                                :href="route('orders.index')"
                                 class="text-sm text-primary hover:underline"
                             >
                                 View all
