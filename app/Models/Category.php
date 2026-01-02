@@ -41,10 +41,10 @@ class Category extends Model
         });
 
         // Existing search cache refresh callbacks
-        static::created(fn() => \App\Services\SearchCacheService::refresh());
-        static::updated(fn() => \App\Services\SearchCacheService::refresh());
-        static::deleted(fn() => \App\Services\SearchCacheService::refresh());
-        static::restored(fn() => \App\Services\SearchCacheService::refresh());
+      //  static::created(fn() => \App\Services\SearchCacheService::refresh());
+      //  static::updated(fn() => \App\Services\SearchCacheService::refresh());
+      //  static::deleted(fn() => \App\Services\SearchCacheService::refresh());
+       // static::restored(fn() => \App\Services\SearchCacheService::refresh());
     }
 
     /**
