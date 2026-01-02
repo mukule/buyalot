@@ -1,14 +1,18 @@
-<script setup lang="ts">
-import { router } from '@inertiajs/vue3';
-import { computed, nextTick, onMounted, onUnmounted, ref, watchEffect } from 'vue';
-
-interface Category {
+<script lang="ts">
+// 1. Define and Export the interface so it's available everywhere
+export interface Category {
     id: number;
     name: string;
     slug: string;
     children?: Category[];
 }
+</script>
 
+<script setup lang="ts">
+import { router } from '@inertiajs/vue3';
+import { computed, nextTick, onMounted, onUnmounted, ref, watchEffect, h } from 'vue';
+
+// 2. Props Definition
 interface Props {
     categories: Category[];
     limit?: number;
@@ -18,7 +22,30 @@ const props = defineProps<Props>();
 const limit = props.limit ?? 11;
 
 /**
- * STATE
+ * RECURSIVE COMPONENT (Functional)
+ * This handles the rendering of levels 3, 4, and 5
+ */
+const RecursiveList = (props: { items: Category[], depth: number }) => {
+    return props.items.map((item) => {
+        const hasChildren = item.children && item.children.length > 0 && props.depth < 5;
+        
+        return h('li', { key: item.id, class: 'list-none' }, [
+            h('a', {
+                href: `/${item.slug}`,
+                class: [
+                    'block transition-colors hover:text-primary',
+                    props.depth === 3 ? 'text-gray-700 font-medium' : 'text-gray-500 text-xs mt-1'
+                ]
+            }, item.name),
+            hasChildren ? h('ul', { class: 'ml-3 mt-1 border-l pl-2 space-y-1' }, [
+                h(RecursiveList, { items: item.children!, depth: props.depth + 1 })
+            ]) : null
+        ]);
+    });
+};
+
+/**
+ * STATE & REFS
  */
 const activeCategoryId = ref<number | null>(null);
 const pinned = ref(false);
@@ -34,29 +61,30 @@ const megaPanelStyle = ref({
 });
 
 /**
+ * RECURSIVE COUNTER
+ */
+const countNodes = (cat: Category, currentDepth: number, maxDepth: number): number => {
+    if (currentDepth >= maxDepth || !cat.children?.length) return 1;
+    return 1 + cat.children.reduce((acc, child) => acc + countNodes(child, currentDepth + 1, maxDepth), 0);
+};
+
+/**
  * POSITIONING LOGIC
  */
 const updateMegaPanelPosition = () => {
     if (!sidebarRef.value || !activeCategoryId.value) return;
-
     const bannerSection = sidebarRef.value.closest('.flex-col.lg\\:flex-row');
     if (!bannerSection) return;
-
-    // The hero banner container (lg:w-10/12)
     const heroWrapper = bannerSection.querySelector('.lg\\:w-10\\/12');
 
     if (heroWrapper) {
         const heroRect = heroWrapper.getBoundingClientRect();
-
-        // 1. Calculate content-based width
         const columnWidth = 220;
-        const gap = 32; // 2rem gap
-        const padding = 48; // p-6 on both sides (24px * 2)
+        const gap = 32;
+        const padding = 48;
         const numCols = groupedColumns.value.length;
 
-        const naturalWidth = numCols * columnWidth + (numCols - 1) * gap + padding;
-
-        // 2. Cap width at hero banner width
+        const naturalWidth = (numCols * columnWidth) + ((numCols - 1) * gap) + padding;
         const finalWidth = Math.min(naturalWidth, heroRect.width);
 
         megaPanelStyle.value = {
@@ -68,10 +96,7 @@ const updateMegaPanelPosition = () => {
     }
 };
 
-const handleResize = () => {
-    if (activeCategoryId.value) updateMegaPanelPosition();
-};
-
+const handleResize = () => { if (activeCategoryId.value) updateMegaPanelPosition(); };
 onMounted(() => window.addEventListener('resize', handleResize));
 onUnmounted(() => window.removeEventListener('resize', handleResize));
 
@@ -92,34 +117,30 @@ const groupedColumns = computed(() => {
     if (!activeCategory.value?.children) return [];
     const children = activeCategory.value.children;
 
-    const MAX_ITEMS_PER_COLUMN = 15;
+    const MAX_ITEMS_PER_COLUMN = 22;
     const MIN_COLUMNS = 2;
 
-    let totalItems = 0;
-    const groupItemCounts: number[] = [];
-    for (const group of children) {
-        const count = 1 + (group.children?.length || 0);
-        groupItemCounts.push(count);
-        totalItems += count;
-    }
+    const groupHeights = children.map(group => countNodes(group, 2, 5));
+    const totalHeight = groupHeights.reduce((a, b) => a + b, 0);
 
-    const numColumns = Math.max(Math.ceil(totalItems / MAX_ITEMS_PER_COLUMN), MIN_COLUMNS);
+    const numColumns = Math.max(Math.ceil(totalHeight / MAX_ITEMS_PER_COLUMN), MIN_COLUMNS);
+    const targetHeight = Math.ceil(totalHeight / numColumns);
+
     const columns: Category[][] = [];
     let currentColumn: Category[] = [];
-    let currentColumnItemCount = 0;
-    const targetItemsPerColumn = Math.ceil(totalItems / numColumns);
+    let currentHeight = 0;
 
     for (let i = 0; i < children.length; i++) {
         const group = children[i];
-        const groupItemCount = groupItemCounts[i];
+        const height = groupHeights[i];
 
-        if (currentColumnItemCount > 0 && currentColumnItemCount + groupItemCount > targetItemsPerColumn && columns.length < numColumns - 1) {
+        if (currentHeight > 0 && currentHeight + height > targetHeight && columns.length < numColumns - 1) {
             columns.push([...currentColumn]);
             currentColumn = [];
-            currentColumnItemCount = 0;
+            currentHeight = 0;
         }
         currentColumn.push(group);
-        currentColumnItemCount += groupItemCount;
+        currentHeight += height;
     }
 
     if (currentColumn.length > 0) columns.push(currentColumn);
@@ -130,39 +151,22 @@ const groupedColumns = computed(() => {
 /**
  * EVENTS
  */
-let closeTimeout: ReturnType<typeof setTimeout> | null = null;
-
+let closeTimeout: any = null;
 const onCategoryEnter = (id: number) => {
     if (closeTimeout) clearTimeout(closeTimeout);
     if (!pinned.value) activeCategoryId.value = id;
 };
-
 const onCategoryClick = (id: number) => {
-    if (pinned.value && activeCategoryId.value === id) {
-        pinned.value = false;
-        activeCategoryId.value = null;
-    } else {
-        pinned.value = true;
-        activeCategoryId.value = id;
-    }
+    pinned.value = (pinned.value && activeCategoryId.value === id) ? false : true;
+    activeCategoryId.value = pinned.value ? id : null;
 };
-
 const onMenuLeave = () => {
     closeTimeout = setTimeout(() => {
         if (!pinned.value && !hoveringPanel.value) activeCategoryId.value = null;
     }, 100);
 };
-
-const onPanelEnter = () => {
-    if (closeTimeout) clearTimeout(closeTimeout);
-    hoveringPanel.value = true;
-};
-
-const onPanelLeave = () => {
-    hoveringPanel.value = false;
-    if (!pinned.value) activeCategoryId.value = null;
-};
-
+const onPanelEnter = () => { if (closeTimeout) clearTimeout(closeTimeout); hoveringPanel.value = true; };
+const onPanelLeave = () => { hoveringPanel.value = false; if (!pinned.value) activeCategoryId.value = null; };
 const goToCategoriesPage = () => router.visit('/categories');
 </script>
 
@@ -182,7 +186,6 @@ const goToCategoriesPage = () => router.visit('/categories');
                 </a>
                 <span class="text-xs text-gray-400">›</span>
             </li>
-
             <li v-if="hasMore" class="mt-1 border-t px-3 py-2">
                 <button class="w-full text-left text-sm font-medium text-gray-600 hover:text-primary" @click="goToCategoriesPage">
                     All Categories
@@ -205,10 +208,9 @@ const goToCategoriesPage = () => router.visit('/categories');
                             <h4 class="mb-2 truncate border-b pb-1 text-sm font-bold text-gray-900">
                                 <a :href="`/${group.slug}`" class="hover:text-primary">{{ group.name }}</a>
                             </h4>
-                            <ul class="space-y-1.5 text-sm">
-                                <li v-for="child in group.children ?? []" :key="child.id" class="truncate text-gray-600 hover:text-primary">
-                                    <a :href="`/${child.slug}`">{{ child.name }}</a>
-                                </li>
+                            
+                            <ul class="space-y-2 text-sm">
+                                <RecursiveList :items="group.children || []" :depth="3" />
                             </ul>
                         </div>
                     </div>
@@ -219,59 +221,13 @@ const goToCategoriesPage = () => router.visit('/categories');
 </template>
 
 <style scoped>
-aside {
-    height: 100%;
-}
-
-/* ANIMATION */
-.fade-enter-active,
-.fade-leave-active {
-    transition:
-        opacity 0.15s ease,
-        transform 0.15s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-    opacity: 0;
-    transform: translateX(-8px);
-}
-
-/* THE BRIDGE: Prevents closing when moving mouse across the 16px gap */
-.mega-panel::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -20px;
-    width: 20px;
-    height: 100%;
-    background: transparent;
-}
-
-/* FLEX COLUMNS */
-.mega-columns {
-    display: flex;
-    gap: 2rem;
-    align-items: flex-start;
-    justify-content: flex-start;
-}
-
-.mega-column {
-    flex: 0 0 220px; /* Fixed width for items */
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-}
-
-/* Custom Scrollbar */
-.mega-panel::-webkit-scrollbar {
-    width: 4px;
-}
-.mega-panel::-webkit-scrollbar-track {
-    background: #f1f1f1;
-}
-.mega-panel::-webkit-scrollbar-thumb {
-    background: #ccc;
-    border-radius: 10px;
-}
+aside { height: 100%; }
+.fade-enter-active, .fade-leave-active { transition: opacity 0.15s ease, transform 0.15s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; transform: translateX(-8px); }
+.mega-panel::before { content: ''; position: absolute; top: 0; left: -20px; width: 20px; height: 100%; background: transparent; }
+.mega-columns { display: flex; gap: 2rem; align-items: flex-start; }
+.mega-column { flex: 0 0 220px; min-width: 0; display: flex; flex-direction: column; gap: 1.75rem; }
+.mega-panel::-webkit-scrollbar { width: 4px; }
+.mega-panel::-webkit-scrollbar-track { background: #f1f1f1; }
+.mega-panel::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
 </style>
