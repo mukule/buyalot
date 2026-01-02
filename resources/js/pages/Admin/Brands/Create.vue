@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
-import { Head, Link } from '@inertiajs/vue3';
-import axios from 'axios';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { ref } from 'vue';
 
 const title = 'Create Brand';
@@ -13,50 +12,55 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title, href: '' },
 ];
 
-const logoFile = ref<File | null>(null);
-const logoPreview = ref<string | null>(null);
-const submitting = ref(false); // track submission state
-
+// Form state
 const form = ref({
     name: '',
     active: true,
 });
 
+const logoFile = ref<File | null>(null);
+const logoPreview = ref<string | null>(null);
+const submitting = ref(false);
+
+// Handle logo selection + preview
 function onLogoChange(event: Event) {
     const target = event.target as HTMLInputElement;
     const file = target.files?.[0];
-    if (file) {
-        logoFile.value = file;
-        logoPreview.value = URL.createObjectURL(file);
-    } else {
+
+    if (!file) {
         logoFile.value = null;
         logoPreview.value = null;
+        return;
     }
+
+    logoFile.value = file;
+    logoPreview.value = URL.createObjectURL(file);
 }
 
-async function submit() {
-    if (submitting.value) return; // prevent double submission
+// Submit form
+function submit() {
+    if (submitting.value) return;
     submitting.value = true;
 
     const formData = new FormData();
     formData.append('name', form.value.name);
     formData.append('active', form.value.active ? '1' : '0');
-    if (logoFile.value) formData.append('logo_path', logoFile.value);
 
-    try {
-        await axios.post('/admin/brands', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        window.location.href = '../../../../../public/storage/brands';
-    } catch (error: unknown) {
-        if (axios.isAxiosError(error)) {
-            console.error('Submit error:', error.response?.data || error.message);
-        } else {
-            console.error('Unexpected error:', error);
-        }
-    } finally {
-        submitting.value = false; // reset submission state
+    if (logoFile.value) {
+        formData.append('logo_path', logoFile.value);
     }
+
+    router.post('/admin/brands', formData, {
+        forceFormData: true,
+
+        onSuccess: () => {
+            router.visit('/admin/brands');
+        },
+
+        onFinish: () => {
+            submitting.value = false;
+        },
+    });
 }
 </script>
 
@@ -68,7 +72,7 @@ async function submit() {
             <div class="flex h-full flex-1 flex-col space-y-4 rounded-xl bg-white p-4 text-[color:var(--card-foreground)]">
                 <div class="flex items-center justify-between">
                     <h4 class="text-2xl font-bold">{{ title }}</h4>
-                    <Link href="/admin/brands" class="text-sm text-[color:var(--primary)] hover:underline">← Back</Link>
+                    <Link href="/admin/brands" class="text-sm text-[color:var(--primary)] hover:underline"> ← Back </Link>
                 </div>
 
                 <hr class="my-1 border-[color:var(--border)]" />
@@ -88,10 +92,10 @@ async function submit() {
 
                     <!-- Logo Upload -->
                     <div>
-                        <label for="logo" class="mb-1 block font-semibold">Brand Logo (optional)</label>
+                        <label for="logo" class="mb-1 block font-semibold"> Brand Logo (optional) </label>
+
                         <input
                             id="logo"
-                            name="logo_path"
                             type="file"
                             accept="image/*"
                             @change="onLogoChange"
@@ -99,10 +103,11 @@ async function submit() {
                         />
 
                         <div v-if="logoPreview" class="mt-2">
-                            <img :src="logoPreview" alt="Logo Preview" class="h-20 w-auto rounded border" />
+                            <img :src="logoPreview" alt="Logo Preview" class="h-20 w-auto rounded border object-contain" />
                         </div>
                     </div>
 
+                    <!-- Active -->
                     <div class="flex items-center space-x-2">
                         <input
                             type="checkbox"
@@ -113,10 +118,11 @@ async function submit() {
                         <label for="active" class="font-semibold">Active</label>
                     </div>
 
+                    <!-- Submit -->
                     <button
                         type="submit"
                         :disabled="submitting"
-                        class="rounded bg-[color:var(--primary)] px-4 py-2 text-white transition-colors duration-200 hover:bg-[color:var(--secondary)] hover:text-[color:var(--secondary-foreground)] disabled:cursor-not-allowed disabled:opacity-50"
+                        class="rounded bg-[color:var(--primary)] px-4 py-2 text-white transition hover:bg-[color:var(--secondary)] hover:text-[color:var(--secondary-foreground)] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {{ submitting ? 'Submitting...' : 'Submit' }}
                     </button>
