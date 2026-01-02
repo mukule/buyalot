@@ -25,109 +25,59 @@ const pinned = ref(false);
 const hoveringPanel = ref(false);
 const sidebarRef = ref<HTMLElement>();
 const megaPanelRef = ref<HTMLElement>();
-const megaPanelHeight = ref('auto');
+
 const megaPanelStyle = ref({
-    width: '0px',
+    width: 'auto',
     height: 'auto',
-    left: '100%',
+    left: 'calc(100% + 16px)',
     top: '0',
 });
 
 /**
- * REACTIVE VIEWPORT WIDTH
- */
-const viewportWidth = ref(window.innerWidth);
-const viewportHeight = ref(window.innerHeight);
-
-const updateViewport = () => {
-    viewportWidth.value = window.innerWidth;
-    viewportHeight.value = window.innerHeight;
-};
-
-onMounted(() => {
-    window.addEventListener('resize', updateViewport);
-    updateViewport();
-});
-
-onUnmounted(() => {
-    window.removeEventListener('resize', updateViewport);
-});
-
-/**
- * Calculate mega panel position and size
+ * POSITIONING LOGIC
  */
 const updateMegaPanelPosition = () => {
-    if (!sidebarRef.value || !megaPanelRef.value || !activeCategoryId.value) return;
+    if (!sidebarRef.value || !activeCategoryId.value) return;
 
-    // Get sidebar position and dimensions
-    const sidebarRect = sidebarRef.value.getBoundingClientRect();
+    const bannerSection = sidebarRef.value.closest('.flex-col.lg\\:flex-row');
+    if (!bannerSection) return;
 
-    // Get the banner section container
-    const bannerSection = sidebarRef.value.closest('.flex.flex-col.lg\\:flex-row');
-    let bannerHeight = sidebarRect.height;
+    // The hero banner container (lg:w-10/12)
+    const heroWrapper = bannerSection.querySelector('.lg\\:w-10\\/12');
 
-    if (bannerSection) {
-        bannerHeight = bannerSection.clientHeight;
-    } else {
-        // Fallback to parent container
-        const parentContainer = sidebarRef.value.parentElement;
-        if (parentContainer) {
-            bannerHeight = parentContainer.clientHeight;
-        }
+    if (heroWrapper) {
+        const heroRect = heroWrapper.getBoundingClientRect();
+
+        // 1. Calculate content-based width
+        const columnWidth = 220;
+        const gap = 32; // 2rem gap
+        const padding = 48; // p-6 on both sides (24px * 2)
+        const numCols = groupedColumns.value.length;
+
+        const naturalWidth = numCols * columnWidth + (numCols - 1) * gap + padding;
+
+        // 2. Cap width at hero banner width
+        const finalWidth = Math.min(naturalWidth, heroRect.width);
+
+        megaPanelStyle.value = {
+            width: `${finalWidth}px`,
+            height: `${heroRect.height}px`,
+            left: 'calc(100% + 16px)',
+            top: '0',
+        };
     }
-
-    // Calculate panel width based on content - use fixed column approach
-    const columnWidth = 220;
-    const activeCategory = props.categories.find((c) => c.id === activeCategoryId.value);
-    const numGroups = activeCategory?.children?.length || 0;
-
-    // Determine number of columns based on group count
-    let numColumns = Math.min(Math.ceil(numGroups / 6), 4); // Max 4 columns, ~6 groups per column
-    numColumns = Math.max(numColumns, 2); // Minimum 2 columns
-
-    let panelWidth = numColumns * columnWidth + (numColumns - 1) * 16; // 16px gap
-
-    // Constrain width to available space
-    const availableSpace = viewportWidth.value - sidebarRect.right - 32; // 32px for margins
-    panelWidth = Math.min(panelWidth, availableSpace, 1000); // Max 1000px
-
-    // Check if panel would overflow the right edge
-    const panelRightEdge = sidebarRect.right + panelWidth + 8; // +8 for margin-left
-
-    // If panel would overflow, position it to the left instead
-    let leftPosition = '100%';
-    if (panelRightEdge > viewportWidth.value - 16) {
-        // 16px for safety margin
-        // Position to the left of sidebar
-        leftPosition = `-${panelWidth + 8}px`;
-    }
-
-    // Update style
-    megaPanelStyle.value = {
-        width: `${panelWidth}px`,
-        height: `${bannerHeight}px`,
-        left: leftPosition,
-        top: '0',
-    };
 };
 
-/**
- * Watch for active category changes
- */
-watchEffect(() => {
-    if (activeCategoryId.value) {
-        nextTick(() => {
-            updateMegaPanelPosition();
-        });
-    }
-});
+const handleResize = () => {
+    if (activeCategoryId.value) updateMegaPanelPosition();
+};
 
-/**
- * Watch for viewport changes
- */
+onMounted(() => window.addEventListener('resize', handleResize));
+onUnmounted(() => window.removeEventListener('resize', handleResize));
+
 watchEffect(() => {
     if (activeCategoryId.value) {
-        updateMegaPanelPosition();
+        nextTick(() => updateMegaPanelPosition());
     }
 });
 
@@ -138,32 +88,22 @@ const visibleCategories = computed(() => props.categories.slice(0, limit));
 const hasMore = computed(() => props.categories.length > limit);
 const activeCategory = computed(() => props.categories.find((c) => c.id === activeCategoryId.value) ?? null);
 
-/**
- * Group categories into columns - FILL ONE COLUMN COMPLETELY BEFORE STARTING NEXT
- */
 const groupedColumns = computed(() => {
     if (!activeCategory.value?.children) return [];
-
     const children = activeCategory.value.children;
 
-    // Estimate items per column based on typical content
-    const MAX_ITEMS_PER_COLUMN = 15; // Includes header + children
+    const MAX_ITEMS_PER_COLUMN = 15;
     const MIN_COLUMNS = 2;
 
-    // Calculate total items count
     let totalItems = 0;
     const groupItemCounts: number[] = [];
-
     for (const group of children) {
-        const count = 1 + (group.children?.length || 0); // 1 for header
+        const count = 1 + (group.children?.length || 0);
         groupItemCounts.push(count);
         totalItems += count;
     }
 
-    // Calculate needed columns
     const numColumns = Math.max(Math.ceil(totalItems / MAX_ITEMS_PER_COLUMN), MIN_COLUMNS);
-
-    // Fill columns sequentially based on item count
     const columns: Category[][] = [];
     let currentColumn: Category[] = [];
     let currentColumnItemCount = 0;
@@ -173,38 +113,28 @@ const groupedColumns = computed(() => {
         const group = children[i];
         const groupItemCount = groupItemCounts[i];
 
-        // If adding this group would exceed target AND we already have items in current column
         if (currentColumnItemCount > 0 && currentColumnItemCount + groupItemCount > targetItemsPerColumn && columns.length < numColumns - 1) {
-            // Move to next column
             columns.push([...currentColumn]);
             currentColumn = [];
             currentColumnItemCount = 0;
         }
-
         currentColumn.push(group);
         currentColumnItemCount += groupItemCount;
     }
 
-    // Add the last column
-    if (currentColumn.length > 0) {
-        columns.push(currentColumn);
-    }
-
-    // Ensure we have at least MIN_COLUMNS
-    while (columns.length < MIN_COLUMNS) {
-        columns.push([]);
-    }
-
+    if (currentColumn.length > 0) columns.push(currentColumn);
+    while (columns.length < MIN_COLUMNS) columns.push([]);
     return columns;
 });
 
 /**
  * EVENTS
  */
+let closeTimeout: ReturnType<typeof setTimeout> | null = null;
+
 const onCategoryEnter = (id: number) => {
-    if (!pinned.value) {
-        activeCategoryId.value = id;
-    }
+    if (closeTimeout) clearTimeout(closeTimeout);
+    if (!pinned.value) activeCategoryId.value = id;
 };
 
 const onCategoryClick = (id: number) => {
@@ -218,10 +148,15 @@ const onCategoryClick = (id: number) => {
 };
 
 const onMenuLeave = () => {
-    if (!pinned.value && !hoveringPanel.value) activeCategoryId.value = null;
+    closeTimeout = setTimeout(() => {
+        if (!pinned.value && !hoveringPanel.value) activeCategoryId.value = null;
+    }, 100);
 };
 
-const onPanelEnter = () => (hoveringPanel.value = true);
+const onPanelEnter = () => {
+    if (closeTimeout) clearTimeout(closeTimeout);
+    hoveringPanel.value = true;
+};
 
 const onPanelLeave = () => {
     hoveringPanel.value = false;
@@ -233,27 +168,28 @@ const goToCategoriesPage = () => router.visit('/categories');
 
 <template>
     <aside ref="sidebarRef" class="relative h-full w-full rounded-lg bg-white shadow-md" @mouseleave="onMenuLeave">
-        <!-- LEFT: DEPARTMENTS -->
         <ul class="p-1">
             <li
                 v-for="cat in visibleCategories"
                 :key="cat.id"
                 class="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm text-gray-800 transition hover:bg-gray-100"
+                :class="{ 'bg-gray-50 font-medium text-primary': activeCategoryId === cat.id }"
                 @mouseenter="onCategoryEnter(cat.id)"
                 @click.prevent="onCategoryClick(cat.id)"
             >
-                <a :href="`/${cat.slug}`" class="flex-1 truncate hover:text-primary" @click.stop>
+                <a :href="`/${cat.slug}`" class="flex-1 truncate" @click.stop>
                     {{ cat.name }}
                 </a>
                 <span class="text-xs text-gray-400">›</span>
             </li>
 
-            <li v-if="hasMore" class="px-3 py-2">
-                <button class="w-full text-left text-sm text-gray-600 hover:text-primary" @click="goToCategoriesPage">Other Categories</button>
+            <li v-if="hasMore" class="mt-1 border-t px-3 py-2">
+                <button class="w-full text-left text-sm font-medium text-gray-600 hover:text-primary" @click="goToCategoriesPage">
+                    All Categories
+                </button>
             </li>
         </ul>
 
-        <!-- RIGHT: MEGA PANEL -->
         <transition name="fade">
             <div
                 v-if="activeCategory && activeCategory.children?.length"
@@ -263,13 +199,13 @@ const goToCategoriesPage = () => router.visit('/categories');
                 @mouseenter="onPanelEnter"
                 @mouseleave="onPanelLeave"
             >
-                <div class="mega-columns h-full p-4">
+                <div class="mega-columns h-full p-6">
                     <div v-for="(column, colIndex) in groupedColumns" :key="colIndex" class="mega-column">
                         <div v-for="group in column" :key="group.id" class="mega-group">
-                            <h4 class="mb-1 truncate text-sm font-medium text-gray-700">
+                            <h4 class="mb-2 truncate border-b pb-1 text-sm font-bold text-gray-900">
                                 <a :href="`/${group.slug}`" class="hover:text-primary">{{ group.name }}</a>
                             </h4>
-                            <ul class="space-y-0.5 text-sm">
+                            <ul class="space-y-1.5 text-sm">
                                 <li v-for="child in group.children ?? []" :key="child.id" class="truncate text-gray-600 hover:text-primary">
                                     <a :href="`/${child.slug}`">{{ child.name }}</a>
                                 </li>
@@ -283,131 +219,59 @@ const goToCategoriesPage = () => router.visit('/categories');
 </template>
 
 <style scoped>
-/* Ensure sidebar takes full height */
 aside {
     height: 100%;
 }
 
-/* FADE + SLIDE ANIMATION */
+/* ANIMATION */
 .fade-enter-active,
 .fade-leave-active {
     transition:
         opacity 0.15s ease,
         transform 0.15s ease;
 }
-
 .fade-enter-from,
 .fade-leave-to {
     opacity: 0;
-    transform: translateX(-6px);
+    transform: translateX(-8px);
 }
 
-.fade-enter-to,
-.fade-leave-from {
-    opacity: 1;
-    transform: translateX(0);
-}
-
-/* MEGA PANEL */
-.mega-panel {
-    box-sizing: border-box;
-    margin-left: 8px;
-}
-
-/* NEWSPAPER-STYLE COLUMNS - FILL TOP TO BOTTOM */
-.mega-columns {
-    display: flex;
+/* THE BRIDGE: Prevents closing when moving mouse across the 16px gap */
+.mega-panel::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -20px;
+    width: 20px;
     height: 100%;
-    gap: 1.5rem;
-    align-items: flex-start; /* Align all columns at the top */
+    background: transparent;
 }
 
-.mega-column {
-    display: flex;
-    flex-direction: column;
-    flex: 0 0 220px;
-    gap: 0.75rem; /* Reduced gap between groups for tighter packing */
-}
-
-.mega-group {
-    min-width: 0; /* Important for truncation */
-    flex-shrink: 0; /* Prevent groups from shrinking */
-}
-
-.mega-group h4 {
-    padding-bottom: 0.25rem;
-    border-bottom: 1px solid #e5e7eb;
-    margin-bottom: 0.5rem;
-    font-weight: 600;
-}
-
-.mega-group ul {
-    display: flex;
-    flex-direction: column;
-    gap: 0.125rem; /* Very tight spacing between list items */
-}
-
-.mega-group li {
-    padding: 0.125rem 0;
-    line-height: 1.2;
-}
-
-/* Links */
-a {
-    text-decoration: none;
-    display: block;
-    padding: 0.125rem 0;
-}
-
-a:hover {
-    text-decoration: underline;
-}
-
-/* Optional: Add scrollbar styling for the mega panel */
-.mega-panel::-webkit-scrollbar {
-    width: 6px;
-}
-
-.mega-panel::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 4px;
-}
-
-.mega-panel::-webkit-scrollbar-thumb {
-    background: #888;
-    border-radius: 4px;
-}
-
-.mega-panel::-webkit-scrollbar-thumb:hover {
-    background: #555;
-}
-
-/* Responsive adjustments */
-@media (max-width: 1536px) {
-    .mega-column {
-        flex: 0 0 200px;
-    }
-}
-
-@media (max-width: 1280px) {
-    .mega-column {
-        flex: 0 0 180px;
-    }
-}
-
-/* Ensure all columns are equally tall */
-.mega-column {
-    height: auto;
-}
-
-/* If you want columns to stretch to full height, use this instead: */
-/*
+/* FLEX COLUMNS */
 .mega-columns {
-    align-items: stretch;
-}
-
-.mega-column {
+    display: flex;
+    gap: 2rem;
+    align-items: flex-start;
     justify-content: flex-start;
 }
-*/
+
+.mega-column {
+    flex: 0 0 220px; /* Fixed width for items */
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* Custom Scrollbar */
+.mega-panel::-webkit-scrollbar {
+    width: 4px;
+}
+.mega-panel::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+.mega-panel::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 10px;
+}
 </style>
