@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 use App\Models\Traits\HasSlug;
 use App\Models\Traits\HasHashid;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -27,6 +28,19 @@ class Category extends Model
      */
     protected static function booted()
     {
+        // Generate slug automatically on create
+        static::creating(function ($category) {
+            $category->slug = $category->generateUniqueSlug($category->name);
+        });
+
+        // Regenerate slug on update if name changed
+        static::updating(function ($category) {
+            if ($category->isDirty('name')) {
+                $category->slug = $category->generateUniqueSlug($category->name, $category->id);
+            }
+        });
+
+        // Existing search cache refresh callbacks
         static::created(fn() => \App\Services\SearchCacheService::refresh());
         static::updated(fn() => \App\Services\SearchCacheService::refresh());
         static::deleted(fn() => \App\Services\SearchCacheService::refresh());
@@ -140,9 +154,36 @@ class Category extends Model
         return $ids;
     }
 
+    /**
+     * Relationship with products
+     */
     public function products()
+    {
+        return $this->hasMany(Product::class);
+    }
+
+    /**
+     * Generate a unique slug
+     *
+     * @param string $name
+     * @param int|null $ignoreId - ID to ignore when updating
+     * @return string
+     */
+   
+    protected static function generateUniqueSlug(string $name, ?int $ignoreId = null): string
 {
-    return $this->hasMany(Product::class);
+    $slug = Str::slug($name);
+    $originalSlug = $slug;
+    $count = 1;
+
+    while (static::where('slug', $slug)
+        ->when($ignoreId, fn($q) => $q->where('id', '!=', $ignoreId))
+        ->exists()) {
+        $slug = $originalSlug . '-' . $count;
+        $count++;
+    }
+
+    return $slug;
 }
 
 }
