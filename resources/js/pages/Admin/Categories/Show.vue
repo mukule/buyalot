@@ -50,6 +50,11 @@ function deleteChild(childHashid: string) {
         router.delete(route('admin.categories.destroy', { category: childHashid }));
     }
 }
+
+function showCategory(categoryHashid: string) {
+    if (!categoryHashid) return console.error('showCategory called without hashid');
+    router.get(route('admin.categories.show', { category: categoryHashid }));
+}
 </script>
 
 <template>
@@ -77,22 +82,23 @@ function deleteChild(childHashid: string) {
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                <!-- <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th> -->
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white">
                             <tr v-for="(child, index) in children" :key="child.hashid" class="hover:bg-gray-50">
                                 <td class="px-4 py-4 align-top text-sm text-gray-500">{{ index + 1 }}</td>
                                 <td
-                                    @click="editChild(child.hashid)"
+                                    @click="showCategory(child.hashid)"
                                     class="cursor-pointer px-4 py-4 align-top text-sm font-medium text-primary hover:underline"
                                 >
                                     {{ child.name }}
                                 </td>
-                                <td class="px-4 py-4 text-right align-top text-sm">
+
+                                <!-- <td class="px-4 py-4 text-right align-top text-sm">
                                     <button @click.stop="editChild(child.hashid)" class="mr-3 text-blue-600 hover:underline">Edit</button>
                                     <button @click.stop="deleteChild(child.hashid)" class="text-red-600 hover:underline">Delete</button>
-                                </td>
+                                </td> -->
                             </tr>
                         </tbody>
                     </table>

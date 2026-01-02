@@ -141,10 +141,19 @@ function goToPage(url: string | null) {
                                 :class="['hover:bg-gray-50', category.deleted_at ? 'bg-gray-100 opacity-50' : '']"
                             >
                                 <td class="px-4 py-4 text-sm text-gray-500">
-                                    {{ index + 1 + ((pagination.meta.current_page || 1) - 1) * (pagination.meta.per_page || categories.length || 1) }}
+                                    {{
+                                        Number(index) +
+                                        1 +
+                                        ((pagination.meta.current_page || 1) - 1) * (pagination.meta.per_page || categories.length || 1)
+                                    }}
                                 </td>
                                 <td class="px-4 py-4 text-sm font-medium text-gray-800">
-                                    {{ category.name }}
+                                    <span
+                                        @click="router.get(route('admin.categories.show', { category: category.hashid }))"
+                                        class="cursor-pointer underline hover:no-underline"
+                                    >
+                                        {{ category.name }}
+                                    </span>
                                     <span v-if="category.deleted_at" class="ml-2 rounded bg-red-100 px-2 py-0.5 text-xs text-red-600"> Deleted </span>
                                 </td>
                                 <td class="px-4 py-4 text-sm text-gray-600">
