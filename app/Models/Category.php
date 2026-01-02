@@ -19,8 +19,6 @@ class Category extends Model
 
     protected $appends = ['hashid', 'parent_name'];
 
-    protected $with = ['parent'];
-
     /**
      * Booted callbacks for model events
      */
@@ -48,11 +46,11 @@ class Category extends Model
     }
 
     /**
-     * Recursive children relationship
+     * Children relationship (non-recursive)
      */
     public function children()
     {
-        return $this->hasMany(Category::class, 'parent_id')->with('children');
+        return $this->hasMany(Category::class, 'parent_id');
     }
 
     /**
