@@ -12,27 +12,38 @@ use Illuminate\Support\Facades\DB;
 
 class CategoryController extends Controller
 {
+    
+    
     public function index(Request $request)
-    {
-        $query = Category::query()->with('parent');
+{
+    // Select only top-level categories
+    $query = Category::select('id', 'name', 'slug', 'parent_id', 'active')
+        ->with(['parent:id,name']) // load only parent fields
+        ->whereNull('parent_id');  // only categories with no parent
 
-        if ($request->filled('name')) {
-            $query->where('name', 'like', '%' . $request->name . '%');
-        }
-
-        if ($request->filled('active')) {
-            $query->where('active', $request->boolean('active'));
-        }
-
-        $categories = $query->orderBy('created_at', 'desc')
-                            ->paginate(20)
-                            ->withQueryString();
-
-        return Inertia::render('Admin/Categories/Index', [
-            'categories' => $categories,
-            'filters' => $request->only(['name', 'active']),
-        ]);
+    // Filter by name if provided
+    if ($request->filled('name')) {
+        $query->where('name', 'like', '%' . $request->name . '%');
     }
+
+    // Filter by active status if provided
+    if ($request->filled('active')) {
+        $query->where('active', $request->boolean('active'));
+    }
+
+    // Paginate results
+    $categories = $query->orderBy('created_at', 'desc')
+                        ->paginate(20)
+                        ->withQueryString();
+
+    // Render Inertia page
+    return Inertia::render('Admin/Categories/Index', [
+        'categories' => $categories,
+        'filters' => $request->only(['name', 'active']),
+    ]);
+}
+
+
 
     public function create()
     {
