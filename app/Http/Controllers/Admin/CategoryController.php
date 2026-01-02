@@ -14,9 +14,7 @@ use Illuminate\Validation\Rule;
 
 class CategoryController extends Controller
 {
-    /**
-     * Display a paginated listing of categories (excluding soft-deleted).
-     */
+   
    
 
     public function index(Request $request)
@@ -36,7 +34,7 @@ class CategoryController extends Controller
     }
 
     // Top-level first, then subcategories, then created_at descending
-    $categories = $query->orderByRaw('parent_id IS NOT NULL, parent_id ASC, created_at DESC')
+    $categories = $query->orderByRaw('created_at DESC')
                         ->paginate(20)
                         ->withQueryString();
 
@@ -221,28 +219,23 @@ class CategoryController extends Controller
     }
 
 
-public function forceDestroy(Category $category)
+    public function forceDestroy(Category $category)
 {
     DB::transaction(function () use ($category) {
 
-        if ($category->products()->exists()) {
-            throw new \RuntimeException('Cannot delete this category because it has products attached.');
-        }
+        // Always start from trashed + non-trashed
+        $category = Category::withTrashed()->findOrFail($category->id);
 
-        foreach ($category->children()->withTrashed()->get() as $child) {
-            if ($child->products()->exists()) {
-                throw new \RuntimeException(
-                    'Cannot delete child category "' . $child->name . '" because it has products attached.'
-                );
-            }
-        }
+        // 1. Detach products recursively
+        $this->detachProductsRecursively($category);
 
-        $this->deleteCategoryTree($category, true);
+        // 2. Force delete category tree (including soft-deleted children)
+        $this->forceDeleteRecursively($category);
     });
 
     return redirect()
         ->route('admin.categories.index')
-        ->with('success', 'Category permanently deleted.');
+        ->with('success', 'Category and all subcategories permanently deleted. Products preserved.');
 }
 
 
@@ -257,6 +250,34 @@ private function deleteCategoryTree(Category $category, bool $force = false): vo
 
     $force ? $category->forceDelete() : $category->delete();
 }
+
+
+private function detachProductsRecursively(Category $category): void
+{
+    // Set products in THIS category to NULL
+    $category->products()->update(['category_id' => null]);
+
+    // Process children (INCLUDING soft-deleted)
+    foreach ($category->children()->withTrashed()->get() as $child) {
+        $this->detachProductsRecursively($child);
+    }
+}
+
+
+private function forceDeleteRecursively(Category $category): void
+{
+    // Delete children first (post-order)
+    foreach ($category->children()->withTrashed()->get() as $child) {
+        $this->forceDeleteRecursively($child);
+    }
+
+    // Detach pivot relations
+    $category->variantCategories()->detach();
+
+    // Force delete THIS category
+    $category->forceDelete();
+}
+
 
 
 }

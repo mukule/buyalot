@@ -60,16 +60,16 @@ class Category extends Model
      * Children categories relationship (recursive)
      * Include soft-deleted children
      */
-    // public function children()
-    // {
-    //     return $this->hasMany(Category::class, 'parent_id')
-    //                 ->with('children')
-    //                 ->withTrashed();
-    // }
     public function children()
-{
-    return $this->hasMany(Category::class, 'parent_id')->withTrashed();
-}
+    {
+        return $this->hasMany(Category::class, 'parent_id')
+                    ->with('children')
+                    ->withTrashed();
+    }
+//     public function children()
+// {
+//     return $this->hasMany(Category::class, 'parent_id')->withTrashed();
+// }
 
 
     /**
