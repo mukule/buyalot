@@ -91,7 +91,7 @@ class MpesaProvider implements PaymentProviderInterface
         }
     }
 
-   
+
     public function handleCallback(array $data): PaymentResponse
 {
     $stk = $data['Body']['stkCallback'] ?? null;
@@ -218,6 +218,11 @@ class MpesaProvider implements PaymentProviderInterface
                 'result_code' => $resultCode,
                 'result_desc' => $stk['ResultDesc'] ?? 'Payment failed',
             ]);
+
+            // Return stock on failure
+            if ($checkoutSession && $checkoutSession->cart_id) {
+                app(\App\Services\CartReservationService::class)->releaseAllForCart($checkoutSession->cart_id);
+            }
 
             // Keep checkout session pending on failure
             if ($checkoutSession) {

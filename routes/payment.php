@@ -10,7 +10,7 @@ Route::prefix('api/v1')->name('api.v1.')->group(function () {
 
     // Verify a payment status
     Route::get('/payments/{payment}/verify', [PaymentController::class, 'verify'])->name('payments.verify');
-    Route::post('/payments/mpesa/callback', [MpesaPaymentController::class, 'mpesaCallback'])->name('payments.mpesa.callback');
+    Route::post('/payments/mpesa/callback', [MpesaPaymentController::class, 'mpesaCallback'])->withoutMiddleware(['web'])->name('payments.mpesa.callback');
 
     Route::post('/payments/callback/{provider}', [PaymentController::class, 'callback'])->withoutMiddleware([VerifyCsrfTokenMiddleware::class])->name('payments.callback');
 });

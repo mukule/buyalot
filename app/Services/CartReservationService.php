@@ -17,7 +17,7 @@ class CartReservationService
 {
 
 
-    
+
 
 public function getCart(Request $request): Cart
 {
@@ -114,21 +114,17 @@ public function getCart(Request $request): Cart
         $variant = ProductVariant::find($productVariantId);
         if (!$variant) return 0;
 
-        $reservedByOthers = CartReservation::query()
-            ->active()
-            ->where('product_variant_id', $productVariantId)
-            ->when($exceptCartId, fn($q) => $q->where('cart_id', '!=', $exceptCartId))
-            ->sum('quantity');
-
-        $available = max(0, (int)$variant->stock - (int)$reservedByOthers);
-        return $available;
+        // Since we now decrement stock immediately upon reservation,
+        // $variant->stock already reflects available stock (excluding all reservations).
+        return (int)$variant->stock;
     }
 
-    public function reserve(int $cartId, int $productVariantId, int $quantity, int $ttlMinutes = 20): CartReservation
+    public function reserve(int $cartId, int $productVariantId, int $quantity, int $ttlSeconds = 60): CartReservation
     {
-        $expiresAt = now()->addMinutes($ttlMinutes);
+        $expiresAt = now()->addSeconds($ttlSeconds);
 
         return DB::transaction(function () use ($cartId, $productVariantId, $quantity, $expiresAt) {
+            $variant = ProductVariant::lockForUpdate()->findOrFail($productVariantId);
             $reservation = CartReservation::query()
                 ->where('cart_id', $cartId)
                 ->where('product_variant_id', $productVariantId)
@@ -136,6 +132,7 @@ public function getCart(Request $request): Cart
 
             if ($quantity <= 0) {
                 if ($reservation) {
+                    $variant->increment('stock', $reservation->quantity);
                     $reservation->delete();
                 }
 
@@ -148,12 +145,21 @@ public function getCart(Request $request): Cart
             }
 
             if ($reservation) {
+                $diff = $quantity - $reservation->quantity;
+                if ($diff > 0) {
+                    $variant->decrement('stock', $diff);
+                } elseif ($diff < 0) {
+                    $variant->increment('stock', abs($diff));
+                }
+
                 $reservation->update([
                     'quantity' => $quantity,
                     'expires_at' => $expiresAt,
                 ]);
                 return $reservation;
             }
+
+            $variant->decrement('stock', $quantity);
 
             return CartReservation::create([
                 'cart_id' => $cartId,
@@ -166,14 +172,29 @@ public function getCart(Request $request): Cart
 
     public function release(int $cartId, int $productVariantId): void
     {
-        CartReservation::query()
-            ->where('cart_id', $cartId)
-            ->where('product_variant_id', $productVariantId)
-            ->delete();
+        DB::transaction(function () use ($cartId, $productVariantId) {
+            $reservation = CartReservation::query()
+                ->where('cart_id', $cartId)
+                ->where('product_variant_id', $productVariantId)
+                ->first();
+
+            if ($reservation) {
+                ProductVariant::where('id', $productVariantId)->increment('stock', $reservation->quantity);
+                $reservation->delete();
+            }
+        });
     }
 
-    public function releaseAllForCart(int $cartId): void
+    public function releaseAllForCart(int $cartId, bool $returnStock = true): void
     {
-        CartReservation::query()->where('cart_id', $cartId)->delete();
+        DB::transaction(function () use ($cartId, $returnStock) {
+            $reservations = CartReservation::where('cart_id', $cartId)->get();
+            foreach ($reservations as $res) {
+                if ($returnStock) {
+                    ProductVariant::where('id', $res->product_variant_id)->increment('stock', $res->quantity);
+                }
+                $res->delete();
+            }
+        });
     }
 }
