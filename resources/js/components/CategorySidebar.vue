@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watchEffect } from 'vue';
 
 interface Category {
     id: number;
@@ -23,45 +23,125 @@ const limit = props.limit ?? 11;
 const activeCategoryId = ref<number | null>(null);
 const pinned = ref(false);
 const hoveringPanel = ref(false);
+const sidebarRef = ref<HTMLElement>();
+const megaPanelRef = ref<HTMLElement>();
+const megaPanelHeight = ref('auto');
+const megaPanelStyle = ref({
+    width: '0px',
+    height: 'auto',
+    left: '100%',
+    top: '0',
+});
 
 /**
  * REACTIVE VIEWPORT WIDTH
  */
 const viewportWidth = ref(window.innerWidth);
+const viewportHeight = ref(window.innerHeight);
 
-const updateWidth = () => {
+const updateViewport = () => {
     viewportWidth.value = window.innerWidth;
+    viewportHeight.value = window.innerHeight;
 };
 
-onMounted(() => window.addEventListener('resize', updateWidth));
-onUnmounted(() => window.removeEventListener('resize', updateWidth));
+onMounted(() => {
+    window.addEventListener('resize', updateViewport);
+    updateViewport();
+});
+
+onUnmounted(() => {
+    window.removeEventListener('resize', updateViewport);
+});
+
+/**
+ * Calculate mega panel position and size
+ */
+const updateMegaPanelPosition = () => {
+    if (!sidebarRef.value || !megaPanelRef.value || !activeCategoryId.value) return;
+
+    // Get sidebar position and dimensions
+    const sidebarRect = sidebarRef.value.getBoundingClientRect();
+
+    // Get the banner section container
+    const bannerSection = sidebarRef.value.closest('.flex.flex-col.lg\\:flex-row');
+    let bannerHeight = sidebarRect.height;
+
+    if (bannerSection) {
+        bannerHeight = bannerSection.clientHeight;
+    } else {
+        // Fallback to parent container
+        const parentContainer = sidebarRef.value.parentElement;
+        if (parentContainer) {
+            bannerHeight = parentContainer.clientHeight;
+        }
+    }
+
+    // Calculate panel width based on content
+    const columnWidth = 220;
+    const gap = 16;
+    const activeCategory = props.categories.find((c) => c.id === activeCategoryId.value);
+    const numColumns = activeCategory?.children?.length || 0;
+
+    let panelWidth = numColumns * columnWidth + (numColumns - 1) * gap;
+
+    // Constrain width to available space
+    const availableSpace = viewportWidth.value - sidebarRect.right - 32; // 32px for margins
+    panelWidth = Math.min(panelWidth, availableSpace, 1200); // Max 1200px
+
+    // Check if panel would overflow the right edge
+    const panelRightEdge = sidebarRect.right + panelWidth + 8; // +8 for margin-left
+
+    // If panel would overflow, position it to the left instead
+    let leftPosition = '100%';
+    if (panelRightEdge > viewportWidth.value - 16) {
+        // 16px for safety margin
+        // Position to the left of sidebar
+        leftPosition = `-${panelWidth + 8}px`;
+    }
+
+    // Update style
+    megaPanelStyle.value = {
+        width: `${panelWidth}px`,
+        height: `${bannerHeight}px`,
+        left: leftPosition,
+        top: '0',
+    };
+};
+
+/**
+ * Watch for active category changes
+ */
+watchEffect(() => {
+    if (activeCategoryId.value) {
+        nextTick(() => {
+            updateMegaPanelPosition();
+        });
+    }
+});
+
+/**
+ * Watch for viewport changes
+ */
+watchEffect(() => {
+    if (activeCategoryId.value) {
+        updateMegaPanelPosition();
+    }
+});
 
 /**
  * COMPUTED
  */
 const visibleCategories = computed(() => props.categories.slice(0, limit));
 const hasMore = computed(() => props.categories.length > limit);
-
 const activeCategory = computed(() => props.categories.find((c) => c.id === activeCategoryId.value) ?? null);
-
-// Dynamic mega panel width
-const megaPanelWidth = computed(() => {
-    if (!activeCategory.value?.children?.length) return '0px';
-    const columnWidth = 220; // each mega group width
-    const gap = 16; // gap in px
-    const numColumns = activeCategory.value.children.length;
-
-    const totalWidth = numColumns * columnWidth + (numColumns - 1) * gap;
-    const maxWidth = viewportWidth.value - 32; // 16px margin each side
-
-    return `${Math.min(totalWidth, maxWidth)}px`;
-});
 
 /**
  * EVENTS
  */
 const onCategoryEnter = (id: number) => {
-    if (!pinned.value) activeCategoryId.value = id;
+    if (!pinned.value) {
+        activeCategoryId.value = id;
+    }
 };
 
 const onCategoryClick = (id: number) => {
@@ -89,7 +169,7 @@ const goToCategoriesPage = () => router.visit('/categories');
 </script>
 
 <template>
-    <aside class="relative w-full rounded-lg bg-white shadow-md" @mouseleave="onMenuLeave">
+    <aside ref="sidebarRef" class="relative h-full w-full rounded-lg bg-white shadow-md" @mouseleave="onMenuLeave">
         <!-- LEFT: DEPARTMENTS -->
         <ul class="p-1">
             <li
@@ -114,14 +194,15 @@ const goToCategoriesPage = () => router.visit('/categories');
         <transition name="fade">
             <div
                 v-if="activeCategory && activeCategory.children?.length"
-                class="mega-panel absolute inset-y-0 left-full z-50 ml-2 overflow-x-auto rounded-lg border bg-white shadow-xl"
-                :style="{ width: megaPanelWidth }"
+                ref="megaPanelRef"
+                class="mega-panel absolute z-50 overflow-y-auto rounded-lg border bg-white shadow-xl"
+                :style="megaPanelStyle"
                 @mouseenter="onPanelEnter"
                 @mouseleave="onPanelLeave"
             >
-                <div class="mega-columns px-2 py-1">
+                <div class="mega-columns p-4">
                     <div v-for="group in activeCategory.children" :key="group.id" class="mega-group">
-                        <h4 class="truncate text-sm font-medium text-gray-700">
+                        <h4 class="mb-2 truncate text-sm font-medium text-gray-700">
                             <a :href="`/${group.slug}`" class="hover:text-primary">{{ group.name }}</a>
                         </h4>
                         <ul class="space-y-1 text-sm">
@@ -137,6 +218,11 @@ const goToCategoriesPage = () => router.visit('/categories');
 </template>
 
 <style scoped>
+/* Ensure sidebar takes full height */
+aside {
+    height: 100%;
+}
+
 /* FADE + SLIDE ANIMATION */
 .fade-enter-active,
 .fade-leave-active {
@@ -159,23 +245,56 @@ const goToCategoriesPage = () => router.visit('/categories');
 
 /* MEGA PANEL */
 .mega-panel {
-    height: 100%;
+    box-sizing: border-box;
+    margin-left: 8px;
 }
 
 /* FLEXBOX MULTI-COLUMNS (responsive) */
 .mega-columns {
     display: flex;
-    flex-wrap: wrap; /* wrap groups on smaller widths */
-    gap: 0.5rem; /* space between groups */
+    flex-wrap: wrap;
+    gap: 1.5rem;
 }
 
 .mega-group {
-    flex: 0 0 220px; /* each group 220px wide */
-    margin-bottom: 0.5rem;
+    flex: 0 0 220px;
+    min-width: 0; /* Important for truncation */
 }
 
 /* Links */
 a {
     text-decoration: none;
+}
+
+/* Optional: Add scrollbar styling for the mega panel */
+.mega-panel::-webkit-scrollbar {
+    width: 6px;
+}
+
+.mega-panel::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.mega-panel::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.mega-panel::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1536px) {
+    .mega-group {
+        flex: 0 0 200px;
+    }
+}
+
+@media (max-width: 1280px) {
+    .mega-group {
+        flex: 0 0 180px;
+    }
 }
 </style>
