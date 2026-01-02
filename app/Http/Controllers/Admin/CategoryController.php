@@ -21,26 +21,22 @@ class CategoryController extends Controller
 
     public function index(Request $request)
 {
-    
     $query = Category::with('parent');
 
-    
     if ($request->filled('name')) {
         $query->where('name', 'like', '%' . $request->name . '%');
     }
 
-    
     if ($request->filled('active')) {
         $query->where('active', $request->boolean('active'));
     }
 
-    
     if ($request->boolean('with_deleted')) {
         $query->withTrashed(); 
     }
 
-    
-    $categories = $query->orderBy('created_at', 'desc')
+    // Top-level first, then subcategories, then created_at descending
+    $categories = $query->orderByRaw('parent_id IS NOT NULL, parent_id ASC, created_at DESC')
                         ->paginate(20)
                         ->withQueryString();
 
@@ -49,6 +45,7 @@ class CategoryController extends Controller
         'filters' => $request->only(['name', 'active', 'with_deleted']),
     ]);
 }
+
 
 
 

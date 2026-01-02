@@ -33,26 +33,27 @@ class HomeController extends Controller
 
 
     public function index()
-    {
-        $categories = Category::with('children')
-            ->whereNull('parent_id')
-            ->get();
-        $brands = Brand::all();
+{
+    $categories = Category::with(['children' => function ($query) {
+            
+            $query->orderBy('name', 'asc');
+        }])
+        ->whereNull('parent_id')
+        ->orderBy('name', 'asc') 
+        ->get();
 
-        $productsByCategory = $this->productService->getProductsGroupedByCategory($categories);
-        // info($productsByCategory);
+    $brands = Brand::all();
 
-    //     foreach ($categories as $category) {
-    //     info($this->logCategoryWithChildren($category));
-    // }
+    $productsByCategory = $this->productService->getProductsGroupedByCategory($categories);
 
-        return Inertia::render('Frontend/Index', [
-            'title' => 'Online Shopping Store',
-            'categories' => $categories,
-            'brands' => $brands,
-            'productsByCategory' => $productsByCategory,
-        ]);
-    }
+    return Inertia::render('Frontend/Index', [
+        'title' => 'Online Shopping Store',
+        'categories' => $categories,
+        'brands' => $brands,
+        'productsByCategory' => $productsByCategory,
+    ]);
+}
+
 
 
 public function productDetails(string $slug)
