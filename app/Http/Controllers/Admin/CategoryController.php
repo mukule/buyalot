@@ -202,4 +202,41 @@ class CategoryController extends Controller
         return redirect()->route('admin.categories.index')
             ->with('success', 'Category restored successfully.');
     }
+
+
+
+   
+public function forceDestroy(Category $category)
+{
+    DB::transaction(function () use ($category) {
+
+        // If this category has products — block deletion
+        if ($category->products()->exists()) {
+            abort(400, 'Cannot delete this category because it has products attached.');
+        }
+
+        // Recursively check children
+        foreach ($category->children()->withTrashed()->get() as $child) {
+
+            if ($child->products()->exists()) {
+                abort(400, 'Cannot delete child category "' . $child->name . '" because it has products attached.');
+            }
+
+            // Detach pivot relations before permanent delete
+            $child->variantCategories()->detach();
+            $child->forceDelete();
+        }
+
+        // Detach pivot relations for parent category
+        $category->variantCategories()->detach();
+
+        // Permanently delete this category
+        $category->forceDelete();
+    });
+
+    return redirect()
+        ->route('admin.categories.index')
+        ->with('success', 'Category permanently deleted.');
+}
+
 }

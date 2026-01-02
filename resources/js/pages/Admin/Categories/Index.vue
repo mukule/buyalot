@@ -73,6 +73,12 @@ function restoreCategory(id: number) {
     }
 }
 
+function forceDeleteCategory(hashid: string) {
+    if (confirm('This will permanently delete the category and ALL its subcategories. This cannot be undone. Continue?')) {
+        router.delete(route('admin.categories.force-destroy', { category: hashid }));
+    }
+}
+
 function applyFilters() {
     router.get(route('admin.categories.index'), filters, { preserveState: true });
 }
@@ -147,7 +153,10 @@ function goToPage(url: string | null) {
                                 <td class="px-4 py-4 text-right text-sm">
                                     <template v-if="!category.deleted_at">
                                         <button @click="editCategory(category.hashid)" class="mr-3 text-blue-600 hover:underline">Edit</button>
-                                        <button @click="deleteCategory(category.hashid)" class="text-red-600 hover:underline">Delete</button>
+                                        <button @click="deleteCategory(category.hashid)" class="mr-3 text-orange-600 hover:underline">Del</button>
+                                        <button @click="forceDeleteCategory(category.hashid)" class="text-red-600 hover:underline">
+                                            Del Permanently
+                                        </button>
                                     </template>
                                     <template v-else>
                                         <button
