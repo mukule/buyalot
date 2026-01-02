@@ -111,7 +111,7 @@ function goToPage(url: string | null) {
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Parent</th>
+
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                             </tr>
                         </thead>
@@ -133,10 +133,6 @@ function goToPage(url: string | null) {
                                     >
                                         {{ category.name }}
                                     </span>
-                                </td>
-
-                                <td class="px-4 py-4 text-sm text-gray-600">
-                                    {{ category.parent_name ?? '-' }}
                                 </td>
 
                                 <td class="px-4 py-4 text-right text-sm">

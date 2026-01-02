@@ -143,16 +143,30 @@ class CategoryController extends Controller
             ->with('success', 'Category updated successfully.');
     }
 
+   
     public function show(Category $category)
-    {
-        $category->load(['children', 'parent']);
+{
+    // Load children and parent
+    $category->load(['children', 'parent']);
 
-        return Inertia::render('Admin/Categories/Show', [
-            'category' => $category,
-            'children' => $category->children,
-            'parent' => $category->parent,
-        ]);
-    }
+    // Build breadcrumb from hierarchy
+    $breadcrumb = $category->getHierarchy(); // returns array of ['id', 'name', 'slug']
+    // Convert to format suitable for frontend: { name, hashid }
+    $breadcrumbFormatted = array_map(function ($cat) {
+        return [
+            'name' => $cat['name'],
+            'hashid' => \App\Models\Category::find($cat['id'])->hashid, // get hashid for each ancestor
+        ];
+    }, $breadcrumb);
+
+    return Inertia::render('Admin/Categories/Show', [
+        'category' => $category->toArray() + ['breadcrumb' => $breadcrumbFormatted],
+        'children' => $category->children,
+        'parent' => $category->parent,
+    ]);
+}
+
+
 
     /**
      * Permanently delete category and all its children
