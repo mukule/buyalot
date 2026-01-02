@@ -193,40 +193,20 @@ class CategoryController extends Controller
     /**
      * Soft delete the category and optionally cascade to children.
      */
-  
     public function destroy(Category $category)
-{
-    
-    if ($category->products()->exists()) {
-        return back()->with('error',
-            'You cannot delete this category because it has products attached.'
-        );
+    {
+        DB::transaction(function () use ($category) {
+           
+            foreach ($category->children as $child) {
+                $this->destroy($child);
+            }
+
+            $category->delete();
+        });
+
+        return redirect()->route('admin.categories.index')
+            ->with('success', 'Category deleted successfully.');
     }
-
-    
-    foreach ($category->children as $child) {
-        if ($child->products()->exists()) {
-            return back()->with('error',
-                'Cannot delete child category "' . $child->name . '" because it has products attached.'
-            );
-        }
-    }
-
-    DB::transaction(function () use ($category) {
-
-        // Recursively soft-delete children (already validated as safe)
-        foreach ($category->children as $child) {
-            $this->destroy($child);
-        }
-
-        // Soft delete this category
-        $category->delete();
-    });
-
-    return redirect()
-        ->route('admin.categories.index')
-        ->with('success', 'Category deleted successfully.');
-}
 
     /**
      * Restore a soft-deleted category and optionally cascade to children.
@@ -250,33 +230,29 @@ class CategoryController extends Controller
 
 
 
+   
 public function forceDestroy(Category $category)
 {
-    // Stop deletion if the category has products
-    if ($category->products()->exists()) {
-        return back()->with('error',
-            'You cannot delete this category because it has products attached.'
-        );
-    }
-
-    // Stop deletion if any child category has products
-    foreach ($category->children()->withTrashed()->get() as $child) {
-        if ($child->products()->exists()) {
-            return back()->with('error',
-                'Cannot delete child category "' . $child->name . '" because it has products attached.'
-            );
-        }
-    }
-
     DB::transaction(function () use ($category) {
 
-        // Delete children first
+        // If this category has products — block deletion
+        if ($category->products()->exists()) {
+            abort(400, 'Cannot delete this category because it has products attached.');
+        }
+
+        // Recursively check children
         foreach ($category->children()->withTrashed()->get() as $child) {
+
+            if ($child->products()->exists()) {
+                abort(400, 'Cannot delete child category "' . $child->name . '" because it has products attached.');
+            }
+
+            // Detach pivot relations before permanent delete
             $child->variantCategories()->detach();
             $child->forceDelete();
         }
 
-        // Detach pivot relations for parent
+        // Detach pivot relations for parent category
         $category->variantCategories()->detach();
 
         // Permanently delete this category
@@ -287,7 +263,5 @@ public function forceDestroy(Category $category)
         ->route('admin.categories.index')
         ->with('success', 'Category permanently deleted.');
 }
-
-
 
 }
