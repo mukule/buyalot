@@ -4,7 +4,7 @@ import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type AppPageProps, type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
-import { User, Package, Mail, Star, Tag, Heart, Store, Eye, Settings, CreditCard, MapPin, Bell, LogOut, LayoutDashboard } from 'lucide-vue-next';
+import { User, Package, Star, Heart, Eye, Settings, CreditCard, MapPin, Bell, LogOut, LayoutDashboard } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from './AppLogo.vue';
 
@@ -42,7 +42,7 @@ const allNavItems: NavItem[] = [
     // },
     {
         title: 'Pending Reviews',
-        href: '#',
+        href: route('customer.reviews.pending'),
         icon: Star,
     },
     // {
@@ -52,7 +52,7 @@ const allNavItems: NavItem[] = [
     // },
     {
         title: 'Wishlist',
-        href: '/wishlist',
+        href: route('wishlist.index'),
         icon: Heart,
     },
     // {
@@ -62,7 +62,7 @@ const allNavItems: NavItem[] = [
     // },
     {
         title: 'Recently Viewed',
-        href: '#',
+        href: route('customer.reviews.index'),
         icon: Eye,
     },
     //     ],

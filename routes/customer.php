@@ -5,6 +5,7 @@ use App\Http\Controllers\Customer\CustomerLoyaltyPointController;
 use App\Http\Controllers\Customer\CustomerReferralController;
 use App\Http\Controllers\Customer\CustomerSupportTicketController;
 use App\Http\Controllers\Customer\CustomerWishlistsController;
+use App\Http\Controllers\Customer\ReviewController;
 use App\Http\Controllers\Orders\OrderController;
 use App\Http\Controllers\WishlistController;
 
@@ -65,6 +66,10 @@ Route::post('checkout/addresses/{address}/make-default', [CustomerAddressControl
 
     // Support tickets
     Route::resource('customers/support-tickets', CustomerSupportTicketController::class)->except(['edit', 'destroy']);
+
+    // Reviews
+    Route::get('customer/reviews', [ReviewController::class, 'index'])->name('customer.reviews.index');
+    Route::get('customer/pending-reviews', [ReviewController::class, 'pending'])->name('customer.reviews.pending');
 
     // Wishlist
     Route::resource('wishlist', WishlistController::class)->only(['index', 'store','destroy']);

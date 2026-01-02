@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Wishlist;
+use App\Models\WishlistItem;
 use App\Services\WishlistService;
+use App\Services\DiscountService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -13,10 +15,12 @@ use Vinkla\Hashids\Facades\Hashids;
 class WishlistController extends Controller
 {
     protected WishlistService $wishlistService;
+    protected DiscountService $discountService;
 
-    public function __construct(Request $request)
+    public function __construct(Request $request, DiscountService $discountService)
     {
         $this->wishlistService = new WishlistService($request);
+        $this->discountService = $discountService;
     }
 
     /**
@@ -27,33 +31,41 @@ class WishlistController extends Controller
         $userId = Auth::id();
         $token  = $request->cookie('wishlist_token');
 
-        $wishlist = Wishlist::with(['productVariant.product.primaryImage'])
-            ->forOwner($userId, $token)
-            ->get()
-            ->map(function ($item) {
-                $product = $item->productVariant?->product;
-                $primaryImageUrl = $product?->primaryImage
-                    ? Storage::disk('s3')->url($product->primaryImage->image_path)
-                    : null;
+        $items = WishlistItem::with(['productVariant.product.primaryImage'])
+            ->whereHas('wishlist', function ($query) use ($userId, $token) {
+                $query->forOwner($userId, $token);
+            })
+            ->get();
 
-                return [
-                    'id' => $item->id,
-                    'product_variant_id' => $item->product_variant_id,
-                    'created_at' => $item->created_at,
-                    'productVariant' => [
-                        'id' => $item->productVariant?->id,
-                        'sku' => $item->productVariant?->sku,
-                        'price' => $item->productVariant?->selling_price,
-                        'stock_quantity' => $item->productVariant?->stock,
-                        'product' => [
-                            'id' => $product?->id,
-                            'name' => $product?->name,
-                            'slug' => $product?->slug,
-                            'thumbnail' => $primaryImageUrl,
-                        ],
+        $variantIds = $items->pluck('product_variant_id')->unique()->toArray();
+        $discounts = collect($this->discountService->calculateDiscounts($variantIds))->keyBy('product_variant_id');
+
+        $wishlist = $items->map(function ($item) use ($discounts) {
+            $variant = $item->productVariant;
+            $product = $variant?->product;
+            $discountData = $discounts->get($item->product_variant_id);
+
+            return [
+                'id' => $item->id,
+                'product_variant_id' => $item->product_variant_id,
+                'created_at' => $item->created_at,
+                'productVariant' => [
+                    'id' => $variant?->id,
+                    'sku' => $variant?->sku,
+                    'price' => $discountData['final_price'] ?? $variant?->selling_price,
+                    'marked_price' => $discountData['marked_price'] ?? $variant?->marked_price,
+                    'discount_percent' => $discountData['discount_percentage'] ?? 0,
+                    'has_discount' => $discountData['has_discount'] ?? false,
+                    'stock_quantity' => $variant?->stock,
+                    'product' => [
+                        'id' => $product?->id,
+                        'name' => $product?->name,
+                        'slug' => $product?->slug,
+                        'thumbnail' => $product?->primary_image_url,
                     ],
-                ];
-            });
+                ],
+            ];
+        });
 
         return inertia('Customer/Wishlist', [
             'wishlist' => $wishlist,
@@ -63,8 +75,8 @@ class WishlistController extends Controller
     /**
      * Toggle a product variant in the wishlist.
      */
-  
-   
+
+
     public function store(Request $request)
 {
     $variantIdentifier = $request->input('variant_hashid') ?? $request->input('product_variant_id');
@@ -83,7 +95,7 @@ class WishlistController extends Controller
     } catch (\InvalidArgumentException $e) {
         return back()->with('error', 'Invalid product.');
     } catch (\Throwable $e) {
-        
+
         return back()->with('error', 'Something went wrong while updating your wishlist.');
     }
 }
@@ -99,15 +111,17 @@ class WishlistController extends Controller
         $userId = Auth::id();
         $token  = $request->cookie('wishlist_token');
 
-        $wishlist = Wishlist::forOwner($userId, $token)
+        $wishlistItem = WishlistItem::whereHas('wishlist', function ($query) use ($userId, $token) {
+                $query->forOwner($userId, $token);
+            })
             ->where('id', $wishlist_id)
             ->first();
 
-        if (! $wishlist) {
-            return redirect()->back()->with('error', 'Wishlist not found.');
+        if (! $wishlistItem) {
+            return redirect()->back()->with('error', 'Wishlist item not found.');
         }
 
-        $wishlist->delete();
+        $wishlistItem->delete();
 
         return redirect()->back()->with('success', 'Wishlist item removed successfully.');
     }

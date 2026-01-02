@@ -16,6 +16,9 @@ interface ProductVariant {
     id: number;
     sku: string;
     price: number;
+    marked_price: number;
+    discount_percent: number;
+    has_discount: boolean;
     stock_quantity: number;
     product: Product;
 }
@@ -55,6 +58,12 @@ const filteredWishlist = computed(() => {
 //         });
 //     }
 // }
+const formatPrice = (amount: number | string | null): string => {
+    if (amount === null || amount === undefined) return 'KSh 0';
+    const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+    return isNaN(num) ? 'KSh 0' : `KSh ${num.toLocaleString()}`;
+};
+
 function removeFromWishlist(id: number) {
     if (confirm('Are you sure you want to remove this item from your wishlist?')) {
         router.delete(route('wishlist.destroy', { wishlist: id }), {
@@ -134,14 +143,23 @@ const isInStock = (item: WishlistItem) => {
                     <div
                         v-for="item in filteredWishlist"
                         :key="item.id"
-                        class="group relative flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md"
+                        class="group relative flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition-transform duration-300 hover:scale-105 hover:shadow-md"
                     >
                         <!-- Product Image -->
-                        <div class="relative aspect-square w-full overflow-hidden bg-gray-100">
+                        <div class="relative flex aspect-square w-full justify-center overflow-hidden bg-gray-100">
+                            <span
+                                v-if="item.productVariant.has_discount && item.productVariant.discount_percent > 0"
+                                class="absolute top-2 right-2 z-10 rounded bg-secondary/75 px-2 py-1 text-xs font-bold text-white"
+                            >
+                                {{ Math.round(item.productVariant.discount_percent) }} % OFF
+                            </span>
+
                             <img
                                 :src="getProductImage(item)"
                                 :alt="item?.productVariant?.product?.name"
-                                class="h-full w-full object-cover object-center transition-transform group-hover:scale-105"
+                                loading="lazy"
+                                class="h-full w-full object-contain opacity-0 transition-all duration-500 ease-in-out"
+                                @load="($event.target as HTMLImageElement)?.classList.remove('opacity-0')"
                             />
 
                             <!-- Out of Stock Overlay -->
@@ -154,10 +172,10 @@ const isInStock = (item: WishlistItem) => {
                                 </span>
                             </div>
 
-                            <!-- Remove Button -->
+                            <!-- Remove Button (Top Left for Wishlist context) -->
                             <button
                                 @click="removeFromWishlist(item.id)"
-                                class="absolute top-2 right-2 rounded-full bg-white p-2 shadow-md transition-colors hover:bg-red-50"
+                                class="absolute top-2 left-2 rounded-full bg-white p-2 shadow-md transition-colors hover:bg-red-50"
                                 aria-label="Remove from wishlist"
                             >
                                 <Heart class="h-5 w-5 fill-red-500 text-red-500" />
@@ -167,16 +185,22 @@ const isInStock = (item: WishlistItem) => {
                         <!-- Product Info -->
                         <div class="flex flex-1 flex-col p-4">
                             <h3
-                                class="cursor-pointer text-sm font-medium text-gray-900 line-clamp-2 hover:text-primary"
+                                class="cursor-pointer text-sm font-medium text-gray-700 line-clamp-2 hover:text-primary"
                                 @click="viewProduct(item?.productVariant?.product?.slug)"
                             >
                                 {{ item?.productVariant?.product?.name }}
                             </h3>
 
                             <div class="mt-2 flex items-baseline space-x-2">
-                                <p class="text-lg font-semibold text-gray-900">
-                                    KSh {{ item?.productVariant?.price }}
-                                </p>
+                                <span class="text-lg font-bold text-primary">
+                                    {{ formatPrice(item?.productVariant?.price) }}
+                                </span>
+                                <span
+                                    v-if="item.productVariant.has_discount"
+                                    class="text-sm text-gray-400 line-through"
+                                >
+                                    {{ formatPrice(item.productVariant.marked_price) }}
+                                </span>
                             </div>
 
                             <p class="mt-1 text-xs text-gray-500">
