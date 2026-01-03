@@ -7,50 +7,44 @@ use App\Models\Category;
 use App\Models\VariantCategory;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 
 class CategoryController extends Controller
 {
-    /**
-     * Display a paginated listing of categories (excluding soft-deleted).
-     */
-   
-
+    
+    
     public function index(Request $request)
 {
-    
-    $query = Category::with('parent');
+    // Select only top-level categories
+    $query = Category::select('id', 'name', 'slug', 'parent_id', 'active')
+        ->with(['parent:id,name']) // load only parent fields
+        ->whereNull('parent_id');  // only categories with no parent
 
-    
+    // Filter by name if provided
     if ($request->filled('name')) {
         $query->where('name', 'like', '%' . $request->name . '%');
     }
 
-    
+    // Filter by active status if provided
     if ($request->filled('active')) {
         $query->where('active', $request->boolean('active'));
     }
 
-    
-    if ($request->boolean('with_deleted')) {
-        $query->withTrashed(); 
-    }
-
-    
+    // Paginate results
     $categories = $query->orderBy('created_at', 'desc')
                         ->paginate(20)
                         ->withQueryString();
 
+    // Render Inertia page
     return Inertia::render('Admin/Categories/Index', [
         'categories' => $categories,
-        'filters' => $request->only(['name', 'active', 'with_deleted']),
+        'filters' => $request->only(['name', 'active']),
     ]);
 }
 
 
 
-   
     public function create()
     {
         $categories = Category::select('id', 'name')
@@ -65,13 +59,15 @@ class CategoryController extends Controller
         ]);
     }
 
-    /**
-     * Store a newly created category in storage.
-     */
     public function store(Request $request)
     {
         $request->validate([
-            'name' => ['required', 'string', 'max:255', 'unique:categories,name'],
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('categories', 'name')->where(fn($q) => $q->where('parent_id', $request->parent_id)),
+            ],
             'parent_id' => ['nullable', 'integer', 'exists:categories,id'],
             'variant_categories' => ['nullable', 'array'],
             'variant_categories.*' => ['integer', 'exists:variant_categories,id'],
@@ -79,9 +75,9 @@ class CategoryController extends Controller
 
         $category = Category::create([
             'name' => $request->name,
-            'slug' => Str::slug($request->name),
             'parent_id' => $request->parent_id,
             'active' => $request->boolean('active', true),
+            'description' => $request->description ?? null,
         ]);
 
         if ($request->filled('variant_categories')) {
@@ -92,9 +88,6 @@ class CategoryController extends Controller
             ->with('success', 'Category created successfully.');
     }
 
-    /**
-     * Show the form for editing a category.
-     */
     public function edit(Category $category)
     {
         $categories = Category::select('id', 'name')
@@ -106,9 +99,8 @@ class CategoryController extends Controller
 
         $category->load('variantCategories:id');
 
-        if ($category->variantCategories->isNotEmpty()) {
-            $prechecked = $category->variantCategories->pluck('id')->toArray();
-        } else {
+        $prechecked = $category->variantCategories->pluck('id')->toArray();
+        if (empty($prechecked)) {
             $default = $variantCategories->firstWhere('default', true);
             $prechecked = $default ? [$default->id] : [];
         }
@@ -122,13 +114,17 @@ class CategoryController extends Controller
         ]);
     }
 
-    /**
-     * Update the specified category.
-     */
     public function update(Request $request, Category $category)
     {
         $request->validate([
-            'name' => ['required', 'string', 'max:255', 'unique:categories,name,' . $category->id],
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('categories', 'name')
+                    ->ignore($category->id)
+                    ->where(fn($q) => $q->where('parent_id', $request->parent_id)),
+            ],
             'parent_id' => ['nullable', 'integer', 'exists:categories,id'],
             'variant_categories' => ['nullable', 'array'],
             'variant_categories.*' => ['integer', 'exists:variant_categories,id'],
@@ -136,70 +132,61 @@ class CategoryController extends Controller
 
         $category->update([
             'name' => $request->name,
-            'slug' => Str::slug($request->name),
             'parent_id' => $request->parent_id,
             'active' => $request->boolean('active', true),
+            'description' => $request->description ?? null,
         ]);
 
-        if ($request->has('variant_categories')) {
-            $category->variantCategories()->sync($request->variant_categories);
-        } else {
-            $category->variantCategories()->sync([]);
-        }
+        $category->variantCategories()->sync($request->variant_categories ?? []);
 
         return redirect()->route('admin.categories.index')
             ->with('success', 'Category updated successfully.');
     }
 
-    /**
-     * Display the specified category (with children & parent).
-     */
+   
     public function show(Category $category)
-    {
-        $category->load(['children', 'parent']);
+{
+    // Load children and parent
+    $category->load(['children', 'parent']);
 
-        return Inertia::render('Admin/Categories/Show', [
-            'category' => $category,
-            'children' => $category->children,
-            'parent' => $category->parent,
-        ]);
-    }
+    // Build breadcrumb from hierarchy
+    $breadcrumb = $category->getHierarchy(); // returns array of ['id', 'name', 'slug']
+    // Convert to format suitable for frontend: { name, hashid }
+    $breadcrumbFormatted = array_map(function ($cat) {
+        return [
+            'name' => $cat['name'],
+            'hashid' => \App\Models\Category::find($cat['id'])->hashid, // get hashid for each ancestor
+        ];
+    }, $breadcrumb);
+
+    return Inertia::render('Admin/Categories/Show', [
+        'category' => $category->toArray() + ['breadcrumb' => $breadcrumbFormatted],
+        'children' => $category->children,
+        'parent' => $category->parent,
+    ]);
+}
+
+
 
     /**
-     * Soft delete the category and optionally cascade to children.
+     * Permanently delete category and all its children
      */
     public function destroy(Category $category)
     {
         DB::transaction(function () use ($category) {
-           
+            // Recursively delete children
             foreach ($category->children as $child) {
                 $this->destroy($child);
             }
 
-            $category->delete();
+            // Detach pivot relations
+            $category->variantCategories()->detach();
+
+            // Permanently delete
+            $category->forceDelete();
         });
 
         return redirect()->route('admin.categories.index')
             ->with('success', 'Category deleted successfully.');
-    }
-
-    /**
-     * Restore a soft-deleted category and optionally cascade to children.
-     */
-    public function restore(int $id)
-    {
-        $category = Category::withTrashed()->findOrFail($id);
-
-        DB::transaction(function () use ($category) {
-            // Restore all children recursively
-            foreach ($category->children()->withTrashed()->get() as $child) {
-                $this->restore($child->id);
-            }
-
-            $category->restore();
-        });
-
-        return redirect()->route('admin.categories.index')
-            ->with('success', 'Category restored successfully.');
     }
 }

@@ -68,7 +68,7 @@ class BrandController extends Controller
             Log::info('No logo file uploaded.');
         }
         $brand->save();
-        Log::info('Brand created successfully', ['id' => $brand->id]);
+       // Log::info('Brand created successfully', ['id' => $brand->id]);
 
         return redirect()->route('admin.brands.index')->with('success', 'Brand created successfully.');
     }
@@ -117,27 +117,28 @@ class BrandController extends Controller
         return redirect()->route('admin.brands.index')->with('success', 'Brand deleted successfully.');
     }
 
-    protected function optimizeAndStoreImage($file): string
-    {
-        try {
-            $manager = new ImageManager(new Driver());
-            $directory = 'brands';
-            Storage::disk('public')->makeDirectory($directory);
+   
 
-            $image = $manager->read($file)
-                ->scaleDown(600)
-                ->toWebp(75);
+protected function optimizeAndStoreImage($file): string
+{
+    $manager = new ImageManager(new Driver());
 
-            $filename = $directory . '/' . Str::uuid() . '.webp';
-            $image->save(storage_path('app/public/' . $filename));
+    $directory = 'brands';
+    Storage::disk('public')->makeDirectory($directory);
 
-            return $filename;
-        } catch (\Exception $e) {
-            Log::error('Image processing failed', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            throw new \Exception("Failed to process image: " . $e->getMessage());
-        }
-    }
+    $image = $manager->read($file)
+        ->scaleDown(600)
+        ->toWebp(75);
+
+    $filename = $directory . '/' . Str::uuid() . '.webp';
+
+    $image->save(storage_path('app/public/' . $filename));
+
+    // ✅ RETURN RELATIVE PATH
+    return $filename;
+}
+
+
+
+
 }

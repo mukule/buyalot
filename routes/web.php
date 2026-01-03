@@ -143,6 +143,8 @@ Route::middleware(['auth', 'role_or_permission:admin|view-categories'])
         Route::delete('/categories/{category}', [\App\Http\Controllers\Admin\CategoryController::class, 'destroy'])->name('categories.destroy');
         Route::post('/categories/{category}/restore', [\App\Http\Controllers\Admin\CategoryController::class, 'restore'])->name('categories.restore');
         Route::get('/categories/{category}', [\App\Http\Controllers\Admin\CategoryController::class, 'show'])->name('categories.show');
+        Route::delete('/categories/{category}/force',[\App\Http\Controllers\Admin\CategoryController::class, 'forceDestroy'])->name('categories.force-destroy');
+
     });
 
 

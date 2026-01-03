@@ -4,6 +4,7 @@ import { createInertiaApp } from '@inertiajs/vue3';
 import { QuillEditor } from '@vueup/vue-quill';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
+import PrimeVue from 'primevue/config';
 import type { DefineComponent } from 'vue';
 import { createApp, h } from 'vue';
 import { ZiggyVue } from 'ziggy-js';
@@ -22,8 +23,8 @@ createInertiaApp({
 
         vueApp.use(plugin);
         vueApp.use(ZiggyVue);
+        vueApp.use(PrimeVue);
 
-        // ✅ Register Quill globally
         vueApp.component('QuillEditor', QuillEditor);
 
         vueApp.mount(el);
