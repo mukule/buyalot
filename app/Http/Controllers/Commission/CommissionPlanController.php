@@ -7,4 +7,8 @@ use App\Http\Controllers\Controller;
 class CommissionPlanController extends Controller
 {
     //
+    public function toggle(string $plan)
+    {
+
+    }
 }

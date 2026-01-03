@@ -10,7 +10,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PosRegister extends Model
 {
-    use HasFactory;
 
     protected $fillable = [
         'name',

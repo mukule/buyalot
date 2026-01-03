@@ -24,6 +24,9 @@ class PosSetting extends Model
         'receipt_prefix',
         'payment_methods',
         'metadata',
+        'id',
+        'name',
+        'enabled',
     ];
 
     protected $casts = [

@@ -11,7 +11,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PosSession extends Model
 {
-    use HasFactory;
 
     protected $fillable = [
         'pos_register_id',

@@ -537,6 +537,10 @@ public function store(Request $request, CartReservationService $cartService)
     ]);
 }
 
+    public function estimateShipping()
+    {
+
+    }
 
 
 }

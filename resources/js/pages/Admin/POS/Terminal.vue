@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -8,6 +8,8 @@ import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { ChevronLeft, Lock, LogOut, Minus, Plus, Search, Trash2, UserPlus, Users as UsersIcon, History, Wallet, QrCode } from 'lucide-vue-next';
 import { onMounted, ref, watch, computed } from 'vue';
+import { Select, SelectItem } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
 const props = defineProps<{
     session: any;
@@ -62,12 +64,12 @@ const recordingPayment = ref(false);
 
 const allowedPaymentMethods = computed(() => {
     if (!props.settings.payment_methods) return [{ id: 'cash', name: 'Cash', enabled: true }];
-    return props.settings.payment_methods.filter(m => m.enabled);
+    return props.settings.payment_methods.filter((m) => m.enabled);
 });
 
 const totalAllocated = computed(() => {
     return unallocatedPayments.value
-        .filter(p => selectedUnallocatedIds.value.includes(p.id))
+        .filter((p) => selectedUnallocatedIds.value.includes(p.id))
         .reduce((sum, p) => sum + Number(p.amount - p.used_amount), 0);
 });
 
@@ -76,7 +78,7 @@ const remainingToPay = computed(() => {
 });
 
 const selectedPaymentMethodDetails = computed(() => {
-    return allowedPaymentMethods.value.find(m => m.id === paymentMethod.value);
+    return allowedPaymentMethods.value.find((m) => m.id === paymentMethod.value);
 });
 
 const qrCodeUrl = computed(() => {
@@ -102,8 +104,8 @@ const fetchProducts = async (page = 1) => {
                 search: search.value,
                 category_id: selectedCategoryId.value,
                 brand_id: selectedBrandId.value,
-                page
-            }
+                page,
+            },
         });
         products.value = response.data.data;
     } catch (error) {
@@ -126,7 +128,7 @@ const fetchCategories = async () => {
 const fetchCustomers = async () => {
     try {
         const response = await axios.get(route('admin.pos.customers.index'), {
-            params: { search: customerSearch.value }
+            params: { search: customerSearch.value },
         });
         customers.value = response.data;
     } catch (error) {
@@ -142,7 +144,7 @@ const fetchUnallocatedPayments = async () => {
     loadingUnallocated.value = true;
     try {
         const response = await axios.get(route('admin.pos.unallocated-payments.index'), {
-            params: { customer_id: selectedCustomer.value.id }
+            params: { customer_id: selectedCustomer.value.id },
         });
         unallocatedPayments.value = response.data;
     } catch (error) {
@@ -192,7 +194,7 @@ const recordUnallocatedPayment = async () => {
         await axios.post(route('admin.pos.unallocated-payments.store'), {
             customer_id: selectedCustomer.value.id,
             pos_session_id: props.session.id,
-            ...recordPaymentForm.value
+            ...recordPaymentForm.value,
         });
         showRecordPaymentModal.value = false;
         recordPaymentForm.value = { amount: 0, payment_method: 'cash', reference: '', notes: '' };
@@ -208,7 +210,7 @@ const recordUnallocatedPayment = async () => {
 const vatAmount = computed(() => {
     if (!props.settings.vat_enabled) return 0;
     const total = cartTotal();
-    return total - (total / (1 + (props.settings.vat_percentage / 100)));
+    return total - total / (1 + props.settings.vat_percentage / 100);
 });
 
 onMounted(() => {
@@ -218,9 +220,13 @@ onMounted(() => {
     fetchCustomers();
 });
 
-watch([cart, selectedCustomer], () => {
-    saveCartToStorage();
-}, { deep: true });
+watch(
+    [cart, selectedCustomer],
+    () => {
+        saveCartToStorage();
+    },
+    { deep: true },
+);
 
 watch([search, selectedCategoryId, selectedBrandId], () => {
     fetchProducts();
@@ -249,7 +255,7 @@ const addVariantToCart = (product: any, variant: any) => {
         return;
     }
 
-    const existingItem = cart.value.find(item => item.product_variant_id === variant.id);
+    const existingItem = cart.value.find((item) => item.product_variant_id === variant.id);
     if (existingItem) {
         existingItem.quantity++;
     } else {
@@ -260,7 +266,7 @@ const addVariantToCart = (product: any, variant: any) => {
             sku: variant.sku,
             price: variant.final_price,
             quantity: 1,
-            image: product.primary_image_url
+            image: product.primary_image_url,
         });
     }
     showVariantModal.value = false;
@@ -283,7 +289,7 @@ const updateQuantity = (index: number, delta: number) => {
 };
 
 const cartTotal = () => {
-    return cart.value.reduce((total, item) => total + (item.price * item.quantity), 0);
+    return cart.value.reduce((total, item) => total + item.price * item.quantity, 0);
 };
 
 const selectCustomer = (customer: any) => {
@@ -379,13 +385,13 @@ const submitOrder = async () => {
         const response = await axios.post(route('admin.pos.orders.store'), {
             pos_session_id: props.session.id,
             customer_id: selectedCustomer.value.id,
-            items: cart.value.map(item => ({
+            items: cart.value.map((item) => ({
                 product_variant_id: item.product_variant_id,
-                quantity: item.quantity
+                quantity: item.quantity,
             })),
             payment_method: paymentMethod.value,
             amount_paid: amountPaid.value,
-            allocated_payment_ids: selectedUnallocatedIds.value
+            allocated_payment_ids: selectedUnallocatedIds.value,
         });
 
         lastOrder.value = response.data;
@@ -411,10 +417,12 @@ const printReceipt = () => {
     const printWindow = window.open('', '_blank', 'width=800,height=600');
 
     if (printWindow) {
-        printWindow.document.write('<html><head><title>Print Receipt</title>');
+        printWindow.document.write('<html lang=""><head><title>Print Receipt</title>');
         printWindow.document.write('<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">');
         printWindow.document.write('<style>');
-        printWindow.document.write('body { font-family: "Courier New", Courier, monospace; font-size: 12px; width: 80mm; padding: 10px; margin: 0; background: white; }');
+        printWindow.document.write(
+            'body { font-family: "Courier New", Courier, monospace; font-size: 12px; width: 80mm; padding: 10px; margin: 0; background: white; }',
+        );
         printWindow.document.write('.text-center { text-align: center; }');
         printWindow.document.write('.text-right { text-align: right; }');
         printWindow.document.write('.font-bold { font-weight: bold; }');
@@ -446,7 +454,7 @@ const closeSession = () => {
             clearCartFromStorage();
             router.post(route('admin.pos.sessions.close', props.session.id), {
                 closing_balance: balance,
-                notes: 'Closed from terminal'
+                notes: 'Closed from terminal',
             });
         }
     }
@@ -501,7 +509,7 @@ const fetchVoidedSales = async () => {
     loadingVoidedSales.value = true;
     try {
         const response = await axios.get(route('admin.pos.voided-sales.index'), {
-            params: { pos_session_id: props.session.id }
+            params: { pos_session_id: props.session.id },
         });
         voidedSales.value = response.data;
     } catch (error) {
@@ -570,56 +578,55 @@ const appendAdminPin = (digit: number) => {
 
 <template>
     <Head title="POS Terminal" />
-    <div class="h-screen flex flex-col bg-gray-100 overflow-hidden">
+    <div class="flex h-screen flex-col overflow-hidden bg-gray-100">
         <!-- Header -->
-        <header class="bg-white border-b px-4 py-3 flex items-center justify-between shadow-sm">
+        <header class="flex items-center justify-between border-b bg-white px-4 py-3 shadow-sm">
             <div class="flex items-center gap-4">
                 <Button variant="ghost" size="icon" as="a" :href="route('admin.pos.index')">
                     <ChevronLeft class="h-5 w-5" />
                 </Button>
-                <h1 class="font-bold text-lg">POS: {{ session.register.name }}</h1>
-                <span class="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-medium">
-                    Open ({{ session.user.name }})
-                </span>
+                <h1 class="text-lg font-bold">POS: {{ session.register.name }}</h1>
+                <span class="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800"> Open ({{ session.user.name }}) </span>
             </div>
             <div class="flex items-center gap-4">
                 <div class="relative w-64">
-                    <Search class="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        v-model="search"
-                        placeholder="Search products..."
-                        class="pl-9"
-                    />
+                    <Search class="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input v-model="search" placeholder="Search products..." class="pl-9" />
                 </div>
                 <Button variant="destructive" size="sm" @click="handleVoidSale" :disabled="cart.length === 0 && !selectedCustomer">
-                    <Trash2 class="h-4 w-4 mr-2" />
+                    <Trash2 class="mr-2 h-4 w-4" />
                     Void Sale
                 </Button>
-                <Button variant="outline" size="sm" @click="openVoidedSales" class="bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200">
-                    <History class="h-4 w-4 mr-2" />
+                <Button variant="outline" size="sm" @click="openVoidedSales" class="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100">
+                    <History class="mr-2 h-4 w-4" />
                     Voided Sales
                 </Button>
-                <Button variant="outline" size="sm" @click="showUnallocatedModal = true" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200">
-                    <Wallet class="h-4 w-4 mr-2" />
+                <Button
+                    variant="outline"
+                    size="sm"
+                    @click="showUnallocatedModal = true"
+                    class="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                >
+                    <Wallet class="mr-2 h-4 w-4" />
                     Unallocated
                 </Button>
                 <Button variant="outline" size="sm" @click="lockTerminal" class="mr-2">
-                    <Lock class="h-4 w-4 mr-2" />
+                    <Lock class="mr-2 h-4 w-4" />
                     Lock
                 </Button>
                 <Button variant="outline" size="sm" @click="closeSession">
-                    <LogOut class="h-4 w-4 mr-2" />
+                    <LogOut class="mr-2 h-4 w-4" />
                     Close Session
                 </Button>
             </div>
         </header>
 
-        <div class="flex-grow flex overflow-hidden">
+        <div class="flex flex-grow overflow-hidden">
             <!-- Left Panel: Categories & Products -->
-            <div class="w-2/3 flex flex-col border-r bg-white">
+            <div class="flex w-2/3 flex-col border-r bg-white">
                 <!-- Categories & Brands Bar -->
-                <div class="p-2 border-b space-y-2">
-                    <div class="flex gap-2 overflow-x-auto whitespace-nowrap pb-1 scrollbar-hide">
+                <div class="space-y-2 border-b p-2">
+                    <div class="scrollbar-hide flex gap-2 overflow-x-auto pb-1 whitespace-nowrap">
                         <Button
                             :variant="selectedCategoryId === null ? 'default' : 'outline'"
                             size="sm"
@@ -639,12 +646,12 @@ const appendAdminPin = (digit: number) => {
                             {{ cat.name }}
                         </Button>
                     </div>
-                    <div v-if="brands.length > 0" class="flex gap-2 overflow-x-auto whitespace-nowrap pb-1 scrollbar-hide">
+                    <div v-if="brands.length > 0" class="scrollbar-hide flex gap-2 overflow-x-auto pb-1 whitespace-nowrap">
                         <Button
                             :variant="selectedBrandId === null ? 'default' : 'outline'"
                             size="sm"
                             @click="selectedBrandId = null"
-                            class="flex-shrink-0 h-7 text-xs"
+                            class="h-7 flex-shrink-0 text-xs"
                         >
                             All Brands
                         </Button>
@@ -654,7 +661,7 @@ const appendAdminPin = (digit: number) => {
                             :variant="selectedBrandId === brand.id ? 'default' : 'outline'"
                             size="sm"
                             @click="selectedBrandId = brand.id"
-                            class="flex-shrink-0 h-7 text-xs"
+                            class="h-7 flex-shrink-0 text-xs"
                         >
                             {{ brand.name }}
                         </Button>
@@ -666,45 +673,51 @@ const appendAdminPin = (digit: number) => {
                     class="flex-grow overflow-y-auto p-4"
                     :class="[
                         settings.product_display_design === 'small_grid'
-                            ? 'grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2'
-                            : 'grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'
+                            ? 'grid grid-cols-3 gap-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
+                            : 'grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4',
                     ]"
                 >
                     <Card
                         v-for="product in products"
                         :key="product.id"
-                        class="cursor-pointer hover:ring-2 hover:ring-primary transition-all overflow-hidden h-fit flex flex-col"
-                        :class="[settings.product_display_design === 'small_grid' ? 'p-1 gap-1' : '']"
+                        class="flex h-fit cursor-pointer flex-col overflow-hidden transition-all hover:ring-2 hover:ring-primary"
+                        :class="[settings.product_display_design === 'small_grid' ? 'gap-1 p-1' : '']"
                         @click="addToCart(product)"
                     >
-                        <div v-if="settings.show_product_images" class="aspect-square relative bg-gray-50 flex-shrink-0">
-                            <img
-                                v-if="product.primary_image_url"
-                                :src="product.primary_image_url"
-                                class="object-cover w-full h-full"
-                            />
-                            <div v-else class="w-full h-full flex items-center justify-center text-gray-300">
+                        <div v-if="settings.show_product_images" class="relative aspect-square shrink-0 bg-gray-50">
+                            <img v-if="product.primary_image_url" :src="product.primary_image_url" class="h-full w-full object-cover" alt="" />
+                            <div v-else class="flex h-full w-full items-center justify-center text-gray-300">
                                 <Search class="h-8 w-8" />
                             </div>
-                            <div v-if="product.product_variants[0]?.stock <= 0" class="absolute inset-0 bg-black/40 flex items-center justify-center text-white font-bold text-[10px] uppercase">
+                            <div
+                                v-if="product.product_variants[0]?.stock <= 0"
+                                class="absolute inset-0 flex items-center justify-center bg-black/40 text-[10px] font-bold text-white uppercase"
+                            >
                                 Out of Stock
                             </div>
                         </div>
                         <CardContent :class="[settings.product_display_design === 'small_grid' ? 'p-1' : 'p-2']">
-                            <p class="font-medium truncate" :class="[settings.product_display_design === 'small_grid' ? 'text-[11px]' : 'text-sm']">{{ product.name }}</p>
-                            <div class="flex justify-between items-center mt-0.5">
-                                <p class="text-muted-foreground truncate" :class="[settings.product_display_design === 'small_grid' ? 'text-[9px]' : 'text-xs']">{{ product.category?.name }}</p>
+                            <p class="truncate font-medium" :class="[settings.product_display_design === 'small_grid' ? 'text-[11px]' : 'text-sm']">
+                                {{ product.name }}
+                            </p>
+                            <div class="mt-0.5 flex items-center justify-between">
+                                <p
+                                    class="truncate text-muted-foreground"
+                                    :class="[settings.product_display_design === 'small_grid' ? 'text-[9px]' : 'text-xs']"
+                                >
+                                    {{ product.category?.name }}
+                                </p>
                                 <span
-                                    class="rounded font-bold flex-shrink-0"
+                                    class="flex-shrink-0 rounded font-bold"
                                     :class="[
-                                        settings.product_display_design === 'small_grid' ? 'text-[8px] px-0.5' : 'text-[10px] px-1',
-                                        product.product_variants[0]?.stock > 5 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                        settings.product_display_design === 'small_grid' ? 'px-0.5 text-[8px]' : 'px-1 text-[10px]',
+                                        product.product_variants[0]?.stock > 5 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700',
                                     ]"
                                 >
                                     Qty: {{ product.product_variants[0]?.stock || 0 }}
                                 </span>
                             </div>
-                            <p class="font-bold text-primary mt-0.5" :class="[settings.product_display_design === 'small_grid' ? 'text-[11px]' : '']">
+                            <p class="mt-0.5 font-bold text-primary" :class="[settings.product_display_design === 'small_grid' ? 'text-[11px]' : '']">
                                 {{ settings.currency_symbol || 'KES' }} {{ Number(product.product_variants[0]?.final_price).toLocaleString() }}
                             </p>
                         </CardContent>
@@ -716,7 +729,7 @@ const appendAdminPin = (digit: number) => {
 
                     <div v-if="!loadingProducts && products.length === 0" class="col-span-full py-20 text-center">
                         <div v-if="!search && !selectedCategoryId && !selectedBrandId" class="space-y-3">
-                            <Search class="h-12 w-12 mx-auto text-gray-300" />
+                            <Search class="mx-auto h-12 w-12 text-gray-300" />
                             <p class="text-muted-foreground">Search or select a category/brand to display products</p>
                         </div>
                         <p v-else class="text-muted-foreground">No products found matching your criteria</p>
@@ -725,12 +738,12 @@ const appendAdminPin = (digit: number) => {
             </div>
 
             <!-- Right Panel: Cart & Customer -->
-            <div class="w-1/3 flex flex-col bg-white">
+            <div class="flex w-1/3 flex-col bg-white">
                 <!-- Customer Selection -->
-                <div class="p-4 border-b">
-                    <div v-if="selectedCustomer" class="flex items-center justify-between bg-blue-50 p-3 rounded-lg border border-blue-100">
+                <div class="border-b p-4">
+                    <div v-if="selectedCustomer" class="flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 p-3">
                         <div class="flex items-center gap-3">
-                            <div class="h-10 w-10 rounded-full bg-blue-200 flex items-center justify-center text-blue-700 font-bold">
+                            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-blue-200 font-bold text-blue-700">
                                 {{ selectedCustomer.user.name.charAt(0) }}
                             </div>
                             <div>
@@ -750,27 +763,27 @@ const appendAdminPin = (digit: number) => {
 
                 <!-- Cart Items -->
                 <div class="flex-grow overflow-y-auto">
-                    <div v-if="cart.length === 0" class="h-full flex flex-col items-center justify-center text-muted-foreground p-10 text-center">
-                        <Search class="h-12 w-12 mb-2 opacity-20" />
+                    <div v-if="cart.length === 0" class="flex h-full flex-col items-center justify-center p-10 text-center text-muted-foreground">
+                        <Search class="mb-2 h-12 w-12 opacity-20" />
                         <p>Your cart is empty</p>
                     </div>
                     <div v-else class="divide-y">
-                        <div v-for="(item, index) in cart" :key="index" class="p-4 flex items-center gap-3">
-                            <img :src="item.image" class="h-12 w-12 rounded object-cover bg-gray-50" v-if="item.image" />
-                            <div class="flex-grow overflow-hidden">
-                                <p class="text-sm font-medium truncate">{{ item.name }}</p>
+                        <div v-for="(item, index) in cart" :key="index" class="flex items-center gap-3 p-4">
+                            <img :src="item.image" class="h-12 w-12 rounded bg-gray-50 object-cover" v-if="item.image" alt="" />
+                            <div class="grow overflow-hidden">
+                                <p class="truncate text-sm font-medium">{{ item.name }}</p>
                                 <p class="text-xs text-muted-foreground">KES {{ Number(item.price).toLocaleString() }}</p>
                             </div>
-                            <div class="flex items-center gap-2 border rounded-md p-1">
+                            <div class="flex items-center gap-2 rounded-md border p-1">
                                 <Button variant="ghost" size="icon" class="h-6 w-6" @click="updateQuantity(index, -1)">
                                     <Minus class="h-3 w-3" />
                                 </Button>
-                                <span class="text-xs font-bold w-6 text-center">{{ item.quantity }}</span>
+                                <span class="w-6 text-center text-xs font-bold">{{ item.quantity }}</span>
                                 <Button variant="ghost" size="icon" class="h-6 w-6" @click="updateQuantity(index, 1)">
                                     <Plus class="h-3 w-3" />
                                 </Button>
                             </div>
-                            <div class="text-right min-w-[80px]">
+                            <div class="min-w-[80px] text-right">
                                 <p class="text-sm font-bold">KES {{ (item.price * item.quantity).toLocaleString() }}</p>
                             </div>
                         </div>
@@ -778,7 +791,7 @@ const appendAdminPin = (digit: number) => {
                 </div>
 
                 <!-- Summary & Checkout -->
-                <div class="p-4 border-t bg-gray-50 space-y-4">
+                <div class="space-y-4 border-t bg-gray-50 p-4">
                     <div class="space-y-2">
                         <div class="flex justify-between text-sm">
                             <span class="text-muted-foreground">Subtotal</span>
@@ -795,10 +808,10 @@ const appendAdminPin = (digit: number) => {
                         </div>
                     </div>
                     <div class="flex gap-2">
-                        <Button variant="outline" class="flex-1 h-14" @click="handleVoidSale" :disabled="cart.length === 0 && !selectedCustomer">
+                        <Button variant="outline" class="h-14 flex-1" @click="handleVoidSale" :disabled="cart.length === 0 && !selectedCustomer">
                             Void
                         </Button>
-                        <Button class="flex-[3] h-14 text-lg font-bold" @click="processCheckout" :disabled="cart.length === 0">
+                        <Button class="h-14 flex-[3] text-lg font-bold" @click="processCheckout" :disabled="cart.length === 0">
                             Pay KES {{ cartTotal().toLocaleString() }}
                         </Button>
                     </div>
@@ -807,8 +820,8 @@ const appendAdminPin = (digit: number) => {
         </div>
 
         <!-- Void Sale Authorization Modal -->
-        <div v-if="showVoidModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
-            <Card class="w-full max-w-sm bg-white overflow-hidden">
+        <div v-if="showVoidModal" class="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
+            <Card class="w-full max-w-sm overflow-hidden bg-white">
                 <CardHeader class="text-center">
                     <CardTitle>Void Sale Authorization</CardTitle>
                     <CardDescription>An administrator must enter their PIN to void this sale.</CardDescription>
@@ -820,22 +833,16 @@ const appendAdminPin = (digit: number) => {
                             <div
                                 v-for="i in 4"
                                 :key="i"
-                                class="w-4 h-4 rounded-full border-2 border-red-500"
+                                class="h-4 w-4 rounded-full border-2 border-red-500"
                                 :class="{ 'bg-red-500': adminPin.length >= i }"
                             ></div>
                         </div>
 
-                        <p v-if="voidError" class="text-sm text-red-600 font-medium">{{ voidError }}</p>
+                        <p v-if="voidError" class="text-sm font-medium text-red-600">{{ voidError }}</p>
 
                         <!-- Number Pad -->
-                        <div class="grid grid-cols-3 gap-4 w-full">
-                            <Button
-                                v-for="n in 9"
-                                :key="n"
-                                variant="outline"
-                                class="h-16 text-xl font-bold"
-                                @click="appendAdminPin(n)"
-                            >
+                        <div class="grid w-full grid-cols-3 gap-4">
+                            <Button v-for="n in 9" :key="n" variant="outline" class="h-16 text-xl font-bold" @click="appendAdminPin(n)">
                                 {{ n }}
                             </Button>
                             <Button variant="ghost" class="h-16 text-red-600" @click="adminPin = ''">Clear</Button>
@@ -843,66 +850,68 @@ const appendAdminPin = (digit: number) => {
                             <Button variant="ghost" class="h-16" @click="showVoidModal = false">Cancel</Button>
                         </div>
 
-                        <div v-if="isVerifyingAdmin" class="text-sm text-muted-foreground animate-pulse">
-                            Verifying Admin PIN...
-                        </div>
+                        <div v-if="isVerifyingAdmin" class="animate-pulse text-sm text-muted-foreground">Verifying Admin PIN...</div>
                     </div>
                 </CardContent>
             </Card>
         </div>
 
         <!-- Receipt Preview Modal -->
-        <div v-if="showReceiptModal && lastOrder" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-            <Card class="w-full max-w-sm bg-white overflow-hidden flex flex-col">
-                <CardHeader class="border-b py-3 flex flex-row items-center justify-between">
+        <div v-if="showReceiptModal && lastOrder" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+            <Card class="flex w-full max-w-sm flex-col overflow-hidden bg-white">
+                <CardHeader class="flex flex-row items-center justify-between border-b py-3">
                     <CardTitle class="text-base">Sale Completed</CardTitle>
                     <Button variant="ghost" size="icon" @click="showReceiptModal = false">
                         <Plus class="h-4 w-4 rotate-45" />
                     </Button>
                 </CardHeader>
-                <CardContent class="flex-grow overflow-y-auto p-0">
+                <CardContent class="grow overflow-y-auto p-0">
                     <!-- Receipt Content for Printing -->
-                    <div id="receipt-content" class="bg-white p-6 mx-auto text-black" style="width: 80mm; font-family: 'Courier New', Courier, monospace; font-size: 12px;">
-                        <div class="text-center mb-4">
-                            <h2 class="font-bold text-lg leading-tight">{{ lastOrder.settings.business_name }}</h2>
+                    <div
+                        id="receipt-content"
+                        class="mx-auto bg-white p-6 text-black"
+                        style="width: 80mm; font-family: 'Courier New', Courier, monospace; font-size: 12px"
+                    >
+                        <div class="mb-4 text-center">
+                            <h2 class="text-lg leading-tight font-bold">{{ lastOrder.settings.business_name }}</h2>
                             <p v-if="lastOrder.settings.business_address">{{ lastOrder.settings.business_address }}</p>
                             <p v-if="lastOrder.settings.business_phone">Tel: {{ lastOrder.settings.business_phone }}</p>
                             <p v-if="lastOrder.settings.tax_number">VAT PIN: {{ lastOrder.settings.tax_number }}</p>
                         </div>
 
-                        <div class="border-b mb-2">
+                        <div class="mb-2 border-b">
                             <p>Receipt: {{ lastOrder.order.order_code }}</p>
                             <p>Date: {{ new Date(lastOrder.order.created_at).toLocaleString() }}</p>
                             <p>Cashier: {{ session.user.name }}</p>
                             <p>Customer: {{ lastOrder.order.customer?.first_name }} {{ lastOrder.order.customer?.last_name }}</p>
                         </div>
 
-                        <div v-if="lastOrder.settings.receipt_header" class="text-center mb-2 italic whitespace-pre-line">
+                        <div v-if="lastOrder.settings.receipt_header" class="mb-2 text-center whitespace-pre-line italic">
                             {{ lastOrder.settings.receipt_header }}
                         </div>
 
-                        <table class="w-full mb-2">
+                        <table class="mb-2 w-full">
                             <thead>
                                 <tr class="border-b">
-                                    <th class="text-left py-1">Item</th>
-                                    <th class="text-right py-1">Qty</th>
-                                    <th class="text-right py-1">Price</th>
-                                    <th class="text-right py-1">Total</th>
+                                    <th class="py-1 text-left">Item</th>
+                                    <th class="py-1 text-right">Qty</th>
+                                    <th class="py-1 text-right">Price</th>
+                                    <th class="py-1 text-right">Total</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr v-for="item in lastOrder.order.order_items" :key="item.id">
                                     <td class="py-1">{{ item.product_snapshot.name }}</td>
-                                    <td class="text-right py-1">{{ item.quantity }}</td>
-                                    <td class="text-right py-1">{{ Number(item.unit_price).toLocaleString() }}</td>
-                                    <td class="text-right py-1 font-bold">{{ Number(item.total_price).toLocaleString() }}</td>
+                                    <td class="py-1 text-right">{{ item.quantity }}</td>
+                                    <td class="py-1 text-right">{{ Number(item.unit_price).toLocaleString() }}</td>
+                                    <td class="py-1 text-right font-bold">{{ Number(item.total_price).toLocaleString() }}</td>
                                 </tr>
                             </tbody>
                         </table>
 
-                        <div class="border-b mb-2"></div>
+                        <div class="mb-2 border-b"></div>
 
-                        <div class="space-y-1 mb-4">
+                        <div class="mb-4 space-y-1">
                             <div class="flex justify-between">
                                 <span>Subtotal:</span>
                                 <span>{{ lastOrder.order.currency }} {{ Number(lastOrder.order.subtotal).toLocaleString() }}</span>
@@ -911,29 +920,27 @@ const appendAdminPin = (digit: number) => {
                                 <span>VAT ({{ lastOrder.settings.vat_percentage }}%):</span>
                                 <span>{{ lastOrder.order.currency }} {{ Number(lastOrder.order.tax_amount).toLocaleString() }}</span>
                             </div>
-                            <div class="flex justify-between font-bold text-sm">
+                            <div class="flex justify-between text-sm font-bold">
                                 <span>TOTAL:</span>
                                 <span>{{ lastOrder.order.currency }} {{ Number(lastOrder.order.total_amount).toLocaleString() }}</span>
                             </div>
                         </div>
 
-                        <div class="border-b mb-2"></div>
+                        <div class="mb-2 border-b"></div>
 
-                        <div class="flex justify-between mb-2">
+                        <div class="mb-2 flex justify-between">
                             <span>Paid Via:</span>
                             <span class="capitalize">{{ lastOrder.order.payments[0]?.method }}</span>
                         </div>
 
-                        <div v-if="lastOrder.settings.receipt_footer" class="text-center mt-4 italic whitespace-pre-line">
+                        <div v-if="lastOrder.settings.receipt_footer" class="mt-4 text-center whitespace-pre-line italic">
                             {{ lastOrder.settings.receipt_footer }}
                         </div>
 
-                        <div class="text-center mt-6 text-[10px]">
-                            Powered by Buyalot POS
-                        </div>
+                        <div class="mt-6 text-center text-[10px]">Powered by Buyalot POS</div>
                     </div>
                 </CardContent>
-                <CardFooter class="border-t p-4 grid grid-cols-2 gap-3">
+                <CardFooter class="grid grid-cols-2 gap-3 border-t p-4">
                     <Button variant="outline" @click="showReceiptModal = false">Close</Button>
                     <Button @click="printReceipt">Print Receipt</Button>
                 </CardFooter>
@@ -941,24 +948,24 @@ const appendAdminPin = (digit: number) => {
         </div>
 
         <!-- Customer Modal -->
-        <div v-if="showCustomerModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <Card class="w-full max-w-2xl bg-white max-h-[80vh] flex flex-col">
-                <header class="p-4 border-b flex justify-between items-center">
-                    <h2 class="font-bold text-lg">Select Customer</h2>
+        <div v-if="showCustomerModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <Card class="flex max-h-[80vh] w-full max-w-2xl flex-col bg-white">
+                <header class="flex items-center justify-between border-b p-4">
+                    <h2 class="text-lg font-bold">Select Customer</h2>
                     <Button variant="ghost" size="icon" @click="showCustomerModal = false">
                         <Plus class="h-5 w-5 rotate-45" />
                     </Button>
                 </header>
                 <div class="p-4">
                     <div class="relative mb-4">
-                        <Search class="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Search class="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
                         <Input v-model="customerSearch" placeholder="Search by name, phone or email..." class="pl-9" />
                     </div>
-                    <div class="overflow-y-auto max-h-[50vh] divide-y border rounded-md">
+                    <div class="max-h-[50vh] divide-y overflow-y-auto rounded-md border">
                         <div
                             v-for="customer in customers"
                             :key="customer.id"
-                            class="p-3 hover:bg-gray-50 cursor-pointer flex items-center justify-between"
+                            class="flex cursor-pointer items-center justify-between p-3 hover:bg-gray-50"
                             @click="selectCustomer(customer)"
                         >
                             <div class="flex items-center gap-3">
@@ -979,21 +986,21 @@ const appendAdminPin = (digit: number) => {
         </div>
 
         <!-- Variant Selection Modal -->
-        <div v-if="showVariantModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+        <div v-if="showVariantModal" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
             <Card class="w-full max-w-lg bg-white">
-                <header class="p-4 border-b flex justify-between items-center">
-                    <h2 class="font-bold text-lg">Select Variant: {{ selectedProduct?.name }}</h2>
+                <header class="flex items-center justify-between border-b p-4">
+                    <h2 class="text-lg font-bold">Select Variant: {{ selectedProduct?.name }}</h2>
                     <Button variant="ghost" size="icon" @click="showVariantModal = false">
                         <Plus class="h-5 w-5 rotate-45" />
                     </Button>
                 </header>
-                <div class="p-4 grid grid-cols-1 gap-3 max-h-[60vh] overflow-y-auto">
+                <div class="grid max-h-[60vh] grid-cols-1 gap-3 overflow-y-auto p-4">
                     <div
                         v-for="variant in selectedProduct?.product_variants"
                         :key="variant.id"
-                        class="p-4 border rounded-xl flex justify-between items-center hover:border-primary cursor-pointer"
+                        class="flex cursor-pointer items-center justify-between rounded-xl border p-4 hover:border-primary"
                         @click="addVariantToCart(selectedProduct, variant)"
-                        :class="{'opacity-50 grayscale pointer-events-none': variant.stock <= 0}"
+                        :class="{ 'pointer-events-none opacity-50 grayscale': variant.stock <= 0 }"
                     >
                         <div>
                             <p class="font-bold">{{ variant.label || 'Standard Variant' }}</p>
@@ -1006,23 +1013,33 @@ const appendAdminPin = (digit: number) => {
         </div>
 
         <!-- Payment Modal -->
-        <div v-if="showPaymentModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div v-if="showPaymentModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
             <Card class="w-full max-w-md bg-white">
-                <header class="p-4 border-b flex justify-between items-center">
-                    <h2 class="font-bold text-lg">Checkout</h2>
+                <header class="flex items-center justify-between border-b p-4">
+                    <h2 class="text-lg font-bold">Checkout</h2>
                     <Button variant="ghost" size="icon" @click="showPaymentModal = false">
                         <Plus class="h-5 w-5 rotate-45" />
                     </Button>
                 </header>
-                <div class="p-6 space-y-6">
+                <div class="space-y-6 p-6">
                     <div class="text-center">
-                        <p class="text-muted-foreground text-sm uppercase font-semibold">Total Amount Due</p>
+                        <p class="text-sm font-semibold text-muted-foreground uppercase">Total Amount Due</p>
                         <h3 class="text-4xl font-black text-primary">KES {{ cartTotal().toLocaleString() }}</h3>
                     </div>
 
-                    <div v-if="unallocatedPayments.length > 0 && selectedUnallocatedIds.length === 0" class="p-3 bg-amber-50 border border-amber-100 rounded-lg text-sm text-amber-800 flex justify-between items-center">
+                    <div
+                        v-if="unallocatedPayments.length > 0 && selectedUnallocatedIds.length === 0"
+                        class="flex items-center justify-between rounded-lg border border-amber-100 bg-amber-50 p-3 text-sm text-amber-800"
+                    >
                         <span>This customer has unallocated payments.</span>
-                        <Button type="button" variant="link" size="sm" @click="showUnallocatedModal = true" class="text-amber-800 font-bold p-0 h-auto">Allocate</Button>
+                        <Button
+                            type="button"
+                            variant="link"
+                            size="sm"
+                            @click="showUnallocatedModal = true"
+                            class="h-auto p-0 font-bold text-amber-800"
+                            >Allocate</Button
+                        >
                     </div>
 
                     <div class="space-y-3">
@@ -1031,7 +1048,7 @@ const appendAdminPin = (digit: number) => {
                             <div
                                 v-for="method in allowedPaymentMethods"
                                 :key="method.id"
-                                class="border-2 p-4 rounded-xl cursor-pointer transition-all flex flex-col items-center gap-2"
+                                class="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all"
                                 :class="paymentMethod === method.id ? 'border-primary bg-primary/5' : 'border-gray-100 hover:border-gray-200'"
                                 @click="paymentMethod = method.id"
                             >
@@ -1041,35 +1058,41 @@ const appendAdminPin = (digit: number) => {
                         </div>
                     </div>
 
-                    <div v-if="selectedPaymentMethodDetails?.show_qr" class="p-6 border-2 border-dashed rounded-lg flex flex-col items-center justify-center bg-white shadow-sm">
-                        <div v-if="qrCodeUrl" class="bg-white p-2 rounded-lg border mb-3">
+                    <div
+                        v-if="selectedPaymentMethodDetails?.show_qr"
+                        class="flex flex-col items-center justify-center rounded-lg border-2 border-dashed bg-white p-6 shadow-sm"
+                    >
+                        <div v-if="qrCodeUrl" class="mb-3 rounded-lg border bg-white p-2">
                             <img :src="qrCodeUrl" alt="Payment QR Code" class="h-48 w-48" />
                         </div>
-                        <QrCode v-else class="h-24 w-24 text-gray-300 mb-2" />
+                        <QrCode v-else class="mb-2 h-24 w-24 text-gray-300" />
 
                         <p class="text-sm font-bold text-primary">{{ selectedPaymentMethodDetails.name }}</p>
-                        <p class="text-xs text-muted-foreground mt-1 text-center whitespace-pre-line">{{ selectedPaymentMethodDetails.qr_value }}</p>
+                        <p class="mt-1 text-center text-xs whitespace-pre-line text-muted-foreground">{{ selectedPaymentMethodDetails.qr_value }}</p>
 
-                        <div class="mt-4 flex gap-2 w-full">
+                        <div class="mt-4 flex w-full gap-2">
                             <Button type="button" variant="outline" size="sm" class="flex-1" @click="amountPaid = remainingToPay">
                                 Confirm Payment Received
                             </Button>
                         </div>
                     </div>
 
-                    <div v-else-if="paymentMethod.includes('qr')" class="p-6 border-2 border-dashed rounded-lg flex flex-col items-center justify-center bg-gray-50">
-                        <QrCode class="h-24 w-24 text-gray-300 mb-2" />
+                    <div
+                        v-else-if="paymentMethod.includes('qr')"
+                        class="flex flex-col items-center justify-center rounded-lg border-2 border-dashed bg-gray-50 p-6"
+                    >
+                        <QrCode class="mb-2 h-24 w-24 text-gray-300" />
                         <p class="text-sm font-medium">Scan to Pay</p>
-                        <p class="text-xs text-muted-foreground mt-1 text-center">Simulated QR Code Payment Flow</p>
+                        <p class="mt-1 text-center text-xs text-muted-foreground">Simulated QR Code Payment Flow</p>
                         <Button type="button" variant="outline" size="sm" class="mt-4" @click="amountPaid = remainingToPay">Confirm Scan</Button>
                     </div>
 
-                    <div v-if="totalAllocated > 0" class="p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-800">
+                    <div v-if="totalAllocated > 0" class="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
                         <div class="flex justify-between font-bold">
                             <span>Total Allocated:</span>
                             <span>KES {{ totalAllocated.toLocaleString() }}</span>
                         </div>
-                        <div class="flex justify-between mt-1">
+                        <div class="mt-1 flex justify-between">
                             <span>Remaining to Pay:</span>
                             <span>KES {{ remainingToPay.toLocaleString() }}</span>
                         </div>
@@ -1078,12 +1101,7 @@ const appendAdminPin = (digit: number) => {
                     <div class="space-y-2" v-if="remainingToPay > 0">
                         <Label for="amount_paid">Amount Paid ({{ paymentMethod }})</Label>
                         <div class="space-y-2">
-                            <Input
-                                id="amount_paid"
-                                v-model="amountPaid"
-                                type="number"
-                                class="text-2xl font-bold h-14"
-                            />
+                            <Input id="amount_paid" v-model="amountPaid" type="number" class="h-14 text-2xl font-bold" />
                             <div class="grid grid-cols-4 gap-2">
                                 <Button type="button" variant="outline" size="sm" @click="appendZeros('0')">0</Button>
                                 <Button type="button" variant="outline" size="sm" @click="appendZeros('00')">00</Button>
@@ -1093,34 +1111,32 @@ const appendAdminPin = (digit: number) => {
                         </div>
                     </div>
 
-                    <div v-if="paymentMethod === 'mpesa'" class="space-y-2 p-4 bg-green-50 rounded-lg border border-green-100">
+                    <div v-if="paymentMethod === 'mpesa'" class="space-y-2 rounded-lg border border-green-100 bg-green-50 p-4">
                         <Label for="customer_phone">M-Pesa Phone Number</Label>
-                        <Input
-                            id="customer_phone"
-                            v-model="customerPhone"
-                            placeholder="e.g. 254712345678"
-                            class="font-bold"
-                        />
+                        <Input id="customer_phone" v-model="customerPhone" placeholder="e.g. 254712345678" class="font-bold" />
                         <Button
                             type="button"
-                            class="w-full bg-green-600 hover:bg-green-700 text-white"
+                            class="w-full bg-green-600 text-white hover:bg-green-700"
                             @click="initiateStkPush"
                             :disabled="processingOrder"
                         >
                             {{ processingOrder ? 'Waiting for Payment...' : 'Send STK Push' }}
                         </Button>
-                        <p class="text-[10px] text-green-700 text-center">A prompt will be sent to the customer's phone.</p>
+                        <p class="text-center text-[10px] text-green-700">A prompt will be sent to the customer's phone.</p>
                     </div>
 
-                    <div v-if="amountPaid > remainingToPay && remainingToPay > 0" class="bg-green-50 p-3 rounded-lg border border-green-100 flex justify-between items-center">
-                        <span class="text-green-700 font-medium">Change Due:</span>
-                        <span class="text-green-800 font-black text-lg">KES {{ (amountPaid - remainingToPay).toLocaleString() }}</span>
+                    <div
+                        v-if="amountPaid > remainingToPay && remainingToPay > 0"
+                        class="flex items-center justify-between rounded-lg border border-green-100 bg-green-50 p-3"
+                    >
+                        <span class="font-medium text-green-700">Change Due:</span>
+                        <span class="text-lg font-black text-green-800">KES {{ (amountPaid - remainingToPay).toLocaleString() }}</span>
                     </div>
                 </div>
-                <footer class="p-4 border-t flex gap-3">
+                <footer class="flex gap-3 border-t p-4">
                     <Button variant="outline" class="h-14 flex-1" @click="showPaymentModal = false">Cancel</Button>
                     <Button
-                        class="flex-[2] h-14 text-xl font-bold"
+                        class="h-14 flex-[2] text-xl font-bold"
                         @click="submitOrder"
                         :disabled="processingOrder || (amountPaid < remainingToPay && remainingToPay > 0)"
                     >
@@ -1131,8 +1147,8 @@ const appendAdminPin = (digit: number) => {
         </div>
 
         <!-- Unallocated Payments Modal -->
-        <div v-if="showUnallocatedModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <Card class="w-full max-w-2xl bg-white max-h-[90vh] flex flex-col">
+        <div v-if="showUnallocatedModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <Card class="flex max-h-[90vh] w-full max-w-2xl flex-col bg-white">
                 <CardHeader class="flex flex-row items-center justify-between">
                     <div>
                         <CardTitle>Unallocated Payments</CardTitle>
@@ -1144,13 +1160,11 @@ const appendAdminPin = (digit: number) => {
                         Record Payment
                     </Button>
                 </CardHeader>
-                <CardContent class="flex-grow overflow-y-auto">
+                <CardContent class="grow overflow-y-auto">
                     <div v-if="!selectedCustomer" class="py-10 text-center text-muted-foreground">
                         Select a customer to view their unallocated payments.
                     </div>
-                    <div v-else-if="loadingUnallocated" class="py-10 text-center text-muted-foreground">
-                        Loading payments...
-                    </div>
+                    <div v-else-if="loadingUnallocated" class="py-10 text-center text-muted-foreground">Loading payments...</div>
                     <div v-else-if="unallocatedPayments.length === 0" class="py-10 text-center text-muted-foreground">
                         No active unallocated payments for this customer.
                     </div>
@@ -1158,14 +1172,16 @@ const appendAdminPin = (digit: number) => {
                         <div
                             v-for="payment in unallocatedPayments"
                             :key="payment.id"
-                            class="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"
-                            @click="() => {
-                                if (selectedUnallocatedIds.includes(payment.id)) {
-                                    selectedUnallocatedIds = selectedUnallocatedIds.filter(id => id !== payment.id)
-                                } else {
-                                    selectedUnallocatedIds.push(payment.id)
+                            class="flex cursor-pointer items-center justify-between rounded-lg border p-3 hover:bg-gray-50"
+                            @click="
+                                () => {
+                                    if (selectedUnallocatedIds.includes(payment.id)) {
+                                        selectedUnallocatedIds = selectedUnallocatedIds.filter((id) => id !== payment.id);
+                                    } else {
+                                        selectedUnallocatedIds.push(payment.id);
+                                    }
                                 }
-                            }"
+                            "
                         >
                             <div class="flex items-center gap-3">
                                 <input
@@ -1183,7 +1199,7 @@ const appendAdminPin = (digit: number) => {
                                 </div>
                             </div>
                             <div class="text-right">
-                                <p class="text-xs font-medium bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Available</p>
+                                <p class="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">Available</p>
                             </div>
                         </div>
                     </div>
@@ -1191,7 +1207,9 @@ const appendAdminPin = (digit: number) => {
                 <CardFooter class="justify-between border-t p-4">
                     <Button variant="outline" @click="showUnallocatedModal = false">Close</Button>
                     <div class="flex items-center gap-4">
-                        <p class="text-sm font-medium">Allocated: <span class="text-primary font-bold">KES {{ totalAllocated.toLocaleString() }}</span></p>
+                        <p class="text-sm font-medium">
+                            Allocated: <span class="font-bold text-primary">KES {{ totalAllocated.toLocaleString() }}</span>
+                        </p>
                         <Button @click="showUnallocatedModal = false">Apply to Cart</Button>
                     </div>
                 </CardFooter>
@@ -1199,7 +1217,7 @@ const appendAdminPin = (digit: number) => {
         </div>
 
         <!-- Record Payment Modal -->
-        <div v-if="showRecordPaymentModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+        <div v-if="showRecordPaymentModal" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
             <Card class="w-full max-w-md bg-white">
                 <CardHeader>
                     <CardTitle>Record Unallocated Payment</CardTitle>
@@ -1212,9 +1230,7 @@ const appendAdminPin = (digit: number) => {
                     </div>
                     <div class="grid gap-2">
                         <Label>Payment Method</Label>
-                        <Select
-                            v-model="recordPaymentForm.payment_method"
-                        >
+                        <Select v-model="recordPaymentForm.payment_method">
                             <SelectTrigger>
                                 <SelectValue />
                             </SelectTrigger>
@@ -1244,8 +1260,8 @@ const appendAdminPin = (digit: number) => {
         </div>
 
         <!-- Voided Sales Modal -->
-        <div v-if="showVoidedSalesModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <Card class="w-full max-w-4xl bg-white max-h-[90vh] flex flex-col">
+        <div v-if="showVoidedSalesModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <Card class="flex max-h-[90vh] w-full max-w-4xl flex-col bg-white">
                 <CardHeader class="flex flex-row items-center justify-between">
                     <div>
                         <CardTitle>Voided Sales</CardTitle>
@@ -1255,23 +1271,23 @@ const appendAdminPin = (digit: number) => {
                         <Plus class="h-4 w-4 rotate-45" />
                     </Button>
                 </CardHeader>
-                <CardContent class="flex-grow overflow-y-auto">
+                <CardContent class="grow overflow-y-auto">
                     <div v-if="loadingVoidedSales" class="py-20 text-center">
-                        <p class="text-muted-foreground animate-pulse">Loading voided sales...</p>
+                        <p class="animate-pulse text-muted-foreground">Loading voided sales...</p>
                     </div>
                     <div v-else-if="voidedSales.length === 0" class="py-20 text-center">
                         <p class="text-muted-foreground">No voided sales found for this session.</p>
                     </div>
-                    <div v-else class="border rounded-md">
+                    <div v-else class="rounded-md border">
                         <table class="w-full text-sm">
                             <thead>
                                 <tr class="border-b bg-muted/50 text-left">
                                     <th class="p-3 font-medium">Time</th>
                                     <th class="p-3 font-medium">Customer</th>
                                     <th class="p-3 font-medium">Items</th>
-                                    <th class="p-3 font-medium text-right">Total</th>
+                                    <th class="p-3 text-right font-medium">Total</th>
                                     <th class="p-3 font-medium">Reason</th>
-                                    <th class="p-3 font-medium text-right">Actions</th>
+                                    <th class="p-3 text-right font-medium">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1281,11 +1297,18 @@ const appendAdminPin = (digit: number) => {
                                     <td class="p-3">
                                         <div class="text-xs">
                                             {{ sale.cart_data.length }} items
-                                            <span class="text-muted-foreground">({{ sale.cart_data.map(i => i.name).slice(0, 2).join(', ') }}{{ sale.cart_data.length > 2 ? '...' : '' }})</span>
+                                            <span class="text-muted-foreground"
+                                                >({{
+                                                    sale.cart_data
+                                                        .map((i) => i.name)
+                                                        .slice(0, 2)
+                                                        .join(', ')
+                                                }}{{ sale.cart_data.length > 2 ? '...' : '' }})</span
+                                            >
                                         </div>
                                     </td>
-                                    <td class="p-3 font-bold text-right">KES {{ Number(sale.total_amount).toLocaleString() }}</td>
-                                    <td class="p-3 italic text-xs text-muted-foreground">{{ sale.reason || 'No reason provided' }}</td>
+                                    <td class="p-3 text-right font-bold">KES {{ Number(sale.total_amount).toLocaleString() }}</td>
+                                    <td class="p-3 text-xs text-muted-foreground italic">{{ sale.reason || 'No reason provided' }}</td>
                                     <td class="p-3 text-right">
                                         <Button size="sm" variant="outline" @click="recallSale(sale)" class="gap-1">
                                             <History class="h-3 w-3" />
@@ -1297,7 +1320,7 @@ const appendAdminPin = (digit: number) => {
                         </table>
                     </div>
                 </CardContent>
-                <div class="p-4 border-t bg-gray-50 text-right">
+                <div class="border-t bg-gray-50 p-4 text-right">
                     <Button variant="outline" @click="showVoidedSalesModal = false">Close</Button>
                 </div>
             </Card>
