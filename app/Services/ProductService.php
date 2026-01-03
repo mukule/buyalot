@@ -32,6 +32,9 @@ class ProductService
         $this->imageService = $imageService;
     }
 
+    /**
+     * @throws \Throwable
+     */
     public function createOrUpdateProductStep(
         int $step,
         array $data,
@@ -63,9 +66,9 @@ class ProductService
         });
     }
 
-   
-  
-   
+
+
+
   protected function handleStep1(array $data, ?User $user, ?array $images, ?Product $product): Product
 {
     // Log incoming data for debugging
@@ -144,7 +147,7 @@ class ProductService
     if (!$product) throw new \InvalidArgumentException("Product must exist before step 3.");
 
     if (!empty($data['variant_rows']) && is_array($data['variant_rows'])) {
-        $product->variants()->delete(); 
+        $product->variants()->delete();
         $this->processProductVariants($product, $data['variant_rows']);
         Log::info('Product variants updated', ['product_id' => $product->id]);
     }
@@ -251,7 +254,7 @@ protected function handleStep4(array $data, ?User $user, ?array $images, ?Produc
 
 //         if ($file instanceof \Illuminate\Http\UploadedFile) {
 //             try {
-                
+
 //                 $path = $file->store('products', 's3');
 
 //                 \Log::info('processProductImages: image stored', [
@@ -280,7 +283,7 @@ protected function handleStep4(array $data, ?User $user, ?array $images, ?Produc
 //         }
 //     }
 
-    
+
 //     if (!$product->images()->where('is_primary', 1)->exists()) {
 //         $firstImage = $product->images()->orderBy('sort_order')->first();
 //         if ($firstImage) {
@@ -309,6 +312,14 @@ protected function processProductImages(Product $product, array $images, int $pr
             'type'  => is_object($file) ? get_class($file) : gettype($file),
             'name'  => $file instanceof \Illuminate\Http\UploadedFile ? $file->getClientOriginalName() : null,
         ]);
+
+        if (!$file instanceof \Illuminate\Http\UploadedFile) {
+            \Log::warning('processProductImages: skipped invalid file', [
+                'index' => $index,
+                'value' => $image,
+            ]);
+            continue;
+        }
 
         if ($file instanceof \Illuminate\Http\UploadedFile) {
             try {
@@ -388,7 +399,7 @@ protected function processProductImages(Product $product, array $images, int $pr
         }
     }
 
-    
+
     protected function createProductVariant(Product $product, array $variantData, int $index): ProductVariant
 {
     return $product->variants()->create([
@@ -400,7 +411,7 @@ protected function processProductImages(Product $product, array $images, int $pr
 }
 
 
-   
+
     protected function processVariantValues(ProductVariant $productVariant, array $values, int $rowIndex): void
 {
     foreach ($values as $categoryId => $value) {
@@ -450,8 +461,8 @@ protected function processProductImages(Product $product, array $images, int $pr
    protected function setOwnership(array &$data, ?User $user): void
 {
     if ($user) {
-        $roles = $user->getRoleNames(); 
-        $data['owner_type'] = $data['owner_type'] ?? ($roles->first() ?? 'user'); 
+        $roles = $user->getRoleNames();
+        $data['owner_type'] = $data['owner_type'] ?? ($roles->first() ?? 'user');
         $data['owner_id']   = $data['owner_id'] ?? $user->id;
     } else {
         $data['owner_type'] = $data['owner_type'] ?? 'admin';

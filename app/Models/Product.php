@@ -59,22 +59,25 @@ class Product extends Model
     ];
 
 
-    const STATUS_DRAFT    = 0; 
-    const STATUS_PENDING  = 1; 
-    const STATUS_APPROVED = 2; 
-    const STATUS_REJECTED = 3; 
+    const STATUS_DRAFT    = 0;
+    const STATUS_PENDING  = 1;
+    const STATUS_APPROVED = 2;
+    const STATUS_REJECTED = 3;
 
     // ----------------------
     // Attributes
     // ----------------------
 
-    protected static function booted()
+    protected static function booted(): void
     {
         static::addGlobalScope(new SellerProductScope);
 
-        static::created(fn() => \App\Services\SearchCacheService::refresh());
-        static::updated(fn() => \App\Services\SearchCacheService::refresh());
-        static::deleted(fn() => \App\Services\SearchCacheService::refresh());
+//        static::created(fn() => \App\Services\SearchCacheService::refresh());
+//        static::updated(fn() => \App\Services\SearchCacheService::refresh());
+//        static::deleted(fn() => \App\Services\SearchCacheService::refresh());
+
+        static::saved(fn($product) => \App\Jobs\RefreshProductCache::dispatch($product)->delay(now()->addSeconds(5)));
+        static::deleted(fn($product) => \App\Jobs\RefreshProductCache::dispatch($product)->delay(now()->addSeconds(5)));
     }
 
 
@@ -286,7 +289,7 @@ protected function primaryImageUrl(): Attribute
         return true;
     }
 
-   
+
     public function scopeForSeller(Builder $query, $sellerIds): Builder
     {
         $ids = collect($sellerIds)->flatten()->filter()->values();

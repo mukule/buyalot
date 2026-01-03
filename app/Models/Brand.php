@@ -26,11 +26,18 @@ class Brand extends Model
         'logo_url',
     ];
 
-    protected static function booted()
-    {
+//    protected static function booted()
+//    {
         // static::created(fn() => \App\Services\SearchCacheService::refresh());
         // static::updated(fn() => \App\Services\SearchCacheService::refresh());
         // static::deleted(fn() => \App\Services\SearchCacheService::refresh());
+//    }
+    protected static function booted(): void
+    {
+        static::saved(fn($brand) => \App\Jobs\RefreshBrandCache::dispatch($brand)->delay(now()->addSeconds(5)));
+        static::deleted(fn($brand) => \App\Jobs\RefreshBrandCache::dispatch($brand)->delay(now()->addSeconds(5)));
+//        static::deleted(fn($brand) => \App\Jobs\RebuildSearchCache::dispatch()->delay(now()->addSeconds(5)));
+
     }
 
     protected static function boot()

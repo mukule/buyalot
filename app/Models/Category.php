@@ -22,7 +22,7 @@ class Category extends Model
     /**
      * Booted callbacks for model events
      */
-    protected static function booted()
+    protected static function booted(): void
     {
         static::creating(function ($category) {
             if (empty($category->slug)) {
@@ -35,7 +35,13 @@ class Category extends Model
                 $category->slug = static::generateUniqueSlug($category->name, $category->id);
             }
         });
+
+        //added category refresh cache jobs
+        static::saved(fn($category) => \App\Jobs\RefreshCategoryCache::dispatch($category)->delay(now()->addSeconds(5)));
+        static::deleted(fn($category) => \App\Jobs\RefreshCategoryCache::dispatch($category)->delay(now()->addSeconds(5)));
     }
+
+
 
     /**
      * Parent category relationship
