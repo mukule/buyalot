@@ -35,11 +35,11 @@ class HomeController extends Controller
     public function index()
 {
     $categories = Category::with(['children' => function ($query) {
-            
+
             $query->orderBy('name', 'asc');
         }])
         ->whereNull('parent_id')
-        ->orderBy('name', 'asc') 
+        ->orderBy('name', 'asc')
         ->get();
 
     $brands = Brand::all();
@@ -64,7 +64,7 @@ public function productDetails(string $slug)
         'images',
         'productVariants.values.variant',
         'category.parent',
-        'warranties', 
+        'warranties',
     ])->where('slug', $slug)->firstOrFail();
 
     $variantIds = $product->productVariants->pluck('id')->toArray();
@@ -104,13 +104,16 @@ public function productDetails(string $slug)
         $selectedVariant = $product->productVariants->firstWhere('id', $variantId) ?? $selectedVariant;
     }
 
-    $relatedProducts = $this->productService->getRelatedProducts($selectedVariant);
+//    $relatedProducts = $this->productService->getRelatedProducts($selectedVariant);
+    if ($selectedVariant) {
+        $relatedProducts = $this->productService->getRelatedProducts($selectedVariant);
+    } else {
+        $relatedProducts = collect(); // or []
+    }
 
-    // Owner info
-    $ownerInfo = $selectedVariant->getOwnerInfo();
+    $ownerInfo = $selectedVariant?->getOwnerInfo();
+    $activeWarranty = $selectedVariant?->getActiveWarranty();
 
-    // Active warranty for the selected variant
-    $activeWarranty = $selectedVariant->getActiveWarranty();
 
     $productData = [
         'id' => $product->id,
@@ -131,15 +134,17 @@ public function productDetails(string $slug)
             ->map(fn($img) => Storage::disk('s3')->url($img->image_path))
             ->toArray(),
         'variants' => $variants,
-        'owner' => [
+        'owner' => $ownerInfo ? [
             'type' => $ownerInfo['type'],
             'name' => $ownerInfo['name'],
-        ],
+        ] : null,
+
         'warranty' => $activeWarranty ? [
             'id' => $activeWarranty->id,
             'duration' => $activeWarranty->duration,
             'description' => $activeWarranty->description,
         ] : null,
+
     ];
 
     $cartVariantIds = [];

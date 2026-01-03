@@ -71,12 +71,9 @@ class Product extends Model
     protected static function booted(): void
     {
         static::addGlobalScope(new SellerProductScope);
-
-//        static::created(fn() => \App\Services\SearchCacheService::refresh());
-//        static::updated(fn() => \App\Services\SearchCacheService::refresh());
-//        static::deleted(fn() => \App\Services\SearchCacheService::refresh());
-
-        static::saved(fn($product) => \App\Jobs\RefreshProductCache::dispatch($product)->delay(now()->addSeconds(5)));
+        static::created(fn($product) => \App\Jobs\RefreshProductCache::dispatch($product)->delay(now()->addSeconds(5)));
+        static::updated(fn($product)  => \App\Jobs\RefreshProductCache::dispatch($product)->delay(now()->addSeconds(5)));
+//        static::saved(fn($product) => \App\Jobs\RefreshProductCache::dispatch($product)->delay(now()->addSeconds(5)));
         static::deleted(fn($product) => \App\Jobs\RefreshProductCache::dispatch($product)->delay(now()->addSeconds(5)));
     }
 

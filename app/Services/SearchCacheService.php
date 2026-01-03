@@ -3,10 +3,12 @@
 namespace App\Services;
 
 use App\Models\Product;
+use App\Models\ProductStatus;
 use App\Models\ProductVariant;
 use App\Models\Category;
 use App\Models\Brand;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class SearchCacheService
 {
@@ -14,20 +16,31 @@ class SearchCacheService
 
     public static function rebuild(): void
     {
+        // Get the published status ID
+        $publishedStatus = ProductStatus::where('name', 'published')->first()?->id;
         $data = [
-            'products' => Product::select('id', 'name', 'slug', 'brand_id', 'category_id', 'status_id')->with('brand:id,name')->get()->map(function ($p) {
+            'products' => Product::select('id', 'name', 'slug', 'brand_id', 'category_id', 'status_id')
+                ->with(['brand:id,name','primaryImage:id,product_id,image_path,is_primary'])
+                ->where('status_id', $publishedStatus)
+                ->get()
+                ->map(function ($p) {
                 return [
                     'id' => $p->id,
                     'name' => $p->name,
                     'slug' => $p->slug,
                     'brand' => $p->brand->name ?? null,
+                    'primary_image_url'=> $p->primaryImage?->image_path ?? '/assets/images/logo.png',
                     'category_id' => $p->category_id,
                     'status_id' => $p->status_id,
                 ];
             })->toArray(),
 
-            'variants' => ProductVariant::select('id', 'product_id', 'sku', 'regular_price', 'selling_price', 'stock')->get()->toArray(),
-
+            'variants' => ProductVariant::whereHas('product', function ($q) use ($publishedStatus) {
+                $q->where('status_id', $publishedStatus);
+            })
+                ->select('id', 'product_id', 'sku', 'regular_price', 'selling_price', 'stock')
+                ->get()
+                ->toArray(),
             'categories' => Category::select('id', 'name', 'slug', 'parent_id')->get()->toArray(),
 
             'brands' => Brand::select('id', 'name')->get()->toArray(),
@@ -53,8 +66,9 @@ class SearchCacheService
         $cache['brands'][] = ['id' => $brand->id, 'name' => $brand->name];
 
         // Update related products
-        $brandProducts = Product::where('brand_id', $brand->id)->with('brand:id,name')->get();
+        $brandProducts = Product::where('brand_id', $brand->id)->with(['brand:id,name','primaryImage:id,product_id,image_path,is_primary'])->get();
         foreach ($brandProducts as $p) {
+            //get primary image url
             $cache['products'] = $cache['products'] ?? [];
             $key = array_search($p->id, array_column($cache['products'], 'id'));
             $productData = [
@@ -62,6 +76,7 @@ class SearchCacheService
                 'name' => $p->name,
                 'slug' => $p->slug,
                 'brand' => $p->brand->name ?? null,
+                'primary_image_url'=> $p->primaryImage?->image_path ?? '/assets/images/logo.png',
                 'category_id' => $p->category_id,
                 'status_id' => $p->status_id,
             ];
@@ -72,7 +87,7 @@ class SearchCacheService
             }
         }
 
-        Cache::put(self::CACHE_KEY, $cache, now()->addHours(6));
+        Cache::put(self::CACHE_KEY, $cache, now()->addMonths(6));
     }
 
 
@@ -93,7 +108,7 @@ class SearchCacheService
         ];
 
         // Update products for this category
-        $categoryProducts = Product::where('category_id', $category->id)->with('brand:id,name')->get();
+        $categoryProducts = Product::where('category_id', $category->id)->with(['brand:id,name','primaryImage:id,product_id,image_path,is_primary'])->get();
         foreach ($categoryProducts as $p) {
             $key = array_search($p->id, array_column($cache['products'], 'id'));
             $productData = [
@@ -101,6 +116,7 @@ class SearchCacheService
                 'name' => $p->name,
                 'slug' => $p->slug,
                 'brand' => $p->brand->name ?? null,
+                'primary_image_url'=> $p->primaryImage?->image_path ?? '/assets/images/logo.png',
                 'category_id' => $p->category_id,
                 'status_id' => $p->status_id,
             ];
@@ -112,7 +128,7 @@ class SearchCacheService
             }
         }
 
-        Cache::put(self::CACHE_KEY, $cache, now()->addHours(6));
+        Cache::put(self::CACHE_KEY, $cache, now()->addMonths(6));
     }
 
     /**
@@ -120,6 +136,16 @@ class SearchCacheService
      */
     public static function refreshProduct(Product $product): void
     {
+        //get published product status
+        $status=ProductStatus::where('name', 'published')->first();
+        if (($product->status_id ?? null) != $status->id) {
+            // If the product is not published, remove it from cache if exists
+            $cache = self::get();
+            $cache['products'] = array_filter($cache['products'] ?? [], fn($p) => $p['id'] !== $product->id);
+            $cache['variants'] = array_filter($cache['variants'] ?? [], fn($v) => $v['product_id'] !== $product->id);
+            Cache::put(self::CACHE_KEY, $cache, now()->addMonths(6));
+            return;
+        }
         $cache = self::get();
 
         // Update or insert product
@@ -129,6 +155,7 @@ class SearchCacheService
             'name' => $product->name,
             'slug' => $product->slug,
             'brand' => $product->brand->name ?? null,
+            'primary_image_url'=> $product->primaryImage?->image_path ?? '/assets/images/logo.png',
             'category_id' => $product->category_id,
             'status_id' => $product->status_id,
         ];
@@ -152,7 +179,8 @@ class SearchCacheService
             }
         }
 
-        Cache::put(self::CACHE_KEY, $cache, now()->addHours(6));
+        Cache::put(self::CACHE_KEY, $cache, now()->addMonths(6));
+        Log::info('Cached products:', $cache['products'] ?? []);
     }
 
 

@@ -37,7 +37,8 @@ class Category extends Model
         });
 
         //added category refresh cache jobs
-        static::saved(fn($category) => \App\Jobs\RefreshCategoryCache::dispatch($category)->delay(now()->addSeconds(5)));
+        static::updated(fn($category)  => \App\Jobs\RefreshCategoryCache::dispatch($category)->delay(now()->addSeconds(5)));
+        static::created(fn($category) => \App\Jobs\RefreshCategoryCache::dispatch($category)->delay(now()->addSeconds(5)));
         static::deleted(fn($category) => \App\Jobs\RefreshCategoryCache::dispatch($category)->delay(now()->addSeconds(5)));
     }
 
