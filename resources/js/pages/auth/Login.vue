@@ -167,6 +167,13 @@ const handleGoogleLogin = () => {
             </Button>
 
             <div class="text-center text-sm text-muted-foreground">
+                Are you a POS attendant?
+                <a :href="route('pos.login')" class="font-medium text-primary hover:underline">
+                    Login to POS Terminal
+                </a>
+            </div>
+
+            <div class="text-center text-sm text-muted-foreground">
                 Don't have an account?
                <TextLink :href="route('register')" :tabindex="6">Sign up</TextLink>
             </div>

@@ -278,6 +278,12 @@ class PermissionSeeder extends Seeder
                 'download-invoices',
                 'view-invoice-reports',
                 'manage-invoice-settings',
+            ],
+            'pos' => [
+                'access-pos',
+                'manage-pos-registers',
+                'view-pos-reports',
+                'manage-pos-settings',
             ]
 
         ];

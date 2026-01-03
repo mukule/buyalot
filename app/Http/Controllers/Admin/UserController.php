@@ -244,6 +244,7 @@ class UserController extends Controller
             'phone' => 'nullable|min:10|max:15',
             'gender'=>'nullable|in:male,female,other',
             'idno' => 'nullable|string|max:20',
+            'pos_pin' => 'nullable|string|size:4',
         ]);
 
         $user_details=UserDetail::where('user_id',$user->id)->first();
@@ -260,6 +261,7 @@ class UserController extends Controller
             'email' => $validated['email'],
             'phone' => $validated['phone'],
             'status' => (bool) $validated['status'],
+            'pos_pin' => $validated['pos_pin'],
         ]);
         if ($request->wantsJson() || $request->is('api/*')) {
             $userData = [
@@ -302,6 +304,7 @@ class UserController extends Controller
             'gender' => 'nullable|in:male,female,other',
             'status' => 'required|boolean',
             'idno' => 'nullable|string|max:20',
+            'pos_pin' => 'nullable|string|size:4',
             'roles' => 'required|array|size:1',
             'roles.*' => ['string', Rule::in($roleNames)],
         ], [
@@ -324,6 +327,7 @@ class UserController extends Controller
             'phone' => $validated['phone'] ?? null,
             'password' => Hash::make($generatedPassword),
             'status' => (bool) $validated['status'],
+            'pos_pin' => $validated['pos_pin'] ?? null,
             'email_verified_at' => now(),
             'user_type' => $isSellerContext ? 'seller' : 'user',
         ]);

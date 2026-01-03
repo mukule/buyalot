@@ -17,6 +17,7 @@ import {
     ListChecks,
     Lock,
     LucideListOrdered,
+    History,
     Map,
     MapPin,
     MapPinCheck,
@@ -157,6 +158,32 @@ const allNavItems: NavItem[] = [
                 href: '/admin/discounts',
                 icon: BadgePercent,
                 permissions: ['view-discounts'],
+            },
+        ],
+    },
+    {
+        title: 'POS',
+        href: '/admin/pos',
+        icon: LayoutGrid,
+        permissions: ['access-pos'],
+    },
+    {
+        title: 'Sales',
+        href: '#',
+        icon: BadgePercent,
+        permissions: ['view-pos-reports', 'view-sales-reports'],
+        children: [
+            {
+                title: 'Sales Reports',
+                href: '/admin/reports/sales',
+                icon: FileText,
+                permissions: ['view-sales-reports'],
+            },
+            {
+                title: 'Voided Sales',
+                href: '/admin/pos', // Can lead to POS where they can see voided sales
+                icon: History,
+                permissions: ['access-pos'],
             },
         ],
     },

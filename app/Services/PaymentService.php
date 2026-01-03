@@ -80,57 +80,75 @@ class PaymentService
 }
 
 
-public function getOrCreateMpesaRequest($payable, PaymentRequest $request)
-{
-    // Only consider records that can still be updated
-    $updatableStatuses = [
-        PaymentStatus::INITIALIZED->value,
-        PaymentStatus::PROCESSING->value,
-        PaymentStatus::FAILED->value,
-        PaymentStatus::EXPIRED->value,
-    ];
-
-    // Get the latest updatable payment request for this payable
-    $mpesaLog = MpesaRequest::where('payable_type', get_class($payable))
-        ->where('payable_id', $payable->id)
-        ->whereIn('status', $updatableStatuses)
-        ->latest('created_at')
-        ->first();
-
-    if ($mpesaLog) {
-        // Update the existing one
-        $mpesaLog->update([
-            'amount'           => $request->amount,
-            'currency'         => $request->currency,
-            'phone'            => $request->phone,
-            'provider_request' => $request->toArray(),
-            'updated_at'       => now(),
-        ]);
-
-        return $mpesaLog;
+    public function createMpesaRequest($payable, PaymentRequest $request)
+    {
+        return $this->getOrCreateMpesaRequest($payable, $request);
     }
 
-    // No updatable record found — create a new one
-    $reference = $payable->ref_num;
+    public function getOrCreateMpesaRequest($payable, PaymentRequest $request)
+    {
+        // Only consider records that can still be updated
+        $updatableStatuses = [
+            PaymentStatus::INITIALIZED->value,
+            PaymentStatus::PROCESSING->value,
+            PaymentStatus::FAILED->value,
+            PaymentStatus::EXPIRED->value,
+        ];
 
-    return MpesaRequest::create([
-        'payable_type'      => get_class($payable),
-        'payable_id'        => $payable->id,
-        'reference'         => $reference,
-        'account_reference' => $reference,
-        'request_code'      => $reference,
-        'phone'             => $request->phone,
-        'amount'            => $request->amount,
-        'currency'          => $request->currency,
-        'status'            => PaymentStatus::INITIALIZED->value,
-        'provider'          => $request->provider,
-        'provider_request'  => $request->toArray(),
-        'provider_response' => [],
-        'method'            => $request->method,
-        'callback_payload'  => '',
-        'user_id'           => auth()->id(),
-    ]);
-}
+        // Get the latest updatable payment request for this payable
+        $mpesaLog = MpesaRequest::where('payable_type', get_class($payable))
+            ->where('payable_id', $payable->id)
+            ->whereIn('status', $updatableStatuses)
+            ->latest('created_at')
+            ->first();
+
+        if ($mpesaLog) {
+            // Update the existing one
+            $mpesaLog->update([
+                'amount'           => $request->amount,
+                'currency'         => $request->currency,
+                'phone'            => $request->phone,
+                'provider_request' => $request->toArray(),
+                'updated_at'       => now(),
+            ]);
+
+            return $mpesaLog;
+        }
+
+        // No updatable record found — create a new one
+        $reference = $this->generateReferenceForPayable($payable);
+
+        return MpesaRequest::create([
+            'payable_type'      => get_class($payable),
+            'payable_id'        => $payable->id,
+            'reference'         => $reference,
+            'account_reference' => $reference,
+            'request_code'      => $reference,
+            'phone'             => $request->phone,
+            'amount'            => $request->amount,
+            'currency'          => $request->currency,
+            'status'            => PaymentStatus::INITIALIZED->value,
+            'provider'          => $request->provider,
+            'provider_request'  => $request->toArray(),
+            'provider_response' => [],
+            'method'            => $request->method,
+            'callback_payload'  => '',
+            'user_id'           => auth()->id(),
+        ]);
+    }
+
+    private function generateReferenceForPayable($payable): string
+    {
+        if (isset($payable->ref_num)) {
+            return $payable->ref_num;
+        }
+
+        if (isset($payable->order_code)) {
+            return $payable->order_code;
+        }
+
+        return 'POS_' . strtoupper(Str::random(8)) . '_' . time();
+    }
 
 
 

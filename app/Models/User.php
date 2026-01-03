@@ -26,6 +26,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'pos_pin',
         'seller_application_id',
         'phone',
         'status',
@@ -41,6 +42,7 @@ class User extends Authenticatable
 
     protected $hidden = [
         'password',
+        'pos_pin',
         'remember_token',
         'email_verified_at',
         'google_id',

@@ -9,6 +9,7 @@ const page = usePage<
         user: User & {
             status: string;
             roles: Role[];
+            pos_pin?: string;
         };
         roles: Role[];
     }>
@@ -24,6 +25,7 @@ const form = useForm({
     name: user.value.name,
     email: user.value.email,
     status: user.value.status,
+    pos_pin: user.value.pos_pin || '',
     roles: user.value.roles.map((role) => role.name),
     password: '',
     password_confirmation: '',
@@ -43,6 +45,7 @@ function submit() {
         name: form.name,
         email: form.email,
         status: form.status,
+        pos_pin: form.pos_pin,
         roles: form.roles,
     };
 
@@ -167,6 +170,23 @@ function togglePasswordSection() {
                                     readonly
                                     class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-gray-500"
                                 />
+                            </div>
+
+                            <!-- POS PIN -->
+                            <div>
+                                <label for="pos_pin" class="mb-1 block text-sm font-medium text-gray-700"> POS PIN (4 digits) </label>
+                                <input
+                                    id="pos_pin"
+                                    v-model="form.pos_pin"
+                                    type="text"
+                                    maxlength="4"
+                                    pattern="\d{4}"
+                                    placeholder="e.g. 1234"
+                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+                                    :class="{ 'border-red-500': form.errors.pos_pin }"
+                                />
+                                <p v-if="form.errors.pos_pin" class="mt-1 text-sm text-red-600">{{ form.errors.pos_pin }}</p>
+                                <p class="mt-1 text-xs text-gray-500">Numerical PIN used to login to POS terminals</p>
                             </div>
                         </div>
                     </div>

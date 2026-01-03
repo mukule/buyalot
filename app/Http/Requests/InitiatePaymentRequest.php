@@ -23,8 +23,8 @@ class InitiatePaymentRequest  extends FormRequest
     public function rules(): array
     {
         return [
-            'payable_type' => ['required', 'string', 'in:order,subscription,invoice'],
-            'payable_id' => ['required', 'integer', 'exists:orders,id'],
+            'payable_type' => ['required', 'string', 'in:order,subscription,invoice,pos_session'],
+            'payable_id' => ['required', 'integer'],
             'amount' => ['required', 'numeric', 'min:1'],
             'currency' => ['sometimes', 'string', 'size:3', 'in:KES,USD,EUR'],
             'provider' => ['required', 'string', Rule::enum(PaymentProvider::class)],
@@ -43,7 +43,8 @@ class InitiatePaymentRequest  extends FormRequest
         $id = $this->input('payable_id');
 
         return match ($type) {
-            'order' => Order::findOrFail($id),
+            'order' => \App\Models\Orders\Order::findOrFail($id),
+            'pos_session' => \App\Models\POS\PosSession::findOrFail($id),
             // TODO Add other payable
             default => throw new \InvalidArgumentException("Unsupported payable type: {$type}"),
         };

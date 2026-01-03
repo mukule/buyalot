@@ -47,6 +47,12 @@ Route::get('/', [HomeController::class, 'index'])->name('home');
 // Product search
 Route::get('/search', [SearchController::class, 'search'])->name('search');
 
+// POS Direct Login
+Route::middleware('guest')->group(function () {
+    Route::get('/pos/login', [\App\Http\Controllers\POS\PosLoginController::class, 'showLoginForm'])->name('pos.login');
+    Route::post('/pos/login', [\App\Http\Controllers\POS\PosLoginController::class, 'login'])->name('pos.login.submit');
+});
+
 Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard'])->prefix('admin')->name('admin.')->group(function () {
 
     // Invoices management (Admin)
@@ -150,6 +156,45 @@ Route::middleware(['auth','role_or_permission:admin|view-brands'])->prefix('admi
     Route::get('/brands', [\App\Http\Controllers\Admin\BrandController::class, 'index'])->name('brands.index');
 });
 
+Route::middleware(['auth', 'check_permission:access-pos'])->prefix('admin')->name('admin.')->group(function () {
+    // POS Routes
+    Route::prefix('pos')->name('pos.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\POS\PosController::class, 'index'])->name('index');
+        Route::post('/verify-pin', [\App\Http\Controllers\POS\PosController::class, 'verifyPin'])->name('verify-pin');
+        Route::post('/lock', [\App\Http\Controllers\POS\PosController::class, 'lockTerminal'])->name('lock');
+        Route::post('/sessions/open', [\App\Http\Controllers\POS\PosController::class, 'openSession'])->name('sessions.open');
+        Route::get('/terminal', [\App\Http\Controllers\POS\PosController::class, 'show'])->name('show');
+        Route::post('/sessions/{session}/close', [\App\Http\Controllers\POS\PosController::class, 'closeSession'])->name('sessions.close');
+        Route::post('/update-pin', [\App\Http\Controllers\POS\PosController::class, 'updatePin'])->name('update-pin');
+        Route::post('/verify-admin-pin', [\App\Http\Controllers\POS\PosController::class, 'verifyAdminPin'])->name('verify-admin-pin');
+
+        // API-like endpoints for POS
+        Route::get('/products', [\App\Http\Controllers\POS\PosProductController::class, 'index'])->name('products.index');
+        Route::get('/categories', [\App\Http\Controllers\POS\PosProductController::class, 'categories'])->name('categories.index');
+        Route::get('/customers', [\App\Http\Controllers\POS\PosCustomerController::class, 'index'])->name('customers.index');
+        Route::post('/customers', [\App\Http\Controllers\POS\PosCustomerController::class, 'store'])->name('customers.store');
+        Route::post('/orders', [\App\Http\Controllers\POS\PosOrderController::class, 'store'])->name('orders.store');
+
+        // Voided Sales
+        Route::get('/voided-sales', [\App\Http\Controllers\POS\PosVoidedSaleController::class, 'index'])->name('voided-sales.index');
+        Route::post('/voided-sales', [\App\Http\Controllers\POS\PosVoidedSaleController::class, 'store'])->name('voided-sales.store');
+        Route::post('/voided-sales/{voidedSale}/recall', [\App\Http\Controllers\POS\PosVoidedSaleController::class, 'recall'])->name('voided-sales.recall');
+
+        // Unallocated Payments
+        Route::get('/unallocated-payments', [\App\Http\Controllers\POS\PosUnallocatedPaymentController::class, 'index'])->name('unallocated-payments.index');
+        Route::post('/unallocated-payments', [\App\Http\Controllers\POS\PosUnallocatedPaymentController::class, 'store'])->name('unallocated-payments.store');
+
+        // POS Settings & Register Management
+        Route::middleware('check_permission:manage-pos-settings')->group(function () {
+            Route::get('/settings', [\App\Http\Controllers\POS\PosSettingsController::class, 'index'])->name('settings.index');
+            Route::post('/settings/global', [\App\Http\Controllers\POS\PosSettingsController::class, 'updateGlobal'])->name('settings.global.update');
+            Route::post('/registers', [\App\Http\Controllers\POS\PosSettingsController::class, 'storeRegister'])->name('registers.store');
+            Route::put('/registers/{register}', [\App\Http\Controllers\POS\PosSettingsController::class, 'updateRegister'])->name('registers.update');
+            Route::delete('/registers/{register}', [\App\Http\Controllers\POS\PosSettingsController::class, 'destroyRegister'])->name('registers.destroy');
+        });
+    });
+});
+
 Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
     require __DIR__ . '/roles_permissions.php';
     Route::resource('customers', CustomerController::class);
@@ -208,6 +253,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         });
     });
     Route::resource('document-types', DocumentTypeController::class);
+
     Route::middleware(['check_permission:view-verification-documents'])->group(function () {
         Route::get('/seller-verification/{sellerApplication}', [SellerVerificationController::class, 'show'])
             ->name('seller-verification.show');
@@ -240,6 +286,11 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 
 
     Route::resource('payments', PaymentController::class);
+
+    // Sales Reports
+    Route::middleware('check_permission:view-sales-reports')->prefix('reports/sales')->name('reports.sales.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Admin\ReportController::class, 'index'])->name('index');
+    });
 
     // Discounts management
     Route::resource('discounts', AdminDiscountController::class);
