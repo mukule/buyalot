@@ -14,13 +14,13 @@ import sales from '@/assets/images/icons/sales.svg';
 const cards = [
     {
         title: 'Optimise Your Growth',
-        description: 'Easily boost your sales by leveraging our active customer base of over 3 million happy online shoppers.',
+        description: 'Easily boost your sales by leveraging our online shoppers',
         image: 'https://www.takealot.com/36c5e68ec7d3ea31fd9999e79398490f69e476ec/static/media/src/images/sell-on-takealot/cards/optimise-your-growth.jpg-758bca1bd6b74237d09e.jpg',
     },
     {
         title: 'End–to–End Solutions',
         description:
-            "We'll provide the tools you need to set up and sell – manage your stock, pricing, product selection and more from the Takealot Seller Portal.",
+            "We'll provide the tools you need to set up and sell – manage your stock, pricing, product selection and more from Buyalot Seller Portal.",
         image: 'https://www.takealot.com/36c5e68ec7d3ea31fd9999e79398490f69e476ec/static/media/src/images/sell-on-takealot/cards/end-to-end-solutions.jpg-73b9874edfdf9aeaa3b5.jpg',
     },
     {
@@ -48,7 +48,7 @@ const steps = [
     },
     {
         title: 'Registration',
-        description: 'Complete your Takealot Seller account by supplying all the required information and paperwork.',
+        description: 'Complete your Buyalot Seller account by supplying all the required information and paperwork.',
         icon: registration,
     },
     {
@@ -80,11 +80,12 @@ const steps = [
                     <div class="flex h-full items-center justify-center md:justify-start">
                         <div class="w-full rounded-lg bg-primary/70 p-6 text-center backdrop-blur-sm md:max-w-2xl md:p-8 md:text-left lg:p-10">
                             <div class="space-y-4 text-white md:space-y-6">
-                                <h1 class="text-3xl leading-tight font-bold tracking-tight sm:text-4xl md:text-5xl">
-                                    Join KENYA's Best Online <br class="hidden sm:block" />
-                                    Marketplace Platform
+                                <h1 class="text-2xl leading-tight font-bold tracking-tight sm:text-3xl md:text-4xl">
+                                    Join KENYA's & EAST AFRICA Best <br class="hidden sm:block" />
+                                    Online Marketplace Platform
                                 </h1>
-                                <p class="text-lg leading-relaxed md:text-xl">Sell to over 3 million happy shoppers</p>
+                                <p class="text-lg leading-relaxed md:text-xl">Connecting Kenyan's & East Africa's Buyers & Sellers</p>
+
                                 <div class="flex flex-wrap justify-center gap-4 md:justify-start">
                                     <Link
                                         href="/sell/apply"
@@ -112,7 +113,7 @@ const steps = [
                         Get the tools you need to increase sales and grow your business online
                     </h4>
                     <p class="mx-auto max-w-3xl text-lg leading-relaxed text-gray-600 md:text-xl">
-                        Selling your products online has never been easier. Simply apply to sell as a Takealot seller today and easily reach online
+                        Selling your products online has never been easier. Simply apply to sell as a Buyalot seller today and easily reach online
                         shoppers across South Africa.
                     </p>
                 </div>
@@ -161,10 +162,7 @@ const steps = [
             <section class="container mx-auto my-20 px-4 sm:px-6 lg:px-8">
                 <div class="mb-12 space-y-4 text-center">
                     <h2 class="text-2xl font-bold text-gray-900 sm:text-3xl md:text-4xl">Pricing</h2>
-                    <p class="text-lg text-gray-600">
-                        We charge a monthly subscription fee of <strong>***</strong> per seller account/month. You can choose to cancel your account
-                        at any time.
-                    </p>
+                    <p class="text-lg text-gray-600">We don't charge monthly subscription fee/ you can cancel your account at any time</p>
                 </div>
 
                 <div>

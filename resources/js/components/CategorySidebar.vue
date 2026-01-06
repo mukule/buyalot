@@ -10,7 +10,7 @@ export interface Category {
 
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { computed, nextTick, onMounted, onUnmounted, ref, watchEffect, h } from 'vue';
+import { computed, h, nextTick, onMounted, onUnmounted, ref, watchEffect } from 'vue';
 
 // 2. Props Definition
 interface Props {
@@ -19,27 +19,31 @@ interface Props {
 }
 
 const props = defineProps<Props>();
-const limit = props.limit ?? 11;
+const limit = props.limit ?? 20;
 
 /**
  * RECURSIVE COMPONENT (Functional)
  * This handles the rendering of levels 3, 4, and 5
  */
-const RecursiveList = (props: { items: Category[], depth: number }) => {
+const RecursiveList = (props: { items: Category[]; depth: number }) => {
     return props.items.map((item) => {
         const hasChildren = item.children && item.children.length > 0 && props.depth < 5;
-        
+
         return h('li', { key: item.id, class: 'list-none' }, [
-            h('a', {
-                href: `/${item.slug}`,
-                class: [
-                    'block transition-colors hover:text-primary',
-                    props.depth === 3 ? 'text-gray-700 font-medium' : 'text-gray-500 text-xs mt-1'
-                ]
-            }, item.name),
-            hasChildren ? h('ul', { class: 'ml-3 mt-1 border-l pl-2 space-y-1' }, [
-                h(RecursiveList, { items: item.children!, depth: props.depth + 1 })
-            ]) : null
+            h(
+                'a',
+                {
+                    href: `/${item.slug}`,
+                    class: [
+                        'block transition-colors hover:text-primary',
+                        props.depth === 3 ? 'text-gray-700 text-xs' : 'text-gray-500 text-xs mt-0.5',
+                    ],
+                },
+                item.name,
+            ),
+            hasChildren
+                ? h('ul', { class: 'ml-3 mt-1 border-l pl-2 space-y-1' }, [h(RecursiveList, { items: item.children!, depth: props.depth + 1 })])
+                : null,
         ]);
     });
 };
@@ -84,7 +88,7 @@ const updateMegaPanelPosition = () => {
         const padding = 48;
         const numCols = groupedColumns.value.length;
 
-        const naturalWidth = (numCols * columnWidth) + ((numCols - 1) * gap) + padding;
+        const naturalWidth = numCols * columnWidth + (numCols - 1) * gap + padding;
         const finalWidth = Math.min(naturalWidth, heroRect.width);
 
         megaPanelStyle.value = {
@@ -96,7 +100,9 @@ const updateMegaPanelPosition = () => {
     }
 };
 
-const handleResize = () => { if (activeCategoryId.value) updateMegaPanelPosition(); };
+const handleResize = () => {
+    if (activeCategoryId.value) updateMegaPanelPosition();
+};
 onMounted(() => window.addEventListener('resize', handleResize));
 onUnmounted(() => window.removeEventListener('resize', handleResize));
 
@@ -120,7 +126,7 @@ const groupedColumns = computed(() => {
     const MAX_ITEMS_PER_COLUMN = 22;
     const MIN_COLUMNS = 2;
 
-    const groupHeights = children.map(group => countNodes(group, 2, 5));
+    const groupHeights = children.map((group) => countNodes(group, 2, 5));
     const totalHeight = groupHeights.reduce((a, b) => a + b, 0);
 
     const numColumns = Math.max(Math.ceil(totalHeight / MAX_ITEMS_PER_COLUMN), MIN_COLUMNS);
@@ -157,7 +163,7 @@ const onCategoryEnter = (id: number) => {
     if (!pinned.value) activeCategoryId.value = id;
 };
 const onCategoryClick = (id: number) => {
-    pinned.value = (pinned.value && activeCategoryId.value === id) ? false : true;
+    pinned.value = pinned.value && activeCategoryId.value === id ? false : true;
     activeCategoryId.value = pinned.value ? id : null;
 };
 const onMenuLeave = () => {
@@ -165,8 +171,14 @@ const onMenuLeave = () => {
         if (!pinned.value && !hoveringPanel.value) activeCategoryId.value = null;
     }, 100);
 };
-const onPanelEnter = () => { if (closeTimeout) clearTimeout(closeTimeout); hoveringPanel.value = true; };
-const onPanelLeave = () => { hoveringPanel.value = false; if (!pinned.value) activeCategoryId.value = null; };
+const onPanelEnter = () => {
+    if (closeTimeout) clearTimeout(closeTimeout);
+    hoveringPanel.value = true;
+};
+const onPanelLeave = () => {
+    hoveringPanel.value = false;
+    if (!pinned.value) activeCategoryId.value = null;
+};
 const goToCategoriesPage = () => router.visit('/categories');
 </script>
 
@@ -176,7 +188,7 @@ const goToCategoriesPage = () => router.visit('/categories');
             <li
                 v-for="cat in visibleCategories"
                 :key="cat.id"
-                class="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm text-gray-800 transition hover:bg-gray-100"
+                class="flex cursor-pointer items-center justify-between rounded-md px-3 py-0.5 text-xs text-gray-800 transition hover:bg-gray-100"
                 :class="{ 'bg-gray-50 font-medium text-primary': activeCategoryId === cat.id }"
                 @mouseenter="onCategoryEnter(cat.id)"
                 @click.prevent="onCategoryClick(cat.id)"
@@ -197,19 +209,19 @@ const goToCategoriesPage = () => router.visit('/categories');
             <div
                 v-if="activeCategory && activeCategory.children?.length"
                 ref="megaPanelRef"
-                class="mega-panel absolute z-50 overflow-y-auto rounded-lg border bg-white shadow-xl"
+                class="mega-panel absolute z-30 overflow-y-auto rounded-lg border bg-white shadow-xl"
                 :style="megaPanelStyle"
                 @mouseenter="onPanelEnter"
                 @mouseleave="onPanelLeave"
             >
-                <div class="mega-columns h-full p-6">
+                <div class="mega-columns h-full p-2.5">
                     <div v-for="(column, colIndex) in groupedColumns" :key="colIndex" class="mega-column">
                         <div v-for="group in column" :key="group.id" class="mega-group">
-                            <h4 class="mb-2 truncate border-b pb-1 text-sm font-bold text-gray-900">
+                            <h4 class="mb-2 truncate border-b pb-1 text-xs font-bold text-gray-900">
                                 <a :href="`/${group.slug}`" class="hover:text-primary">{{ group.name }}</a>
                             </h4>
-                            
-                            <ul class="space-y-2 text-sm">
+
+                            <ul class="space-y-2 text-xs">
                                 <RecursiveList :items="group.children || []" :depth="3" />
                             </ul>
                         </div>
@@ -221,13 +233,49 @@ const goToCategoriesPage = () => router.visit('/categories');
 </template>
 
 <style scoped>
-aside { height: 100%; }
-.fade-enter-active, .fade-leave-active { transition: opacity 0.15s ease, transform 0.15s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; transform: translateX(-8px); }
-.mega-panel::before { content: ''; position: absolute; top: 0; left: -20px; width: 20px; height: 100%; background: transparent; }
-.mega-columns { display: flex; gap: 2rem; align-items: flex-start; }
-.mega-column { flex: 0 0 220px; min-width: 0; display: flex; flex-direction: column; gap: 1.75rem; }
-.mega-panel::-webkit-scrollbar { width: 4px; }
-.mega-panel::-webkit-scrollbar-track { background: #f1f1f1; }
-.mega-panel::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
+aside {
+    height: 100%;
+}
+.fade-enter-active,
+.fade-leave-active {
+    transition:
+        opacity 0.15s ease,
+        transform 0.15s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+    opacity: 0;
+    transform: translateX(-8px);
+}
+.mega-panel::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -20px;
+    width: 20px;
+    height: 100%;
+    background: transparent;
+}
+.mega-columns {
+    display: flex;
+    gap: 1.25rem;
+    align-items: flex-start;
+}
+.mega-column {
+    flex: 0 0 220px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+.mega-panel::-webkit-scrollbar {
+    width: 4px;
+}
+.mega-panel::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+.mega-panel::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 10px;
+}
 </style>
