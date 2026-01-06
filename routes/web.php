@@ -44,6 +44,9 @@ require __DIR__.'/customer.php';
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
 
+Route::get('/create/cache', [\App\Services\SearchCacheService::class, 'rebuild'])->name('cache.rebuild');
+Route::get('/refresh/cache', [\App\Services\SearchCacheService::class, 'refresh'])->name('refresh.cache');
+
 // Product search
 Route::get('/search', [SearchController::class, 'search'])->name('search');
 

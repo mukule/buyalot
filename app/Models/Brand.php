@@ -34,9 +34,9 @@ class Brand extends Model
 //    }
     protected static function booted(): void
     {
-        static::updated(fn($brand) => \App\Jobs\RefreshBrandCache::dispatch($brand)->delay(now()->addSeconds(5)));
-        static::created(fn($brand) => \App\Jobs\RefreshBrandCache::dispatch($brand)->delay(now()->addSeconds(5)));
-        static::deleted(fn($brand) => \App\Jobs\RefreshBrandCache::dispatch($brand)->delay(now()->addSeconds(5)));
+//        static::updated(fn($brand) => \App\Jobs\RefreshBrandCache::dispatch($brand)->delay(now()->addSeconds(5)));
+//        static::created(fn($brand) => \App\Jobs\RefreshBrandCache::dispatch($brand)->delay(now()->addSeconds(5)));
+//        static::deleted(fn($brand) => \App\Jobs\RefreshBrandCache::dispatch($brand)->delay(now()->addSeconds(5)));
 //        static::deleted(fn($brand) => \App\Jobs\RebuildSearchCache::dispatch()->delay(now()->addSeconds(5)));
 
     }
