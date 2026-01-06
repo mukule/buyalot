@@ -283,6 +283,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 Route::prefix('sell')->group(function () {
     Route::get('/', [SellController::class, 'index'])->name('sell.index');
     Route::get('/apply', [SellController::class, 'applyForm'])->name('sell.applyForm');
+    Route::get('/get-progress', [SellController::class, 'getProgress'])->name('sell.getProgress');
 
     Route::post('/save-progress', [SellController::class, 'saveProgress'])->name('sell.saveProgress');
     Route::post('/clear-progress', [SellController::class, 'clearProgress'])->name('sell.clearProgress');

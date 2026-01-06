@@ -19,9 +19,46 @@ const nextStep = () => {
     }
 };
 
-const prevStep = () => {
+interface Category {
+    id: number;
+    name: string;
+}
+
+const CATEGORIES: Category[] = (page.props.categories || []) as Category[];
+
+// const prevStep = () => {
+//     currentStep.value--;
+//     saveProgress();
+// };
+
+const restoreFormData = (savedData: Record<string, any>) => {
+    Object.keys(savedData).forEach((key) => {
+        if (key in form) {
+            (form as any)[key] = savedData[key];
+        }
+    });
+
+    // Restore image previews
+    imagePreviews.value = [...(savedData.product_images || [])];
+};
+
+const prevStep = async () => {
+    if (currentStep.value <= 1) return; // prevent going below step 1
+
     currentStep.value--;
-    saveProgress();
+
+    try {
+        // Fetch saved progress from server/session
+        const response = await axios.get('/sell/get-progress');
+        const savedData = response.data || {};
+
+        // Restore the form data safely
+        restoreFormData(savedData);
+
+        console.log('Moved back to step', currentStep.value, 'with restored data');
+    } catch (error) {
+        console.error('Failed to restore progress', error);
+    }
 };
 
 const validateStep = (step: number) => {
@@ -135,7 +172,6 @@ const submit = async () => {
         await nextTick();
         await saveProgress();
 
-        // 🚨 Use router.post instead of axios.post
         router.post(
             '/sell/apply',
             {},
@@ -155,6 +191,7 @@ const submit = async () => {
         console.error('Failed to submit application', error);
     }
 };
+
 // Image upload logic
 const imageInput = ref<HTMLInputElement | null>(null);
 const isDragging = ref(false);
@@ -240,22 +277,21 @@ const IDENTIFICATION_TYPES = [
     { id: 'passport', label: 'Passport' },
 ];
 
-const DEFAULT_CATEGORIES = [
-    'Electronics',
-    'Apparel',
-    'Home & Garden',
-    'Beauty',
-    'Sports',
-    'Toys',
-    'Books',
-    'Automotive',
-    'Health & Wellness',
-    'Office Supplies',
-    'Groceries',
-    'Pet Supplies',
-    'Gaming',
-    'Baby & Kids',
-];
+//     'Electronics',
+//     'Apparel',
+//     'Home & Garden',
+//     'Beauty',
+//     'Sports',
+//     'Toys',
+//     'Books',
+//     'Automotive',
+//     'Health & Wellness',
+//     'Office Supplies',
+//     'Groceries',
+//     'Pet Supplies',
+//     'Gaming',
+//     'Baby & Kids',
+// ];
 
 const REVENUE_OPTIONS = [
     'Less than KSh 20,000',
@@ -331,7 +367,7 @@ const resetApplication = async () => {
                     </div>
                 </div>
 
-                <form @submit.prevent="submit" class="rounded-xl border border-gray-100 bg-white p-8 shadow-sm">
+                <form @submit.prevent="submit" novalidate class="rounded-xl border border-gray-100 bg-white p-8 shadow-sm">
                     <!-- Step 1: Business Type -->
                     <div v-show="currentStep === 1" class="space-y-6">
                         <div class="space-y-4">
@@ -857,8 +893,8 @@ const resetApplication = async () => {
                                     :required="currentStep === 4"
                                 >
                                     <option value="" disabled selected>Please select</option>
-                                    <option v-for="category in DEFAULT_CATEGORIES" :key="category" :value="category">
-                                        {{ category }}
+                                    <option v-for="category in CATEGORIES" :key="category.id" :value="category.name">
+                                        {{ category.name }}
                                     </option>
                                 </select>
                             </div>
@@ -1023,6 +1059,7 @@ const resetApplication = async () => {
                                 <input
                                     id="product_website"
                                     v-model="form.product_website"
+                                    name="product_website"
                                     type="url"
                                     placeholder="https://yourbrand.co.ke"
                                     class="w-full rounded-lg border border-gray-300 px-4 py-1 transition focus:ring-2 focus:ring-primary focus:outline-none"
@@ -1050,7 +1087,7 @@ const resetApplication = async () => {
                         <!-- Product Preview Upload -->
                         <div>
                             <label for="product_images" class="mb-2 block text-sm font-medium text-gray-700">
-                                Upload a preview of your product range you wish to market on Takealot
+                                Upload a preview of your product range you wish to market on Buyalot
                             </label>
                             <p class="mb-3 text-sm text-gray-500">
                                 If no website URL is provided, kindly upload images of your physical products or stock.
@@ -1106,7 +1143,7 @@ const resetApplication = async () => {
 
                             <ul class="mb-2 list-inside list-disc space-y-1 text-sm text-gray-500">
                                 <li>What makes your business or products unique?</li>
-                                <li>What products did you have in mind to market on the Takealot platform?</li>
+                                <li>What products did you have in mind to market on the Buyalot platform?</li>
                                 <li>Do you have any feature requirements?</li>
                                 <li>Does your business or products have any certifications? (e.g. ISO, Proudly SA, ICASA, NRCS)</li>
                             </ul>
@@ -1129,7 +1166,7 @@ const resetApplication = async () => {
                             <h2 class="border-b border-gray-100 pb-2 text-xl font-semibold text-gray-800">How did you find us</h2>
 
                             <label for="discovery_source" class="mb-2 block text-sm font-medium text-gray-700">
-                                Where did you hear about Takealot Marketplace?
+                                Where did you hear about Buyalot Marketplace?
                             </label>
 
                             <div class="grid grid-cols-1 gap-3">
@@ -1171,8 +1208,8 @@ const resetApplication = async () => {
                                 Opt in to share your contact details, product range and website with South African distributors who are sellers on
                                 buyalot.com.
                                 <br />
-                                For international sellers who cannot sell directly on buyalotltd.com, allow us to share your contact information with our
-                                sellers who may purchase and list your product range.
+                                For international sellers who cannot sell directly on buyalotltd.com, allow us to share your contact information with
+                                our sellers who may purchase and list your product range.
                             </p>
 
                             <div class="flex gap-6">
