@@ -3,17 +3,20 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\RefreshCategoryCache;
 use App\Models\Category;
 use App\Models\VariantCategory;
+use App\Services\SearchCacheService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 
 class CategoryController extends Controller
 {
-    
-    
+
+
     public function index(Request $request)
 {
     // Select only top-level categories
@@ -84,6 +87,8 @@ class CategoryController extends Controller
             $category->variantCategories()->sync($request->variant_categories);
         }
 
+        RefreshCategoryCache::dispatch($category)->delay(now()->addSeconds(5));
+
         return redirect()->route('admin.categories.index')
             ->with('success', 'Category created successfully.');
     }
@@ -139,11 +144,13 @@ class CategoryController extends Controller
 
         $category->variantCategories()->sync($request->variant_categories ?? []);
 
+        RefreshCategoryCache::dispatch($category)->delay(now()->addSeconds(5));
+
         return redirect()->route('admin.categories.index')
             ->with('success', 'Category updated successfully.');
     }
 
-   
+
     public function show(Category $category)
 {
     // Load children and parent
@@ -185,6 +192,24 @@ class CategoryController extends Controller
             // Permanently delete
             $category->forceDelete();
         });
+
+        // Remove category and related products/variants from cache
+        $cache = SearchCacheService::get();
+        $categoryId = $category->id;
+
+        // Remove category from cache
+        $cache['categories'] = array_filter($cache['categories'] ?? [], fn($c) => $c['id'] !== $categoryId);
+
+        // Remove all products under this category
+        $cache['products'] = array_filter($cache['products'] ?? [], fn($p) => $p['category_id'] !== $categoryId);
+
+        // Remove variants of deleted products
+        $cache['variants'] = array_filter($cache['variants'] ?? [], function ($v) use ($cache) {
+            $productIds = array_column($cache['products'] ?? [], 'id');
+            return !in_array($v['product_id'], $productIds);
+        });
+
+        Cache::put(SearchCacheService::CACHE_KEY, $cache, now()->addMonths(6));
 
         return redirect()->route('admin.categories.index')
             ->with('success', 'Category deleted successfully.');
