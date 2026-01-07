@@ -4,20 +4,17 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
-use App\Models\Customer\Customer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use App\Services\WishlistService;
 
 class AuthenticatedSessionController extends Controller
 {
-   
+
 
     public function create(Request $request): Response
     {
@@ -27,33 +24,17 @@ class AuthenticatedSessionController extends Controller
         ]);
     }
 
+    public function createVendorLogin(Request $request): Response
+    {
+        return Inertia::render('auth/SellerLogin', [
+            'canResetPassword' => Route::has('password.request'),
+            'status' => $request->session()->get('status'),
+        ]);
+    }
+
     /**
      * Handle an incoming authentication request.
      */
-
-     public function store1(LoginRequest $request): RedirectResponse
-{
-    $request->authenticate();
-
-    $request->session()->regenerate();
-
-    $user = $request->user();
-    if ($user->user_type == 'user' || $user->user_type == 'seller' || $user->user_type == 'vendor') {
-//    if ($user->hasAnyRole(['admin', 'superadmin', 'seller'])) {
-        return redirect()->intended(route('admin.dashboard'))
-            ->with('success', 'Welcome back, ' . $user->name . '!');
-    }
-    if ($user->user_type == 'customer') {
-        $customer = Customer::where('user_id', $user->id)->first();
-        if ($customer) {
-            session(['customer_id' => $customer->id]);
-        }
-    }
-    return redirect()->intended(route('home'))
-        ->with('success', 'Welcome back, ' . $user->name . '!');
-}
-
-  
 
 public function store(
     LoginRequest $request,
@@ -87,15 +68,15 @@ public function store(
         ]);
     }
 
-   
 
-   
+
+
     if (in_array($user->user_type, ['user', 'vendor', 'seller'])) {
         return redirect()->intended(route('admin.dashboard'))
             ->with('success', 'Welcome back, ' . $user->name . '!');
     }
 
-    
+
     if ($user->user_type === 'customer') {
         $customer = \App\Models\Customer\Customer::where('user_id', $user->id)->first();
 
@@ -113,7 +94,7 @@ public function store(
         )->with('success', 'Welcome back, ' . $user->name . '!');
     }
 
-    
+
     return redirect()->intended(route('home'))
         ->with('success', 'Welcome back, ' . $user->name . '!');
 }
@@ -127,6 +108,32 @@ public function store(
         $request->session()->regenerateToken();
 
         return redirect('/');
+    }
+
+    public function vendorStore(LoginRequest $request): RedirectResponse {
+
+        // Attempt authentication
+        $request->authenticate();
+
+        if (!Auth::check()) {
+            logger('Authentication failed');
+            return back()->withErrors([
+                'email' => 'These credentials do not match our records.',
+            ]);
+        }
+
+        // Regenerate session to prevent fixation
+        $request->session()->regenerate();
+        $user = Auth::user();
+
+        if (in_array($user->user_type, ['vendor', 'seller'])) {
+            return redirect()->intended(route('admin.dashboard'))
+                ->with('success', 'Welcome back, ' . $user->name . '!');
+        }else{
+            Auth::logout();
+            $request->session()->invalidate();
+            return redirect()->back()->withErrors(["password"=>"You don't have permission to access this page. Please create an account or contact admin for assistance"]);
+        }
     }
 
 }

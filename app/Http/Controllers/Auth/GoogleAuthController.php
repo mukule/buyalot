@@ -48,7 +48,7 @@ class GoogleAuthController extends Controller
                 ->orWhere('email', $googleUser->email)
                 ->first();
             if (!$auth_user->status){
-                return redirect()->back()->withErrors("account is active, please contact admin for help");
+                return redirect()->back()->withErrors("account is inactive, please contact admin for help");
             }
 
             if ($auth_user) {

@@ -66,6 +66,7 @@ class HandleInertiaRequests extends Middleware
             'app' => [
                 'name' => config('app.name'),
                 'url'  => config('app.url'),
+                'appName' => config('app.name'),
             ],
 
             'quote' => [
@@ -92,6 +93,8 @@ class HandleInertiaRequests extends Middleware
                     'quantity'           => $item->quantity,
                 ]),
             ],
+
+            'appName' => config('app.name'),
 
             // 🔑 Full cart shared globally
             'cart' => $cart,
