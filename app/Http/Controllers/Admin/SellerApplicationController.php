@@ -23,47 +23,51 @@ use Illuminate\Support\Facades\Log;
 
 class SellerApplicationController extends Controller
 {
+   
     public function index(Request $request)
-    {
-        $search = $request->input('search');
+{
+    $search = $request->input('search');
 
-        $applicationsQuery = SellerApplication::query();
+    $applicationsQuery = SellerApplication::query();
 
-        if ($search) {
-            $applicationsQuery->where(function($query) use ($search) {
-                $query->where('business_name', 'like', "%{$search}%")
-                    ->orWhere('contact_email', 'like', "%{$search}%")
-                    ->orWhere('contact_phone', 'like', "%{$search}%")
-                    ->orWhere('company_legal_name', 'like', "%{$search}%");
-            });
-        }
-
-        $applications = $applicationsQuery
-            ->latest()
-            ->paginate(20)
-            ->through(function ($application) {
-                return [
-                    'id' => $application->id,
-                    'hashid' => Hashids::encode($application->id),
-                    'first_name' => $application->first_name,
-                    'last_name' => $application->last_name,
-                    'business_name' => $application->business_name,
-                    'company_legal_name' => $application->company_legal_name,
-                    'business_type' => $application->business_type,
-                    'primary_product_category' => $application->primary_product_category,
-                    'email' => $application->contact_email,
-                    'phone' => $application->contact_phone,
-                    'status' => $application->status,
-                    'is_active' => (int) $application->status === (int) SellerApplication::STATUS_APPROVED,
-                    'created_at' => optional($application->created_at)->toDateString(),
-                ];
-            });
-
-        return Inertia::render('Admin/SellerApplications/Index', [
-            'applications' => $applications,
-            'filters' => $request->only('search'),
-        ]);
+    if ($search) {
+        $applicationsQuery->where(function ($query) use ($search) {
+            $query->where('company_legal_name', 'like', "%{$search}%")
+                  ->orWhere('contact_email', 'like', "%{$search}%")
+                  ->orWhere('contact_phone', 'like', "%{$search}%")
+                  ->orWhere('owner_first_name', 'like', "%{$search}%")
+                  ->orWhere('owner_last_name', 'like', "%{$search}%")
+                  ->orWhere('primary_product_category', 'like', "%{$search}%")
+                  ->orWhere('business_type', 'like', "%{$search}%");
+        });
     }
+
+    $applications = $applicationsQuery
+        ->latest()
+        ->paginate(20)
+        ->through(function ($application) {
+            return [
+                'id' => $application->id,
+                'hashid' => Hashids::encode($application->id),
+                'owner_first_name' => $application->owner_first_name,
+                'owner_last_name' => $application->owner_last_name,
+                'company_legal_name' => $application->company_legal_name,
+                'business_type' => $application->business_type,
+                'primary_product_category' => $application->primary_product_category,
+                'email' => $application->contact_email,
+                'phone' => $application->contact_phone,
+                'status' => $application->status,
+                'is_active' => (int) $application->status === SellerApplication::STATUS_APPROVED,
+                'created_at' => optional($application->created_at)->toDateString(),
+            ];
+        });
+
+    return Inertia::render('Admin/SellerApplications/Index', [
+        'applications' => $applications,
+        'filters' => $request->only('search'),
+    ]);
+}
+
 
     public function show(SellerApplication $sellerApplication)
     {

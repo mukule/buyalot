@@ -10,12 +10,13 @@ use Illuminate\Support\Facades\Log;
 use App\Models\SellerApplicationImage;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\SellerApplicationReceived;
+use App\Models\Category;
 use App\Mail\NewSellerApplicationAdminAlert;
 
 
 class SellController extends Controller
 {
-    // Landing Page
+    
     public function index()
     {
         return Inertia::render('Sell/Index', [
@@ -23,15 +24,22 @@ class SellController extends Controller
         ]);
     }
 
-    // Show Application Form
-    public function applyForm()
-    {
-        return Inertia::render('Sell/Apply', [
-            'title' => 'Buyalot Marketplace Application Form',
-            'prefilled' => session('seller_application', []),
-            'savedStep' => session('seller_application_step', 1),
-        ]);
-    }
+    
+public function applyForm()
+{
+    $categories = Category::whereNull('parent_id') 
+        ->active() 
+        ->orderBy('name')
+        ->get(['id', 'name']); 
+
+    return Inertia::render('Sell/Apply', [
+        'title' => 'Buyalot Marketplace Application Form',
+        'prefilled' => session('seller_application', []),
+        'savedStep' => session('seller_application_step', 1),
+        'categories' => $categories, 
+    ]);
+}
+
 
     
 public function saveProgress(Request $request)
@@ -76,7 +84,6 @@ public function clearProgress(Request $request)
 
    
    
-
 public function submit(Request $request)
 {
     Log::info('SellController@submit called');
@@ -86,6 +93,7 @@ public function submit(Request $request)
 
     if (empty($sessionData)) {
         Log::warning('Submit failed: Session data is empty');
+
         return redirect()->back()->withErrors([
             'message' => 'Your session has expired or is empty. Please restart your application.',
         ]);
@@ -99,61 +107,88 @@ public function submit(Request $request)
             'last_name' => 'required|string',
             'contact_email' => 'required|email',
             'contact_phone' => 'required|string',
+
             'identification_type' => 'nullable|string',
             'id_number' => 'nullable|string',
             'passport_number' => 'nullable|string',
+
             'product_categories' => 'nullable|array',
             'product_categories.*' => 'string',
+
             'primary_product_category' => 'nullable|string',
             'description' => 'nullable|string',
+
             'owner_first_name' => 'nullable|string',
             'owner_last_name' => 'nullable|string',
             'owner_email' => 'nullable|email',
             'owner_phone' => 'nullable|string',
+
             'vat_registered' => 'nullable|string',
             'vat_number' => 'nullable|string',
+
             'company_legal_name' => 'nullable|string',
             'ke_business_reg_number' => 'nullable|string',
             'non_ke_business_reg_number' => 'nullable|string',
             'ke_id_number' => 'nullable|string',
             'passport_number_sp' => 'nullable|string',
+
             'country' => 'nullable|string',
             'nationality' => 'nullable|string',
+
             'monthly_revenue' => 'nullable|string',
             'owns_physical_store' => 'nullable|string',
             'retail_store_count' => 'nullable|numeric',
+
             'is_supplier_to_retailers' => 'nullable|string',
+            'supplier_retail_count' => 'nullable|numeric',
+
             'operates_other_marketplaces' => 'nullable|string',
             'marketplace_details' => 'nullable|string',
-            'supplier_retail_count' => 'nullable|numeric',
+
             'product_count' => 'nullable|numeric',
             'stock_handling' => 'nullable|string',
+
             'product_website' => 'nullable|string',
             'product_origin' => 'nullable|string',
+
             'owned_brands' => 'nullable|string',
             'licensed_brands' => 'nullable|string',
             'product_branding' => 'nullable|string',
+
             'social_media' => 'nullable|string',
-            'business_summary' => 'nullable|string',
+
             'product_images' => 'nullable|array',
             'product_images.*' => 'string',
+
             'discovery_source' => 'nullable|string',
             'referrer_email' => 'nullable|email',
             'share_with_distributors' => 'nullable|string',
         ])->validate();
 
+        // Normalize numeric fields
         foreach (['retail_store_count', 'supplier_retail_count', 'product_count'] as $field) {
             if (isset($validated[$field]) && is_numeric($validated[$field])) {
                 $validated[$field] = (int) $validated[$field];
             }
         }
 
+        // Create main application (exclude images)
         $application = SellerApplication::create(
             collect($validated)->except('product_images')->toArray()
         );
 
+        // ✅ FIXED IMAGE HANDLING
         $productImages = collect($validated['product_images'] ?? [])
-            ->filter(fn($path) => str_starts_with($path, '/storage/seller_images/'));
+            ->map(function ($path) {
+                // Convert full URL → relative storage path
+                if (str_contains($path, '/storage/')) {
+                    return parse_url($path, PHP_URL_PATH);
+                }
+                return $path;
+            })
+            ->filter(fn ($path) =>
+                str_starts_with($path, '/storage/seller_images/')
+            );
 
         foreach ($productImages as $path) {
             SellerApplicationImage::create([
@@ -163,12 +198,11 @@ public function submit(Request $request)
             ]);
         }
 
-            try {
-            
+        // Send emails (non-blocking)
+        try {
             Mail::to($application->contact_email)
                 ->send(new SellerApplicationReceived($application));
 
-           
             $adminEmails = explode(',', config('mail.admin_address'));
             Mail::to($adminEmails)
                 ->send(new NewSellerApplicationAdminAlert($application));
@@ -176,23 +210,36 @@ public function submit(Request $request)
             Log::info("Emails sent for application ID {$application->id}");
         } catch (\Throwable $e) {
             Log::error("Email sending failed for application ID {$application->id}", [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
-            
         }
 
-
-        return redirect()->route('sell.index')->with('success', 'Your application was submitted successfully!');
+        return redirect()
+            ->route('sell.index')
+            ->with('success', 'Your application was submitted successfully and is Under Review');
     } catch (\Illuminate\Validation\ValidationException $e) {
         Log::error('Validation failed', $e->errors());
+
         return redirect()->back()->withErrors($e->errors());
     } catch (\Throwable $e) {
-        Log::error('Application submission failed', ['message' => $e->getMessage()]);
+        Log::error('Application submission failed', [
+            'message' => $e->getMessage(),
+        ]);
+
         return redirect()->back()->withErrors([
             'message' => 'An unexpected error occurred. Please try again or contact support.',
         ]);
     }
 }
+
+
+public function getProgress()
+{
+    return response()->json(session('seller_application', []));
+}
+
+
+
 
 
 
