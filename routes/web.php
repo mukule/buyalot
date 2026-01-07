@@ -45,6 +45,7 @@ require __DIR__.'/customer.php';
 Route::get('/', [HomeController::class, 'index'])->name('home');
 
 // Product search
+Route::get('/refresh/cache', [\App\Services\SearchCacheService::class, 'refresh'])->name('refresh.cache');
 Route::get('/search', [SearchController::class, 'search'])->name('search');
 
 Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard'])->prefix('admin')->name('admin.')->group(function () {

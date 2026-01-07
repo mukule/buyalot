@@ -3,13 +3,16 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\RefreshProductCache;
 use App\Models\Product;
 use App\Models\Brand;
 use App\Models\Unit;
 use App\Models\VariantCategory;
 use App\Models\Category;
+use App\Services\SearchCacheService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use App\Http\Requests\StoreProductRequest;
@@ -48,11 +51,11 @@ public function index()
                 'hashid' => $product->hashid,
                 'status_id' => $product->status_id ?? null,
                 'status_label' => $product->status_label ?? 'Draft',
-                'category' => $product->category 
+                'category' => $product->category
                     ? [
                         'id' => $product->category->id,
                         'name' => $product->category->name,
-                    ] 
+                    ]
                     : null,
                 'owner' => [
                     'id' => $product->owner?->id,
@@ -295,11 +298,12 @@ public function store(Request $request, ProductService $productService)
             $data,
             $request->user(),
             $images,
-            $product 
+            $product
         );
 
         // If step 4 (images) is completed, redirect to product list
         if ($step === 4) {
+            RefreshProductCache::dispatch($product)->delay(now()->addSeconds(5));
             return redirect()->route('admin.products.index')
                 ->with('success', "Product '{$product->name}' created successfully.");
         }
@@ -346,6 +350,12 @@ public function store(Request $request, ProductService $productService)
     // Delete the product itself
     $product->delete();
 
+// Remove product and its variants from cache
+        $cache = SearchCacheService::get();
+        $productId = $product->id;
+        $cache['products'] = array_filter($cache['products'] ?? [], fn($p) => $p['id'] !== $productId);
+        $cache['variants'] = array_filter($cache['variants'] ?? [], fn($v) => $v['product_id'] !== $productId);
+        Cache::put(SearchCacheService::CACHE_KEY, $cache, now()->addMonths(6));
     return redirect()
         ->route('admin.products.index')
         ->with('success', 'Product and all related data deleted successfully.');
@@ -521,6 +531,11 @@ public function updateStatus(Request $request, Product $product)
         'status_id' => $request->input('status_id'),
     ]);
 
+    //cache when status updated to published
+    $status=ProductStatus::find($request->input('status_id'));
+    if ($status && $status->name =="published") {
+        RefreshProductCache::dispatch($product)->delay(now()->addSeconds(5));
+    }
     return redirect()
         ->back()
         ->with('success', 'Product status updated successfully.');
