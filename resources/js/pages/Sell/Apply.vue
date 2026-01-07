@@ -3,21 +3,62 @@ import MainLayout from '@/layouts/MainLayout.vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import allCountries from 'country-calling-code';
-import { nextTick, ref } from 'vue';
+import { nextTick, onMounted, ref, watch } from 'vue';
+
+import type { Ref } from 'vue';
+
+/* --------------------------------------------------
+   BASIC STATE
+-------------------------------------------------- */
 
 const page = usePage();
+const stepError = ref<string | null>(null);
 
-// Restore current step from session or default to 1
-import type { Ref } from 'vue';
 const currentStep: Ref<number> = ref(Number(page.props.savedStep) || 1);
 const totalSteps = 6;
 
+/* --------------------------------------------------
+   STEP NAVIGATION
+-------------------------------------------------- */
+
 const nextStep = () => {
-    if (validateStep(currentStep.value)) {
-        currentStep.value++;
-        saveProgress();
+    if (!validateStep(currentStep.value)) {
+        stepError.value = 'Please complete all required fields before continuing.';
+        scrollToFirstInvalid();
+        return;
     }
+
+    stepError.value = null;
+    currentStep.value++;
+    saveProgress();
 };
+
+const prevStep = () => {
+    if (currentStep.value <= 1) return;
+    stepError.value = null;
+    currentStep.value--;
+};
+
+watch(currentStep, () => {
+    stepError.value = null;
+});
+
+/* --------------------------------------------------
+   SCROLL TO INVALID
+-------------------------------------------------- */
+
+const scrollToFirstInvalid = () => {
+    nextTick(() => {
+        const el = document.querySelector('input:invalid, select:invalid, textarea:invalid') as HTMLElement | null;
+
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el?.focus();
+    });
+};
+
+/* --------------------------------------------------
+   DATA + FORM
+-------------------------------------------------- */
 
 interface Category {
     id: number;
@@ -26,67 +67,22 @@ interface Category {
 
 const CATEGORIES: Category[] = (page.props.categories || []) as Category[];
 
-// const prevStep = () => {
-//     currentStep.value--;
-//     saveProgress();
-// };
-
-const restoreFormData = (savedData: Record<string, any>) => {
-    Object.keys(savedData).forEach((key) => {
-        if (key in form) {
-            (form as any)[key] = savedData[key];
-        }
-    });
-
-    // Restore image previews
-    imagePreviews.value = [...(savedData.product_images || [])];
-};
-
-const prevStep = async () => {
-    if (currentStep.value <= 1) return; // prevent going below step 1
-
-    currentStep.value--;
-
-    try {
-        // Fetch saved progress from server/session
-        const response = await axios.get('/sell/get-progress');
-        const savedData = response.data || {};
-
-        // Restore the form data safely
-        restoreFormData(savedData);
-
-        console.log('Moved back to step', currentStep.value, 'with restored data');
-    } catch (error) {
-        console.error('Failed to restore progress', error);
-    }
-};
-
-const validateStep = (step: number) => {
-    // TODO: Add real validation per step
-    return true;
-};
-
-// Preload saved session data
-const prefilled: any = page.props.prefilled || {};
+const prefilled: Record<string, any> = page.props.prefilled || {};
 
 const form = useForm({
     business_type: '',
     agreed_to_privacy: false,
 
-    // Contact Info
     first_name: '',
     last_name: '',
     contact_email: '',
     contact_phone: '',
 
-    // Identification
     identification_type: '',
     id_number: '',
     passport_number: '',
 
-    // Business Info
     business_name: '',
-
     primary_product_category: '',
     description: '',
 
@@ -107,12 +103,13 @@ const form = useForm({
     monthly_revenue: '',
 
     owns_physical_store: '',
-    retail_store_count: 0, // number, not string
+    retail_store_count: 0,
     is_supplier_to_retailers: '',
     operates_other_marketplaces: '',
     marketplace_details: '',
-    supplier_retail_count: 0, // number, not string
-    product_count: 1, // default minimum number
+    supplier_retail_count: 0,
+
+    product_count: 1,
     stock_handling: '',
     product_website: '',
     product_origin: '',
@@ -129,134 +126,158 @@ const form = useForm({
     share_with_distributors: '',
 });
 
-// Apply prefilled data from session
-form.defaults(prefilled);
+/* --------------------------------------------------
+   RESTORE PREFILLED DATA (ONCE)
+-------------------------------------------------- */
 
-// Image previews for UI, initialize with prefilled product_images URLs if available
 const imagePreviews = ref<string[]>([]);
-if (prefilled.product_images && Array.isArray(prefilled.product_images)) {
-    imagePreviews.value = [...prefilled.product_images];
-}
+
+const restoreFormData = (savedData: Record<string, any>) => {
+    Object.keys(savedData).forEach((key) => {
+        if (key in form) {
+            (form as any)[key] = savedData[key];
+        }
+    });
+
+    if (Array.isArray(savedData.product_images)) {
+        imagePreviews.value = [...savedData.product_images];
+    }
+};
+
+onMounted(() => {
+    if (Object.keys(prefilled).length > 0) {
+        restoreFormData(prefilled);
+    }
+});
+
+/* --------------------------------------------------
+   STEP VALIDATION
+-------------------------------------------------- */
+
+const validateStep = (step: number): boolean => {
+    switch (step) {
+        case 1:
+            return !!form.business_type && !!form.first_name && !!form.last_name && !!form.contact_email && !!form.contact_phone;
+
+        case 2:
+            if (!form.identification_type) return false;
+
+            return form.identification_type === 'id_number'
+                ? !!form.id_number &&
+                      !!form.owner_first_name &&
+                      !!form.owner_last_name &&
+                      !!form.owner_email &&
+                      !!form.owner_phone &&
+                      !!form.nationality
+                : !!form.passport_number &&
+                      !!form.owner_first_name &&
+                      !!form.owner_last_name &&
+                      !!form.owner_email &&
+                      !!form.owner_phone &&
+                      !!form.nationality;
+
+        case 3:
+            return !!form.monthly_revenue && !!form.owns_physical_store && !!form.is_supplier_to_retailers;
+
+        case 4:
+            return (
+                form.product_count > 0 && !!form.primary_product_category && !!form.stock_handling && !!form.product_origin && !!form.product_branding
+            );
+
+        case 5:
+            return form.product_images.length > 0 || !!form.product_website;
+
+        case 6:
+            return !!form.discovery_source && !!form.share_with_distributors && form.agreed_to_privacy === true;
+
+        default:
+            return true;
+    }
+};
+
+/* --------------------------------------------------
+   SAVE PROGRESS
+-------------------------------------------------- */
 
 const saveProgress = async () => {
     const rawData = form.data();
 
-    // Filter out null/undefined
     const filteredData = Object.fromEntries(Object.entries(rawData).filter(([_, v]) => v !== null && v !== undefined));
 
-    // Ensure numeric fields are stored as numbers
     ['retail_store_count', 'product_count', 'supplier_retail_count'].forEach((field) => {
         if (filteredData[field] !== undefined && filteredData[field] !== '') {
             filteredData[field] = String(Number(filteredData[field]));
         }
     });
 
-    console.log('Saving form data:', filteredData, 'Current Step:', currentStep.value);
-
     try {
         await axios.post('/sell/save-progress', {
             ...filteredData,
             current_step: currentStep.value,
         });
-        console.log('Progress + step saved');
     } catch (error) {
         console.error('Failed to save progress', error);
     }
 };
 
+/* --------------------------------------------------
+   SUBMIT
+-------------------------------------------------- */
+
 const submit = async () => {
-    try {
-        console.log('Submitting final application...');
+    currentStep.value = totalSteps;
+    await nextTick();
+    await saveProgress();
 
-        currentStep.value = totalSteps;
-        await nextTick();
-        await saveProgress();
-
-        router.post(
-            '/sell/apply',
-            {},
-            {
-                onSuccess: () => {
-                    form.reset();
-                    imagePreviews.value = [];
-                    currentStep.value = 1;
-                    console.log('Application submitted successfully');
-                },
-                onError: (errors) => {
-                    console.error('Submission failed with validation errors', errors);
-                },
+    router.post(
+        '/sell/apply',
+        {},
+        {
+            onSuccess: () => {
+                form.reset();
+                imagePreviews.value = [];
+                currentStep.value = 1;
             },
-        );
-    } catch (error) {
-        console.error('Failed to submit application', error);
-    }
+        },
+    );
 };
 
-// Image upload logic
+/* --------------------------------------------------
+   IMAGE UPLOAD
+-------------------------------------------------- */
+
 const imageInput = ref<HTMLInputElement | null>(null);
 const isDragging = ref(false);
+
+const uploadImage = async (file: File) => {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const response = await axios.post('/sell/upload-image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
+
+    form.product_images.push(response.data.path);
+
+    const reader = new FileReader();
+    reader.onload = (e) => imagePreviews.value.push(e.target?.result as string);
+    reader.readAsDataURL(file);
+
+    await saveProgress();
+};
 
 const handleFileChange = async (e: Event) => {
     const files = (e.target as HTMLInputElement).files;
     if (!files) return;
-
-    for (const file of Array.from(files)) {
-        // Upload file immediately
-        const formData = new FormData();
-        formData.append('image', file);
-
-        try {
-            const response = await axios.post('/sell/upload-image', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            });
-
-            // Push the returned image URL string (not File object)
-            form.product_images.push(response.data.path);
-
-            // Show preview from FileReader (optional, can also use URL directly)
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                imagePreviews.value.push(e.target?.result as string);
-            };
-            reader.readAsDataURL(file);
-
-            // Save progress including newly added image URLs
-            await saveProgress();
-        } catch (error) {
-            console.error('Image upload failed', error);
-        }
-    }
+    for (const file of Array.from(files)) await uploadImage(file);
 };
 
 const handleDrop = async (e: DragEvent) => {
     e.preventDefault();
     isDragging.value = false;
-    const files = e.dataTransfer?.files;
-    if (!files) return;
-
-    for (const file of Array.from(files)) {
-        if (!file.type.startsWith('image/')) continue;
-
-        const formData = new FormData();
-        formData.append('image', file);
-
-        try {
-            const response = await axios.post('/sell/upload-image', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            });
-
-            form.product_images.push(response.data.path);
-
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                imagePreviews.value.push(e.target?.result as string);
-            };
-            reader.readAsDataURL(file);
-
-            await saveProgress();
-        } catch (error) {
-            console.error('Image upload failed', error);
-        }
+    if (!e.dataTransfer?.files) return;
+    for (const file of Array.from(e.dataTransfer.files)) {
+        if (file.type.startsWith('image/')) await uploadImage(file);
     }
 };
 
@@ -265,7 +286,10 @@ const removeImage = (index: number) => {
     form.product_images.splice(index, 1);
 };
 
-// Constants for form options, categories, etc.
+/* --------------------------------------------------
+   CONSTANTS
+-------------------------------------------------- */
+
 const BUSINESS_TYPES = [
     { id: 'individual', label: 'An individual (Sole Proprietor)' },
     { id: 'business', label: 'A registered business' },
@@ -276,22 +300,6 @@ const IDENTIFICATION_TYPES = [
     { id: 'id_number', label: 'National ID Number' },
     { id: 'passport', label: 'Passport' },
 ];
-
-//     'Electronics',
-//     'Apparel',
-//     'Home & Garden',
-//     'Beauty',
-//     'Sports',
-//     'Toys',
-//     'Books',
-//     'Automotive',
-//     'Health & Wellness',
-//     'Office Supplies',
-//     'Groceries',
-//     'Pet Supplies',
-//     'Gaming',
-//     'Baby & Kids',
-// ];
 
 const REVENUE_OPTIONS = [
     'Less than KSh 20,000',
@@ -316,17 +324,15 @@ const steps = [
     { title: 'Final Details' },
 ];
 
-// Reset application data
+/* --------------------------------------------------
+   RESET
+-------------------------------------------------- */
+
 const resetApplication = async () => {
-    try {
-        await axios.post('/sell/clear-progress');
-        form.reset();
-        imagePreviews.value = [];
-        currentStep.value = 1;
-        console.log('Application reset successfully');
-    } catch (error) {
-        console.error('Failed to reset application', error);
-    }
+    await axios.post('/sell/clear-progress');
+    form.reset();
+    imagePreviews.value = [];
+    currentStep.value = 1;
 };
 </script>
 
@@ -371,6 +377,10 @@ const resetApplication = async () => {
                     <!-- Step 1: Business Type -->
                     <div v-show="currentStep === 1" class="space-y-6">
                         <div class="space-y-4">
+                            <p v-if="stepError" class="mb-4 text-center text-sm text-red-600">
+                                {{ stepError }}
+                            </p>
+
                             <h2 class="text-center text-xl font-semibold">What type of business are you?</h2>
                             <p class="mb-4 text-gray-600">I am applying as:</p>
 
