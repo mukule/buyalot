@@ -243,7 +243,7 @@ public function category(string $slug)
         $user = $request->user();
         $sellerIds = null;
         $orderBase = Order::query();
-        if ($user && $user->hasRole('seller')) {
+        if ($user && $user->hasRole(['seller','vendor'])) {
             $sellerTable = (new \App\Models\Seller\Seller())->getTable();
             $sellerIds = $user->sellers()->pluck($sellerTable . '.id');
             $orderBase->forSeller($sellerIds);

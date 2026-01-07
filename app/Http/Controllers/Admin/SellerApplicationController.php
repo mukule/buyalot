@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
+use phpDocumentor\Reflection\Types\Boolean;
 use Vinkla\Hashids\Facades\Hashids;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
@@ -23,7 +24,7 @@ use Illuminate\Support\Facades\Log;
 
 class SellerApplicationController extends Controller
 {
-   
+
     public function index(Request $request)
 {
     $search = $request->input('search');
@@ -87,24 +88,28 @@ class SellerApplicationController extends Controller
 
     public function approve(SellerApplication $sellerApplication)
 {
-    if (User::where('email', $sellerApplication->contact_email)->exists()) {
-        return redirect()->back()->with('error', 'A user with this email already exists.');
-    }
-
     DB::beginTransaction();
+        $had_account=false;
+         $password = Str::random(8);
+     try {
+         if (User::where('email', $sellerApplication->contact_email)->exists()) {
+             //update secondary email
+             $user = User::where('email', $sellerApplication->contact_email)->first();
 
-    try {
-        $password = Str::random(8);
-
-        $user = User::create([
-            'name' => $sellerApplication->first_name . ' ' . $sellerApplication->last_name,
-            'email' => $sellerApplication->contact_email,
-            'password' => bcrypt($password),
-            'seller_application_id' => $sellerApplication->id,
-            'phone' => $sellerApplication->contact_phone,
-            'email_verified_at' => now(),
-            'user_type' => 'seller'
-        ]);
+             // 2. Call update on that specific instance
+             $user->update(["secondary_role" => "seller"]);
+             $had_account=true;
+         }else{
+             $user = User::create([
+                 'name' => $sellerApplication->first_name . ' ' . $sellerApplication->last_name,
+                 'email' => $sellerApplication->contact_email,
+                 'password' => bcrypt($password),
+                 'seller_application_id' => $sellerApplication->id,
+                 'phone' => $sellerApplication->contact_phone,
+                 'email_verified_at' => now(),
+                 'user_type' => 'seller'
+             ]);
+         }
 
         $user->assignRole('seller');
         SellerUser::create([
@@ -120,12 +125,15 @@ class SellerApplicationController extends Controller
 
         $loginUrl = route('login');
 
-        try {
-            Mail::to($user->email)->send(new SellerApprovedMail($user, $password, $loginUrl));
-        } catch (\Exception $e) {
-            Log::error('Mail sending failed: ' . $e->getMessage());
-            throw $e;
+        if (!$had_account) {
+            $password = "User the initial account password";
         }
+            try {
+                Mail::to($user->email)->send(new SellerApprovedMail($user, $password, $loginUrl));
+            } catch (\Exception $e) {
+                Log::error('Mail sending failed: ' . $e->getMessage());
+                throw $e;
+            }
 
         DB::commit();
 

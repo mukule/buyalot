@@ -26,6 +26,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Payments\MpesaPaymentController;
 use App\Http\Controllers\Payments\MpesaRequestController;
 use App\Http\Controllers\Payments\PaymentController;
+use App\Http\Controllers\RoleSwitchController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SellController;
 use App\Http\Controllers\SellerAccountController;
@@ -48,11 +49,10 @@ Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/refresh/cache', [\App\Services\SearchCacheService::class, 'refresh'])->name('refresh.cache');
 Route::get('/search', [SearchController::class, 'search'])->name('search');
 
-Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth','role:admin|seller|vendor|super-admin','check_permission:view-dashboard'])->prefix('admin')->name('admin.')->group(function () {
 
     // Invoices management (Admin)
-    Route::get('/invoices', [\App\Http\Controllers\Admin\InvoiceController::class, 'index'])
-        ->name('invoices.index')
+    Route::get('/invoices', [\App\Http\Controllers\Admin\InvoiceController::class, 'index'])->name('invoices.index')
         ->middleware('check_permission:view-invoices');
     Route::get('/dashboard',[HomeController::class,'dashboard'])->name('dashboard');
 //        function () {
@@ -131,9 +131,7 @@ Route::middleware(['auth','role_or_permission:admin|view-orders'])->prefix('admi
         ->name('orders.show');
 });
 
-Route::middleware(['auth', 'role_or_permission:admin|view-categories'])
-    ->prefix('admin')
-    ->name('admin.')
+Route::middleware(['auth', 'role_or_permission:admin|super-admin|view-categories'])->prefix('admin')->name('admin.')
     ->group(function () {
 
         Route::get('/categories', [\App\Http\Controllers\Admin\CategoryController::class, 'index'])->name('categories.index');
@@ -149,7 +147,7 @@ Route::middleware(['auth', 'role_or_permission:admin|view-categories'])
     });
 
 
-Route::middleware(['auth','role_or_permission:admin|view-brands'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth','role_or_permission:admin|super-admin|view-brands'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/brands', [\App\Http\Controllers\Admin\BrandController::class, 'index'])->name('brands.index');
 });
 
@@ -339,6 +337,9 @@ Route::post('/coupons/validate', [CouponController::class, 'validateCode'])
 Route::get('{slug}', [HomeController::class, 'category'])
     ->name('category.show');
 
+Route::middleware(['auth'])->group(function () {
+    Route::post('/switch-role', [RoleSwitchController::class, 'switchRole'])->name('role.switch');
+});
 
 Route::prefix('payments')->name('payments.')->group(function () {
     Route::get('providers', [PaymentController::class, 'providers'])->name('providers');

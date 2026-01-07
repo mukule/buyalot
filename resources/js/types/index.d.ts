@@ -25,6 +25,7 @@ export interface Auth {
     permissions: string[];
     customer: Customer | null;
     customerOrders: MyOrders | null;
+    active
 }
 
 export interface BreadcrumbItem {
@@ -85,6 +86,7 @@ export interface User {
     email_verified_at: string | null;
     created_at: string;
     updated_at: string;
+    secondary_role: string | null;
 }
 
 export interface UserDetails {

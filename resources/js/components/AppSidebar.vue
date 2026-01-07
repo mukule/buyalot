@@ -145,6 +145,7 @@ const allNavItems: NavItem[] = [
                 title: 'Product Statuses',
                 href: '/admin/product-statuses',
                 icon: Workflow,
+                permissions: ['view-product-statuses'],
             },
             {
                 title: 'Promotion Types',
