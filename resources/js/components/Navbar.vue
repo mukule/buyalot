@@ -51,7 +51,7 @@ const mobileCategories = computed(() => categories.value.slice(0, 10));
 const topLinks = [
     { name: 'Help Center', href: '/help' },
     { name: 'Sell on Buyalot', href: '/sell' },
-    { name: 'Vendor Portal', href: '/vendor/login' },
+    { name: 'Vendor Login', href: '/vendor/login' },
 ];
 
 // Routes and auth
