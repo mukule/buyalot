@@ -16,22 +16,22 @@ use Inertia\Response;
 
 class RegisteredUserController extends Controller
 {
-    
-    
+
+
     public function create(): Response
     {
         return Inertia::render('auth/Register');
     }
 
-  
+
 
     public function store(Request $request): RedirectResponse
     {
-        
+
         if ($request->has('email')) {
             $request->merge(['email' => strtolower((string) $request->input('email'))]);
         }
-        
+
 
         $normalizeName = function ($s) {
             $s = trim((string) $s);
@@ -41,6 +41,7 @@ class RegisteredUserController extends Controller
             $rest = mb_substr($lower, 1, null, 'UTF-8');
             return $first . $rest;
         };
+
         if ($request->has('first_name')) {
             $request->merge(['first_name' => $normalizeName($request->input('first_name'))]);
         }
@@ -48,13 +49,14 @@ class RegisteredUserController extends Controller
             $request->merge(['last_name' => $normalizeName($request->input('last_name'))]);
         }
 
-        
+
+
         $validated = $request->validate([
             'email' => 'required|string|lowercase|email|max:255|unique:' . User::class,
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
             'phone' => 'required|string|max:255',
 
-            
+
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
 
@@ -76,13 +78,13 @@ class RegisteredUserController extends Controller
             'address.longitude' => 'nullable|numeric|between:-180,180',
         ]);
 
-        
+
         $name = trim(($request->string('name') ?? '') . '');
         if ($name === '') {
             $name = trim($validated['first_name'] . ' ' . $validated['last_name']);
         }
 
-        
+
         $phone = (string) $validated['phone'];
 
         \DB::transaction(function () use ($validated, $name, $phone, &$user) {
@@ -110,7 +112,7 @@ class RegisteredUserController extends Controller
                 'user_id' => $user->id,
             ]);
 
-            
+
             $addr = $validated['address'] ?? [];
             $hasAddress = ($addr['address_line_1'] ?? null) || ($addr['city'] ?? null) || ($addr['country_code'] ?? null);
             if ($hasAddress) {

@@ -47,7 +47,7 @@ const allNavItems: NavItem[] = [
         title: 'Account',
         href: '/seller/profile',
         icon: KeyRound,
-        permissions: ['view-accounts'],
+        permissions: ['view-seller-accounts', 'update-seller-accounts'],
     },
     {
         title: 'Vendors',
