@@ -71,13 +71,14 @@ public function store(
 
 
 
-    if (in_array($user->user_type, ['user', 'vendor', 'seller'])) {
+    if (in_array($user->user_type, ['user'])) {
+        $user->update(['last_login_at' => now()]);
         return redirect()->intended(route('admin.dashboard'))
             ->with('success', 'Welcome back, ' . $user->name . '!');
     }
 
 
-    if ($user->user_type === 'customer') {
+    if ($user->user_type === 'customer' || $user->secondary_role=="customer") {
         $customer = \App\Models\Customer\Customer::where('user_id', $user->id)->first();
 
         if (!$customer) {
@@ -88,10 +89,19 @@ public function store(
         }
 
         session(['customer_id' => $customer->id]);
-
+        $user->update(['last_login_at' => now()]);
         return redirect()->intended(
             route('customers.dashboard', ['customer' => $customer->id])
         )->with('success', 'Welcome back, ' . $user->name . '!');
+    }
+
+
+    //as the last option
+
+    if (in_array($user->user_type, ['vendor', 'seller'])) {
+        $user->update(['last_login_at' => now()]);
+        return redirect()->intended(route('admin.dashboard'))
+            ->with('success', 'Welcome back, ' . $user->name . '!');
     }
 
 
@@ -126,7 +136,8 @@ public function store(
         $request->session()->regenerate();
         $user = Auth::user();
 
-        if (in_array($user->user_type, ['vendor', 'seller'])) {
+        if (in_array($user->user_type, ['vendor', 'seller']) || $user->secondary_role == 'seller') {
+            $user->update(['last_login_at' => now()]);
             return redirect()->intended(route('admin.dashboard'))
                 ->with('success', 'Welcome back, ' . $user->name . '!');
         }else{

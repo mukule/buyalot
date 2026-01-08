@@ -364,17 +364,18 @@ class PermissionSeeder extends Seeder
             'view-inventory',
             'view-user-profile', 'edit-user-profile',
             'view-seller-accounts', 'update-seller-accounts',
-            'view-branches', 'create-branches', 'edit-branches',
-            'view-warehouses', 'create-warehouses', 'edit-warehouses',
-            'view-brands',
-            'view-subbrands',
-            'view-categories',
-            'view-subcategories',
-            'view-units',
-            'view-variants',
-            'view-promotions',
-            'view-discounts',
-            'view-invoices'
+            'view-users','create-users','edit-users','delete-users'
+//            'view-branches', 'create-branches', 'edit-branches',
+//            'view-warehouses', 'create-warehouses', 'edit-warehouses',
+//            'view-brands',
+//            'view-subbrands',
+//            'view-categories',
+//            'view-subcategories',
+//            'view-units',
+//            'view-variants',
+//            'view-promotions',
+//            'view-discounts',
+//            'view-invoices'
         ])->get();
         $seller->givePermissionTo($sellerPermissions);
 

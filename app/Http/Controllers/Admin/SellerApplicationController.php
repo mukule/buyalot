@@ -89,16 +89,20 @@ class SellerApplicationController extends Controller
     public function approve(SellerApplication $sellerApplication)
 {
     DB::beginTransaction();
-        $had_account=false;
          $password = Str::random(8);
      try {
          if (User::where('email', $sellerApplication->contact_email)->exists()) {
              //update secondary email
              $user = User::where('email', $sellerApplication->contact_email)->first();
-
+                if (SellerUser::where('user_id', $user->id)->exists()) {
+                    return redirect()->back()->with('error', 'Seller as another account already.');
+                }
              // 2. Call update on that specific instance
-             $user->update(["secondary_role" => "seller"]);
-             $had_account=true;
+             $user->update([
+                 "secondary_role" => "seller",
+                 "password" => bcrypt($password),
+                 "seller_application_id" => $sellerApplication->id,
+             ]);
          }else{
              $user = User::create([
                  'name' => $sellerApplication->first_name . ' ' . $sellerApplication->last_name,
@@ -124,18 +128,13 @@ class SellerApplicationController extends Controller
         ]);
 
         $loginUrl = route('login');
-
-        if (!$had_account) {
-            $password = "User the initial account password";
-        }
-            try {
+         DB::commit();
+        try {
                 Mail::to($user->email)->send(new SellerApprovedMail($user, $password, $loginUrl));
             } catch (\Exception $e) {
                 Log::error('Mail sending failed: ' . $e->getMessage());
                 throw $e;
             }
-
-        DB::commit();
 
         return redirect()->back()->with('success', 'Seller approved, user account created and email sent.');
     } catch (\Exception $e) {

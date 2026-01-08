@@ -293,8 +293,6 @@ Route::prefix('sell')->group(function () {
 Route::prefix('seller')->middleware(['auth', 'role:seller'])->name('seller.')->group(function () {
     Route::get('/profile', [SellerAccountController::class, 'profile'])->name('profile');
     Route::post('/documents', [SellerAccountController::class, 'submitDocument']);
-
-
 });
 
 Route::get('products/{slug}', [HomeController::class, 'productDetails'])->name('product.details');

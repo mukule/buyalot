@@ -1,4 +1,6 @@
 <?php
+
+use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Customer\CustomerAddressController;
 use App\Http\Controllers\Customer\CustomerController;
 use App\Http\Controllers\Customer\CustomerLoyaltyPointController;
@@ -8,6 +10,11 @@ use App\Http\Controllers\Customer\CustomerWishlistsController;
 use App\Http\Controllers\Customer\ReviewController;
 use App\Http\Controllers\Orders\OrderController;
 use App\Http\Controllers\WishlistController;
+
+Route::get('/customer/activate/{customer}', [RegisteredUserController::class, 'activateCustomer'])
+    ->name('customer.activate')
+    ->middleware('signed');
+
 
 Route::middleware(['auth'])->group(function () {
 

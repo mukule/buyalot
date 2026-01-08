@@ -30,7 +30,7 @@ class SellerVerificationController extends Controller
         $application=$sellerApplication->load(['user.sellerDocuments']);
 
     if (!$sellerApplication->user) {
-        return redirect()->back()->with('error', 'No associated user found for this application.');
+        return redirect()->back()->with('error', 'No associated user found for this application or not.');
     }
 
     $documentTypes = DocumentType::all();
