@@ -82,6 +82,13 @@ class PermissionSeeder extends Seeder
                 'export-products',
             ],
 
+            'product-statuses' => [
+                'view-product-statuses',
+                'create-product-statuses',
+                'edit-product-statuses',
+                'delete-product-statuses',
+            ],
+
             // Categories Management
             'categories' => [
                 'view-categories',
