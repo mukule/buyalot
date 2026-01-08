@@ -109,9 +109,9 @@ const submit = () => {
                         </TextLink>
                     </div>
 
-                    <Button type="submit" class="w-full h-11" :disabled="form.processing">
+                    <Button type="submit" class="w-full h-11 text-" :disabled="form.processing">
                         <LoaderCircle v-if="form.processing" class="mr-2 h-4 w-4 animate-spin" />
-                        Sign in to Dashboard
+                        Sign in
                     </Button>
                 </div>
             </form>

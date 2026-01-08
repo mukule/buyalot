@@ -280,7 +280,7 @@ public function category(string $slug)
             $stats = [
                 'sellers'           => Seller::count(),
                 'customers'         => Customer::count(),
-                'users'             => User::count(),
+                'users'             => User::where('user_type', '!=',['customer', 'seller','vendor'])->count(),
                 'orders'            => Order::count(),
                 'warehouses'        => Warehouse::count(),
                 'orders_this_week'  => $ordersThisWeek,
