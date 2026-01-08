@@ -30,6 +30,7 @@ use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SellController;
 use App\Http\Controllers\SellerAccountController;
 use App\Http\Controllers\Seller\UserManagementController as SellerUserManagementController;
+use App\Http\Controllers\Admin\PolicyController;
 use App\Http\Controllers\Warehouse\WarehouseController;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken as VerifyCsrfTokenMiddleware;
 use Illuminate\Support\Facades\Route;
@@ -152,6 +153,28 @@ Route::middleware(['auth', 'role_or_permission:admin|view-categories'])
 Route::middleware(['auth','role_or_permission:admin|view-brands'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/brands', [\App\Http\Controllers\Admin\BrandController::class, 'index'])->name('brands.index');
 });
+
+
+Route::middleware(['auth', 'role_or_permission:admin|view-policies'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+
+        Route::get('/policies', [PolicyController::class, 'index'])->name('policies.index');
+        Route::get('/policies/create', [PolicyController::class, 'create'])->name('policies.create');
+        Route::post('/policies', [PolicyController::class, 'store'])->name('policies.store');
+        Route::get('/policies/{policy}/edit', [PolicyController::class, 'edit'])->name('policies.edit');
+        Route::put('/policies/{policy}', [PolicyController::class, 'update'])->name('policies.update');
+        Route::delete('/policies/{policy}', [PolicyController::class, 'destroy'])->name('policies.destroy');
+
+        Route::get('/policies/{policy}/versions', [\App\Http\Controllers\Admin\PolicyVersionController::class, 'index'])->name('policies.versions.index');
+        Route::get('/policies/{policy}/versions/create', [\App\Http\Controllers\Admin\PolicyVersionController::class, 'create'])->name('policies.versions.create');
+        Route::post('/policies/{policy}/versions', [\App\Http\Controllers\Admin\PolicyVersionController::class, 'store'])->name('policies.versions.store');
+        Route::get('/policies/{policy}/versions/{version}/edit', [\App\Http\Controllers\Admin\PolicyVersionController::class, 'edit'])->name('policies.versions.edit');
+        Route::put('/policies/{policy}/versions/{version}', [\App\Http\Controllers\Admin\PolicyVersionController::class, 'update'])->name('policies.versions.update');
+        Route::delete('/policies/{policy}/versions/{version}', [\App\Http\Controllers\Admin\PolicyVersionController::class, 'destroy'])->name('policies.versions.destroy');
+});
+
 
 Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
     require __DIR__ . '/roles_permissions.php';

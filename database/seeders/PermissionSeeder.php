@@ -100,6 +100,7 @@ class PermissionSeeder extends Seeder
                 'delete-subcategories',
                 'assign-subcategories-to-categories',
             ],
+            
 
             // Brands Management
             'brands' => [
@@ -110,6 +111,14 @@ class PermissionSeeder extends Seeder
                 'approve-brands',
                 'feature-brands',
             ],
+             'policies' => [
+                'view-policies',
+                'create-policies',
+                'edit-policies',
+                'delete-policies',
+            ],
+                
+
 
             // Sub-brands Management
             'subbrands' => [

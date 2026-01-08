@@ -479,6 +479,16 @@ interface PickupPoint {
     region: { name: string };
 }
 
+interface Policy {
+    id: number;
+    title: string;
+    scope: string;
+    status: 0 | 1;
+    is_mandatory: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
 const page = usePage<
     AppPageProps & {
         region: Region;
