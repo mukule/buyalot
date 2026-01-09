@@ -25,8 +25,13 @@ class RoleSwitchController extends Controller
         session(['active_role' => $newRole]);
 
         // Redirect to the appropriate dashboard based on the NEW role
-        return $newRole === 'seller'
-            ? redirect()->route('admin.dashboard')
-            : redirect()->route('customers.dashboard');
+//        return $newRole === 'seller'
+//            ? redirect()->route('admin.dashboard')
+//            : redirect()->route('customers.dashboard');
+
+        return match($newRole) {
+            'admin', 'seller' => redirect()->route('admin.dashboard'),
+            default  => redirect()->route('customers.dashboard'),
+        };
     }
 }
