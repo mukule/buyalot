@@ -69,7 +69,7 @@ class User extends Authenticatable
         });
     }
 
-    public function sellerApplication()
+    public function sellerApplication(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(SellerApplication::class);
     }

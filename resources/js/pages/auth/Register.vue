@@ -29,7 +29,7 @@ watch(
             const lower = val.toLowerCase();
             if (lower !== val) form.email = lower;
         }
-    }
+    },
 );
 
 // Enforce Firstname/Lastname capitalization live on the form
@@ -45,7 +45,7 @@ watch(
             const normalized = normalizeName(val);
             if (normalized !== val) form.first_name = normalized;
         }
-    }
+    },
 );
 
 watch(
@@ -55,7 +55,7 @@ watch(
             const normalized = normalizeName(val);
             if (normalized !== val) form.last_name = normalized;
         }
-    }
+    },
 );
 
 /* Single-stage form (address step removed) */
@@ -124,8 +124,6 @@ const validateStep1 = (): boolean => {
     return ok;
 };
 
-
-
 const toFlagEmoji = (iso: string): string => {
     if (!iso || iso.length !== 2) return '';
     const upper = iso.toUpperCase();
@@ -143,8 +141,6 @@ const countries = allCountries.map((c) => ({
     name: `${c.country}`,
     emoji: toFlagEmoji(c.isoCode2),
 }));
-
-
 
 const submit = () => {
     // Ensure email is lowercase before any validation/submission
@@ -221,15 +217,7 @@ const handleGoogleRegister = () => {
                                 </option>
                             </select>
 
-                            <Input
-                                id="phone"
-                                type="tel"
-                                required
-                                autocomplete="tel"
-                                v-model="form.phone"
-                                placeholder="712345678"
-                                class="flex-1"
-                            />
+                            <Input id="phone" type="tel" required autocomplete="tel" v-model="form.phone" placeholder="712345678" class="flex-1" />
                         </div>
                         <InputError :message="form.errors.phone" />
                     </div>
@@ -269,7 +257,7 @@ const handleGoogleRegister = () => {
 
                 <!-- Actions -->
                 <div class="mt-2 flex items-center justify-end">
-                    <Button type="submit" :disabled="form.processing">
+                    <Button type="submit" :disabled="form.processing" class="text-white">
                         <LoaderCircle v-if="form.processing" class="h-4 w-4 animate-spin" />
                         <span v-else>Sign up</span>
                     </Button>
