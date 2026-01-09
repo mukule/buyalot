@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Customer\Customer;
 use App\Models\User;
+use App\Models\UserDetail;
 use App\Notifications\CustomerRegistrationPendingApproval;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
@@ -63,7 +64,7 @@ class RegisteredUserController extends Controller
                 'lowercase',
                 'email',
                 'max:255',
-                Rule::unique('users', 'email')->where(fn($q) => $q->whereNotIn('user_type', ['seller', 'vendor'])),
+                Rule::unique('users', 'email')->where(fn($q) => $q->whereNotIn('user_type', ['seller', 'vendor','user'])),
             ],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
             'phone' => 'required|string|max:255',
@@ -97,7 +98,7 @@ class RegisteredUserController extends Controller
         }
         $phone = (string) $validated['phone'];
         $existingSeller = User::where('email', $validated['email'])
-            ->whereIn('user_type', ['seller', 'vendor'])
+            ->whereIn('user_type', ['seller', 'vendor','user'])
             ->first();
 
         if ($existingSeller) {
@@ -126,6 +127,14 @@ class RegisteredUserController extends Controller
                 $existingSeller->notify(new CustomerRegistrationPendingApproval($customer, $activationUrl));
 
             });
+            if (!$existingSeller->hasAnyRole(['customer', 'seller'])) {
+                UserDetail::create([
+                    'user_id' => $existingSeller->id,
+                    'gender' => $validated['gender'] ?? null,
+                    'phone'  => $phone,
+                    'idno'   => $validated['idno'] ?? null,
+                ]);
+            }
 
             return redirect()->route('login')
                 ->with('success', 'Thanks! We emailed you an activation link to enable your customer account.');
