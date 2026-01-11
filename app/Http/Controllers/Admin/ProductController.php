@@ -121,31 +121,46 @@ public function create()
         ->with('children')
         ->get();
 
-    $variantCategories = VariantCategory::where('default', true)
-        ->with(['variants' => function ($query) {
-            $query->where('is_active', true);
-        }])
-        ->get()
-        ->map(function ($category) {
-            return [
-                'id' => $category->id,
-                'name' => $category->name,
-                'options' => $category->variants->map(fn($v) => [
-                    'id' => $v->id,
-                    'value' => $v->value,
-                ])->toArray(),
-            ];
-        });
-
+    // Get the latest draft product if exists
     $draftProduct = auth()->user()->products()->latestDraft()->first();
-    $productData = null;
 
+    $selectedCategoryId = $draftProduct?->category_id ?? null;
+
+    // Fetch variant categories based on selected category
+    $variantCategories = VariantCategory::when($selectedCategoryId, function ($query, $categoryId) {
+        $query->whereHas('categories', fn($q) => $q->where('categories.id', $categoryId));
+    })
+    ->with(['variants' => fn($q) => $q->where('is_active', true)])
+    ->get();
+
+    // Fallback to default if none found
+    if ($variantCategories->isEmpty()) {
+        $variantCategories = VariantCategory::where('default', true)
+            ->with(['variants' => fn($q) => $q->where('is_active', true)])
+            ->get();
+    }
+
+    // Map for frontend
+    $variantCategories = $variantCategories->map(function ($category) {
+        return [
+            'id' => $category->id,
+            'name' => $category->name,
+            'options' => $category->variants->map(fn($v) => [
+                'id' => $v->id,
+                'value' => $v->value,
+            ])->toArray(),
+        ];
+    });
+
+    // Prepare variant rows if draft exists
+    $variantRows = [];
     if ($draftProduct) {
         $variantRows = $draftProduct->variants()
             ->with('values.variant')
             ->get()
             ->map(function ($variant) {
                 $row = [
+                    'id' => $variant->id,
                     'marked_price' => $variant->marked_price,
                     'buying_price' => $variant->buying_price,
                     'stock' => $variant->stock,
@@ -158,26 +173,28 @@ public function create()
                 }
 
                 return $row;
-            })->toArray();
-
-        $productData = [
-            'product_id' => $draftProduct->id,
-            'id' => $draftProduct->id,
-            'current_step' => $draftProduct->current_step,
-            'max_step_completed' => $draftProduct->max_step_completed, // ✅ Added
-            'product_code' => $draftProduct->product_code,
-            'name' => $draftProduct->name,
-            'category_id' => $draftProduct->category_id,
-            'brand_id' => $draftProduct->brand_id,
-            'unit_id' => $draftProduct->unit_id,
-            'description' => $draftProduct->description,
-            'features' => $draftProduct->features,
-            'specifications' => $draftProduct->specifications,
-            'whats_in_the_box' => $draftProduct->whats_in_the_box,
-            'variant_rows' => $variantRows,
-            'images' => $draftProduct->images ?? [],
-        ];
+            })
+            ->toArray();
     }
+
+    // Prepare draft product data
+    $productData = $draftProduct ? [
+        'product_id' => $draftProduct->id,
+        'id' => $draftProduct->id,
+        'current_step' => $draftProduct->current_step,
+        'max_step_completed' => $draftProduct->max_step_completed,
+        'product_code' => $draftProduct->product_code,
+        'name' => $draftProduct->name,
+        'category_id' => $draftProduct->category_id,
+        'brand_id' => $draftProduct->brand_id,
+        'unit_id' => $draftProduct->unit_id,
+        'description' => $draftProduct->description,
+        'features' => $draftProduct->features,
+        'specifications' => $draftProduct->specifications,
+        'whats_in_the_box' => $draftProduct->whats_in_the_box,
+        'variant_rows' => $variantRows,
+        'images' => $draftProduct->images ?? [],
+    ] : null;
 
     return Inertia::render('Admin/Products/Create', [
         'brands' => $brands,
@@ -187,6 +204,8 @@ public function create()
         'product' => $productData,
     ]);
 }
+
+
 
 
 public function edit(Product $product)
@@ -200,14 +219,14 @@ public function edit(Product $product)
         ->get();
 
     $variantCategories = VariantCategory::whereHas('categories', function ($query) use ($product) {
-        $query->where('categories.id', $product->category_id);
-    })
-    ->with(['variants' => fn($query) => $query->where('is_active', true)])
-    ->get();
+            $query->where('categories.id', $product->category_id);
+        })
+        ->with(['variants' => fn ($query) => $query->where('is_active', true)])
+        ->get();
 
     if ($variantCategories->isEmpty()) {
         $variantCategories = VariantCategory::where('default', true)
-            ->with(['variants' => fn($query) => $query->where('is_active', true)])
+            ->with(['variants' => fn ($query) => $query->where('is_active', true)])
             ->get();
     }
 
@@ -215,28 +234,34 @@ public function edit(Product $product)
         return [
             'id' => $category->id,
             'name' => $category->name,
-            'options' => $category->variants->map(fn($v) => [
+            'options' => $category->variants->map(fn ($v) => [
                 'id' => $v->id,
                 'value' => $v->value,
             ])->toArray(),
         ];
     });
 
-    $variantRows = $product->variants()->with('values.variant')->get()->map(function ($variant) {
-        $row = [
-            'marked_price' => $variant->marked_price,
-            'buying_price' => $variant->buying_price,
-            'stock' => $variant->stock,
-            'sku' => $variant->sku,
-            'values' => [],
-        ];
+    $variantRows = $product->variants()
+        ->with('values.variant')
+        ->get()
+        ->map(function ($variant) {
+            $row = [
+                'id' => $variant->id, 
+                'marked_price' => $variant->marked_price,
+                'buying_price' => $variant->buying_price,
+                'stock' => $variant->stock,
+                'sku' => $variant->sku,
+                'values' => [],
+            ];
 
-        foreach ($variant->values as $pvValue) {
-            $row['values'][$pvValue->variant->variant_category_id] = $pvValue->variant->value;
-        }
+            foreach ($variant->values as $pvValue) {
+                $row['values'][$pvValue->variant->variant_category_id] =
+                    $pvValue->variant->value;
+            }
 
-        return $row;
-    })->toArray();
+            return $row;
+        })
+        ->toArray();
 
     $images = collect($product->images ?? [])->map(function ($img) {
         $path = $img->url ?? $img->image_path ?? '';
@@ -253,7 +278,7 @@ public function edit(Product $product)
         'product_id' => $product->id,
         'id' => $product->id,
         'current_step' => $product->current_step,
-        'max_step_completed' => $product->max_step_completed, // ✅ Added
+        'max_step_completed' => $product->max_step_completed,
         'product_code' => $product->product_code,
         'name' => $product->name,
         'category_id' => $product->category_id,
@@ -277,18 +302,30 @@ public function edit(Product $product)
 }
 
 
+
+
 public function store(Request $request, ProductService $productService)
 {
     $step = (int) $request->input('step');
     $data = $request->all();
     $images = $request->hasFile('images') ? $request->file('images') : [];
 
-    // \Log::info('Product step submission started', [
-    //     'step'       => $step,
-    //     'product_id' => $request->input('product_id'),
-    //     'user_id'    => $request->user()?->id,
-    //     'data_keys'  => array_keys($data), // Log what data we received
-    // ]);
+    if ($step === 3) {
+        Log::info('STEP 3 - VARIANT PAYLOAD', [
+            'variant_rows' => $data['variant_rows'] ?? null,
+        ]);
+
+        // Optional: log variant IDs only (cleaner)
+        Log::info('STEP 3 - VARIANT IDS', collect($data['variant_rows'] ?? [])
+            ->map(fn ($v) => [
+                'id' => $v['id'] ?? null,
+                'sku' => $v['sku'] ?? null,
+            ])
+            ->toArray()
+        );
+    }
+
+
 
     $product = null;
     if ($step > 1 && $request->filled('product_id')) {
@@ -316,23 +353,9 @@ public function store(Request $request, ProductService $productService)
             ->with('product_id', $product->id);
 
     } catch (ValidationException $e) {
-        // ✅ Log validation errors
-        // \Log::warning("Validation failed on step {$step}", [
-        //     'errors'     => $e->errors(),
-        //     'input'      => $data,
-        //     'product_id' => $product?->id,
-        //     'user_id'    => $request->user()?->id,
-        // ]);
-
-        // Debug: log the errors before returning
+       
         $errors = $e->errors();
-        // \Log::debug('Validation errors to return:', [
-        //     'error_count' => count($errors),
-        //     'error_keys' => array_keys($errors),
-        //     'first_error' => reset($errors),
-        // ]);
-
-        // Return validation errors to frontend
+       
         $response = back()
             ->withErrors($errors)
             ->withInput()
@@ -341,33 +364,16 @@ public function store(Request $request, ProductService $productService)
                 'product_id' => $product?->id,
             ]);
 
-        // Log the response we're about to send
-        // \Log::debug('Returning validation response', [
-        //     'session_errors' => session()->get('errors'),
-        //     'session_flash' => session()->get('_flash'),
-        // ]);
+       
 
         return $response;
 
     } catch (\Throwable $e) {
-        // \Log::error("Product step {$step} failed", [
-        //     'error'      => $e->getMessage(),
-        //     'trace'      => $e->getTraceAsString(),
-        //     'product_id' => $product?->id,
-        //     'user_id'    => $request->user()?->id,
-        //     'exception_type' => get_class($e), // Log what type of exception
-        // ]);
+       
 
-        // Check if it might be a validation exception that wasn't caught
+       
         if ($e instanceof ValidationException) {
-            // \Log::warning('ValidationException caught in generic catch block!');
-            // return back()
-            //     ->withErrors($e->errors())
-            //     ->withInput()
-            //     ->with([
-            //         'step' => $step,
-            //         'product_id' => $product?->id,
-            //     ]);
+           
         }
 
         return back()
