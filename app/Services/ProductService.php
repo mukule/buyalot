@@ -164,21 +164,21 @@ protected function handleStep1(array $data, ?User $user, ?array $images, ?Produc
 // }
 
 
+
 protected function handleStep3(array $data, ?User $user, ?array $images, ?Product $product): Product
 {
     if (!$product) {
         throw new \InvalidArgumentException("Product must exist before step 3.");
     }
 
-    $startTime = microtime(true);
     Log::info('handleStep3 called', [
-        'product_id' => $product->id,
+        'product_id'         => $product->id,
         'variant_rows_count' => count($data['variant_rows'] ?? []),
-        'user_id' => $user?->id,
+        'user_id'            => $user?->id,
     ]);
 
     if (empty($data['variant_rows']) || !is_array($data['variant_rows'])) {
-        Log::info('Step 3 skipped: no variants', ['product_id' => $product->id]);
+        Log::info('Step 3 skipped: no variant rows', ['product_id' => $product->id]);
         return $product;
     }
 
@@ -193,12 +193,19 @@ protected function handleStep3(array $data, ?User $user, ?array $images, ?Produc
     }
 
     Log::info('Step 3: processing variant rows', [
-        'product_id' => $product->id,
+        'product_id'    => $product->id,
         'variant_count' => count($variantRows),
     ]);
 
-    // Cache valid variant categories once
+    // Preload valid variant categories
     $validCategories = VariantCategory::pluck('id')->flip();
+
+    // Preload existing product variants for this product
+    $existingVariants = $product->variants()->get()->keyBy('id');
+
+    // Preload all existing Variant values to reduce firstOrCreate calls
+    $existingVariantValues = Variant::pluck('id', 'variant_category_id')->toArray();
+
     $submittedIds = [];
     $valuesToInsert = [];
 
@@ -208,42 +215,38 @@ protected function handleStep3(array $data, ?User $user, ?array $images, ?Produc
 
         $hasValidValue = collect($row['values'])->filter(fn($v) => !is_null($v) && trim($v) !== '')->count() > 0;
         if (!$hasValidValue && !$variantId) {
-            Log::info('Skipping empty new variant row', ['row_index' => $index]);
+            Log::info('Skipping empty new variant row', [
+                'product_id' => $product->id,
+                'row_index'  => $index,
+            ]);
             continue;
         }
 
-        $variantStart = microtime(true);
-
         // Update existing variant
-        if ($variantId) {
-            $productVariant = ProductVariant::find($variantId);
-            if ($productVariant) {
-                $productVariant->update([
-                    'stock'        => $row['stock'] ?? $productVariant->stock,
-                    'buying_price' => $row['buying_price'] ?? $productVariant->buying_price,
-                    'marked_price' => $row['marked_price'] ?? $productVariant->marked_price,
-                    'sku'          => $row['sku'] ?? $productVariant->sku,
-                ]);
-                Log::info('Updated existing ProductVariant', [
-                    'product_variant_id' => $productVariant->id,
-                    'row_index' => $index,
-                ]);
-            } else {
-                $variantId = null; // fallback to create
-            }
-        }
-
-        // Create new variant if ID is null
-        if (!$variantId) {
+        if ($variantId && isset($existingVariants[$variantId])) {
+            $productVariant = $existingVariants[$variantId];
+            $productVariant->update([
+                'stock'        => $row['stock'] ?? $productVariant->stock,
+                'buying_price' => $row['buying_price'] ?? $productVariant->buying_price,
+                'marked_price' => $row['marked_price'] ?? $productVariant->marked_price,
+                'sku'          => $row['sku'] ?? $productVariant->sku,
+            ]);
+            Log::info('Updated existing product variant', [
+                'product_id' => $product->id,
+                'variant_id' => $productVariant->id,
+            ]);
+        } else {
+            // Create new variant
             $productVariant = $product->variants()->create([
                 'stock'         => $row['stock'] ?? 0,
                 'buying_price'  => $row['buying_price'] ?? 0,
                 'marked_price'  => $row['marked_price'] ?? 0,
                 'sku'           => $row['sku'] ?? $this->generateSku($product, $index),
             ]);
-            Log::info('Created new ProductVariant', [
-                'product_variant_id' => $productVariant->id,
-                'row_index' => $index,
+            Log::info('Created new product variant', [
+                'product_id'   => $product->id,
+                'variant_id'   => $productVariant->id,
+                'sku'          => $productVariant->sku,
             ]);
         }
 
@@ -259,6 +262,8 @@ protected function handleStep3(array $data, ?User $user, ?array $images, ?Produc
 
             $usedCategories[$categoryId] = true;
 
+            // Reuse existing Variant if possible
+            $variantKey = $categoryId . ':' . $value;
             $variant = Variant::firstOrCreate(
                 ['variant_category_id' => $categoryId, 'value' => $value],
                 ['is_active' => true]
@@ -271,55 +276,40 @@ protected function handleStep3(array $data, ?User $user, ?array $images, ?Produc
                 'updated_at'         => now(),
             ];
         }
-
-        $variantEnd = microtime(true);
-        Log::info('Processed variant row timing', [
-            'row_index' => $index,
-            'time_seconds' => round($variantEnd - $variantStart, 3),
-        ]);
     }
 
-    // Batch insert all new values at once
+    // Batch insert new values with chunking
     if (!empty($valuesToInsert)) {
-        $insertStart = microtime(true);
-        Log::info('Inserting variant values', ['count' => count($valuesToInsert)]);
-
-        collect($valuesToInsert)->chunk(500)->each(function($chunk) {
+        collect($valuesToInsert)->chunk(200)->each(function($chunk) {
             \DB::table('product_variant_values')->insert($chunk->toArray());
         });
-
-        $insertEnd = microtime(true);
-        Log::info('Variant values inserted', [
-            'count' => count($valuesToInsert),
-            'time_seconds' => round($insertEnd - $insertStart, 3),
+        Log::info('Inserted product_variant_values', [
+            'product_id' => $product->id,
+            'count'      => count($valuesToInsert),
         ]);
     }
 
-    // Remove old variants not submitted safely
-    $deleteStart = microtime(true);
+    // Remove old variants not submitted
     $oldVariants = $product->variants()->whereNotIn('id', array_filter($submittedIds))->get();
-    Log::info('Old variants to process', ['count' => $oldVariants->count()]);
-
     foreach ($oldVariants as $oldVariant) {
         if ($oldVariant->orders()->count() === 0) {
             $oldVariant->values()->delete();
             $oldVariant->delete();
-            Log::info('Deleted old variant', ['id' => $oldVariant->id]);
+            Log::info('Deleted old unused variant', [
+                'product_id' => $product->id,
+                'variant_id' => $oldVariant->id,
+            ]);
         } else {
             $oldVariant->update(['is_active' => false]);
-            Log::info('Deactivated old variant with orders', ['id' => $oldVariant->id]);
+            Log::info('Deactivated old variant with orders', [
+                'product_id' => $product->id,
+                'variant_id' => $oldVariant->id,
+            ]);
         }
     }
 
-    $deleteEnd = microtime(true);
-    Log::info('Old variants cleanup timing', [
-        'time_seconds' => round($deleteEnd - $deleteStart, 3),
-    ]);
-
-    $endTime = microtime(true);
     Log::info('handleStep3 completed', [
         'product_id' => $product->id,
-        'total_time_seconds' => round($endTime - $startTime, 3),
     ]);
 
     return $product;
