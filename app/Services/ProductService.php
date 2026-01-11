@@ -14,6 +14,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Services\ImageService;
 use Illuminate\Support\Facades\Storage;
+use App\Models\Category;
+use Illuminate\Validation\ValidationException;
+
 
 
 class ProductService
@@ -68,19 +71,21 @@ class ProductService
 
 
 
-
-  protected function handleStep1(array $data, ?User $user, ?array $images, ?Product $product): Product
+protected function handleStep1(array $data, ?User $user, ?array $images, ?Product $product): Product
 {
-    // Log incoming data for debugging
-    Log::info('handleStep1 called', [
-        'data' => $data,
-        'user_id' => $user?->id,
-        'product_param_id' => $product?->id,
-        'images_count' => $images ? count($images) : 0,
-    ]);
 
-    $this->validateStep1($data);
+    $this->validateStep1($data); // existing validation
     $this->applyMetadata($data);
+
+    // 🔹 Leaf category check
+    if (!empty($data['category_id'])) {
+        $category = Category::withCount('children')->find($data['category_id']);
+        if (!$category || $category->children_count > 0) {
+            throw ValidationException::withMessages([
+                'category_id' => 'Invalid Category, Select the Deepest Sub Category.',
+            ]);
+        }
+    }
 
     // Use product_id from incoming data if $product is null
     if (!$product && !empty($data['product_id'])) {
@@ -119,6 +124,7 @@ class ProductService
     Log::info('Base product created', ['product_id' => $product->id]);
     return $product;
 }
+
 
 
 
