@@ -30,7 +30,7 @@ class CartService
         return $cart;
     }
 
-   
+
 
     public function mergeGuestCart(Request $request, User $user, DiscountService $discountService): void
 {
@@ -60,7 +60,7 @@ class CartService
 
         $unitPrice = $variantPriceInfo['final_price'] ?? $item->unit_price ?? 0;
         $discountAmount = $variantPriceInfo['total_discount'] ?? 0;
-        $markedPrice = $variantPriceInfo['marked_price'] ?? $item->marked_price ?? 0;
+        $markedPrice = $variantPriceInfo['selling_price'] ?? $item->marked_price ?? 0;
         $quantity = $item->quantity;
 
         if (isset($existingItems[$item->product_variant_id])) {

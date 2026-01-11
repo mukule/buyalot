@@ -11,7 +11,6 @@ use Illuminate\Support\Carbon;
 
 class ProductVariant extends Model
 {
-
     protected $fillable = [
         'product_id',
         'buying_price',
@@ -20,6 +19,7 @@ class ProductVariant extends Model
         'selling_price',
         'stock',
         'sku',
+        'discount',
     ];
 
     protected $appends = [
@@ -171,7 +171,7 @@ class ProductVariant extends Model
     }
 
 
-    
+
     public function getOwnerInfo(): array
 {
     if (! $this->product) {
@@ -208,7 +208,7 @@ public function getActiveWarranty(): ?\App\Models\Warranty
 
     return $this->product->warranties()
         ->where('active', true)
-        ->orderBy('id') 
+        ->orderBy('id')
         ->first();
 }
 
