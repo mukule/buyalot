@@ -55,10 +55,18 @@ class Category extends Model
     /**
      * Children relationship (non-recursive)
      */
+    // public function children()
+    // {
+    //     return $this->hasMany(Category::class, 'parent_id');
+    // }
+
     public function children()
     {
-        return $this->hasMany(Category::class, 'parent_id');
+        return $this->hasMany(Category::class, 'parent_id')
+            ->where('active', true)
+            ->with('children'); // recursion
     }
+
 
     /**
      * Many-to-many relationship with VariantCategory

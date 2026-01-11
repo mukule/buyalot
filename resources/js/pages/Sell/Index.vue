@@ -81,10 +81,10 @@ const steps = [
                         <div class="w-full rounded-lg bg-primary/70 p-6 text-center backdrop-blur-sm md:max-w-2xl md:p-8 md:text-left lg:p-10">
                             <div class="space-y-4 text-white md:space-y-6">
                                 <h1 class="text-2xl leading-tight font-bold tracking-tight sm:text-3xl md:text-4xl">
-                                    Join KENYA's & EAST AFRICA Best <br class="hidden sm:block" />
+                                    Join KENYA & EAST AFRICA'S Best <br class="hidden sm:block" />
                                     Online Marketplace Platform
                                 </h1>
-                                <p class="text-lg leading-relaxed md:text-xl">Connecting Kenyan's & East Africa's Buyers & Sellers</p>
+                                <p class="text-lg leading-relaxed md:text-xl">Connecting Kenya & East Africa's Buyers & Sellers</p>
 
                                 <div class="flex flex-wrap justify-center gap-4 md:justify-start">
                                     <Link
@@ -114,7 +114,7 @@ const steps = [
                     </h4>
                     <p class="mx-auto max-w-3xl text-lg leading-relaxed text-gray-600 md:text-xl">
                         Selling your products online has never been easier. Simply apply to sell as a Buyalot seller today and easily reach online
-                        shoppers across South Africa.
+                        shoppers across Kenya & East Africa.
                     </p>
                 </div>
 

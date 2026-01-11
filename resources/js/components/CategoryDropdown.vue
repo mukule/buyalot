@@ -35,17 +35,14 @@ const selectCategory = (id: string | number) => {
     open.value = false;
 };
 
-// ✅ flatten helper (for finding selected label)
 function flattenCategories(categories: Category[]): Category[] {
     return categories.flatMap((c) => [c, ...(c.children ? flattenCategories(c.children) : [])]);
 }
 
-// ✅ selected category
 const selectedCategory = computed(() => {
     return flattenCategories(props.categories).find((c) => c.id === props.modelValue);
 });
 
-// ✅ filtered categories (by search)
 const filteredCategories = computed(() => {
     if (!search.value) return props.categories;
     const q = search.value.toLowerCase();

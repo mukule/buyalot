@@ -111,7 +111,6 @@ public function index()
 }
 
 
-
 public function create()
 {
     $brands = Brand::where('active', true)->get();
@@ -122,7 +121,6 @@ public function create()
         ->with('children')
         ->get();
 
-    // ✅ Only include the default variant category and its active variants
     $variantCategories = VariantCategory::where('default', true)
         ->with(['variants' => function ($query) {
             $query->where('is_active', true);
@@ -148,8 +146,8 @@ public function create()
             ->get()
             ->map(function ($variant) {
                 $row = [
-                    'regular_price' => $variant->regular_price,
-                    'selling_price' => $variant->selling_price,
+                    'marked_price' => $variant->marked_price,
+                    'buying_price' => $variant->buying_price,
                     'stock' => $variant->stock,
                     'sku' => $variant->sku,
                     'values' => [],
@@ -166,6 +164,7 @@ public function create()
             'product_id' => $draftProduct->id,
             'id' => $draftProduct->id,
             'current_step' => $draftProduct->current_step,
+            'max_step_completed' => $draftProduct->max_step_completed, // ✅ Added
             'product_code' => $draftProduct->product_code,
             'name' => $draftProduct->name,
             'category_id' => $draftProduct->category_id,
@@ -188,7 +187,6 @@ public function create()
         'product' => $productData,
     ]);
 }
-
 
 
 public function edit(Product $product)
@@ -224,7 +222,6 @@ public function edit(Product $product)
         ];
     });
 
-    // Build variant rows (using marked_price and buying_price)
     $variantRows = $product->variants()->with('values.variant')->get()->map(function ($variant) {
         $row = [
             'marked_price' => $variant->marked_price,
@@ -241,7 +238,6 @@ public function edit(Product $product)
         return $row;
     })->toArray();
 
-    // Map images to include preview and storage URLs
     $images = collect($product->images ?? [])->map(function ($img) {
         $path = $img->url ?? $img->image_path ?? '';
         return [
@@ -257,6 +253,7 @@ public function edit(Product $product)
         'product_id' => $product->id,
         'id' => $product->id,
         'current_step' => $product->current_step,
+        'max_step_completed' => $product->max_step_completed, // ✅ Added
         'product_code' => $product->product_code,
         'name' => $product->name,
         'category_id' => $product->category_id,
@@ -280,12 +277,18 @@ public function edit(Product $product)
 }
 
 
-
 public function store(Request $request, ProductService $productService)
 {
     $step = (int) $request->input('step');
     $data = $request->all();
-    $images = $request->file('images', []);
+    $images = $request->hasFile('images') ? $request->file('images') : [];
+
+    // \Log::info('Product step submission started', [
+    //     'step'       => $step,
+    //     'product_id' => $request->input('product_id'),
+    //     'user_id'    => $request->user()?->id,
+    //     'data_keys'  => array_keys($data), // Log what data we received
+    // ]);
 
     $product = null;
     if ($step > 1 && $request->filled('product_id')) {
@@ -301,32 +304,78 @@ public function store(Request $request, ProductService $productService)
             $product
         );
 
-        // If step 4 (images) is completed, redirect to product list
         if ($step === 4) {
             RefreshProductCache::dispatch($product)->delay(now()->addSeconds(5));
             return redirect()->route('admin.products.index')
                 ->with('success', "Product '{$product->name}' created successfully.");
         }
 
-        // Otherwise, continue to next step
         return back()
             ->with('success', "Step {$step} completed successfully.")
-            ->with('step', $step)
+            ->with('step', $product->current_step)
             ->with('product_id', $product->id);
 
+    } catch (ValidationException $e) {
+        // ✅ Log validation errors
+        // \Log::warning("Validation failed on step {$step}", [
+        //     'errors'     => $e->errors(),
+        //     'input'      => $data,
+        //     'product_id' => $product?->id,
+        //     'user_id'    => $request->user()?->id,
+        // ]);
+
+        // Debug: log the errors before returning
+        $errors = $e->errors();
+        // \Log::debug('Validation errors to return:', [
+        //     'error_count' => count($errors),
+        //     'error_keys' => array_keys($errors),
+        //     'first_error' => reset($errors),
+        // ]);
+
+        // Return validation errors to frontend
+        $response = back()
+            ->withErrors($errors)
+            ->withInput()
+            ->with([
+                'step' => $step,
+                'product_id' => $product?->id,
+            ]);
+
+        // Log the response we're about to send
+        // \Log::debug('Returning validation response', [
+        //     'session_errors' => session()->get('errors'),
+        //     'session_flash' => session()->get('_flash'),
+        // ]);
+
+        return $response;
+
     } catch (\Throwable $e) {
-        \Log::error("Product step {$step} failed", [
-            'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString(),
-        ]);
+        // \Log::error("Product step {$step} failed", [
+        //     'error'      => $e->getMessage(),
+        //     'trace'      => $e->getTraceAsString(),
+        //     'product_id' => $product?->id,
+        //     'user_id'    => $request->user()?->id,
+        //     'exception_type' => get_class($e), // Log what type of exception
+        // ]);
+
+        // Check if it might be a validation exception that wasn't caught
+        if ($e instanceof ValidationException) {
+            // \Log::warning('ValidationException caught in generic catch block!');
+            // return back()
+            //     ->withErrors($e->errors())
+            //     ->withInput()
+            //     ->with([
+            //         'step' => $step,
+            //         'product_id' => $product?->id,
+            //     ]);
+        }
 
         return back()
-            ->with('error', "Something went wrong while processing the product")
+            ->with('error', "Something went wrong while processing the product: " . $e->getMessage())
             ->with('step', $step)
             ->with('product_id', $product?->id);
     }
 }
-
 
 
     public function destroy(Product $product)

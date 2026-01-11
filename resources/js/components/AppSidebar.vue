@@ -248,19 +248,14 @@ const allNavItems: NavItem[] = [
                 icon: Truck,
                 permissions: ['view-regions'],
             },
-            // {
-            //     title: 'Areas',
-            //     href: '/admin/areas',
-            //     icon: MapPin,
-            //     permissions: ['view-regions'],
-            // },
-            // {
-            //     title: 'Routes',
-            //     href: '/admin/routes',
-            //     icon: MapPin,
-            //     permissions: ['view-regions'],
-            // },
         ],
+    },
+
+    {
+        title: 'Policies',
+        href: '/admin/policies',
+        icon: FileCheck,
+        permissions: ['view-policies'],
     },
 ];
 
