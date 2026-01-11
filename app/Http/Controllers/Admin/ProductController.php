@@ -146,8 +146,8 @@ public function create()
             ->get()
             ->map(function ($variant) {
                 $row = [
-                    'regular_price' => $variant->regular_price,
-                    'selling_price' => $variant->selling_price,
+                    'marked_price' => $variant->marked_price,
+                    'buying_price' => $variant->buying_price,
                     'stock' => $variant->stock,
                     'sku' => $variant->sku,
                     'values' => [],

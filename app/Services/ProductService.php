@@ -19,6 +19,8 @@ use Illuminate\Validation\ValidationException;
 
 
 
+
+
 class ProductService
 {
     protected ImageService $imageService;
@@ -452,10 +454,19 @@ protected function processProductImages(Product $product, array $images, int $pr
         return 'PROD-' . strtoupper(Str::random(8));
     }
 
+    // protected function generateSku(Product $product, int $index): string
+    // {
+    //     return $product->product_code . '-V' . ($index + 1);
+    // }
+
     protected function generateSku(Product $product, int $index): string
-    {
-        return $product->product_code . '-V' . ($index + 1);
-    }
+{
+    do {
+        $sku = $product->product_code . '-V' . strtoupper(Str::random(6));
+    } while (ProductVariant::where('sku', $sku)->exists());
+
+    return $sku;
+}
 
     protected function applyMetadata(array &$data): void
     {

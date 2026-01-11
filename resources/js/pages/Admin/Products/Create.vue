@@ -58,6 +58,8 @@ const unitOptions: OptionItem[] = units.map((u: any) => ({ id: u.id, name: u.nam
 
 // Steps
 const steps = ['Basic Info', 'Content', 'Variants', 'Images'];
+
+// Current step - simple ref that we'll update properly
 const currentStep = ref(0);
 
 // Track completed steps (steps that have been successfully saved)
@@ -89,48 +91,62 @@ const images = ref<any[]>(product?.images ?? []);
 
 const isSubmitting = ref(false);
 
-// Initialize completed steps from existing product
-const initializeCompletedSteps = () => {
-    if (product?.max_step_completed) {
-        // User has completed up to this step
-        const maxCompletedStep = product.max_step_completed - 1; // Convert to 0-based index
+// Initialize from product data
+const initializeFromProduct = () => {
+    if (product?.current_step) {
+        const stepIndex = product.current_step - 1;
+        currentStep.value = stepIndex;
 
-        // Mark all steps up to max_step_completed as completed
-        for (let i = 0; i <= maxCompletedStep; i++) {
-            if (!completedSteps.value.includes(i)) {
-                completedSteps.value.push(i);
+        // Mark steps as completed based on max_step_completed or current_step
+        if (product?.max_step_completed) {
+            const maxCompleted = product.max_step_completed - 1;
+            for (let i = 0; i <= maxCompleted; i++) {
+                if (!completedSteps.value.includes(i)) {
+                    completedSteps.value.push(i);
+                }
+            }
+        } else {
+            // Fallback: mark all steps up to current as completed
+            for (let i = 0; i < stepIndex; i++) {
+                if (!completedSteps.value.includes(i)) {
+                    completedSteps.value.push(i);
+                }
             }
         }
-
-        // Set current step (use current_step for where they left off)
-        const currentStepIndex = product.current_step - 1;
-        currentStep.value = currentStepIndex;
-
-        // If current step is ahead of max completed, don't mark it as completed
-        // Only mark it as completed if it's within the completed range
-        if (currentStepIndex <= maxCompletedStep && !completedSteps.value.includes(currentStepIndex)) {
-            completedSteps.value.push(currentStepIndex);
-        }
-    } else if (product?.current_step) {
-        // Fallback: only current_step available (for backward compatibility)
-        const currentStepIndex = product.current_step - 1;
-        currentStep.value = currentStepIndex;
-
-        // Assume all previous steps are completed
-        for (let i = 0; i < currentStepIndex; i++) {
-            if (!completedSteps.value.includes(i)) {
-                completedSteps.value.push(i);
-            }
-        }
-
-        // Also mark current step if it's been saved
-        completedSteps.value.push(currentStepIndex);
     }
 };
 
 // Restore step from backend
 onMounted(() => {
-    initializeCompletedSteps();
+    console.log('Component mounted');
+    console.log('Page flash:', page.flash);
+    console.log('Product data:', product);
+
+    // Check for flash data first (from recent submission)
+    if (page.flash?.step) {
+        const flashStep = page.flash.step - 1; // Convert to 0-based
+        console.log('Using flash step:', flashStep + 1);
+
+        currentStep.value = flashStep;
+
+        // Mark all steps up to this one as completed
+        for (let i = 0; i <= flashStep; i++) {
+            if (!completedSteps.value.includes(i)) {
+                completedSteps.value.push(i);
+            }
+        }
+
+        if (page.flash?.product_id) {
+            form.product_id = page.flash.product_id;
+        }
+    } else {
+        // No flash, initialize from product data
+        console.log('No flash, initializing from product');
+        initializeFromProduct();
+    }
+
+    console.log('Initial currentStep:', currentStep.value + 1);
+    console.log('Initial completedSteps:', completedSteps.value);
 });
 
 // Watch for page props changes
@@ -138,37 +154,37 @@ watch(
     () => page,
     (newPage) => {
         const flash = newPage.flash;
+
         if (flash?.step) {
-            const stepIndex = flash.step - 1; // Convert to 0-based
+            console.log('Page updated with flash step:', flash.step);
+            const stepIndex = flash.step - 1;
 
-            // Mark this step as completed when successfully saved
-            if (!completedSteps.value.includes(stepIndex)) {
-                completedSteps.value.push(stepIndex);
-            }
+            // Update current step
+            currentStep.value = stepIndex;
 
-            // Also mark all previous steps as completed
-            for (let i = 0; i < stepIndex; i++) {
+            // Mark all steps up to this one as completed
+            for (let i = 0; i <= stepIndex; i++) {
                 if (!completedSteps.value.includes(i)) {
                     completedSteps.value.push(i);
                 }
             }
 
-            currentStep.value = stepIndex;
-        }
-        if (flash?.product_id) {
-            form.product_id = flash.product_id;
+            if (flash?.product_id) {
+                form.product_id = flash.product_id;
+            }
         }
     },
     { deep: true },
 );
 
-// Check if a tab is enabled (using max_step_completed logic)
+// Check if a tab is enabled
 const isTabEnabled = (index: number): boolean => {
     // Tab is enabled if:
     // 1. It's the current step, OR
     // 2. It's a previously completed step (index is in completedSteps)
     // 3. OR it's the next step after the last completed one (allow forward progression)
-    const isNextStepAfterLastCompleted = index === completedSteps.value.length;
+    const lastCompletedStep = completedSteps.value.length > 0 ? Math.max(...completedSteps.value) : -1;
+    const isNextStepAfterLastCompleted = index === lastCompletedStep + 1;
 
     return index === currentStep.value || completedSteps.value.includes(index) || isNextStepAfterLastCompleted;
 };
@@ -179,7 +195,8 @@ const handleTabClick = (index: number) => {
     if (!isTabEnabled(index)) return;
 
     // If trying to navigate to a step beyond completed ones, warn about unsaved progress
-    if (index > Math.max(...completedSteps.value, -1)) {
+    const lastCompletedStep = completedSteps.value.length > 0 ? Math.max(...completedSteps.value) : -1;
+    if (index > lastCompletedStep) {
         if (!confirm("This step hasn't been saved yet. You'll need to complete previous steps first.")) {
             return;
         }
@@ -217,6 +234,11 @@ const submitStep = async () => {
     if (isSubmitting.value) return;
     isSubmitting.value = true;
 
+    console.log('=== SUBMITTING STEP ===');
+    console.log('Current step (0-based):', currentStep.value);
+    console.log('Current step (1-based):', currentStep.value + 1);
+    console.log('Form step being sent:', currentStep.value + 1);
+
     // Always submit current step explicitly
     form.step = currentStep.value + 1;
     form.variant_rows = variantRows.value;
@@ -227,65 +249,99 @@ const submitStep = async () => {
         preserveState: true,
 
         // Backend SUCCESS only (2xx responses)
-        onSuccess: () => {
+        onSuccess: (response) => {
+            console.log('=== ON SUCCESS ===');
             const props = usePage().props as any;
             const flash = props.flash;
 
+            console.log('Flash data received:', flash);
+
+            // Check if this is the final step (step 4)
+            const isFinalStep = currentStep.value === steps.length - 1;
+            console.log('Is final step?', isFinalStep);
+
+            if (isFinalStep && flash?.success) {
+                console.log('Final step completed with success - backend should redirect');
+                // Don't reset anything - backend will redirect to products index
+                return;
+            }
+
             if (flash?.product_id) {
+                console.log('Setting product_id from flash:', flash.product_id);
                 form.product_id = flash.product_id;
             }
 
             if (flash?.step) {
-                const stepIndex = flash.step - 1;
+                console.log('Flash step received:', flash.step);
+                console.log('Current step before update:', currentStep.value + 1);
 
-                // Mark this step as completed
-                if (!completedSteps.value.includes(stepIndex)) {
-                    completedSteps.value.push(stepIndex);
+                // Backend returns the NEXT step (1-based)
+                // Convert to 0-based for our component
+                const nextStepIndex = flash.step - 1;
+
+                // Mark the step we just completed
+                const justCompletedStep = currentStep.value;
+                if (!completedSteps.value.includes(justCompletedStep)) {
+                    completedSteps.value.push(justCompletedStep);
+                    console.log('Marked step', justCompletedStep + 1, 'as completed');
                 }
 
-                // Also mark all previous steps as completed
-                for (let i = 0; i < stepIndex; i++) {
-                    if (!completedSteps.value.includes(i)) {
-                        completedSteps.value.push(i);
+                // Move to the next step
+                if (nextStepIndex < steps.length) {
+                    currentStep.value = nextStepIndex;
+                    console.log('Advanced to step:', currentStep.value + 1);
+
+                    // Also mark this new step if it's already within completed range
+                    if (nextStepIndex <= Math.max(...completedSteps.value, -1)) {
+                        if (!completedSteps.value.includes(nextStepIndex)) {
+                            completedSteps.value.push(nextStepIndex);
+                        }
                     }
                 }
-
-                currentStep.value = stepIndex;
+            } else {
+                console.log('No flash.step received from backend');
+                // Fallback: manually advance to next step if not at the end
+                if (currentStep.value < steps.length - 1) {
+                    const justCompletedStep = currentStep.value;
+                    if (!completedSteps.value.includes(justCompletedStep)) {
+                        completedSteps.value.push(justCompletedStep);
+                    }
+                    currentStep.value = justCompletedStep + 1;
+                    console.log('Manually advanced to step:', currentStep.value + 1);
+                }
             }
 
             // Clear errors on successful step
             form.clearErrors();
-
-            // Final step completed
-            if (currentStep.value >= steps.length - 1) {
-                // Optional: Show success message before resetting
-                setTimeout(() => {
-                    form.reset();
-                    variantRows.value = [];
-                    images.value = [];
-                    currentStep.value = 0;
-                    completedSteps.value = [];
-                }, 1000);
-            }
+            console.log('Success handler completed');
+            console.log('New currentStep:', currentStep.value + 1);
+            console.log('CompletedSteps:', completedSteps.value);
         },
 
         // Validation errors (422) or other errors
         onError: (errors) => {
-            console.log('Form submission errors:', errors);
+            console.log('=== ON ERROR ===');
+            console.log('Errors:', errors);
+            console.log('Form errors:', form.errors);
 
             // Check if step was preserved from backend via flash
             const props = usePage().props as any;
             const flash = props.flash;
 
+            console.log('Flash in error handler:', flash);
+
             if (flash?.step) {
-                currentStep.value = flash.step - 1;
-            } else {
-                // Fallback to staying on current step
-                currentStep.value = form.step - 1;
+                console.log('Error handler - flash step:', flash.step);
+                const stepIndex = flash.step - 1;
+                currentStep.value = stepIndex;
             }
+
+            console.log('Current step after error:', currentStep.value + 1);
         },
 
         onFinish: () => {
+            console.log('=== ON FINISH ===');
+            console.log('Submission finished');
             isSubmitting.value = false;
         },
     });
@@ -349,7 +405,7 @@ const submitStep = async () => {
                         <span class="font-medium">Progress</span>
                         <span class="text-gray-600">
                             {{ completedSteps.length }} of {{ steps.length }} steps completed
-                            <span v-if="product?.max_step_completed" class="text-gray-400"> </span>
+                            <span class="text-gray-400"> </span>
                         </span>
                     </div>
                     <div class="h-2 overflow-hidden rounded-full bg-gray-200">
