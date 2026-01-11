@@ -150,17 +150,122 @@ protected function handleStep1(array $data, ?User $user, ?array $images, ?Produc
 
 
 
-    protected function handleStep3(array $data, ?User $user, ?array $images, ?Product $product): Product
-{
-    if (!$product) throw new \InvalidArgumentException("Product must exist before step 3.");
+//     protected function handleStep3(array $data, ?User $user, ?array $images, ?Product $product): Product
+// {
+//     if (!$product) throw new \InvalidArgumentException("Product must exist before step 3.");
 
-    if (!empty($data['variant_rows']) && is_array($data['variant_rows'])) {
-        $product->variants()->delete();
-        $this->processProductVariants($product, $data['variant_rows']);
-        Log::info('Product variants updated', ['product_id' => $product->id]);
+//     if (!empty($data['variant_rows']) && is_array($data['variant_rows'])) {
+//         $product->variants()->delete();
+//         $this->processProductVariants($product, $data['variant_rows']);
+//         Log::info('Product variants updated', ['product_id' => $product->id]);
+//     }
+
+//     return $product;
+// }
+
+
+protected function handleStep3(array $data, ?User $user, ?array $images, ?Product $product): Product
+{
+    if (!$product) {
+        throw new \InvalidArgumentException("Product must exist before step 3.");
     }
 
+    if (empty($data['variant_rows']) || !is_array($data['variant_rows'])) {
+        Log::info('Step 3 skipped: no variants', ['product_id' => $product->id]);
+        return $product;
+    }
+
+    $variantRows = collect($data['variant_rows'])
+        ->filter(fn ($row) => !empty($row['values']) && is_array($row['values']))
+        ->values()
+        ->all();
+
+    if (count($variantRows) === 0) {
+        Log::info('Step 3 skipped: no valid variant values', ['product_id' => $product->id]);
+        return $product;
+    }
+
+    // Safe delete (children first)
+    ProductVariant::where('product_id', $product->id)
+        ->with('values')
+        ->chunkById(50, function ($variants) {
+            foreach ($variants as $variant) {
+                $variant->values()->delete();
+                $variant->delete();
+            }
+        });
+
+    $this->processProductVariantsOptimized($product, $variantRows);
+
     return $product;
+}
+
+
+protected function processProductVariantsOptimized(Product $product, array $variantRows): void
+{
+    // Cache valid variant categories once (keyed by ID)
+    $validCategories = VariantCategory::pluck('id')->flip();
+
+    foreach ($variantRows as $index => $row) {
+
+        // Guard against malformed rows
+        if (empty($row['values']) || !is_array($row['values'])) {
+            continue;
+        }
+
+        // Create the product variant
+        $productVariant = $product->variants()->create([
+            'stock'         => $row['stock'] ?? 0,
+            'marked_price'  => $row['marked_price'] ?? 0,
+            'buying_price'  => $row['buying_price'] ?? 0,
+            'sku'           => $row['sku'] ?? $this->generateSku($product, $index),
+        ]);
+
+        $valuesToInsert = [];
+        $usedCategories = []; // prevent duplicate category inserts per variant
+
+        foreach ($row['values'] as $categoryId => $value) {
+
+            $categoryId = (int) $categoryId;
+            $value = trim((string) $value);
+
+            if ($value === '') {
+                continue;
+            }
+
+            // Skip invalid or duplicate categories
+            if (
+                !isset($validCategories[$categoryId]) ||
+                isset($usedCategories[$categoryId])
+            ) {
+                continue;
+            }
+
+            $usedCategories[$categoryId] = true;
+
+            // Get or create the variant value
+            $variant = Variant::firstOrCreate(
+                [
+                    'variant_category_id' => $categoryId,
+                    'value'               => $value,
+                ],
+                ['is_active' => true]
+            );
+
+            // IMPORTANT: product_variant_id MUST be set explicitly
+            $valuesToInsert[] = [
+                'product_variant_id' => $productVariant->id,
+                'variant_id'         => $variant->id,
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ];
+        }
+
+        // Batch insert variant values
+        if (!empty($valuesToInsert)) {
+            $productVariant->values()->insert($valuesToInsert);
+        }
+    }
 }
 
 
@@ -243,69 +348,6 @@ protected function handleStep4(array $data, ?User $user, ?array $images, ?Produc
 
     return $product;
 }
-
-
-
-
-// protected function processProductImages(Product $product, array $images, int $primaryIndex): void
-// {
-//     foreach ($images as $index => $image) {
-//         $file = $image instanceof \Illuminate\Http\UploadedFile
-//             ? $image
-//             : (is_array($image) ? ($image['file'] ?? null) : null);
-
-//         \Log::info('processProductImages: inspecting file', [
-//             'index' => $index,
-//             'type'  => is_object($file) ? get_class($file) : gettype($file),
-//             'name'  => $file instanceof \Illuminate\Http\UploadedFile ? $file->getClientOriginalName() : null,
-//         ]);
-
-//         if ($file instanceof \Illuminate\Http\UploadedFile) {
-//             try {
-
-//                 $path = $file->store('products', 's3');
-
-//                 \Log::info('processProductImages: image stored', [
-//                     'product_id' => $product->id,
-//                     'path'       => $path,
-//                     'url'        => Storage::disk('s3')->url($path),
-//                 ]);
-
-//                 // Save in DB
-//                 $product->images()->create([
-//                     'image_path' => $path,
-//                     'is_primary' => $primaryIndex === $index ? 1 : 0,
-//                     'sort_order' => $index,
-//                     'alt_text'   => substr($product->name, 0, 15),
-//                 ]);
-//             } catch (\Exception $e) {
-//                 \Log::error('processProductImages: upload failed', [
-//                     'error' => $e->getMessage(),
-//                 ]);
-//             }
-//         } else {
-//             \Log::warning('processProductImages: skipped file', [
-//                 'index' => $index,
-//                 'value' => $image,
-//             ]);
-//         }
-//     }
-
-
-//     if (!$product->images()->where('is_primary', 1)->exists()) {
-//         $firstImage = $product->images()->orderBy('sort_order')->first();
-//         if ($firstImage) {
-//             $firstImage->update(['is_primary' => 1]);
-//         }
-//     }
-
-//     \Log::info('processProductImages completed', [
-//         'product_id'   => $product->id,
-//         'final_count'  => $product->images()->count(),
-//         'primary_index'=> $primaryIndex,
-//         'has_primary'  => $product->images()->where('is_primary', 1)->exists(),
-//     ]);
-// }
 
 
 protected function processProductImages(Product $product, array $images, int $primaryIndex): void
