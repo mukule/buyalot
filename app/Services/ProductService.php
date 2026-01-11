@@ -176,7 +176,7 @@ protected function handleStep3(array $data, ?User $user, ?array $images, ?Produc
     }
 
     $variantRows = collect($data['variant_rows'])
-        ->filter(fn ($row) => !empty($row['values']) && is_array($row['values']))
+        ->filter(fn($row) => !empty($row['values']) && is_array($row['values']))
         ->values()
         ->all();
 
@@ -185,20 +185,94 @@ protected function handleStep3(array $data, ?User $user, ?array $images, ?Produc
         return $product;
     }
 
-    // Safe delete (children first)
-    ProductVariant::where('product_id', $product->id)
-        ->with('values')
-        ->chunkById(50, function ($variants) {
-            foreach ($variants as $variant) {
-                $variant->values()->delete();
-                $variant->delete();
-            }
-        });
+    // Cache valid variant categories
+    $validCategories = VariantCategory::pluck('id')->flip();
 
-    $this->processProductVariantsOptimized($product, $variantRows);
+    $submittedIds = [];
+    $valuesToInsert = [];
+
+    foreach ($variantRows as $index => $row) {
+        $variantId = $row['id'] ?? null;
+        $submittedIds[] = $variantId;
+
+        $hasValidValue = collect($row['values'])->filter(fn($v) => !is_null($v) && trim($v) !== '')->count() > 0;
+        if (!$hasValidValue && !$variantId) {
+            continue; // skip empty new variants
+        }
+
+        // Update existing variant
+        if ($variantId) {
+            $productVariant = ProductVariant::find($variantId);
+            if ($productVariant) {
+                $productVariant->update([
+                    'stock'        => $row['stock'] ?? $productVariant->stock,
+                    'buying_price' => $row['buying_price'] ?? $productVariant->buying_price,
+                    'marked_price' => $row['marked_price'] ?? $productVariant->marked_price,
+                    'sku'          => $row['sku'] ?? $productVariant->sku,
+                ]);
+            } else {
+                $variantId = null; // fallback to create
+            }
+        }
+
+        // Create new variant if ID is null
+        if (!$variantId) {
+            $productVariant = $product->variants()->create([
+                'stock'         => $row['stock'] ?? 0,
+                'buying_price'  => $row['buying_price'] ?? 0,
+                'marked_price'  => $row['marked_price'] ?? 0,
+                'sku'           => $row['sku'] ?? $this->generateSku($product, $index),
+            ]);
+        }
+
+        $usedCategories = [];
+
+        foreach ($row['values'] as $categoryId => $value) {
+            $categoryId = (int)$categoryId;
+            $value = trim((string)$value);
+
+            if ($value === '' || !isset($validCategories[$categoryId]) || isset($usedCategories[$categoryId])) {
+                continue;
+            }
+
+            $usedCategories[$categoryId] = true;
+
+            $variant = Variant::firstOrCreate(
+                ['variant_category_id' => $categoryId, 'value' => $value],
+                ['is_active' => true]
+            );
+
+            $valuesToInsert[] = [
+                'product_variant_id' => $productVariant->id,
+                'variant_id'         => $variant->id,
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ];
+        }
+    }
+
+    // Batch insert all new values at once
+    if (!empty($valuesToInsert)) {
+        // Use chunking if very large
+        collect($valuesToInsert)->chunk(500)->each(function($chunk) {
+            \DB::table('product_variant_values')->insert($chunk->toArray());
+        });
+    }
+
+    // Remove old variants not submitted safely
+    $oldVariants = $product->variants()->whereNotIn('id', array_filter($submittedIds))->get();
+    foreach ($oldVariants as $oldVariant) {
+        if ($oldVariant->orders()->count() === 0) {
+            $oldVariant->values()->delete();
+            $oldVariant->delete();
+        } else {
+            $oldVariant->update(['is_active' => false]);
+        }
+    }
 
     return $product;
 }
+
 
 
 protected function processProductVariantsOptimized(Product $product, array $variantRows): void
