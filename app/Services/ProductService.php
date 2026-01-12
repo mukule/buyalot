@@ -155,56 +155,54 @@ protected function handleStep1(array $data, ?User $user, ?array $images, ?Produc
 
     protected function handleStep3(array $data, ?User $user, ?array $images, ?Product $product): Product
 {
-    info('handleStep3 called');
     if (!$product || empty($data['variant_rows']) || !is_array($data['variant_rows'])) {
-        info('handleStep3 skipped due to invalid product or variant rows');
         return $product;
     }
     try {
         $variantRows = collect($data['variant_rows'])
             ->filter(fn($row) => !empty($row['values']) && is_array($row['values']));
-        info('handleStep3 filtered variant rows', ['count' => $variantRows->count()]);
-
         if ($variantRows->isEmpty()) {
-            info('handleStep3 skipped due to empty variant rows');
             return $product;
         }
 
         // Cache valid categories once
         $validCategories = VariantCategory::pluck('id')->flip();
-        info('handleStep3 cached valid categories 4 ', ['count' => $validCategories->count()]);
-
         // Cache existing variants and variant values
         $existingVariants = $product->variants()->get()->keyBy('id');
-        info('handleStep3 cached existing variants', ['count' => $existingVariants->count()]);
         $existingVariantValues = Variant::pluck('id', DB::raw("CONCAT(variant_category_id, ':', value)"))->toArray();
-    info('handleStep3 cached existing variant values', ['count' => count($existingVariantValues)]);
         $submittedIds = [];
         $valuesToInsert = [];
 
         foreach ($variantRows as $index => $row) {
-            info('handleStep3 processing row', ['index' => $index]);
             $variantId = $row['id'] ?? null;
             $submittedIds[] = $variantId;
 
             // Update existing variant
             if ($variantId && isset($existingVariants[$variantId])) {
                 $variant = $existingVariants[$variantId];
-                info('handleStep3 updating variant', ['variant_id' => $variantId]);
+                $buyingPrice  = $row['buying_price']  ?? $variant->buying_price;
+                $markedPrice  = $row['marked_price']  ?? $variant->marked_price;
                 $variant->update([
-                    'stock' => $row['stock'] ?? $variant->stock,
-                    'buying_price' => $row['buying_price'] ?? $variant->buying_price,
-                    'marked_price' => $row['marked_price'] ?? $variant->marked_price,
-                    'sku' => $row['sku'] ?? $variant->sku,
+                    'stock'          => $row['stock'] ?? $variant->stock,
+                    'buying_price'   => $buyingPrice,
+                    'marked_price'   => $markedPrice,
+                    'regular_price'  => $markedPrice,
+                    'selling_price'  => $buyingPrice,
+                    'discount'       => max(0, $buyingPrice-$markedPrice),
+                    'sku'            => $row['sku'] ?? $variant->sku,
                 ]);
                 $productVariant = $variant;
             } else {
-                info('handleStep3 creating new variant fallback');
+                $buyingPrice  = $row['buying_price']  ?? 0;
+                $markedPrice  = $row['marked_price']  ?? 0;
                 // Create new variant
                 $productVariant = $product->variants()->create([
                     'stock' => $row['stock'] ?? 0,
-                    'buying_price' => $row['buying_price'] ?? 0,
-                    'marked_price' => $row['marked_price'] ?? 0,
+                    'buying_price'   => $buyingPrice,
+                    'marked_price'   => $markedPrice,
+                    'regular_price'  => $markedPrice,
+                    'selling_price'  => $buyingPrice,
+                    'discount'       => max(0,  $buyingPrice - $markedPrice),
                     'sku' => $row['sku'] ?? $this->generateSku($product, $index),
                 ]);
             }
@@ -242,7 +240,6 @@ protected function handleStep1(array $data, ?User $user, ?array $images, ?Produc
 
         // Batch insert variant values
         if (!empty($valuesToInsert)) {
-            info('handleStep3 batch inserting variant values', ['count' => count($valuesToInsert)]);
             collect($valuesToInsert)->chunk(500)->each(fn($chunk) => DB::table('product_variant_values')->insert($chunk->toArray())
             );
         }
