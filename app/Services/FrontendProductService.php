@@ -36,8 +36,8 @@ class FrontendProductService
                 ->get();
 
             $priceData = $this->getPriceForVariants($variants);
-            info('Price data fetched for category: ' . $category->name);
-            info($priceData);
+            // info('Price data fetched for category: ' . $category->name);
+            // info($priceData);
 
             $variants = $variants->map(fn($variant) => $this->normalizeVariant($variant, $priceData));
 
