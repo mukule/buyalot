@@ -32,6 +32,14 @@ class AuthenticatedSessionController extends Controller
         ]);
     }
 
+    public function createAdminLogin(Request $request): Response
+    {
+        return Inertia::render('auth/AdminLogin', [
+            'canResetPassword' => Route::has('password.request'),
+            'status' => $request->session()->get('status'),
+        ]);
+    }
+
     /**
      * Handle an incoming authentication request.
      */
@@ -71,11 +79,11 @@ public function store(
 
 
 
-    if (in_array($user->user_type, ['user'])) {
-        $user->update(['last_login_at' => now()]);
-        return redirect()->intended(route('admin.dashboard'))
-            ->with('success', 'Welcome back, ' . $user->name . '!');
-    }
+//    if (in_array($user->user_type, ['user'])) {
+//        $user->update(['last_login_at' => now()]);
+//        return redirect()->intended(route('admin.dashboard'))
+//            ->with('success', 'Welcome back, ' . $user->name . '!');
+//    }
 
 
     if ($user->user_type === 'customer' || $user->secondary_role=="customer") {
@@ -93,16 +101,20 @@ public function store(
         return redirect()->intended(
             route('customers.dashboard', ['customer' => $customer->id])
         )->with('success', 'Welcome back, ' . $user->name . '!');
+    } else{
+        Auth::logout();
+        $request->session()->invalidate();
+        return redirect()->back()->withErrors(["password"=>"You don't have an active customer account to login. Please create an account or contact admin for assistance"]);
     }
 
 
     //as the last option
-
-    if (in_array($user->user_type, ['vendor', 'seller'])) {
-        $user->update(['last_login_at' => now()]);
-        return redirect()->intended(route('admin.dashboard'))
-            ->with('success', 'Welcome back, ' . $user->name . '!');
-    }
+//
+//    if (in_array($user->user_type, ['vendor', 'seller'])) {
+//        $user->update(['last_login_at' => now()]);
+//        return redirect()->intended(route('admin.dashboard'))
+//            ->with('success', 'Welcome back, ' . $user->name . '!');
+//    }
 
 
     return redirect()->intended(route('home'))
@@ -137,6 +149,34 @@ public function store(
         $user = Auth::user();
 
         if (in_array($user->user_type, ['vendor', 'seller']) || $user->secondary_role == 'seller') {
+            $user->update(['last_login_at' => now()]);
+            return redirect()->intended(route('admin.dashboard'))
+                ->with('success', 'Welcome back, ' . $user->name . '!');
+        }else{
+            Auth::logout();
+            $request->session()->invalidate();
+            return redirect()->back()->withErrors(["password"=>"You don't have permission to access this page. Please create an account or contact admin for assistance"]);
+        }
+    }
+
+
+    public function adminStore(LoginRequest $request): RedirectResponse {
+
+        // Attempt authentication
+        $request->authenticate();
+
+        if (!Auth::check()) {
+            logger('Authentication failed');
+            return back()->withErrors([
+                'email' => 'These credentials do not match our records.',
+            ]);
+        }
+
+        // Regenerate session to prevent fixation
+        $request->session()->regenerate();
+        $user = Auth::user();
+
+        if ($user->user_type == "user") {
             $user->update(['last_login_at' => now()]);
             return redirect()->intended(route('admin.dashboard'))
                 ->with('success', 'Welcome back, ' . $user->name . '!');

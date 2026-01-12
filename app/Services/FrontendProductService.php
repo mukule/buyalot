@@ -36,6 +36,8 @@ class FrontendProductService
                 ->get();
 
             $priceData = $this->getPriceForVariants($variants);
+            info('Price data fetched for category: ' . $category->name);
+            info($priceData);
 
             $variants = $variants->map(fn($variant) => $this->normalizeVariant($variant, $priceData));
 
@@ -182,17 +184,24 @@ private function normalizeVariant(ProductVariant $variant, array $priceData = []
             ? Storage::disk('s3')->url($product->images->first()->image_path)
             : '/fallback-image.png');
 
-    $priceInfo = $priceData[$variant->id] ?? [];
-
     $markedPrice = $variant->marked_price ?? 0;
-    $totalDiscount = $priceInfo['total_discount'] ?? 0;
+    $sellingPrice = $variant->sellingPrice ?? 0;
+//    $calculatedDiscount = max($sellingPrice-$markedPrice, 0);
+
+    // Persist discount ONLY if changed (prevents noisy writes)
+//    if ((float) $variant->discount !== $calculatedDiscount) {
+//        $variant->update([
+//            'discount' => $calculatedDiscount,
+//        ]);
+//    }
+
+    $totalDiscount = $variant->discount ?? 0;
 
     // Compute final price by subtracting discount from marked price
-    $finalPrice = max(0, $markedPrice - $totalDiscount);
 
     $discountPercent = 0;
-    if ($markedPrice > 0 && $totalDiscount > 0) {
-        $discountPercent = round(($totalDiscount / $markedPrice) * 100, 2);
+    if ($sellingPrice > 0 && $totalDiscount > 0) {
+        $discountPercent = round(($totalDiscount / $sellingPrice) * 100, 2);
     }
 
     return [
@@ -203,8 +212,8 @@ private function normalizeVariant(ProductVariant $variant, array $priceData = []
         'product_slug'      => $product?->slug ?? '',
         'name'              => $variant->display_name ?? $product?->name,
         'product_name'      => $product?->name,
-        'marked_price'      => round($markedPrice, 2),
-        'final_price'       => round($finalPrice, 2),
+        'marked_price'      => round($sellingPrice, 2),
+        'final_price'       => round($markedPrice, 2),
         'discount_percent'  => $discountPercent,
         'has_discount'      => $totalDiscount > 0,
         'in_stock'          => $variant->in_stock,
@@ -213,8 +222,49 @@ private function normalizeVariant(ProductVariant $variant, array $priceData = []
     ];
 }
 
-
     public function getPriceForVariants($variants): array
+    {
+        if ($variants->isEmpty()) {
+            return [];
+        }
+
+        return $variants->mapWithKeys(function ($variant) {
+
+            $markedPrice  = (float) ($variant->marked_price ?? 0);
+            $sellingPrice = (float) ($variant->selling_price ?? 0);
+
+//            $calculatedDiscount = max($sellingPrice-$markedPrice, 0);
+//            info('Calculated discount for variant: ' . $variant->id . ' = ' . $calculatedDiscount);
+
+            // Persist discount ONLY if changed (prevents noisy writes)
+//            if ((float) $variant->discount !== $calculatedDiscount) {
+//                $variant->update([
+//                    'discount' => $calculatedDiscount,
+//                ]);
+//            }
+
+            $discountPercentage = $sellingPrice > 0
+                ? (int) round(($variant->discount / $sellingPrice) * 100)
+                : 0;
+
+            return [
+                $variant->id => [
+                    'product_variant_id'  => $variant->id,
+                    'marked_price'        => round($sellingPrice, 2),
+                    'discounts'           => [],
+                    'total_discount'      => round($variant->discount , 2),
+                    'discount_percentage' => $discountPercentage,
+                    'final_price'         => round($markedPrice, 2),
+                    'has_discount'        => $variant->discount > 0,
+                ],
+            ];
+        })->toArray();
+    }
+
+
+
+
+    public function getPriceForVariants1($variants): array
     {
         $variantIds = $variants->pluck('id')->all();
 

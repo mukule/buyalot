@@ -221,68 +221,47 @@ class DiscountController extends Controller
         }
     }
 
-    // public function calculateDiscounts(Request $request)
-    // {
-    //     // Validate input
-    //     $validated = $request->validate([
-    //         'product_variant_ids' => ['required', 'array'],
-    //         'product_variant_ids.*' => ['integer', 'exists:product_variants,id'],
-    //     ]);
 
-    //     $variants = ProductVariant::with(['discounts'])
-    //         ->whereIn('id', $validated['product_variant_ids'])
-    //         ->get();
+    public function calculateDiscounts(Request $request)
+    {
+        $validated = $request->validate([
+            'product_variant_ids'   => ['required', 'array'],
+            'product_variant_ids.*' => ['integer', 'exists:product_variants,id'],
+        ]);
 
-    //     $results = [];
+        $variants = ProductVariant::whereIn('id', $validated['product_variant_ids'])->get();
 
-    //     foreach ($variants as $variant) {
-    //         $markedPrice = $variant->marked_price ?? 0;
-    //         $totalDiscount = 0;
-    //         $discountDetails = [];
+        $results = $variants->map(function ($variant) {
 
-    //         foreach ($variant->discounts as $discount) {
-    //             if (! $discount->is_active) {
-    //                 continue;
-    //             }
+            $markedPrice  = (float) ($variant->marked_price ?? 0);
+            $sellingPrice = (float) ($variant->selling_price ?? $markedPrice);
 
-    //             // Determine discount value
-    //             $discountAmount = 0;
+            // Derived discount (amount)
+            $totalDiscount = max($markedPrice - $sellingPrice, 0);
 
-    //             if ($discount->type === 'percentage') {
-    //                 $discountAmount = ($markedPrice * ($discount->value / 100));
-    //             } elseif ($discount->type === 'fixed') {
-    //                 $discountAmount = $discount->value;
-    //             }
+            // Derived discount percentage
+            $discountPercentage = $sellingPrice > 0
+                ? (int) round(($totalDiscount / $sellingPrice) * 100)
+                : 0;
 
-    //             $discountAmount = min($discountAmount, $markedPrice); // prevent over-discounting
-    //             $totalDiscount += $discountAmount;
+            return [
+                'product_variant_id'  => $variant->id,
+                'marked_price'        => round($sellingPrice, 2),
+                'discounts'           => [],
+                'total_discount'      => round($totalDiscount, 2),
+                'discount_percentage' => $discountPercentage,
+                'final_price'         => round($markedPrice, 2),
+                'has_discount'        => $totalDiscount > 0,
+            ];
+        })->values();
 
-    //             $discountDetails[] = [
-    //                 'discount_name' => $discount->name,
-    //                 'discount_amount' => round($discountAmount, 2),
-    //             ];
-    //         }
-
-    //         $sellingPrice = max($markedPrice - $totalDiscount, 0);
-
-    //         $results[] = [
-    //             'product_variant_id' => $variant->id,
-    //             'marked_price' => round($markedPrice, 2),
-    //             'discounts' => $discountDetails,
-    //             'total_discount' => round($totalDiscount, 2),
-    //             'selling_price' => round($sellingPrice, 2),
-    //         ];
-    //     }
-
-    //     logger("results", $results);
-
-    //     return response()->json([
-    //         'data' => $results,
-    //     ]);
-    // }
+        return response()->json([
+            'data' => $results,
+        ]);
+    }
 
 
-    public function calculateDiscounts(Request $request, DiscountService $discountService)
+    public function calculateDiscounts1(Request $request, DiscountService $discountService)
 {
     $validated = $request->validate([
         'product_variant_ids' => ['required', 'array'],
@@ -295,4 +274,5 @@ class DiscountController extends Controller
         'data' => $results,
     ]);
 }
+
 }

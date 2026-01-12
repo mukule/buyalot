@@ -122,11 +122,11 @@ const goToProduct = (product: SimplifiedProduct) => {
                                         <!-- PRICE -->
                                         <div class="flex items-center gap-2">
                                             <span class="font-semibold text-gray-800">
-                                                {{ formatPrice(item.marked_price) }}
+                                                {{ formatPrice(item.unit_price) }}
                                             </span>
 
                                             <span v-if="item.discount_amount && item.discount_amount > 0" class="text-sm text-gray-500 line-through">
-                                                {{ formatPrice(item.unit_price) }}
+                                                {{ formatPrice(item.marked_price) }}
                                             </span>
 
                                             <span

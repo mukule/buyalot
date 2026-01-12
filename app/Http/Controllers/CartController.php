@@ -92,7 +92,7 @@ class CartController extends Controller
         $variant = $it->productVariant;
         $product = $variant?->product;
 
-        $finalPrice = $priceData[$variant->id]['final_price'] ?? ($variant?->selling_price ?? 0);
+        $finalPrice = $priceData[$variant->id]['final_price'] ?? ($variant?->marked_price ?? 0);
         $ownerInfo = $variant?->getOwnerInfo();
 
         return [
@@ -269,6 +269,8 @@ public function store(Request $request, CartReservationService $cartService)
     $markedPrice = $priceInfo['marked_price'] ?? 0;
     $unitPrice = $priceInfo['final_price'] ?? $markedPrice;
     $discountAmount = $priceInfo['total_discount'] ?? 0;
+
+    info("Marked price: {$markedPrice}, unit price: {$unitPrice}, discount amount: {$discountAmount}");
 
 
     $discountPercentage = $priceInfo['discount_percentage'] ?? 0;
