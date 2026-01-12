@@ -11,17 +11,14 @@ use App\Models\VariantCategory;
 use App\Models\Category;
 use App\Services\SearchCacheService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
-use App\Http\Requests\StoreProductRequest;
 use App\Services\ProductService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use App\Models\ProductStatus;
-use Hashids\Hashids;
-
 
 
 class ProductController extends Controller
@@ -305,7 +302,13 @@ public function store(Request $request, ProductService $productService)
         );
 
         if ($step === 4) {
-            RefreshProductCache::dispatch($product)->delay(now()->addSeconds(5));
+            try{
+                info('Dispatching RefreshProductCache job for product ID: '.$product->id);
+                RefreshProductCache::dispatch($product)->delay(now()->addSeconds(5));
+                info('RefreshProductCache job dispatched successfully for product ID: '.$product->id);
+            }catch(\Exception $e){
+                info('Error dispatching RefreshProductCache job for product ID: '.$product->id.' - '.$e->getMessage());
+            }
             return redirect()->route('admin.products.index')
                 ->with('success', "Product '{$product->name}' created successfully.");
         }
@@ -346,6 +349,7 @@ public function store(Request $request, ProductService $productService)
         //     'session_errors' => session()->get('errors'),
         //     'session_flash' => session()->get('_flash'),
         // ]);
+        info('Returning validation response with errors and input data '.$e);
 
         return $response;
 
@@ -583,7 +587,12 @@ public function updateStatus(Request $request, Product $product)
     //cache when status updated to published
     $status=ProductStatus::find($request->input('status_id'));
     if ($status && $status->name =="published") {
-        RefreshProductCache::dispatch($product)->delay(now()->addSeconds(5));
+        try {
+            info('Dispatching RefreshProductCache job in updateStatus for product ID: '.$product->id);
+            RefreshProductCache::dispatch($product)->delay(now()->addSeconds(5));
+        }catch (\Throwable $e){
+            info('Error dispatching RefreshProductCache job in updateStatus for product ID: '.$product->id.' - '.$e->getMessage());
+        }
     }
     return redirect()
         ->back()

@@ -23,6 +23,7 @@ class RefreshCategoryCache implements ShouldQueue
 
     public function handle(): void
     {
+        info('Rebuilding category cache triggered on class RefreshCategoryCache job...');
         SearchCacheService::refreshCategory($this->category);
     }
 }

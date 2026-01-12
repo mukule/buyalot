@@ -23,6 +23,7 @@ class RefreshBrandCache implements ShouldQueue
 
     public function handle(): void
     {
+        info('Rebuilding brand cache triggered on class RefreshBrandCache job...');
         SearchCacheService::refreshBrand($this->brand);
     }
 }

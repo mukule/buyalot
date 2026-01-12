@@ -87,7 +87,12 @@ class CategoryController extends Controller
             $category->variantCategories()->sync($request->variant_categories);
         }
 
-        RefreshCategoryCache::dispatch($category)->delay(now()->addSeconds(5));
+        try{
+            info('Dispatching RefreshCategoryCache job for category ID: '.$category->id);
+                RefreshCategoryCache::dispatch($category)->delay(now()->addSeconds(5));
+            }catch (\Throwable $e){
+            info('Error dispatching RefreshCategoryCache job for category ID: '.$category->id.' - '.$e->getMessage());
+        }
 
         return redirect()->route('admin.categories.index')
             ->with('success', 'Category created successfully.');
@@ -144,7 +149,12 @@ class CategoryController extends Controller
 
         $category->variantCategories()->sync($request->variant_categories ?? []);
 
-        RefreshCategoryCache::dispatch($category)->delay(now()->addSeconds(5));
+        try {
+            info('Dispatching RefreshCategoryCache job for category ID: ' . $category->id);
+            RefreshCategoryCache::dispatch($category)->delay(now()->addSeconds(5));
+        } catch (\Throwable $e) {
+            info('Error dispatching RefreshCategoryCache job for category ID: ' . $category->id . ' - ' . $e->getMessage());
+        }
 
         return redirect()->route('admin.categories.index')
             ->with('success', 'Category updated successfully.');
