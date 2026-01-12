@@ -159,7 +159,7 @@ public function create()
                 $row = [
                     'id' => $variant->id,
                     'marked_price' => $variant->marked_price,
-                    'buying_price' => $variant->buying_price,
+                    'buying_price' => $variant->selling_price,
                     'stock' => $variant->stock,
                     'sku' => $variant->sku,
                     'values' => [],
@@ -243,9 +243,9 @@ public function edit(Product $product)
         ->get()
         ->map(function ($variant) {
             $row = [
-                'id' => $variant->id, 
+                'id' => $variant->id,
                 'marked_price' => $variant->marked_price,
-                'buying_price' => $variant->buying_price,
+                'buying_price' => $variant->selling_price,
                 'stock' => $variant->stock,
                 'sku' => $variant->sku,
                 'values' => [],
@@ -356,9 +356,9 @@ public function store(Request $request, ProductService $productService)
             ->with('product_id', $product->id);
 
     } catch (ValidationException $e) {
-       
+
         $errors = $e->errors();
-       
+
         $response = back()
             ->withErrors($errors)
             ->withInput()
@@ -377,11 +377,11 @@ public function store(Request $request, ProductService $productService)
         return $response;
 
     } catch (\Throwable $e) {
-       
 
-       
+
+
         if ($e instanceof ValidationException) {
-           
+
         }
 
         return back()
@@ -526,7 +526,7 @@ public function show(Product $product)
         'variants' => $product->productVariants->map(fn($variant) => [
             'id' => $variant->id,
             'marked_price' => $variant->marked_price,
-            'buying_price' => $variant->buying_price,
+            'buying_price' => $variant->selling_price,
             'stock' => $variant->stock,
             'sku' => $variant->sku,
             'values' => $variant->values->map(fn($v) => [

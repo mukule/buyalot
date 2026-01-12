@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Product;
+use App\Models\ProductStatus;
 use App\Models\User;
 use App\Models\Variant;
 use App\Models\ProductVariant;
@@ -180,29 +181,35 @@ protected function handleStep1(array $data, ?User $user, ?array $images, ?Produc
             // Update existing variant
             if ($variantId && isset($existingVariants[$variantId])) {
                 $variant = $existingVariants[$variantId];
-                $buyingPrice  = $row['buying_price']  ?? $variant->buying_price;
+                $sellingPrice  = $row['buying_price']  ?? $variant->buying_price;
                 $markedPrice  = $row['marked_price']  ?? $variant->marked_price;
                 $variant->update([
                     'stock'          => $row['stock'] ?? $variant->stock,
-                    'buying_price'   => $buyingPrice,
+                    'buying_price'   => $markedPrice,
                     'marked_price'   => $markedPrice,
                     'regular_price'  => $markedPrice,
-                    'selling_price'  => $buyingPrice,
-                    'discount'       => max(0, $buyingPrice-$markedPrice),
+                    'selling_price'  => $sellingPrice,
+                    'discount'       => max(0, $markedPrice - $sellingPrice),
                     'sku'            => $row['sku'] ?? $variant->sku,
                 ]);
                 $productVariant = $variant;
+                //retain the publised status of the product
+                $pstatus=ProductStatus::where('name','published')->first();
+                if ($product && $pstatus) {
+                    info('Updating product status to published for variant: '.$variant->id);
+                    $product->updateStatus($pstatus->id);
+                }
             } else {
-                $buyingPrice  = $row['buying_price']  ?? 0;
+                $sellingPrice  = $row['buying_price']  ?? 0;
                 $markedPrice  = $row['marked_price']  ?? 0;
                 // Create new variant
                 $productVariant = $product->variants()->create([
                     'stock' => $row['stock'] ?? 0,
-                    'buying_price'   => $buyingPrice,
+                    'buying_price'   => $markedPrice,
                     'marked_price'   => $markedPrice,
                     'regular_price'  => $markedPrice,
-                    'selling_price'  => $buyingPrice,
-                    'discount'       => max(0,  $buyingPrice - $markedPrice),
+                    'selling_price'  => $sellingPrice,
+                    'discount'       => max(0, $markedPrice - $sellingPrice),
                     'sku' => $row['sku'] ?? $this->generateSku($product, $index),
                 ]);
             }

@@ -67,47 +67,16 @@ public function productDetails(string $slug)
         'warranties',
     ])->where('slug', $slug)->firstOrFail();
 
-//    $variantIds = $product->productVariants->pluck('id')->toArray();
-//    $discountResults = app(\App\Services\DiscountService::class)->calculateDiscounts($variantIds);
-//    $discountLookup = collect($discountResults)->keyBy('product_variant_id');
-
-//    $variants = $product->productVariants->map(function ($variant) use ($discountLookup) {
-//        $discountData = $discountLookup->get($variant->id);
-//
-//        $markedPrice = (float) $variant->marked_price;
-//        $finalPrice = $discountData['final_price'] ?? $markedPrice;
-//        $totalDiscount = $discountData['total_discount'] ?? 0;
-//
-//        $discountPercent = $markedPrice > 0
-//            ? round(($totalDiscount / $markedPrice) * 100, 2)
-//            : 0;
-//
-//        return [
-//            'id' => $variant->id,
-//            'marked_price' => round($markedPrice, 2),
-//            'final_price' => round($finalPrice, 2),
-//            'discount_percent' => $discountPercent,
-//            'discount' => $discountPercent,
-//            'has_discount' => $totalDiscount > 0,
-//            'stock' => $variant->stock,
-//            'sku' => $variant->sku,
-//            'values' => $variant->values->map(fn($v) => [
-//                'variant_category_id' => $v->variant->variant_category_id,
-//                'value' => $v->variant->value,
-//            ]),
-//        ];
-//    });
-
     $variants = $product->productVariants->map(function ($variant){
         $discountPercent = 0;
-        if ($variant->sellingPrice > 0 && $variant->discount > 0) {
-            $discountPercent = round(($variant->discount / $variant->sellingPrice) * 100, 2);
+        if ($variant->marked_price > 0 && $variant->discount > 0) {
+            $discountPercent = round(($variant->discount / $variant->marked_price) * 100, 2);
         }
 
         return [
             'id'               => $variant->id,
-            'marked_price'     =>$variant->selling_price,
-            'final_price'      => $variant->marked_price,
+            'marked_price'     =>$variant->marked_price,
+            'final_price'      => $variant->selling_price,
             'discount'         => $variant->discount,
             'discount_percent' => $discountPercent,
             'has_discount'     => $variant->discount >0,

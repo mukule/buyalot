@@ -98,11 +98,11 @@ public function getPaginatedProductsByCategoryIds(
     });
 
     if (!is_null($minPrice)) {
-        $query->where('marked_price', '>=', $minPrice);
+        $query->where('selling_price', '>=', $minPrice);
     }
 
     if (!is_null($maxPrice)) {
-        $query->where('marked_price', '<=', $maxPrice);
+        $query->where('selling_price', '<=', $maxPrice);
     }
 
     $query->orderBy('created_at', 'desc');
@@ -185,23 +185,12 @@ private function normalizeVariant(ProductVariant $variant, array $priceData = []
             : '/fallback-image.png');
 
     $markedPrice = $variant->marked_price ?? 0;
-    $sellingPrice = $variant->sellingPrice ?? 0;
-//    $calculatedDiscount = max($sellingPrice-$markedPrice, 0);
-
-    // Persist discount ONLY if changed (prevents noisy writes)
-//    if ((float) $variant->discount !== $calculatedDiscount) {
-//        $variant->update([
-//            'discount' => $calculatedDiscount,
-//        ]);
-//    }
-
+    $sellingPrice = $variant->selling_price ?? 0;
     $totalDiscount = $variant->discount ?? 0;
 
-    // Compute final price by subtracting discount from marked price
-
     $discountPercent = 0;
-    if ($sellingPrice > 0 && $totalDiscount > 0) {
-        $discountPercent = round(($totalDiscount / $sellingPrice) * 100, 2);
+    if ($markedPrice > 0 && $totalDiscount > 0) {
+        $discountPercent = round(($totalDiscount / $markedPrice) * 100, 2);
     }
 
     return [
@@ -212,8 +201,8 @@ private function normalizeVariant(ProductVariant $variant, array $priceData = []
         'product_slug'      => $product?->slug ?? '',
         'name'              => $variant->display_name ?? $product?->name,
         'product_name'      => $product?->name,
-        'marked_price'      => round($sellingPrice, 2),
-        'final_price'       => round($markedPrice, 2),
+        'marked_price'      => round($markedPrice, 2),
+        'final_price'       => round($sellingPrice, 2),
         'discount_percent'  => $discountPercent,
         'has_discount'      => $totalDiscount > 0,
         'in_stock'          => $variant->in_stock,
@@ -243,18 +232,18 @@ private function normalizeVariant(ProductVariant $variant, array $priceData = []
 //                ]);
 //            }
 
-            $discountPercentage = $sellingPrice > 0
-                ? (int) round(($variant->discount / $sellingPrice) * 100)
+            $discountPercentage = $markedPrice > 0
+                ? (int) round(($variant->discount / $markedPrice) * 100)
                 : 0;
 
             return [
                 $variant->id => [
                     'product_variant_id'  => $variant->id,
-                    'marked_price'        => round($sellingPrice, 2),
+                    'marked_price'        => round($markedPrice, 2),
                     'discounts'           => [],
                     'total_discount'      => round($variant->discount , 2),
                     'discount_percentage' => $discountPercentage,
-                    'final_price'         => round($markedPrice, 2),
+                    'final_price'         => round($sellingPrice, 2),
                     'has_discount'        => $variant->discount > 0,
                 ],
             ];
