@@ -20,6 +20,7 @@ class ProductVariant extends Model
         'selling_price',
         'stock',
         'sku',
+        'is_active', 
     ];
 
     protected $appends = [
@@ -211,6 +212,18 @@ public function getActiveWarranty(): ?\App\Models\Warranty
         ->orderBy('id') 
         ->first();
 }
+
+
+ public function orderItems()
+    {
+        return $this->hasMany(OrderItem::class, 'product_variant_id');
+    }
+
+    public function orders()
+    {
+        // Optional: if you want orders directly
+        return $this->hasManyThrough(Order::class, OrderItem::class, 'product_variant_id', 'id', 'id', 'order_id');
+    }
 
 
 

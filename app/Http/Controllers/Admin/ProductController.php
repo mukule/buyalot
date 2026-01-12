@@ -315,7 +315,7 @@ public function store(Request $request, ProductService $productService)
             'variant_rows' => $data['variant_rows'] ?? null,
         ]);
 
-        // Optional: log variant IDs only (cleaner)
+       // Optional: log variant IDs only (cleaner)
         Log::info('STEP 3 - VARIANT IDS', collect($data['variant_rows'] ?? [])
             ->map(fn ($v) => [
                 'id' => $v['id'] ?? null,
