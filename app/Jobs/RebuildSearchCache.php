@@ -15,6 +15,7 @@ class RebuildSearchCache implements ShouldQueue
 
     public function handle()
     {
+        info('Rebuilding search cache triggered on class RebuildSearchCache job...');
         SearchCacheService::refresh();
     }
 }
