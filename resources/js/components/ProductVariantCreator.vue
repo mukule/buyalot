@@ -185,17 +185,7 @@ watch(
                     <legend class="text-sm font-medium text-gray-700">Prices</legend>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-600">Buying Price</label>
-                            <input
-                                v-model.number="row.buying_price"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                class="w-full rounded-md border border-gray-300 px-2 py-1"
-                            />
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-600">Marked Price</label>
+                            <label class="block text-sm font-medium text-gray-600">Recommended Retail Price</label>
                             <input
                                 v-model.number="row.marked_price"
                                 type="number"
@@ -204,6 +194,25 @@ watch(
                                 class="w-full rounded-md border border-gray-300 px-2 py-1"
                             />
                         </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600">Selling Price</label>
+                            <input
+                                v-model.number="row.buying_price"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                class="w-full rounded-md border border-gray-300 px-2 py-1"
+                            />
+                        </div>
+
+                        <span
+                            v-if="row.buying_price > 0 && row.marked_price > row.buying_price"
+                            class="mt-1 inline-block rounded bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700"
+                        >
+                        Discount Offered:  &nbsp; {{ (row.marked_price - row.buying_price).toFixed(2) }}
+                         </span>
+
                     </div>
                 </fieldset>
 

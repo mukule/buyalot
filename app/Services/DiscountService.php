@@ -26,17 +26,17 @@ class DiscountService
             // Discount derived from prices
             $totalDiscount = max($markedPrice - $sellingPrice, 0);
 
-            $discountPercentage = $sellingPrice > 0
-                ? (int) round(($totalDiscount / $sellingPrice) * 100)
+            $discountPercentage = $markedPrice > 0
+                ? (int) round(($totalDiscount / $markedPrice) * 100)
                 : 0;
 
             $results[] = [
                 'product_variant_id'  => $variant->id,
-                'marked_price'        => round($sellingPrice, 2),
+                'marked_price'        => round($markedPrice, 2),
                 'discounts'           => [], // legacy-compatible
                 'total_discount'      => round($totalDiscount, 2),
                 'discount_percentage' => $discountPercentage,
-                'final_price'         => round($markedPrice, 2),
+                'final_price'         => round($sellingPrice, 2),
                 'has_discount'        => $totalDiscount > 0,
             ];
         }
