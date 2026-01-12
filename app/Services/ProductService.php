@@ -148,57 +148,25 @@ protected function handleStep1(array $data, ?User $user, ?array $images, ?Produc
 
 
 
-
-
-//     protected function handleStep3(array $data, ?User $user, ?array $images, ?Product $product): Product
-// {
-//     if (!$product) throw new \InvalidArgumentException("Product must exist before step 3.");
-
-//     if (!empty($data['variant_rows']) && is_array($data['variant_rows'])) {
-//         $product->variants()->delete();
-//         $this->processProductVariants($product, $data['variant_rows']);
-//         Log::info('Product variants updated', ['product_id' => $product->id]);
-//     }
-
-//     return $product;
-// }
-
-
-
-protected function handleStep3(array $data, ?User $user, ?array $images, ?Product $product): Product
+    protected function handleStep3(array $data, ?User $user, ?array $images, ?Product $product): Product
 {
-    Log::info('handleStep3 called', [
-        'product_id' => $product?->id,
-        'variant_rows_count' => is_array($data['variant_rows'] ?? null) ? count($data['variant_rows']) : 0,
-        'user_id' => $user?->id,
-    ]);
-
-    if (!$product) {
-        throw new \InvalidArgumentException("Product must exist before step 3.");
-    }
-
-    if (empty($data['variant_rows']) || !is_array($data['variant_rows'])) {
-        Log::info('Step 3 skipped: no variants', ['product_id' => $product->id]);
+    if (!$product || empty($data['variant_rows']) || !is_array($data['variant_rows'])) {
         return $product;
     }
 
     $variantRows = collect($data['variant_rows'])
-        ->filter(fn($row) => !empty($row['values']) && is_array($row['values']))
-        ->values()
-        ->all();
+        ->filter(fn($row) => !empty($row['values']) && is_array($row['values']));
 
-    if (count($variantRows) === 0) {
-        Log::info('Step 3 skipped: no valid variant values', ['product_id' => $product->id]);
+    if ($variantRows->isEmpty()) {
         return $product;
     }
 
-    Log::info('Step 3: processing variant rows', [
-        'product_id' => $product->id,
-        'variant_count' => count($variantRows),
-    ]);
-
-    // Cache valid variant categories
+    // Cache valid categories once
     $validCategories = VariantCategory::pluck('id')->flip();
+
+    // Cache existing variants and variant values
+    $existingVariants = $product->variants()->get()->keyBy('id');
+    $existingVariantValues = Variant::pluck('id', DB::raw("CONCAT(variant_category_id, ':', value)"))->toArray();
 
     $submittedIds = [];
     $valuesToInsert = [];
@@ -207,138 +175,82 @@ protected function handleStep3(array $data, ?User $user, ?array $images, ?Produc
         $variantId = $row['id'] ?? null;
         $submittedIds[] = $variantId;
 
-        Log::info('Processing variant row', [
-            'product_id' => $product->id,
-            'row_index' => $index,
-            'variant_id' => $variantId,
-            'sku' => $row['sku'] ?? null,
-            'stock' => $row['stock'] ?? null,
-            'marked_price' => $row['marked_price'] ?? null,
-            'buying_price' => $row['buying_price'] ?? null,
-        ]);
-
-        $hasValidValue = collect($row['values'])->filter(fn($v) => !is_null($v) && trim($v) !== '')->count() > 0;
-        if (!$hasValidValue && !$variantId) {
-            Log::info('Skipping empty new variant row', [
-                'row_index' => $index,
-                'variant_id' => $variantId,
-            ]);
-            continue; // skip empty new variants
-        }
-
         // Update existing variant
-        if ($variantId) {
-            $productVariant = ProductVariant::find($variantId);
-            if ($productVariant) {
-                $productVariant->update([
-                    'stock'        => $row['stock'] ?? $productVariant->stock,
-                    'buying_price' => $row['buying_price'] ?? $productVariant->buying_price,
-                    'marked_price' => $row['marked_price'] ?? $productVariant->marked_price,
-                    'sku'          => $row['sku'] ?? $productVariant->sku,
-                ]);
-
-                Log::info('Updated existing variant', [
-                    'product_variant_id' => $productVariant->id,
-                    'stock' => $productVariant->stock,
-                    'buying_price' => $productVariant->buying_price,
-                    'marked_price' => $productVariant->marked_price,
-                    'sku' => $productVariant->sku,
-                ]);
-            } else {
-                Log::warning('Variant ID submitted but not found, will create new', [
-                    'variant_id' => $variantId,
-                    'row_index' => $index,
-                ]);
-                $variantId = null; // fallback to create
-            }
-        }
-
-        // Create new variant if ID is null
-        if (!$variantId) {
+        if ($variantId && isset($existingVariants[$variantId])) {
+            $variant = $existingVariants[$variantId];
+            $variant->update([
+                'stock'        => $row['stock'] ?? $variant->stock,
+                'buying_price' => $row['buying_price'] ?? $variant->buying_price,
+                'marked_price' => $row['marked_price'] ?? $variant->marked_price,
+                'sku'          => $row['sku'] ?? $variant->sku,
+            ]);
+            $productVariant = $variant;
+        } else {
+            // Create new variant
             $productVariant = $product->variants()->create([
-                'stock'         => $row['stock'] ?? 0,
-                'buying_price'  => $row['buying_price'] ?? 0,
-                'marked_price'  => $row['marked_price'] ?? 0,
-                'sku'           => $row['sku'] ?? $this->generateSku($product, $index),
-            ]);
-
-            Log::info('Created new variant', [
-                'product_variant_id' => $productVariant->id,
-                'sku' => $productVariant->sku,
-                'stock' => $productVariant->stock,
-                'buying_price' => $productVariant->buying_price,
-                'marked_price' => $productVariant->marked_price,
+                'stock'        => $row['stock'] ?? 0,
+                'buying_price' => $row['buying_price'] ?? 0,
+                'marked_price' => $row['marked_price'] ?? 0,
+                'sku'          => $row['sku'] ?? $this->generateSku($product, $index),
             ]);
         }
 
+        // Process variant values
         $usedCategories = [];
-
         foreach ($row['values'] as $categoryId => $value) {
-            $categoryId = (int)$categoryId;
+            $categoryId = (int) $categoryId;
             $value = trim((string)$value);
 
             if ($value === '' || !isset($validCategories[$categoryId]) || isset($usedCategories[$categoryId])) {
-                Log::info('Skipping variant value', [
-                    'product_variant_id' => $productVariant->id,
-                    'category_id' => $categoryId,
-                    'value' => $value,
-                ]);
                 continue;
             }
 
             $usedCategories[$categoryId] = true;
 
-            $variant = Variant::firstOrCreate(
-                ['variant_category_id' => $categoryId, 'value' => $value],
-                ['is_active' => true]
-            );
+            $key = "{$categoryId}:{$value}";
+            if (!isset($existingVariantValues[$key])) {
+                $variantValue = Variant::create([
+                    'variant_category_id' => $categoryId,
+                    'value'               => $value,
+                    'is_active'           => true,
+                ]);
+                $existingVariantValues[$key] = $variantValue->id;
+            }
 
             $valuesToInsert[] = [
                 'product_variant_id' => $productVariant->id,
-                'variant_id'         => $variant->id,
+                'variant_id'         => $existingVariantValues[$key],
                 'created_at'         => now(),
                 'updated_at'         => now(),
             ];
-
-            Log::info('Prepared variant value for insertion', [
-                'product_variant_id' => $productVariant->id,
-                'variant_id' => $variant->id,
-                'category_id' => $categoryId,
-                'value' => $value,
-            ]);
         }
     }
 
-    // Batch insert all new values at once
+    // Batch insert variant values
     if (!empty($valuesToInsert)) {
-        collect($valuesToInsert)->chunk(500)->each(function($chunk) {
-            \DB::table('product_variant_values')->insert($chunk->toArray());
+        collect($valuesToInsert)->chunk(500)->each(fn($chunk) =>
+            DB::table('product_variant_values')->insert($chunk->toArray())
+        );
+    }
+
+    // Handle old variants safely
+    $product->variants()
+        ->whereNotIn('id', array_filter($submittedIds))
+        ->get()
+        ->each(function ($variant) {
+            // If variant has orders, deactivate
+            if ($variant->orders()->exists()) {
+                $variant->update(['is_active' => false]);
+            } else {
+                // Otherwise delete
+                $variant->values()->delete();
+                $variant->delete();
+            }
         });
-
-        Log::info('Inserted variant values', ['count' => count($valuesToInsert)]);
-    }
-
-    // Remove old variants not submitted safely
-    $oldVariants = $product->variants()->whereNotIn('id', array_filter($submittedIds))->get();
-    foreach ($oldVariants as $oldVariant) {
-        $orderCount = $oldVariant->orders()->count();
-        if ($orderCount === 0) {
-            $oldVariant->values()->delete();
-            $oldVariant->delete();
-            Log::info('Deleted old variant', ['variant_id' => $oldVariant->id]);
-        } else {
-            $oldVariant->update(['is_active' => false]);
-            Log::info('Deactivated old variant with orders', [
-                'variant_id' => $oldVariant->id,
-                'order_count' => $orderCount,
-            ]);
-        }
-    }
-
-    Log::info('handleStep3 completed', ['product_id' => $product->id]);
 
     return $product;
 }
+
 
 
 

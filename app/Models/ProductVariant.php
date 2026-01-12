@@ -19,11 +19,8 @@ class ProductVariant extends Model
         'selling_price',
         'stock',
         'sku',
-<<<<<<< HEAD
         'is_active', 
-=======
         'discount',
->>>>>>> origin/steven-updates
     ];
 
     protected $appends = [
