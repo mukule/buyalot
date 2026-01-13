@@ -38,44 +38,51 @@ class ProductService
         $this->imageService = $imageService;
     }
 
-    /**
-     * @throws \Throwable
-     */
-    public function createOrUpdateProductStep(
-        int $step,
-        array $data,
-        ?User $user = null,
-        ?array $images = null,
-        ?Product $product = null
-    ): Product {
-        try {
-            return DB::transaction(function () use ($step, $data, $user, $images, $product) {
-                Log::info("Processing product step {$step}", ['product_id' => $product?->id]);
+    
+public function createOrUpdateProductStep(
+    int $step,
+    array $data,
+    ?User $user = null,
+    ?array $images = null,
+    ?Product $product = null
+): Product {
+    return DB::transaction(function () use ($step, $data, $user, $images, $product) {
 
-                if (!isset($this->stepHandlers[$step])) {
-                    throw new \InvalidArgumentException("Invalid step {$step}");
-                }
+        Log::info("Processing product step {$step}", [
+            'product_id' => $product?->id,
+            'user_id'    => $user?->id,
+        ]);
 
-                $method = $this->stepHandlers[$step];
-                $product = $this->$method($data, $user, $images, $product);
-
-                if ($product) {
-                    $product->updateStatus(1);
-                }
-
-                $nextStep = $step + 1;
-                $product->update([
-                    'current_step' => $nextStep,
-                    'max_step_completed' => max($product->max_step_completed, $step),
-                ]);
-
-                return $product->fresh();
-            });
-        }catch (\Throwable $e) {
-            info($e->getMessage());
-            return $product ?? Product::create([]);
+        // Validate step
+        if (!isset($this->stepHandlers[$step])) {
+            throw new \InvalidArgumentException("Invalid step {$step}");
         }
-    }
+
+        // Steps 2+ MUST have a persisted product
+        if ($step > 1 && (!$product || !$product->exists)) {
+            throw new \LogicException("Product must exist before step {$step}");
+        }
+
+        $method  = $this->stepHandlers[$step];
+        $product = $this->$method($data, $user, $images, $product);
+
+        // Safety check after handler
+        if (!$product || !$product->exists) {
+            throw new \LogicException("Step {$step} did not return a persisted product");
+        }
+
+        // Update product workflow status
+        $product->updateStatus(Product::STATUS_PENDING);
+
+        $product->update([
+            'current_step'       => $step + 1,
+            'max_step_completed' => max((int) $product->max_step_completed, $step),
+        ]);
+
+        return $product->fresh();
+    });
+}
+
 
 
 
@@ -134,145 +141,184 @@ protected function handleStep1(array $data, ?User $user, ?array $images, ?Produc
 }
 
 
-
-
-    protected function handleStep2(array $data, ?User $user, ?array $images, ?Product $product): Product
-    {
-        if (!$product) {
-            throw new \InvalidArgumentException("Product must exist before step 2.");
-        }
-
-        $this->applyMetadata($data);
-        $product->update(Arr::only($data, [
-            'description', 'features', 'specifications', 'whats_in_the_box',
-            'meta_title', 'meta_description', 'meta_keywords'
-        ]));
-
-        Log::info('Product description & SEO updated', ['product_id' => $product->id]);
-        return $product;
+protected function handleStep2(
+    array $data,
+    ?User $user,
+    ?array $images,
+    ?Product $product
+): Product {
+    // Product must already exist and be persisted
+    if (!$product || !$product->exists) {
+        throw new \LogicException('Product must exist before step 2.');
     }
 
-
-
-    protected function handleStep3(array $data, ?User $user, ?array $images, ?Product $product): Product
-{
-    if (!$product || empty($data['variant_rows']) || !is_array($data['variant_rows'])) {
-        return $product;
-    }
-    try {
-        $variantRows = collect($data['variant_rows'])
-            ->filter(fn($row) => !empty($row['values']) && is_array($row['values']));
-        if ($variantRows->isEmpty()) {
-            return $product;
-        }
-
-        // Cache valid categories once
-        $validCategories = VariantCategory::pluck('id')->flip();
-        // Cache existing variants and variant values
-        $existingVariants = $product->variants()->get()->keyBy('id');
-        $existingVariantValues = Variant::pluck('id', DB::raw("CONCAT(variant_category_id, ':', value)"))->toArray();
-        $submittedIds = [];
-        $valuesToInsert = [];
-
-        foreach ($variantRows as $index => $row) {
-            $variantId = $row['id'] ?? null;
-            $submittedIds[] = $variantId;
-
-            // Update existing variant
-            if ($variantId && isset($existingVariants[$variantId])) {
-                $variant = $existingVariants[$variantId];
-                $sellingPrice  = $row['buying_price']  ?? $variant->buying_price;
-                $markedPrice  = $row['marked_price']  ?? $variant->marked_price;
-                $variant->update([
-                    'stock'          => $row['stock'] ?? $variant->stock,
-                    'buying_price'   => $markedPrice,
-                    'marked_price'   => $markedPrice,
-                    'regular_price'  => $markedPrice,
-                    'selling_price'  => $sellingPrice,
-                    'discount'       => max(0, $markedPrice - $sellingPrice),
-                    'sku'            => $row['sku'] ?? $variant->sku,
-                ]);
-                $productVariant = $variant;
-                //retain the publised status of the product
-                $pstatus=ProductStatus::where('name','published')->first();
-                if ($product && $pstatus) {
-                    info('Updating product status to published for variant: '.$variant->id);
-                    $product->updateStatus($pstatus->id);
-                }
-            } else {
-                $sellingPrice  = $row['buying_price']  ?? 0;
-                $markedPrice  = $row['marked_price']  ?? 0;
-                // Create new variant
-                $productVariant = $product->variants()->create([
-                    'stock' => $row['stock'] ?? 0,
-                    'buying_price'   => $markedPrice,
-                    'marked_price'   => $markedPrice,
-                    'regular_price'  => $markedPrice,
-                    'selling_price'  => $sellingPrice,
-                    'discount'       => max(0, $markedPrice - $sellingPrice),
-                    'sku' => $row['sku'] ?? $this->generateSku($product, $index),
-                ]);
-            }
-            $submittedIds[] = $productVariant->id;
-            // Process variant values
-            $usedCategories = [];
-            foreach ($row['values'] as $categoryId => $value) {
-                $categoryId = (int)$categoryId;
-                $value = trim((string)$value);
-
-                if ($value === '' || !isset($validCategories[$categoryId]) || isset($usedCategories[$categoryId])) {
-                    continue;
-                }
-
-                $usedCategories[$categoryId] = true;
-
-                $key = "{$categoryId}:{$value}";
-                if (!isset($existingVariantValues[$key])) {
-                    $variantValue = Variant::create([
-                        'variant_category_id' => $categoryId,
-                        'value' => $value,
-                        'is_active' => true,
-                    ]);
-                    $existingVariantValues[$key] = $variantValue->id;
-                }
-
-                $valuesToInsert[] = [
-                    'product_variant_id' => $productVariant->id,
-                    'variant_id' => $existingVariantValues[$key],
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ];
-            }
-        }
-
-        // Batch insert variant values
-        if (!empty($valuesToInsert)) {
-            collect($valuesToInsert)->chunk(500)->each(fn($chunk) => DB::table('product_variant_values')->insert($chunk->toArray())
+    // Optional but recommended: ownership / permission guard
+    if ($user && $user->hasRole('seller')) {
+        if ((int) $product->owner_id !== (int) $user->id) {
+            throw new \Illuminate\Auth\Access\AuthorizationException(
+                'You are not allowed to edit this product.'
             );
         }
-
-        // Handle old variants safely
-        $product->variants()
-            ->whereNotIn('id', array_filter($submittedIds))
-            ->get()
-            ->each(function ($variant) {
-                // If variant has orders, deactivate
-                if ($variant->orders()->exists()) {
-                    $variant->update(['is_active' => false]);
-                } else {
-                    // Otherwise delete
-                    $variant->values()->delete();
-                    $variant->delete();
-                }
-            });
-
-        return $product;
-    }catch (\Throwable $e) {
-        info($e->getMessage());
-        return $product;
     }
+
+    // Apply metadata safely (should not mutate model state)
+    $this->applyMetadata($data);
+
+    // Only update whitelisted fields
+    $payload = Arr::only($data, [
+        'description',
+        'features',
+        'specifications',
+        'whats_in_the_box',
+        'meta_title',
+        'meta_description',
+        'meta_keywords',
+    ]);
+
+    // Do nothing if there's nothing to update
+    if (!empty($payload)) {
+        $product->update($payload);
+    }
+
+    Log::info('Product description & SEO updated', [
+        'product_id' => $product->id,
+        'user_id'    => $user?->id,
+    ]);
+
+    return $product;
 }
 
+
+protected function handleStep3(array $data, ?User $user, ?array $images, ?Product $product): Product
+{
+    if (!$product || !$product->exists) {
+        throw new \LogicException("Product must exist before step 3.");
+    }
+
+    if (empty($data['variant_rows']) || !is_array($data['variant_rows'])) {
+        return $product; // nothing to do
+    }
+
+    // Optional: enforce ownership for sellers
+    if ($user && $user->hasRole('seller') && $product->owner_id !== $user->id) {
+        throw new \Illuminate\Auth\Access\AuthorizationException("You are not allowed to edit this product.");
+    }
+
+    $variantRows = collect($data['variant_rows'])
+        ->filter(fn($row) => !empty($row['values']) && is_array($row['values']));
+
+    if ($variantRows->isEmpty()) {
+        return $product;
+    }
+
+    // Cache valid categories once
+    $validCategories = VariantCategory::pluck('id')->flip();
+
+    // Cache existing variants & variant values
+    $existingVariants = $product->variants()->get()->keyBy('id');
+    $existingVariantValues = Variant::pluck('id', DB::raw("CONCAT(variant_category_id, ':', value)"))->toArray();
+
+    $submittedIds = [];
+    $valuesToInsert = [];
+
+    foreach ($variantRows as $index => $row) {
+        $variantId = $row['id'] ?? null;
+
+        // Update existing variant
+        if ($variantId && isset($existingVariants[$variantId])) {
+            $variant = $existingVariants[$variantId];
+
+            $sellingPrice = $row['buying_price'] ?? $variant->buying_price;
+            $markedPrice  = $row['marked_price'] ?? $variant->marked_price;
+
+            $variant->update([
+                'stock'          => $row['stock'] ?? $variant->stock,
+                'buying_price'   => $markedPrice,
+                'marked_price'   => $markedPrice,
+                'regular_price'  => $markedPrice,
+                'selling_price'  => $sellingPrice,
+                'discount'       => max(0, $markedPrice - $sellingPrice),
+                'sku'            => $row['sku'] ?? $variant->sku,
+            ]);
+
+            // Update product published status if needed
+            $pstatus = ProductStatus::where('name', 'published')->first();
+            if ($pstatus) {
+                $product->updateStatus($pstatus->id);
+            }
+
+            $productVariant = $variant;
+        } else {
+            // Create new variant safely
+            $sellingPrice = $row['buying_price'] ?? 0;
+            $markedPrice  = $row['marked_price'] ?? 0;
+
+            $productVariant = $product->variants()->create([
+                'stock'         => $row['stock'] ?? 0,
+                'buying_price'  => $markedPrice,
+                'marked_price'  => $markedPrice,
+                'regular_price' => $markedPrice,
+                'selling_price' => $sellingPrice,
+                'discount'      => max(0, $markedPrice - $sellingPrice),
+                'sku'           => $row['sku'] ?? $this->generateSku($product, $index),
+            ]);
+        }
+
+        $submittedIds[] = $productVariant->id;
+
+        // Process variant values
+        $usedCategories = [];
+        foreach ($row['values'] as $categoryId => $value) {
+            $categoryId = (int) $categoryId;
+            $value = trim((string)$value);
+
+            if ($value === '' || !isset($validCategories[$categoryId]) || isset($usedCategories[$categoryId])) {
+                continue;
+            }
+
+            $usedCategories[$categoryId] = true;
+            $key = "{$categoryId}:{$value}";
+
+            if (!isset($existingVariantValues[$key])) {
+                $variantValue = Variant::create([
+                    'variant_category_id' => $categoryId,
+                    'value'               => $value,
+                    'is_active'           => true,
+                ]);
+                $existingVariantValues[$key] = $variantValue->id;
+            }
+
+            $valuesToInsert[] = [
+                'product_variant_id' => $productVariant->id,
+                'variant_id'         => $existingVariantValues[$key],
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ];
+        }
+    }
+
+    // Batch insert variant values
+    if (!empty($valuesToInsert)) {
+        collect($valuesToInsert)->chunk(500)->each(fn($chunk) =>
+            DB::table('product_variant_values')->insert($chunk->toArray())
+        );
+    }
+
+    // Handle old variants safely
+    $product->variants()
+        ->whereNotIn('id', array_filter($submittedIds))
+        ->get()
+        ->each(function ($variant) {
+            if ($variant->orders()->exists()) {
+                $variant->update(['is_active' => false]);
+            } else {
+                $variant->values()->delete();
+                $variant->delete();
+            }
+        });
+
+    return $product;
+}
 
 
 
@@ -347,82 +393,90 @@ protected function processProductVariantsOptimized(Product $product, array $vari
 
 protected function handleStep4(array $data, ?User $user, ?array $images, ?Product $product): Product
 {
-    if (!$product) {
-        throw new \InvalidArgumentException("Product must exist before step 4.");
+    if (!$product || !$product->exists) {
+        throw new \LogicException("Product must exist before step 4.");
+    }
+
+    // Optional: enforce ownership for sellers
+    if ($user && $user->hasRole('seller') && $product->owner_id !== $user->id) {
+        throw new \Illuminate\Auth\Access\AuthorizationException("You are not allowed to edit this product.");
     }
 
     // Prefer images from $data
     $images = $data['images'] ?? $images ?? [];
 
     \Log::info('handleStep4 called', [
-        'product_id'   => $product->id,
-        'image_count'  => count($images),
-        'sample'       => array_slice($images, 0, 2),
+        'product_id'  => $product->id,
+        'image_count' => count($images),
+        'sample'      => array_slice($images, 0, 2),
     ]);
 
-    if (!empty($images)) {
-        $primaryIndex = $data['primary_image_index'] ?? 0;
-
-        $newImages = [];
-        $submittedExistingIds = [];
-
-        foreach ($images as $index => $img) {
-            if (is_array($img) && !empty($img['id'])) {
-                $submittedExistingIds[] = $img['id'];
-            } elseif ($img instanceof \Illuminate\Http\UploadedFile) {
-                $newImages[] = [
-                    'file'  => $img,
-                    'index' => $index,
-                ];
-            } elseif (is_array($img) && !empty($img['file'])) {
-                $newImages[] = $img;
-            }
-        }
-
-        if (!empty($submittedExistingIds)) {
-            $product->images()
-                ->whereNotIn('id', $submittedExistingIds)
-                ->get()
-                ->each(function ($img) {
-                    Storage::disk('s3')->delete($img->image_path);
-                    $img->delete();
-                });
-        }
-
-        foreach ($images as $index => $img) {
-            if (is_array($img) && !empty($img['id'])) {
-                $isPrimary = ($primaryIndex === $index);
-                $sortOrder = $img['sort_order'] ?? $index;
-                $altText   = substr($product->name, 0, 15);
-
-                $product->images()->where('id', $img['id'])->update([
-                    'is_primary' => $isPrimary ? 1 : 0,
-                    'sort_order' => $sortOrder,
-                    'alt_text'   => $altText,
-                ]);
-            }
-        }
-
-        if (!empty($newImages)) {
-            $this->processProductImages($product, $newImages, $primaryIndex);
-        }
-
-        if (!$product->images()->where('is_primary', 1)->exists()) {
-            $first = $product->images()->orderBy('sort_order')->first();
-            if ($first) {
-                $first->update(['is_primary' => 1]);
-            }
-        }
-
-        \Log::info('handleStep4 completed', [
-            'product_id'   => $product->id,
-            'final_count'  => $product->images()->count(),
-            'has_primary'  => $product->images()->where('is_primary', 1)->exists(),
-        ]);
+    if (empty($images)) {
+        return $product; // nothing to do
     }
+
+    $primaryIndex = $data['primary_image_index'] ?? 0;
+    $newImages = [];
+    $submittedExistingIds = [];
+
+    foreach ($images as $index => $img) {
+        if (is_array($img) && !empty($img['id'])) {
+            $submittedExistingIds[] = $img['id'];
+        } elseif ($img instanceof \Illuminate\Http\UploadedFile) {
+            $newImages[] = ['file' => $img, 'index' => $index];
+        } elseif (is_array($img) && !empty($img['file'])) {
+            $newImages[] = $img;
+        }
+    }
+
+    // Delete removed images
+    if (!empty($submittedExistingIds)) {
+        $product->images()
+            ->whereNotIn('id', $submittedExistingIds)
+            ->get()
+            ->each(function ($img) {
+                Storage::disk('s3')->delete($img->image_path);
+                $img->delete();
+            });
+    }
+
+    // Update existing images
+    foreach ($images as $index => $img) {
+        if (is_array($img) && !empty($img['id'])) {
+            $isPrimary = ($primaryIndex === $index);
+            $sortOrder = $img['sort_order'] ?? $index;
+            $altText   = substr($product->name, 0, 15);
+
+            $product->images()->where('id', $img['id'])->update([
+                'is_primary' => $isPrimary ? 1 : 0,
+                'sort_order' => $sortOrder,
+                'alt_text'   => $altText,
+            ]);
+        }
+    }
+
+    // Process new images
+    if (!empty($newImages)) {
+        $this->processProductImages($product, $newImages, $primaryIndex);
+    }
+
+    // Ensure at least one primary image
+    if (!$product->images()->where('is_primary', 1)->exists()) {
+        $first = $product->images()->orderBy('sort_order')->first();
+        if ($first) {
+            $first->update(['is_primary' => 1]);
+        }
+    }
+
+    \Log::info('handleStep4 completed', [
+        'product_id'  => $product->id,
+        'final_count' => $product->images()->count(),
+        'has_primary' => $product->images()->where('is_primary', 1)->exists(),
+    ]);
 
     return $product;
 }
+
 
 
 protected function processProductImages(Product $product, array $images, int $primaryIndex): void

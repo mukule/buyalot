@@ -273,6 +273,9 @@ const formatPrice = (amount: number | string | null) => {
                             </Link>
                             <div class="mt-3 flex flex-col gap-1">
                                 <h3 class="line-clamp-2 text-sm font-medium text-gray-700">{{ product.name }}</h3>
+
+                                <p class="text-xs text-gray-400">{{ product.brand ?? '' }}</p>
+
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm font-semibold text-primary">{{ formatPrice(product.final_price) }}</span>
                                     <span v-if="product.marked_price > product.final_price" class="text-xs text-gray-400 line-through">{{

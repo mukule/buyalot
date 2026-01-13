@@ -63,8 +63,7 @@ onMounted(() => {
     }
 });
 
-// --- PRICE / DISCOUNT ---
-const formatPrice = (amount: number | null): string => `KSh ${amount?.toLocaleString() ?? 0}`;
+const formatPrice = (amount: number | string | null): string => `KSh ${(Number(amount) ?? 0).toLocaleString()}`;
 
 const displayPrice = computed(() => {
     if (!selectedVariant.value) return null;

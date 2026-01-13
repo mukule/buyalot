@@ -471,7 +471,6 @@ public function destroyAll()
     }
 }
 
-
 public function show(Product $product)
 {
     $product->load([
@@ -489,7 +488,7 @@ public function show(Product $product)
         'hashid' => $product->hashid,
         'name' => $product->name,
         'product_code' => $product->product_code,
-        'primary_image_url' => $product->primary_image_url,
+        'primary_image_url' => $product->primary_image_url, // use accessor
         'stock' => $product->productVariants->sum('stock'),
         'category_hierarchy' => $product->category ? $product->category->getHierarchy() : [],
 
@@ -514,14 +513,9 @@ public function show(Product $product)
         'specifications' => $product->specifications,
         'whats_in_the_box' => $product->whats_in_the_box,
 
-        // ✅ Use S3 URLs
-        'images' => $product->images
-            ->map(fn($img) => Storage::disk('s3')->url($img->image_path))
-            ->toArray(),
-
-        'image_urls' => $product->images
-            ->map(fn($img) => Storage::disk('s3')->url($img->image_path))
-            ->toArray(),
+        // ✅ Use accessor for all image URLs
+        'images' => $product->image_urls,
+        'image_urls' => $product->image_urls,
 
         'variants' => $product->productVariants->map(fn($variant) => [
             'id' => $variant->id,
@@ -540,6 +534,7 @@ public function show(Product $product)
         'product' => $productData,
     ]);
 }
+
 
 public function destroyImage(Product $product, int $imageId)
 {

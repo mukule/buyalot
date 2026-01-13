@@ -67,7 +67,7 @@ public function productDetails(string $slug)
         'warranties',
     ])->where('slug', $slug)->firstOrFail();
 
-    $variants = $product->productVariants->map(function ($variant){
+    $variants = $product->productVariants->map(function ($variant) {
         $discountPercent = 0;
         if ($variant->marked_price > 0 && $variant->discount > 0) {
             $discountPercent = round(($variant->discount / $variant->marked_price) * 100, 2);
@@ -75,11 +75,11 @@ public function productDetails(string $slug)
 
         return [
             'id'               => $variant->id,
-            'marked_price'     =>$variant->marked_price,
+            'marked_price'     => $variant->marked_price,
             'final_price'      => $variant->selling_price,
             'discount'         => $variant->discount,
             'discount_percent' => $discountPercent,
-            'has_discount'     => $variant->discount >0,
+            'has_discount'     => $variant->discount > 0,
             'stock'            => $variant->stock,
             'sku'              => $variant->sku,
             'values'           => $variant->values->map(fn ($v) => [
@@ -89,8 +89,6 @@ public function productDetails(string $slug)
         ];
     });
 
-
-
     // Determine selected variant
     $selectedVariant = $product->productVariants->first();
     if (request()->has('variant_id')) {
@@ -98,22 +96,18 @@ public function productDetails(string $slug)
         $selectedVariant = $product->productVariants->firstWhere('id', $variantId) ?? $selectedVariant;
     }
 
-//    $relatedProducts = $this->productService->getRelatedProducts($selectedVariant);
-    if ($selectedVariant) {
-        $relatedProducts = $this->productService->getRelatedProducts($selectedVariant);
-    } else {
-        $relatedProducts = collect(); // or []
-    }
+    $relatedProducts = $selectedVariant
+        ? $this->productService->getRelatedProducts($selectedVariant)
+        : collect();
 
     $ownerInfo = $selectedVariant?->getOwnerInfo();
     $activeWarranty = $selectedVariant?->getActiveWarranty();
-
 
     $productData = [
         'id' => $product->id,
         'slug' => $product->slug,
         'name' => $product->name,
-        'primary_image_url' => $product->primary_image_url,
+        'primary_image_url' => $product->primary_image_url, // accessor
         'stock' => $product->productVariants->sum('stock'),
         'category_hierarchy' => $product->category ? $product->category->getHierarchy() : [],
         'brand' => $product->brand ? [
@@ -124,21 +118,17 @@ public function productDetails(string $slug)
         'description' => $product->description,
         'specifications' => $product->specifications,
         'whats_in_the_box' => $product->whats_in_the_box,
-        'images' => $product->images
-            ->map(fn($img) => Storage::disk('s3')->url($img->image_path))
-            ->toArray(),
+        'images' => $product->image_urls, // accessor for all image URLs
         'variants' => $variants,
         'owner' => $ownerInfo ? [
             'type' => $ownerInfo['type'],
             'name' => $ownerInfo['name'],
         ] : null,
-
         'warranty' => $activeWarranty ? [
             'id' => $activeWarranty->id,
             'duration' => $activeWarranty->duration,
             'description' => $activeWarranty->description,
         ] : null,
-
     ];
 
     $cartVariantIds = [];
@@ -173,6 +163,7 @@ public function productDetails(string $slug)
         'title' => $product->name,
     ]);
 }
+
 
 
 
