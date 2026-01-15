@@ -19,6 +19,7 @@ use App\Services\ProductService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use App\Models\ProductStatus;
+use App\Models\Scopes\SellerProductScope;
 
 
 class ProductController extends Controller
@@ -285,6 +286,7 @@ public function edit(Product $product)
         'features' => $product->features,
         'specifications' => $product->specifications,
         'whats_in_the_box' => $product->whats_in_the_box,
+        'video_url' => $product->video_url,
         'variant_rows' => $variantRows,
         'images' => $images,
     ];
@@ -326,7 +328,9 @@ public function store(Request $request, ProductService $productService)
 
     $product = null;
     if ($step > 1 && $request->filled('product_id')) {
-        $product = Product::find($request->input('product_id'));
+       // $product = Product::find($request->input('product_id'));
+        $product = Product::withoutGlobalScope(SellerProductScope::class)
+    ->find($request->input('product_id'));
     }
 
     try {

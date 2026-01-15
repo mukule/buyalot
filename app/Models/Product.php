@@ -31,6 +31,7 @@ class Product extends Model
         'meta_title',
         'meta_keywords',
         'meta_description',
+        'video_url',
         'status',
         'owner_type',
         'owner_id',

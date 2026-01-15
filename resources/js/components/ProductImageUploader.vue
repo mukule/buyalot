@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineEmits, defineProps, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 interface ImageItem {
     file: File | null;

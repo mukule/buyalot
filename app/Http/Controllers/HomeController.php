@@ -118,7 +118,7 @@ public function productDetails(string $slug)
         'description' => $product->description,
         'specifications' => $product->specifications,
         'whats_in_the_box' => $product->whats_in_the_box,
-        'images' => $product->image_urls, // accessor for all image URLs
+        'images' => $product->image_urls, 
         'variants' => $variants,
         'owner' => $ownerInfo ? [
             'type' => $ownerInfo['type'],
@@ -130,6 +130,10 @@ public function productDetails(string $slug)
             'description' => $activeWarranty->description,
         ] : null,
     ];
+
+    if (!empty($product->video_url)) {
+    $productData['video_url'] = $product->video_url;
+}
 
     $cartVariantIds = [];
     $cart = app(\App\Services\CartService::class)->getCart(request());

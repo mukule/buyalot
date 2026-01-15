@@ -7,7 +7,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
 import { QuillEditor } from '@vueup/vue-quill';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
-import { onMounted, reactive, watch } from 'vue';
+import { computed, onMounted, reactive, watch } from 'vue';
 
 // Types
 interface OptionItem {
@@ -35,7 +35,29 @@ interface ProductFormBase {
     unit_id: string;
     variant_rows: VariantRow[];
     images: any[];
+    video_url?: string | null;
 }
+
+const videoPreview = computed(() => {
+    if (!form.video_url) return null;
+
+    try {
+        const parsed = new URL(form.video_url);
+        const hostname = parsed.hostname.toLowerCase();
+        let videoId: string | null = null;
+
+        if (hostname.includes('youtube.com')) {
+            videoId = parsed.searchParams.get('v');
+        } else if (hostname === 'youtu.be') {
+            videoId = parsed.pathname.substring(1);
+        }
+
+        if (!videoId) return null;
+        return `https://www.youtube.com/embed/${videoId}`;
+    } catch {
+        return null;
+    }
+});
 
 // Editor fields interface
 interface ProductFormEditorFields {
@@ -87,6 +109,7 @@ const form = useForm<ProductForm>({
     whats_in_the_box: product?.whats_in_the_box ?? '',
     variant_rows: product?.variant_rows ?? [],
     images: product?.images ?? [],
+    video_url: product?.video_url ?? null,
 });
 
 // Editor fields
@@ -287,6 +310,7 @@ const submitStep = async () => {
 
                     <!-- Step 2: Content -->
                     <div v-show="currentStep.value === 1" class="space-y-6">
+                        <!-- Editor fields -->
                         <div v-for="field in editorFields" :key="field" class="space-y-2">
                             <label class="block text-sm font-medium text-gray-700">{{
                                 field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
@@ -298,6 +322,28 @@ const submitStep = async () => {
                                 placeholder="Write here..."
                                 class="min-h-[200px] rounded-md border border-gray-200"
                             />
+                        </div>
+
+                        <!-- YouTube Video URL -->
+                        <div class="mt-4">
+                            <label class="mb-1 block text-sm font-medium text-gray-700">YouTube Video URL (optional)</label>
+                            <input
+                                type="url"
+                                v-model="form.video_url"
+                                placeholder="https://www.youtube.com/watch?v=VIDEO_ID"
+                                class="block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-700 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:outline-none"
+                            />
+
+                            <!-- Video Preview -->
+                            <div v-if="videoPreview" class="mt-2 w-full max-w-md overflow-hidden rounded-md border">
+                                <iframe
+                                    :src="videoPreview"
+                                    frameborder="0"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowfullscreen
+                                    class="h-48 w-full"
+                                ></iframe>
+                            </div>
                         </div>
                     </div>
 

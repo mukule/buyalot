@@ -173,6 +173,7 @@ protected function handleStep2(
         'meta_title',
         'meta_description',
         'meta_keywords',
+        'video_url',
     ]);
 
     // Do nothing if there's nothing to update
