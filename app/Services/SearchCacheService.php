@@ -97,7 +97,8 @@ class SearchCacheService
     public static function refreshCategory(Category $category): void
     {
         $cache = self::get();
-
+        $cache['categories'] = $cache['categories'] ?? [];
+        $cache['products']   = $cache['products'] ?? [];
         // Update or insert category
         $cache['categories'] = array_filter($cache['categories'], fn($c) => $c['id'] !== $category->id);
         $cache['categories'][] = [
@@ -136,6 +137,15 @@ class SearchCacheService
      */
     public static function refreshProduct(Product $product): void
     {
+        $cache = self::get();
+
+        if (!$cache) {
+            self::rebuild();
+            $cache = self::get();
+        }
+
+        $cache['products'] = $cache['products'] ?? [];
+        $cache['variants'] = $cache['variants'] ?? [];
         //get published product status
         $status=ProductStatus::where('name', 'published')->first();
         if (($product->status_id ?? null) != $status->id) {
@@ -146,7 +156,6 @@ class SearchCacheService
             Cache::put(self::CACHE_KEY, $cache, now()->addMonths(6));
             return;
         }
-        $cache = self::get();
 
         // Update or insert product
         $key = array_search($product->id, array_column($cache['products'], 'id'));
