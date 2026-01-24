@@ -2,14 +2,17 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { AppPageProps, Brand } from '@/types';
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { PlusIcon } from 'lucide-vue-next';
-import { computed } from 'vue';
+import { ChevronLeft, ChevronRight, PlusIcon } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 
+// Brand type with extra fields
 interface BrandWithExtras extends Brand {
     hashid: string;
     logo_url?: string;
+    active: boolean;
 }
 
+// Pagination types
 interface PaginationLink {
     url: string | null;
     label: string;
@@ -32,18 +35,51 @@ interface PaginatedResponse<T> {
     meta: PaginationMeta;
 }
 
-const page = usePage<AppPageProps<{ brands: PaginatedResponse<BrandWithExtras> }>>();
+// Page props type — must extend Record<string, unknown> for TS
+interface BrandPageProps extends Record<string, unknown> {
+    brands?: PaginatedResponse<BrandWithExtras>;
+    filters?: {
+        search?: string;
+        status?: string | number | null;
+    };
+}
+
+// Use Inertia page props
+const page = usePage<AppPageProps<BrandPageProps>>();
+
+// Brands array (safe fallback)
 const brands = computed(() => page.props.brands?.data || []);
-const pagination = computed(() => {
-    const { links, meta } = page.props.brands || {};
-    return { links, meta };
+
+// Safe pagination object
+const pagination = computed(() => ({
+    links: page.props.brands?.links || [],
+    meta: page.props.brands?.meta || {
+        current_page: 1,
+        from: 0,
+        last_page: 1,
+        path: '',
+        per_page: 10,
+        to: 0,
+        total: 0,
+    },
+}));
+
+// Filters
+const search = ref(page.props.filters?.search || '');
+const status = ref(page.props.filters?.status ?? null);
+
+// Watchers for reactive search & status
+watch([search, status], () => {
+    router.get(route('admin.brands.index'), { search: search.value, status: status.value }, { preserveState: true, replace: true });
 });
 
+// Breadcrumbs
 const breadcrumbs = [
     { title: 'Dashboard', href: route('admin.dashboard') },
     { title: 'Brands', href: route('admin.brands.index') },
 ];
 
+// CRUD actions
 function createBrand() {
     router.get(route('admin.brands.create'));
 }
@@ -60,10 +96,17 @@ function deleteBrand(hashid: string) {
     }
 }
 
+// Status badge classes
 const statusClasses = (active: boolean) => ({
     'text-green-600': active,
     'text-red-600': !active,
 });
+
+// Pagination navigation
+function goToPage(url: string | null) {
+    if (!url) return;
+    router.get(url, {}, { preserveState: true, replace: true });
+}
 </script>
 
 <template>
@@ -71,9 +114,26 @@ const statusClasses = (active: boolean) => ({
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="p-4">
             <div class="card flex flex-col gap-6 rounded-lg bg-white p-4 shadow-sm">
-                <div class="flex items-center justify-between">
+                <!-- Header + Filters -->
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <h1 class="text-2xl font-semibold text-gray-800">Brands</h1>
-                    <button @click="createBrand" class="hover:bg-primary-dark rounded-xl bg-primary px-4 py-2 text-white">+ New Brand</button>
+                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <input
+                            v-model="search"
+                            type="text"
+                            placeholder="Search brands..."
+                            class="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:ring focus:ring-primary/30"
+                        />
+                        <select
+                            v-model="status"
+                            class="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:ring focus:ring-primary/30"
+                        >
+                            <option value="">All Status</option>
+                            <option value="1">Active</option>
+                            <option value="0">Inactive</option>
+                        </select>
+                        <button @click="createBrand" class="hover:bg-primary-dark rounded-xl bg-primary px-4 py-2 text-white">+ New Brand</button>
+                    </div>
                 </div>
 
                 <!-- Brand Table -->
@@ -89,7 +149,9 @@ const statusClasses = (active: boolean) => ({
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white">
                             <tr v-for="(brand, index) in brands" :key="brand.hashid" class="hover:bg-gray-50">
-                                <td class="px-4 py-4 text-sm text-gray-500">{{ index + 1 }}</td>
+                                <td class="px-4 py-4 text-sm text-gray-500">
+                                    {{ index + 1 + (pagination.meta.current_page - 1) * pagination.meta.per_page }}
+                                </td>
                                 <td class="flex items-center space-x-3 px-4 py-4 text-sm font-medium text-primary">
                                     <img v-if="brand.logo_url" :src="brand.logo_url" alt="Logo" class="h-10 w-10 rounded bg-white object-contain" />
                                     <span>{{ brand.name }}</span>
@@ -106,6 +168,33 @@ const statusClasses = (active: boolean) => ({
                             </tr>
                         </tbody>
                     </table>
+
+                    <!-- Pagination -->
+                    <nav class="mt-4 flex justify-end space-x-2">
+                        <button
+                            @click="goToPage(pagination.links[0]?.url)"
+                            :disabled="!pagination.links[0]?.url"
+                            class="rounded border px-3 py-1 text-sm hover:bg-gray-200 disabled:opacity-50"
+                        >
+                            <ChevronLeft class="inline h-4 w-4" />
+                        </button>
+
+                        <button
+                            v-for="link in pagination.links.slice(1, -1)"
+                            :key="link.label"
+                            @click="goToPage(link.url)"
+                            :class="['rounded border px-3 py-1 text-sm hover:bg-gray-200', link.active ? 'bg-primary text-white' : '']"
+                            v-html="link.label"
+                        ></button>
+
+                        <button
+                            @click="goToPage(pagination.links[pagination.links.length - 1]?.url)"
+                            :disabled="!pagination.links[pagination.links.length - 1]?.url"
+                            class="rounded border px-3 py-1 text-sm hover:bg-gray-200 disabled:opacity-50"
+                        >
+                            <ChevronRight class="inline h-4 w-4" />
+                        </button>
+                    </nav>
                 </div>
 
                 <!-- Empty State -->

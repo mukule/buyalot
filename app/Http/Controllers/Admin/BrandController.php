@@ -17,13 +17,36 @@ use Illuminate\Support\Facades\Log;
 
 class BrandController extends Controller
 {
-    public function index()
-    {
-        $brands = Brand::latest()->paginate(10);
-        return Inertia::render('Admin/Brands/Index', [
-            'brands' => $brands,
+   
+
+
+public function index(Request $request)
+{
+    $brands = Brand::query()
+        ->when($request->search, function ($query, $search) {
+            $query->where('name', 'like', "%{$search}%");
+        })
+        ->when($request->status !== null, function ($query) use ($request) {
+            $query->where('active', $request->status);
+        })
+        ->latest()
+        ->paginate(10)
+        ->withQueryString()
+        ->through(fn ($brand) => [
+            'hashid'        => $brand->hashid,
+            'name'      => $brand->name,
+            'slug'      => $brand->slug,
+            'active'    => $brand->active,
+            'logo_url'  => $brand->logo_url,
+            'created_at'=> $brand->created_at->toDateString(),
         ]);
-    }
+
+    return Inertia::render('Admin/Brands/Index', [
+        'brands'  => $brands,
+        'filters' => $request->only(['search', 'status']),
+    ]);
+}
+
 
     public function create()
     {
@@ -151,7 +174,7 @@ protected function optimizeAndStoreImage($file): string
 
     $image->save(storage_path('app/public/' . $filename));
 
-    // ✅ RETURN RELATIVE PATH
+    
     return $filename;
 }
 

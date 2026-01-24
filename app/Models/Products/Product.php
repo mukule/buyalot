@@ -1,27 +1,23 @@
 <?php
 
-namespace App\Models\Products;
-
-use App\Models\Brand;
-use App\Models\Category;
+namespace App\Models;
+use Laravel\Scout\Searchable;
 use App\Models\Payment\Discount;
-use App\Models\Products;
 use App\Models\Scopes\SellerProductScope;
-use App\Models\Traits\HasHashid;
-use App\Models\Traits\HasSlug;
-use App\Models\Unit;
-use App\Models\User;
-use App\Models\Warranty;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Builder;
+use App\Models\Traits\HasSlug;
+use App\Models\Traits\HasHashid;
+use App\Models\Warranty;
+use Illuminate\Support\Facades\Storage;
 
 class Product extends Model
 {
-    use HasSlug, HasHashid;
+    use HasSlug, HasHashid, Searchable;
     protected static string $slugSource = 'name';
 
     protected $fillable = [
@@ -44,14 +40,7 @@ class Product extends Model
         'current_step',
         'unit_id',
         'max_step_completed',
-        'status_id',
-        'restocked_by',
-        'quantity',
-        'note',
-        'buying_price',
-        'marked_price',
-        'stock',
-        'sku'
+        'status_id'
     ];
 
     protected $appends = [
@@ -83,8 +72,18 @@ class Product extends Model
     protected static function booted(): void
     {
         static::addGlobalScope(new SellerProductScope);
-   }
 
+        static::saved(function ($product) {
+        $product->searchable(); // updates Meilisearch index
+    });
+
+    static::deleted(function ($product) {
+        $product->unsearchable(); // removes from Meilisearch index
+    });
+
+
+   }
+    
 
     // protected function imageUrls(): Attribute
     // {
@@ -107,6 +106,35 @@ class Product extends Model
     // }
 
 
+public function toSearchableArray(): array
+    {
+        $variants = $this->productVariants->map(fn($v) => $v->sku)->toArray();
+
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+
+            'slug' => $this->slug,
+            'skus' => implode(' ', $variants), 
+            'brand' => $this->brand?->name,
+            'category' => $this->category?->name,
+            'primary_image_url' => $this->primaryImageUrl,
+            'min_price' => $this->min_price,
+            'max_price' => $this->max_price,
+            'in_stock' => $this->in_stock,
+            'status' => $this->status,
+        ];
+    }
+
+public function scoutSettings(): array
+{
+    return [
+        'filterableAttributes' => ['status'], // now Meilisearch can filter by status
+    ];
+}
+
+
+
     protected function imageUrls(): Attribute
 {
     return Attribute::get(fn () =>
@@ -127,6 +155,13 @@ protected function primaryImageUrl(): Attribute
     );
 }
 
+
+public function scopeActive($query)
+{
+    return $query->where('status_id', 2)
+                 ->whereNotNull('slug')
+                 ->where('slug', '!=', '');
+}
 
 
     protected function statusLabel(): Attribute
@@ -285,7 +320,7 @@ protected function primaryImageUrl(): Attribute
 
     public function updateStatus(int $statusId): bool
     {
-        $statusExists = Products\ProductStatus::where('id', $statusId)->exists();
+        $statusExists = \App\Models\ProductStatus::where('id', $statusId)->exists();
         if (! $statusExists) {
             return false;
         }
@@ -318,12 +353,6 @@ protected function primaryImageUrl(): Attribute
     public function activeWarranty(): ?Warranty
     {
         return $this->warranties()->where('active', true)->first();
-    }
-
-
-    public function variantRestocks()
-    {
-        return $this->hasMany(ProductRestock::class);
     }
 
 }

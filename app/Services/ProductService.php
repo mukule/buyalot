@@ -176,10 +176,10 @@ protected function handleStep2(
         $product->update($payload);
     }
 
-    Log::info('Product description & SEO updated', [
-        'product_id' => $product->id,
-        'user_id'    => $user?->id,
-    ]);
+    // Log::info('Product description & SEO updated', [
+    //     'product_id' => $product->id,
+    //     'user_id'    => $user?->id,
+    // ]);
 
     return $product;
 }

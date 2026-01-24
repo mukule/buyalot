@@ -24,7 +24,7 @@
 
             <!-- Product Cards -->
             <div ref="container" class="scrollbar-hide flex snap-x gap-4 overflow-x-auto scroll-smooth px-2 py-4">
-                <ProductCard v-for="product in products" :key="product.id" :product="product" />
+                <ProductCard v-for="product in products" :key="product.id" :product="product" lazy />
             </div>
 
             <!-- Right Scroll Button -->
@@ -57,6 +57,7 @@ const scroll = (direction: 'left' | 'right') => {
     const el = container.value;
     if (!el) return;
 
+    // Scroll by 90% of container width
     const scrollAmount = el.offsetWidth * 0.9;
     el.scrollBy({
         left: direction === 'left' ? -scrollAmount : scrollAmount,
@@ -64,3 +65,13 @@ const scroll = (direction: 'left' | 'right') => {
     });
 };
 </script>
+
+<style scoped>
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+</style>

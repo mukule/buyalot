@@ -38,13 +38,11 @@ const mobileMenuOpen = ref(false);
 const showCategories = ref(false);
 const expandedCategories = ref<Record<number, boolean>>({});
 
-// --- Categories: safe typed computed to avoid "slice on {}" error
+// --- Categories
 const categories = computed<Category[]>(() => {
     const raw = (page.props as any).categories;
     return Array.isArray(raw) ? (raw as Category[]) : [];
 });
-
-// precomputed mobile slice so template doesn't call .slice on unknown
 const mobileCategories = computed(() => categories.value.slice(0, 10));
 
 // Top links
@@ -81,25 +79,12 @@ const authLinks = computed(() => {
 const wishlistUrl = computed(() => (route ? route('wishlist.index') : '/wishlist'));
 const cartUrl = computed(() => (route ? route('cart.index') : '/cart'));
 
-// Search
+// --- Search
 const searchQuery = ref('');
 const suggestions = ref<any[]>([]);
 const showSuggestions = ref(false);
+const activeIndex = ref(-1);
 let suggestTimer: any = null;
-
-// async function fetchSuggestions(q: string) {
-//     try {
-//         const url = `/search?ajax=1&q=${encodeURIComponent(q)}&per_page=5`;
-//         const res = await fetch(url, { headers: { Accept: 'application/json' } });
-//         const json = await res.json();
-//         suggestions.value = json.results?.data ?? [];
-//         showSuggestions.value = suggestions.value.length > 0;
-//     } catch (e) {
-//         console.error('Search suggest error', e);
-//         suggestions.value = [];
-//         showSuggestions.value = false;
-//     }
-// }
 
 async function fetchSuggestions(q: string) {
     try {
@@ -108,6 +93,7 @@ async function fetchSuggestions(q: string) {
         const json = await res.json();
         suggestions.value = json.results?.data ?? [];
         showSuggestions.value = suggestions.value.length > 0;
+        activeIndex.value = -1;
     } catch (e) {
         suggestions.value = [];
         showSuggestions.value = false;
@@ -125,21 +111,43 @@ function onSearchInput() {
     suggestTimer = setTimeout(() => fetchSuggestions(q), 250);
 }
 
-function submitSearch() {
-    const q = searchQuery.value.trim();
+function submitSearch(selected: any = null) {
+    const q = selected?.name || searchQuery.value.trim();
     if (!q) return;
     showSuggestions.value = false;
     router.get('/search', { q }, { preserveScroll: true });
 }
 
+function onKeyDown(e: KeyboardEvent) {
+    if (!showSuggestions.value) return;
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        activeIndex.value = (activeIndex.value + 1) % suggestions.value.length;
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        activeIndex.value = (activeIndex.value - 1 + suggestions.value.length) % suggestions.value.length;
+    } else if (e.key === 'Enter' && activeIndex.value >= 0) {
+        e.preventDefault();
+        submitSearch(suggestions.value[activeIndex.value]);
+    } else if (e.key === 'Escape') {
+        showSuggestions.value = false;
+    }
+}
+
+// Highlight search match
+function highlightMatch(text: string, query: string) {
+    if (!query) return text;
+    const regex = new RegExp(`(${query})`, 'gi');
+    return text.replace(regex, '<mark class="bg-yellow-200">$1</mark>');
+}
+
+// --- Menu toggles
 function toggleMobileMenu() {
     mobileMenuOpen.value = !mobileMenuOpen.value;
 }
-
 function logout() {
     router.post('/logout', {}, { preserveScroll: true });
 }
-
 function toggleCategory(catId: number) {
     expandedCategories.value[catId] = !expandedCategories.value[catId];
 }
@@ -335,37 +343,24 @@ function toggleCategory(catId: number) {
                     v-model="searchQuery"
                     @input="onSearchInput"
                     @focus="onSearchInput"
+                    @keydown="onKeyDown"
                     @keyup.enter.prevent="submitSearch"
                     type="text"
                     placeholder="Search products, brands..."
                     class="w-full rounded-md bg-white py-2 pr-10 pl-10 text-sm text-gray-700 placeholder-gray-500 shadow-sm focus:ring-2 focus:ring-secondary focus:outline-none"
                 />
-                <!--                <div v-if="showSuggestions" class="absolute z-50 mt-2 max-h-80 w-full overflow-auto rounded-md border bg-white shadow">-->
-                <!--                    <div-->
-                <!--                        v-for="s in suggestions"-->
-                <!--                        :key="s.hashid"-->
-                <!--                        @mousedown.prevent="router.get(route('search'), { q: s.name })"-->
-                <!--                        class="flex cursor-pointer items-center gap-3 p-2 hover:bg-gray-50"-->
-                <!--                    >-->
-                <!--                        <img :src="s.primary_image_url || '/fallback-image.png'" alt="" class="h-10 w-10 flex-none object-contain" />-->
-                <!--                        <div class="min-w-0">-->
-                <!--                            <div class="truncate text-sm text-gray-800">{{ s.name }}</div>-->
-                <!--                            <div v-if="s.brand" class="truncate text-xs text-gray-500">{{ s.brand }}</div>-->
-                <!--                        </div>-->
-                <!--                    </div>-->
-                <!--                    <div class="border-t p-2 text-center">-->
-                <!--                        <button class="text-sm text-primary hover:underline" @mousedown.prevent="submitSearch">See all results</button>-->
-                <!--                    </div>-->
+
+                <!-- Suggestions Dropdown -->
                 <div v-if="showSuggestions" class="absolute z-50 mt-2 max-h-80 w-full overflow-auto rounded-md border bg-white shadow">
                     <div
-                        v-for="s in suggestions"
+                        v-for="(s, i) in suggestions"
                         :key="s.id"
-                        @mousedown.prevent="router.get('/search', { q: s.name }, { preserveScroll: true })"
-                        class="flex cursor-pointer items-center gap-3 p-2 hover:bg-gray-50"
+                        @mousedown.prevent="submitSearch(s)"
+                        :class="['flex cursor-pointer items-center gap-3 p-2 hover:bg-gray-50', { 'bg-gray-100': i === activeIndex }]"
                     >
                         <img :src="s.primary_image_url || '/fallback-image.png'" alt="" class="h-10 w-10 flex-none rounded object-contain" />
-                        <div class="min-w-0">
-                            <div class="truncate text-sm text-gray-800">{{ s.name }}</div>
+                        <div class="min-w-0 text-sm">
+                            <div v-html="highlightMatch(s.name, searchQuery)" class="truncate text-gray-800"></div>
                             <div v-if="s.brand" class="truncate text-xs text-gray-500">{{ s.brand }}</div>
                         </div>
                     </div>
