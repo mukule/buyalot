@@ -16,32 +16,27 @@ class FrontendProductService
     }
 
     /**
-     * HOMEPAGE — High Performance Optimization
-     * Single SQL Query + Redis Caching with Tagging
+     * HOMEPAGE — High Performance with Redis
      */
     public function getProductsGroupedByCategory($categories, int $limit = 12)
     {
-        // 1. Create a unique cache key based on the categories requested
-        $cacheKey = 'home_grouped_v5_' . $categories->pluck('id')->implode('_');
+        $cacheKey = 'home_grouped_v9_' . $categories->pluck('id')->implode('_');
 
-        // 2. Safely use tags only if the driver (Redis) supports them
         $cache = Cache::supportsTags() 
             ? Cache::tags(['frontend_products', 'homepage']) 
             : Cache::getFacadeRoot();
 
         return $cache->remember($cacheKey, now()->addHours(12), function () use ($categories, $limit) {
             
-            // 3. Single-Query logic: Flatten category IDs
+            // 1. Get all sub-category IDs
             $allCategoryIds = $categories->flatMap(fn($cat) => $cat->getAllCategoryIds())->unique()->toArray();
 
-            // 4. Selective SELECT: Only pull columns used by normalizeVariant to save RAM
+            // 2. Fetch variants without the restrictive select() that caused errors
             $allVariants = ProductVariant::query()
-                ->select(['id', 'product_id', 'marked_price', 'selling_price', 'discount', 'display_name', 'created_at'])
                 ->with([
-                    'product' => fn($q) => $q->select(['id', 'brand_id', 'category_id', 'slug', 'name', 'status_id']),
-                    'product.brand:id,name',
-                    'product.primaryImage:id,product_id,image_path',
-                    'product.category:id,slug'
+                    'product.brand',
+                    'product.primaryImage',
+                    'product.category'
                 ])
                 ->whereHas('product', function ($q) use ($allCategoryIds) {
                     $q->whereIn('category_id', $allCategoryIds)
@@ -52,29 +47,34 @@ class FrontendProductService
                 ->latest()
                 ->get();
 
-            // 5. Group in memory
+            // 3. Group and Normalize
             return $categories->mapWithKeys(function ($category) use ($allVariants, $limit) {
-                $specificCategoryIds = $category->getAllCategoryIds();
+                $specificCategoryIds = $category->getAllCategoryIds()->toArray();
 
                 $categoryVariants = $allVariants->filter(function ($variant) use ($specificCategoryIds) {
-                    return in_array($variant->product->category_id, $specificCategoryIds);
+                    // Check if product exists and category matches
+                    return $variant->product && in_array($variant->product->category_id, $specificCategoryIds);
                 })->take($limit);
 
+                $priceData = $this->getPriceForVariants($categoryVariants);
+
                 return [
-                    $category->id => $categoryVariants->map(fn($v) => $this->normalizeVariant($v))->values(),
+                    $category->id => $categoryVariants->map(
+                        fn ($variant) => $this->normalizeVariant($variant, $priceData)
+                    )->values(), // .values() ensures clean JSON arrays
                 ];
             });
         });
     }
 
     /**
-     * CATEGORY PAGE — Paginated with eager loading
+     * CATEGORY PAGE — paginated
      */
     public function getPaginatedProductsByCategory($category, int $perPage = 20): LengthAwarePaginator
     {
-        $categoryIds = $category->getAllCategoryIds();
+        $categoryIds = $category->getAllCategoryIds()->toArray();
 
-        $paginator = ProductVariant::query()
+        $query = ProductVariant::query()
             ->with(['product.brand', 'product.primaryImage', 'product.category'])
             ->whereHas('product', function ($q) use ($categoryIds) {
                 $q->whereIn('category_id', $categoryIds)
@@ -82,10 +82,16 @@ class FrontendProductService
                   ->whereNotNull('slug')
                   ->where('slug', '!=', '');
             })
-            ->latest()
-            ->paginate($perPage);
+            ->latest();
 
-        $paginator->getCollection()->transform(fn($v) => $this->normalizeVariant($v));
+        $paginator = $query->paginate($perPage);
+        $priceData = $this->getPriceForVariants($paginator->getCollection());
+
+        $paginator->setCollection(
+            $paginator->getCollection()->map(
+                fn ($variant) => $this->normalizeVariant($variant, $priceData)
+            )
+        );
 
         return $paginator;
     }
@@ -116,7 +122,13 @@ class FrontendProductService
         if (!is_null($maxPrice)) $query->where('selling_price', '<=', $maxPrice);
 
         $paginator = $query->latest()->paginate($perPage);
-        $paginator->getCollection()->transform(fn($v) => $this->normalizeVariant($v));
+        $priceData = $this->getPriceForVariants($paginator->getCollection());
+
+        $paginator->setCollection(
+            $paginator->getCollection()->map(
+                fn ($variant) => $this->normalizeVariant($variant, $priceData)
+            )
+        );
 
         return $paginator;
     }
@@ -129,9 +141,9 @@ class FrontendProductService
         $product = $variant->product;
         if (!$product?->category) return collect();
 
-        $categoryIds = $product->category->getAllCategoryIds();
+        $categoryIds = $product->category->getAllCategoryIds()->toArray();
 
-        return ProductVariant::query()
+        $variants = ProductVariant::query()
             ->with(['product.brand', 'product.primaryImage', 'product.category'])
             ->where('id', '!=', $variant->id)
             ->whereHas('product', function ($q) use ($categoryIds) {
@@ -142,30 +154,35 @@ class FrontendProductService
             })
             ->latest()
             ->take($limit)
-            ->get()
-            ->map(fn($v) => $this->normalizeVariant($v));
+            ->get();
+
+        $priceData = $this->getPriceForVariants($variants);
+
+        return $variants->map(
+            fn ($v) => $this->normalizeVariant($v, $priceData)
+        );
     }
 
     /**
-     * NORMALIZER — Efficiently formats the variant data
+     * NORMALIZER — strictly using your original fields
      */
-    public function normalizeVariant(ProductVariant $variant): array
+    public function normalizeVariant(ProductVariant $variant, array $priceData = []): array
     {
         $product = $variant->product;
-        $primaryImage = $product->primaryImage;
 
-        $imageUrl = $product->primaryImageUrl
-            ?? ($primaryImage?->image_path
-                ? asset('storage/' . $primaryImage->image_path)
+        $image = $product->primaryImageUrl
+            ?? ($product->primaryImage?->image_path
+                ? asset('storage/' . $product->primaryImage->image_path)
                 : asset('images/fallback-image.png'));
 
-        $markedPrice = (float)($variant->marked_price ?? 0);
-        $sellingPrice = (float)($variant->selling_price ?? 0);
-        $totalDiscount = (float)($variant->discount ?? 0);
+        $markedPrice = $variant->marked_price ?? 0;
+        $sellingPrice = $variant->selling_price ?? 0;
+        $totalDiscount = $variant->discount ?? 0;
 
-        $discountPercent = ($markedPrice > 0 && $totalDiscount > 0)
-            ? round(($totalDiscount / $markedPrice) * 100, 2)
-            : 0;
+        $discountPercent = 0;
+        if ($markedPrice > 0 && $totalDiscount > 0) {
+            $discountPercent = round(($totalDiscount / $markedPrice) * 100, 2);
+        }
 
         return [
             'id'                => $variant->id,
@@ -179,9 +196,36 @@ class FrontendProductService
             'final_price'       => round($sellingPrice, 2),
             'discount_percent'  => $discountPercent,
             'has_discount'      => $totalDiscount > 0,
-            'in_stock'          => (bool)($variant->in_stock ?? true),
+            'in_stock'          => $variant->in_stock,
             'brand'             => $product?->brand?->name,
-            'primary_image_url' => $imageUrl,
+            'primary_image_url' => $image,
         ];
+    }
+
+    /**
+     * PRICE MAP — strictly using your original logic
+     */
+    public function getPriceForVariants($variants): array
+    {
+        if ($variants->isEmpty()) return [];
+
+        return $variants->mapWithKeys(function ($variant) {
+            $markedPrice = (float) ($variant->marked_price ?? 0);
+            $discountPercentage = $markedPrice > 0
+                ? (int) round(($variant->discount / $markedPrice) * 100)
+                : 0;
+
+            return [
+                $variant->id => [
+                    'product_variant_id'  => $variant->id,
+                    'marked_price'        => round($markedPrice, 2),
+                    'discounts'           => [],
+                    'total_discount'      => round($variant->discount, 2),
+                    'discount_percentage' => $discountPercentage,
+                    'final_price'         => round($variant->selling_price ?? 0, 2),
+                    'has_discount'        => $variant->discount > 0,
+                ],
+            ];
+        })->toArray();
     }
 }
