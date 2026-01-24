@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Models;
-
+use Laravel\Scout\Searchable;
 use App\Models\Payment\Discount;
 use App\Models\Scopes\SellerProductScope;
 use Illuminate\Database\Eloquent\Model;
@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Storage;
 
 class Product extends Model
 {
-    use HasSlug, HasHashid;
+    use HasSlug, HasHashid, Searchable;
     protected static string $slugSource = 'name';
 
     protected $fillable = [
@@ -72,6 +72,16 @@ class Product extends Model
     protected static function booted(): void
     {
         static::addGlobalScope(new SellerProductScope);
+
+        static::saved(function ($product) {
+        $product->searchable(); // updates Meilisearch index
+    });
+
+    static::deleted(function ($product) {
+        $product->unsearchable(); // removes from Meilisearch index
+    });
+
+
    }
     
 
@@ -94,6 +104,35 @@ class Product extends Model
     //             : null
     //     );
     // }
+
+
+public function toSearchableArray(): array
+    {
+        $variants = $this->productVariants->map(fn($v) => $v->sku)->toArray();
+
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+
+            'slug' => $this->slug,
+            'skus' => implode(' ', $variants), 
+            'brand' => $this->brand?->name,
+            'category' => $this->category?->name,
+            'primary_image_url' => $this->primaryImageUrl,
+            'min_price' => $this->min_price,
+            'max_price' => $this->max_price,
+            'in_stock' => $this->in_stock,
+            'status' => $this->status,
+        ];
+    }
+
+public function scoutSettings(): array
+{
+    return [
+        'filterableAttributes' => ['status'], // now Meilisearch can filter by status
+    ];
+}
+
 
 
     protected function imageUrls(): Attribute

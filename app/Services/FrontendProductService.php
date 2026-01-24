@@ -175,14 +175,14 @@ protected function fetchRelatedVariants(ProductVariant $variant, $categoryIds, $
 }
 
 
-private function normalizeVariant(ProductVariant $variant, array $priceData = []): array
+public function normalizeVariant(ProductVariant $variant, array $priceData = []): array
 {
     $product = $variant->product;
 
-    $image = $product->primaryImageUrl
-        ?? ($product->images->first()?->image_path
-            ? Storage::disk('s3')->url($product->images->first()->image_path)
-            : '/fallback-image.png');
+   $image = $product->primaryImageUrl
+    ?? ($product->images->first()?->image_path
+        ? asset('storage/' . $product->images->first()->image_path)
+        : asset('images/fallback-image.png'));
 
     $markedPrice = $variant->marked_price ?? 0;
     $sellingPrice = $variant->selling_price ?? 0;
