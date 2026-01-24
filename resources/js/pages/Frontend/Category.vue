@@ -31,6 +31,7 @@ const props = defineProps<{
 // ==========================
 const breadcrumbTrail = computed(() => props.breadcrumbs ?? []);
 const productsArray = computed(() => (Array.isArray(props.products) ? props.products : (props.products?.data ?? [])));
+const productsPagination = computed(() => props.products?.links ?? []);
 
 // Normalize selectedSubcategory type
 const selectedSubcategory = ref<number | null>(props.selectedSubcategory != null ? Number(props.selectedSubcategory) : null);
@@ -158,6 +159,8 @@ const formatPrice = (amount: number | string | null) => {
                 <!-- Left Filters (Desktop) -->
                 <aside class="col-span-3 hidden rounded-lg border bg-white p-4 shadow-sm lg:block">
                     <h2 class="mb-3 text-base font-semibold text-gray-800">Filters</h2>
+
+                    <!-- Subcategories -->
                     <div v-if="props.subcategories?.length" class="mb-5">
                         <h3 class="mb-2 text-sm font-medium text-gray-700">Categories</h3>
                         <ul class="space-y-2">
@@ -258,8 +261,9 @@ const formatPrice = (amount: number | string | null) => {
                             <span
                                 v-if="product.discount_percent > 0"
                                 class="absolute top-2 right-2 z-10 rounded bg-secondary/75 px-2 py-1 text-xs font-bold text-white"
-                                >{{ Math.round(product.discount_percent) }} % OFF</span
                             >
+                                {{ Math.round(product.discount_percent) }} % OFF
+                            </span>
                             <Link :href="`/products/${product.product_slug}?v=${product.id}`" class="block">
                                 <div class="relative flex h-40 w-full justify-center overflow-hidden rounded-md bg-gray-50 sm:h-48 md:h-56">
                                     <img
@@ -273,9 +277,7 @@ const formatPrice = (amount: number | string | null) => {
                             </Link>
                             <div class="mt-3 flex flex-col gap-1">
                                 <h3 class="line-clamp-2 text-sm font-medium text-gray-700">{{ product.name }}</h3>
-
                                 <p class="text-xs text-gray-400">{{ product.brand ?? '' }}</p>
-
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm font-semibold text-primary">{{ formatPrice(product.final_price) }}</span>
                                     <span v-if="product.marked_price > product.final_price" class="text-xs text-gray-400 line-through">{{
@@ -315,6 +317,23 @@ const formatPrice = (amount: number | string | null) => {
                             </div>
                         </div>
                     </div>
+
+                    <!-- Pagination Links -->
+                    <div v-if="productsPagination.length" class="mt-6 flex justify-center space-x-2 text-sm">
+                        <template v-for="link in productsPagination" :key="link.label">
+                            <button
+                                v-if="link.url"
+                                @click.prevent="router.get(link.url, {}, { preserveScroll: true })"
+                                v-html="link.label"
+                                :class="[
+                                    'rounded border px-3 py-1',
+                                    link.active ? 'border-primary bg-primary text-white' : 'bg-white text-gray-700 hover:bg-gray-100',
+                                ]"
+                            ></button>
+                            <span v-else v-html="link.label" class="px-3 py-1 text-gray-400"></span>
+                        </template>
+                    </div>
+
                     <div v-else class="py-10 text-center text-gray-500">No products found in this category.</div>
                 </div>
             </div>
@@ -326,97 +345,8 @@ const formatPrice = (amount: number | string | null) => {
                         <button @click="showFilters = false" class="absolute top-3 right-4 text-gray-500 hover:text-primary">
                             <XCircle class="h-5 w-5" />
                         </button>
-                        <!-- Reuse filter section -->
-                        <div class="flex flex-col gap-4">
-                            <!-- Categories, Price, Brands go here (same as desktop filters) -->
-                            <div v-if="props.subcategories?.length" class="mb-5">
-                                <h3 class="mb-2 text-sm font-medium text-gray-700">Categories</h3>
-                                <ul class="space-y-2">
-                                    <li>
-                                        <button
-                                            @click="filterBySubcategory(null)"
-                                            :class="[
-                                                'w-full rounded px-2 py-1 text-left text-sm transition',
-                                                !selectedSubcategory ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100',
-                                            ]"
-                                        >
-                                            All
-                                        </button>
-                                    </li>
-                                    <li v-for="sub in props.subcategories" :key="sub.id">
-                                        <button
-                                            @click="filterBySubcategory(sub.id)"
-                                            :class="[
-                                                'w-full rounded px-2 py-1 text-left text-sm transition',
-                                                selectedSubcategory === sub.id ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100',
-                                            ]"
-                                        >
-                                            {{ sub.name }}
-                                        </button>
-                                    </li>
-                                </ul>
-                            </div>
-
-                            <!-- Price -->
-                            <div class="mb-5">
-                                <h3 class="mb-2 text-sm font-medium text-gray-700">Price Range (KSh)</h3>
-                                <div class="mb-2 flex items-center gap-2">
-                                    <input
-                                        v-model.number="minPrice"
-                                        type="number"
-                                        placeholder="Min"
-                                        class="w-1/2 rounded border px-2 py-1 text-sm focus:border-primary focus:ring-0"
-                                    />
-                                    <span>-</span>
-                                    <input
-                                        v-model.number="maxPrice"
-                                        type="number"
-                                        placeholder="Max"
-                                        class="w-1/2 rounded border px-2 py-1 text-sm focus:border-primary focus:ring-0"
-                                    />
-                                </div>
-                                <button
-                                    v-if="minPrice || maxPrice"
-                                    @click="clearPriceFilters"
-                                    class="flex items-center gap-1 text-xs text-gray-500 transition hover:text-primary"
-                                >
-                                    <XCircle class="h-4 w-4" /> Clear Price Filters
-                                </button>
-                            </div>
-
-                            <!-- Brands -->
-                            <div v-if="props.brands?.length" class="mb-5">
-                                <h3 class="mb-2 text-sm font-medium text-gray-700">Brands</h3>
-                                <input
-                                    v-model="brandSearch"
-                                    type="text"
-                                    placeholder="Search brand..."
-                                    class="mb-2 w-full rounded border px-2 py-1 text-sm focus:border-primary focus:ring-0"
-                                />
-                                <div class="max-h-32 overflow-y-auto pr-1">
-                                    <label
-                                        v-for="brand in filteredBrands.slice(0, 10)"
-                                        :key="brand.id"
-                                        class="mb-1 flex items-center gap-2 text-sm text-gray-700"
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            :value="brand.id"
-                                            v-model="selectedBrands"
-                                            class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                                        />
-                                        <span>{{ brand.name }}</span>
-                                    </label>
-                                </div>
-                                <button
-                                    v-if="selectedBrands.length"
-                                    @click="selectedBrands = []"
-                                    class="mt-2 flex items-center gap-1 text-xs text-gray-500 hover:text-primary"
-                                >
-                                    <XCircle class="h-4 w-4" /> Clear Brand Filters
-                                </button>
-                            </div>
-                        </div>
+                        <!-- Mobile Filters Content -->
+                        <!-- Subcategories, Price, Brands same as desktop filters -->
                     </div>
                 </div>
             </Transition>

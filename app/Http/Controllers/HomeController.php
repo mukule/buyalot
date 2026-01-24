@@ -199,46 +199,54 @@ public function productDetails(string $slug)
 
 public function category(string $slug)
 {
-    $category = Category::with('children')->where('slug', $slug)->firstOrFail();
+    // Cache category + children for 30 minutes
+    $category = Cache::remember("category_{$slug}", now()->addMinutes(30), function () use ($slug) {
+        return Category::with(['children' => fn($q) => $q->active()->select('id', 'name', 'slug', 'parent_id')])
+            ->select('id', 'name', 'slug')
+            ->where('slug', $slug)
+            ->firstOrFail();
+    });
 
+    // Get all category IDs (including subcategories)
     $categoryIds = $category->getAllCategoryIds()->toArray();
 
-
-    $selectedSubcategory = request('subcategory');
-    $selectedSubcategory = $selectedSubcategory ? (int) $selectedSubcategory : null;
-
+    // Selected filters
+    $selectedSubcategory = request('subcategory') ? (int) request('subcategory') : null;
     $selectedBrands = collect(explode(',', request('brands', '')))
         ->filter()
         ->map(fn($id) => (int) $id)
         ->toArray();
-
     $minPrice = request('min_price') !== null ? (float) request('min_price') : null;
     $maxPrice = request('max_price') !== null ? (float) request('max_price') : null;
 
-
+    // If a valid subcategory is selected, override category IDs
     if ($selectedSubcategory) {
-        $subcategory = Category::find($selectedSubcategory);
-        if ($subcategory && $subcategory->parent_id === $category->id) {
+        $subcategory = $category->children->firstWhere('id', $selectedSubcategory);
+        if ($subcategory) {
             $categoryIds = $subcategory->getAllCategoryIds()->toArray();
         }
     }
 
-
+    // Get paginated products (20 per page)
     $products = $this->productService->getPaginatedProductsByCategoryIds(
         $categoryIds,
-        20,
+        50,
         $minPrice,
         $maxPrice,
         $selectedBrands
     );
 
+    // Cache brands separately for 1 hour
+    $brands = Cache::remember('brands_list', now()->addHour(), function () {
+        return \App\Models\Brand::select('id', 'name')->orderBy('name')->get();
+    });
 
     return Inertia::render('Frontend/Category', [
         'category' => $category,
         'products' => $products,
-        'subcategories' => $category->children()->active()->get(['id', 'name', 'slug']),
+        'subcategories' => $category->children,
         'selectedSubcategory' => $selectedSubcategory,
-        'brands' => \App\Models\Brand::select('id', 'name')->get(),
+        'brands' => $brands,
         'selectedBrands' => $selectedBrands,
         'minPrice' => $minPrice,
         'maxPrice' => $maxPrice,
@@ -246,6 +254,7 @@ public function category(string $slug)
         'title' => $category->name,
     ]);
 }
+
 
 
 

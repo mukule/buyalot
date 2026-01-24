@@ -31,7 +31,7 @@ const scrollBrands = (direction: 'left' | 'right') => {
         <!-- Left button -->
         <button
             @click="scrollBrands('left')"
-            class="absolute top-1/2 left-0 z-10 -translate-y-1/2 rounded-full bg-secondary p-2 shadow-md hover:bg-primary"
+            class="absolute top-1/2 left-0 z-10 -translate-y-1/2 rounded-full bg-secondary p-2 shadow-md transition-colors hover:bg-primary"
             aria-label="Scroll Left"
         >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -42,10 +42,16 @@ const scrollBrands = (direction: 'left' | 'right') => {
         <!-- Brands list -->
         <div ref="brandsContainer" class="scrollbar-hide flex space-x-4 overflow-x-auto scroll-smooth px-2 pb-4">
             <div v-for="brand in brands" :key="brand.hashid ?? brand.id" class="w-1/2 flex-none px-2 py-2 sm:w-1/3 md:w-1/6">
-                <Link href="#">
-                    <img v-if="brand.logo_url" :src="brand.logo_url" :alt="brand.name" class="mx-auto h-[70px] w-[160px] object-contain" />
-                    <div v-else class="flex h-[70px] w-[160px] items-center justify-center bg-gray-100">
-                        <span class="text-sm font-medium">{{ brand.name }}</span>
+                <Link :href="`/brand/${brand.slug}`" class="block">
+                    <img
+                        v-if="brand.logo_url"
+                        :src="brand.logo_url"
+                        :alt="brand.name"
+                        class="mx-auto h-[70px] w-[160px] rounded object-contain"
+                        loading="lazy"
+                    />
+                    <div v-else class="flex h-[70px] w-[160px] items-center justify-center rounded border border-gray-200 bg-gray-100">
+                        <span class="text-sm font-medium text-gray-700">{{ brand.name }}</span>
                     </div>
                 </Link>
             </div>
@@ -54,7 +60,7 @@ const scrollBrands = (direction: 'left' | 'right') => {
         <!-- Right button -->
         <button
             @click="scrollBrands('right')"
-            class="absolute top-1/2 right-0 z-10 -translate-y-1/2 rounded-full bg-secondary p-2 shadow-md hover:bg-primary"
+            class="absolute top-1/2 right-0 z-10 -translate-y-1/2 rounded-full bg-secondary p-2 shadow-md transition-colors hover:bg-primary"
             aria-label="Scroll Right"
         >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -63,3 +69,13 @@ const scrollBrands = (direction: 'left' | 'right') => {
         </button>
     </div>
 </template>
+
+<style scoped>
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+</style>
