@@ -1,19 +1,23 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\Products;
 
+use App\Models\Brand;
+use App\Models\Category;
 use App\Models\Payment\Discount;
+use App\Models\Products;
 use App\Models\Scopes\SellerProductScope;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Traits\HasHashid;
+use App\Models\Traits\HasSlug;
+use App\Models\Unit;
+use App\Models\User;
+use App\Models\Warranty;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Eloquent\Builder;
-use App\Models\Traits\HasSlug;
-use App\Models\Traits\HasHashid;
-use App\Models\Warranty;
-use Illuminate\Support\Facades\Storage;
 
 class Product extends Model
 {
@@ -40,7 +44,14 @@ class Product extends Model
         'current_step',
         'unit_id',
         'max_step_completed',
-        'status_id'
+        'status_id',
+        'restocked_by',
+        'quantity',
+        'note',
+        'buying_price',
+        'marked_price',
+        'stock',
+        'sku'
     ];
 
     protected $appends = [
@@ -73,7 +84,7 @@ class Product extends Model
     {
         static::addGlobalScope(new SellerProductScope);
    }
-    
+
 
     // protected function imageUrls(): Attribute
     // {
@@ -274,7 +285,7 @@ protected function primaryImageUrl(): Attribute
 
     public function updateStatus(int $statusId): bool
     {
-        $statusExists = \App\Models\ProductStatus::where('id', $statusId)->exists();
+        $statusExists = Products\ProductStatus::where('id', $statusId)->exists();
         if (! $statusExists) {
             return false;
         }
@@ -307,6 +318,12 @@ protected function primaryImageUrl(): Attribute
     public function activeWarranty(): ?Warranty
     {
         return $this->warranties()->where('active', true)->first();
+    }
+
+
+    public function variantRestocks()
+    {
+        return $this->hasMany(ProductRestock::class);
     }
 
 }

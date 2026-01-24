@@ -2,17 +2,19 @@
 
 namespace App\Services;
 
-use App\Models\Product;
-use App\Models\ProductStatus;
-use App\Models\ProductVariant;
-use App\Models\Category;
 use App\Models\Brand;
+use App\Models\Category;
+use App\Models\Products\Product;
+use App\Models\Products\ProductStatus;
+use App\Models\Products\ProductVariant;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Psr\SimpleCache\InvalidArgumentException;
 
 class SearchCacheService
 {
     const CACHE_KEY = 'search:data:v1';
+    const CACHE_TTL = 21600;
 
     public static function rebuild(): void
     {
@@ -46,7 +48,8 @@ class SearchCacheService
             'brands' => Brand::select('id', 'name')->get()->toArray(),
         ];
 
-        Cache::put(self::CACHE_KEY, $data, now()->addHours(6));
+        // Save in Redis cache
+        Cache::store('redis')->put(self::CACHE_KEY, $data, self::CACHE_TTL);
     }
 
     /**
@@ -129,7 +132,7 @@ class SearchCacheService
             }
         }
 
-        Cache::put(self::CACHE_KEY, $cache, now()->addMonths(6));
+        Cache::store('redis')->put(self::CACHE_KEY, $cache, self::CACHE_TTL);
     }
 
     /**
@@ -188,14 +191,17 @@ class SearchCacheService
             }
         }
 
-        Cache::put(self::CACHE_KEY, $cache, now()->addMonths(6));
-        Log::info('Cached products:', $cache['products'] ?? []);
+        Cache::store('redis')->put(self::CACHE_KEY, $cache, self::CACHE_TTL);
+        Log::info('Product refreshed in Redis cache: '.$product->id);
     }
 
 
+    /**
+     * @throws InvalidArgumentException
+     */
     public static function get(): ?array
     {
-        return Cache::get(self::CACHE_KEY);
+        return Cache::store('redis')->get(self::CACHE_KEY);
     }
 
     public static function forget(): void

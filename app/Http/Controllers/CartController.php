@@ -2,21 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use App\Models\Cart;
-use App\Models\CartItem;
-use App\Models\ProductVariant;
+use App\Models\Cart\CartItem;
+use App\Models\Products\ProductVariant;
 use App\Services\CartReservationService;
 use App\Services\FrontendProductService;
-use App\Services\DiscountService;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Inertia\Inertia;
 use App\Services\ShippingService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-
+use Inertia\Inertia;
 
 
 class CartController extends Controller

@@ -4,17 +4,12 @@ namespace App\Services;
 use App\Contracts\PaymentProviderInterface;
 use App\Http\DTOs\PaymentRequest;
 use App\Http\DTOs\PaymentResponse;
-use App\Models\Order;
-use App\Models\Cart;
 use App\Models\Payment\MpesaRequest;
 use App\Models\Payment\Payment;
-use App\Models\CheckoutSession;
 use App\Models\Payment\PaymentProvider;
 use App\Models\Payment\PaymentStatus;
 use App\Providers\MpesaProvider;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Log;
 
 class PaymentService
 {

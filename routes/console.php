@@ -1,16 +1,15 @@
 <?php
 
+use App\Models\Cart\CartReservation;
+use App\Models\Products\ProductVariant;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
-
-use App\Models\CartReservation;
-use App\Models\ProductVariant;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schedule;
 
 Schedule::call(function () {
     DB::transaction(function () {

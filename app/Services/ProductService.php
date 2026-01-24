@@ -2,24 +2,19 @@
 
 namespace App\Services;
 
-use App\Models\Product;
-use App\Models\ProductStatus;
+use App\Models\Category;
+use App\Models\Products\Product;
+use App\Models\Products\ProductStatus;
+use App\Models\Products\ProductVariant;
 use App\Models\User;
 use App\Models\Variant;
-use App\Models\ProductVariant;
 use App\Models\VariantCategory;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Str;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Services\ImageService;
 use Illuminate\Support\Facades\Storage;
-use App\Models\Category;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-
-
-
 
 
 class ProductService
@@ -38,7 +33,7 @@ class ProductService
         $this->imageService = $imageService;
     }
 
-    
+
 public function createOrUpdateProductStep(
     int $step,
     array $data,

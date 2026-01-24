@@ -96,7 +96,7 @@ class Brand extends Model
 
     public function products()
 {
-    return $this->hasMany(\App\Models\Product::class, 'brand_id');
+    return $this->hasMany(Products\Product::class, 'brand_id');
 }
 
 }

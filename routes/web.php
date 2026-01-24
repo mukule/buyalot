@@ -71,6 +71,9 @@ Route::middleware(['auth','role:admin|seller|vendor|super-admin','check_permissi
         ->name('products.destroyAll');
 
     Route::resource('products', ProductController::class);
+    Route::post('/products/{product}/restock-variants', [ProductController::class, 'restockVariants'])
+        ->name('products.restock.variants');
+
 
     // Delete a single product image
     Route::delete('products/{product}/images/{imageId}', [ProductController::class, 'destroyImage'])
@@ -356,8 +359,7 @@ Route::post('/shipping/estimate', [CartController::class, 'estimateShipping'])
 Route::post('/coupons/validate', [CouponController::class, 'validateCode'])
     ->name('coupons.validate');
 
-Route::get('{slug}', [HomeController::class, 'category'])
-    ->name('category.show');
+Route::get('/{slug}', [HomeController::class, 'category'])->name('category.show');
 
 Route::middleware(['auth'])->group(function () {
     Route::post('/switch-role', [RoleSwitchController::class, 'switchRole'])->name('role.switch');

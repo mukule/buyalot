@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { AppPageProps, ProductStatus } from '@/types';
-import { Head, router, usePage } from '@inertiajs/vue3';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { debounce } from 'lodash';
 import { ArrowLeft, FilterIcon, PlusIcon, SearchIcon } from 'lucide-vue-next';
 import { computed, reactive, ref, watch } from 'vue';
+import RestockModal from '@/components/RestockModal.vue';
+// import form from '@/pages/Admin/Policies/Form.vue';
 
 // Product type
 interface ProductWithRelations {
@@ -226,6 +228,18 @@ function editWarranty(warranty: { hashid: string; product_hashid: string }) {
         }),
     );
 }
+
+const showRestockModal = ref(false);
+
+const restockForm = useForm({
+    variants: [],
+    note: '',
+});
+
+const openRestock = (product: any) => {
+    selectedProduct.value = product;
+    showRestockModal.value = true;
+};
 </script>
 
 <template>
@@ -265,6 +279,7 @@ function editWarranty(warranty: { hashid: string; product_hashid: string }) {
                     <table class="w-full table-auto border-collapse border border-gray-200">
                         <thead class="bg-gray-100">
                             <tr>
+                                <th class="border px-2 py-1 text-left">#</th>
                                 <th class="border px-4 py-2 text-left">Image</th>
                                 <th class="border px-4 py-2 text-left">Name</th>
                                 <th class="border px-4 py-2 text-left">Code</th>
@@ -276,7 +291,8 @@ function editWarranty(warranty: { hashid: string; product_hashid: string }) {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="product in filteredProducts" :key="product.id" class="hover:bg-gray-50">
+                            <tr v-for="(product, index) in filteredProducts" :key="product.id" class="hover:bg-gray-50">
+                                <td class="border px-2 py-1">{{ index + 1 }}</td>
                                 <td class="border px-4 py-2">
                                     <img
                                         v-if="product.primary_image_url"
@@ -323,6 +339,7 @@ function editWarranty(warranty: { hashid: string; product_hashid: string }) {
 
                                 <td class="flex gap-2 border px-4 py-2">
                                     <button @click="editProduct(product.hashid)" class="text-sm text-blue-600 hover:underline">Edit</button>
+                                    <!--                                    <button @click="openRestock(product)" class="text-sm text-green-400 hover:underline">Restock</button>-->
                                 </td>
                             </tr>
                         </tbody>
@@ -341,6 +358,13 @@ function editWarranty(warranty: { hashid: string; product_hashid: string }) {
                     </button>
                 </div>
             </div>
+
+            <RestockModal
+                :show="showRestockModal"
+                :product="selectedProduct"
+                @close="showRestockModal = false"
+                @success="router.reload({ only: ['products'] })"
+            />
 
             <!-- Warranty Modal -->
             <div

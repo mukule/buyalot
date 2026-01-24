@@ -2,8 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\Product;
-use App\Models\ProductVariant;
+use App\Models\Products\ProductVariant;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Storage;
 

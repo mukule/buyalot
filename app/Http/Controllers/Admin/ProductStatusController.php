@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\ProductStatus;
+use App\Models\Products\ProductStatus;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
 use Illuminate\Support\Facades\Log;
+use Inertia\Inertia;
 use Vinkla\Hashids\Facades\Hashids;
 
 class ProductStatusController extends Controller
@@ -14,7 +14,7 @@ class ProductStatusController extends Controller
     /**
      * Display a listing of product statuses.
      */
-   
+
     public function index()
 {
     $statuses = ProductStatus::orderBy('created_at', 'desc')

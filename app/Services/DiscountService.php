@@ -2,8 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\ProductVariant;
-use Illuminate\Support\Facades\Log;
+use App\Models\Products\ProductVariant;
 
 class DiscountService
 {

@@ -3,13 +3,11 @@
 namespace App\Http\Controllers\Customer;
 
 use App\Http\Controllers\Controller;
-use App\Models\ProductReview;
 use App\Models\Orders\Order;
-use App\Models\Orders\OrderItem;
-use Illuminate\Http\Request;
-use Inertia\Inertia;
+use App\Models\Products\ProductReview;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Inertia;
 
 class ReviewController extends Controller
 {

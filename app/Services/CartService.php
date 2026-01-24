@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\Cart;
+use App\Models\Cart\Cart;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;

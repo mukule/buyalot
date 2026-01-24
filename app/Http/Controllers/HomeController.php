@@ -2,24 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Category;
 use App\Models\Brand;
+use App\Models\Category;
 use App\Models\Customer\Customer;
 use App\Models\Orders\Order;
 use App\Models\Orders\OrderItem;
-use App\Models\Product;
+use App\Models\Products\Product;
+use App\Models\Region;
 use App\Models\Seller\Seller;
 use App\Models\User;
-use App\Models\Region;
-use App\Models\PickupPoint;
 use App\Models\Warehouse\Warehouse;
 use App\Services\FrontendProductService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Log;
 
 
 class HomeController extends Controller
@@ -118,7 +115,7 @@ public function productDetails(string $slug)
         'description' => $product->description,
         'specifications' => $product->specifications,
         'whats_in_the_box' => $product->whats_in_the_box,
-        'images' => $product->image_urls, 
+        'images' => $product->image_urls,
         'variants' => $variants,
         'owner' => $ownerInfo ? [
             'type' => $ownerInfo['type'],

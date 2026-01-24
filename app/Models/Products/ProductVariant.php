@@ -1,17 +1,20 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\Products;
 
+use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\Payment\Discount;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 
 class ProductVariant extends Model
 {
     protected $fillable = [
+        'display_name',
         'product_id',
         'buying_price',
         'marked_price',
@@ -19,7 +22,7 @@ class ProductVariant extends Model
         'selling_price',
         'stock',
         'sku',
-        'is_active', 
+        'is_active',
         'discount',
     ];
 

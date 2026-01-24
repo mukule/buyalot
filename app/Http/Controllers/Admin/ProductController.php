@@ -4,22 +4,23 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\RefreshProductCache;
-use App\Models\Product;
 use App\Models\Brand;
+use App\Models\Category;
+use App\Models\Products\Product;
+use App\Models\Products\ProductRestock;
+use App\Models\Products\ProductStatus;
+use App\Models\Scopes\SellerProductScope;
 use App\Models\Unit;
 use App\Models\VariantCategory;
-use App\Models\Category;
+use App\Services\ProductService;
 use App\Services\SearchCacheService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
-use App\Services\ProductService;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
-use App\Models\ProductStatus;
-use App\Models\Scopes\SellerProductScope;
 
 
 class ProductController extends Controller
@@ -45,6 +46,11 @@ public function index()
                 'name' => $product->name,
                 'product_code' => $product->product_code,
                 'primary_image_url' => $product->primary_image_url,
+                'product_variants' => $product->productVariants->map(fn ($v) => [
+                    'id' => $v->id,
+                    'name' => $v->name,
+                    'stock' => $v->stock,
+                ]),
                 'stock' => $product->productVariants->sum('stock'),
                 'hashid' => $product->hashid,
                 'status_id' => $product->status_id ?? null,
@@ -607,6 +613,40 @@ public function updateStatus(Request $request, Product $product)
         ->back()
         ->with('success', 'Product status updated successfully.');
 }
+    public function restockVariants(Request $request, Product $product)
+    {
+        $data = $request->validate([
+            'variants' => ['required', 'array'],
+            'variants.*.id' => ['required', 'exists:product_variants,id'],
+            'variants.*.quantity' => ['required', 'integer', 'min:0'],
+            'note' => ['nullable', 'string'],
+        ]);
+
+        DB::transaction(function () use ($product, $data) {
+            foreach ($data['variants'] as $variantData) {
+
+                if ($variantData['quantity'] <= 0) {
+                    continue;
+                }
+
+                $variant = $product->productVariants()
+                    ->where('id', $variantData['id'])
+                    ->lockForUpdate()
+                    ->first();
+
+                $variant->increment('stock', $variantData['quantity']);
+
+                $variant->restocks()->create([
+                    'product_id' => $product->id,
+                    'quantity' => $variantData['quantity'],
+                    'note' => $data['note'] ?? null,
+                    'restocked_by' => auth()->id(),
+                ]);
+            }
+        });
+
+        return back()->with('success', 'Variants restocked successfully');
+    }
 
 
 }

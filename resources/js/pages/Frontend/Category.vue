@@ -4,6 +4,7 @@ import { Link, router, usePage } from '@inertiajs/vue3';
 import debounce from 'lodash/debounce';
 import { Filter, Heart, ShoppingCart, Star, XCircle } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
+import Pagination from '@/components/Pagination.vue';
 
 // ==========================
 // Props
@@ -121,6 +122,9 @@ const formatPrice = (amount: number | string | null) => {
     const num = typeof amount === 'string' ? parseFloat(amount) : amount;
     return isNaN(num) ? 'KSh 0' : `KSh ${num.toLocaleString()}`;
 };
+
+const paginationLinks = computed(() => props.products?.links ?? []);
+
 </script>
 
 <template>
@@ -316,6 +320,12 @@ const formatPrice = (amount: number | string | null) => {
                         </div>
                     </div>
                     <div v-else class="py-10 text-center text-gray-500">No products found in this category.</div>
+
+                    <!-- Pagination -->
+                    <div class="mt-8 flex justify-center lg:justify-end">
+                        <Pagination :links="paginationLinks" />
+                    </div>
+
                 </div>
             </div>
 

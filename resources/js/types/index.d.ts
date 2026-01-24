@@ -431,6 +431,15 @@ export interface SimplifiedProduct {
     category_slug?: string;
 }
 
+export interface PaginatedProducts<T> {
+    data: T[];
+    meta: {
+        current_page: number;
+        last_page: number;
+        has_more: boolean;
+    };
+}
+
 export interface VariantCategory {
     id: number;
     name: string;

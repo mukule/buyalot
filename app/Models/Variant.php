@@ -2,18 +2,20 @@
 
 namespace App\Models;
 
+use App\Models\Products\Product;
+use App\Models\Products\ProductVariantValue;
 use Illuminate\Database\Eloquent\Model;
-use Vinkla\Hashids\Facades\Hashids;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Vinkla\Hashids\Facades\Hashids;
 
 class Variant extends Model
 {
     protected $fillable = [
-        'variant_category_id', 
-        'value',              
+        'variant_category_id',
+        'value',
         'is_active',
-        
+
     ];
 
     protected $appends = ['hashid'];
@@ -43,7 +45,7 @@ class Variant extends Model
             ->using(ProductVariantValue::class)
             ->withPivot([
                 'stock',
-                'regular_price', 
+                'regular_price',
                 'selling_price',
                 // Include other pivot fields as needed
             ]);

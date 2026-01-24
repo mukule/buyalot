@@ -6,12 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Brand;
 use App\Models\Payment\Discount;
 use App\Models\Payment\DiscountType;
-use App\Models\ProductVariant;
+use App\Models\Products\ProductVariant;
+use App\Services\DiscountService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use Inertia\Inertia;
 use Illuminate\Validation\Rule;
-use App\Services\DiscountService;
+use Inertia\Inertia;
 
 
 class DiscountController extends Controller
@@ -40,8 +40,8 @@ class DiscountController extends Controller
     {
         // Provide minimal datasets for selection UIs
         $categories = \App\Models\Category::select('id', 'name', 'parent_id')->orderBy('name')->get();
-        $products = \App\Models\Product::select('id', 'name', 'category_id')->orderBy('name')->limit(1000)->get();
-        $variants = \App\Models\ProductVariant::select('id', 'product_id')->orderBy('id')->limit(1000)->get();
+        $products = \App\Models\Products\Product::select('id', 'name', 'category_id')->orderBy('name')->limit(1000)->get();
+        $variants = \App\Models\Products\ProductVariant::select('id', 'product_id')->orderBy('id')->limit(1000)->get();
         $customers = \App\Models\Customer\Customer::select('id', 'first_name','last_name','email', 'created_at')->orderByDesc('created_at')->limit(1000)->get();
         $brands = Brand::select('id', 'name', 'slug', 'active', 'logo_path', 'created_at')->orderByDesc('created_at')->limit(1000)->get();
         $discountTypes = DiscountType::where('is_active', true)->get(['code', 'name']);
@@ -121,9 +121,9 @@ class DiscountController extends Controller
     public function edit(Discount $discount)
     {
         $categories = \App\Models\Category::select('id', 'name', 'parent_id')->orderBy('name')->get();
-        $products = \App\Models\Product::select('id', 'name', 'category_id')->orderBy('name')->limit(500)->get();
+        $products = \App\Models\Products\Product::select('id', 'name', 'category_id')->orderBy('name')->limit(500)->get();
         // ProductVariant table has no 'name' column; rely on appends (display_name) and include sku
-        $variants = \App\Models\ProductVariant::select('id', 'product_id', 'sku')->orderBy('id')->limit(1000)->get();
+        $variants = \App\Models\Products\ProductVariant::select('id', 'product_id', 'sku')->orderBy('id')->limit(1000)->get();
         $customers = \App\Models\Customer\Customer::select('id', 'first_name','last_name','email', 'created_at')->orderByDesc('created_at')->limit(500)->get();
         $discountTypes = DiscountType::where('is_active', true)->get(['code', 'name']);
         $brands = Brand::select('id', 'name', 'slug', 'active', 'logo_path', 'created_at')->orderByDesc('created_at')->limit(1000)->get();

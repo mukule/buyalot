@@ -78,6 +78,7 @@ const banners = page.props.banners ?? DEFAULT_BANNERS;
                 :key="category"
                 :title="category"
                 :products="SAMPLE_PRODUCTS"
+             slug=""
             />
         </section>
     </MainLayout>

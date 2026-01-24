@@ -2,7 +2,7 @@
 
 namespace App\Models\Seller;
 
-use App\Models\Product;
+use App\Models\Products\Product;
 use Illuminate\Database\Eloquent\Model;
 
 class Seller extends Model

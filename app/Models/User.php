@@ -3,19 +3,20 @@
 namespace App\Models;
 
 
+use App\Models\Products\Product;
 use App\Models\Seller\Seller;
 use App\Models\Traits\HasHashid;
 use App\Notifications\UserRegistered;
 use App\Traits\CalculatesCommissions;
 use App\Traits\HasCommissions;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 
 
 class User extends Authenticatable

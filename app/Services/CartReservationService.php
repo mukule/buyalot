@@ -1,16 +1,14 @@
 <?php
 
 namespace App\Services;
+use App\Models\Cart\Cart;
+use App\Models\Cart\CartReservation;
+use App\Models\Products\ProductVariant;
 use Illuminate\Http\Request;
-use App\Models\CartReservation;
-use App\Models\ProductVariant;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth;
-use App\Models\Cart;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Log;
-
 
 
 class CartReservationService

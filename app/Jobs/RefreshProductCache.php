@@ -2,7 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Models\Product;
+use App\Models\Products\Product;
 use App\Services\SearchCacheService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;

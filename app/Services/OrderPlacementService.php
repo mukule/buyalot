@@ -2,18 +2,16 @@
 
 namespace App\Services;
 
-use App\Models\Cart;
+use App\Mail\AdminOrderNotification;
+use App\Mail\CustomerOrderConfirmation;
 use App\Models\CheckoutSession;
+use App\Models\Customer\CustomerAddress;
 use App\Models\Orders\Order;
 use App\Models\Orders\OrderItem;
-use App\Models\ProductVariant;
-use App\Models\Customer\CustomerAddress;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
-use App\Mail\CustomerOrderConfirmation;
-use App\Mail\AdminOrderNotification;
+use Illuminate\Support\Str;
 
 class OrderPlacementService
 {

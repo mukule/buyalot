@@ -3,27 +3,21 @@
 namespace App\Http\Controllers\Orders;
 
 use App\Http\Controllers\Controller;
+use App\Http\DTOs\PaymentRequest;
+use App\Models\Cart\Cart;
+use App\Models\CheckoutSession;
 use App\Models\Customer\Customer;
 use App\Models\Orders\Order;
 use App\Models\Orders\OrderItem;
-use App\Models\Product;
-use App\Models\ProductVariant;
-use App\Models\CheckoutSession;
-use App\Models\ProductVariantValue;
+use App\Models\Products\ProductVariant;
 use App\Models\User;
-use App\Models\Payment\Discount;
 use App\Services\PaymentService;
-use App\Http\DTOs\PaymentRequest;
-use App\Services\ShippingService;
 use DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
-use Inertia\Inertia;
 use Illuminate\Support\Facades\Log;
-use App\Models\Cart;
+use Illuminate\Support\Facades\Validator;
+use Inertia\Inertia;
 
 
 class OrderController extends Controller
