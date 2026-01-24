@@ -37,48 +37,35 @@ class HomeController extends Controller
 
     public function index()
 {
-    $data = Cache::remember('homepage_v1', now()->addMinutes(10), function () {
+    // 1. Light queries (Fast, no need to cache these specifically)
+    $categories = \App\Models\Category::query()
+        ->select('id', 'name', 'slug')
+        ->with(['children:id,parent_id,name,slug'])
+        ->whereNull('parent_id')
+        ->orderBy('name')
+        ->get();
 
-        
-        $categories = Category::query()
-            ->select('id', 'name', 'slug')
-            ->with([
-                'children:id,parent_id,name,slug'
-            ])
-            ->whereNull('parent_id')
-            ->orderBy('name')
-            ->get();
+    $brands = \App\Models\Brand::query()
+        ->select('id', 'name', 'slug', 'logo_path')
+        ->where('active', 1)
+        ->orderBy('name')
+        ->get();
 
-       
-        $brands = Brand::query()
-            ->select('id', 'name', 'slug', 'logo_path')
-            ->where('active', 1)
-            ->orderBy('name')
-            ->get()
-            ->map(fn($brand) => [
-                'id' => $brand->id,
-                'name' => $brand->name,
-                'slug' => $brand->slug,
-                'logo_url' => $brand->logo_url, // precompute for Vue
-            ]);
-
-        // Products grouped by category (already optimized in service)
-        $productsByCategory = $this->productService
-            ->getProductsGroupedByCategory($categories);
-
-        return [
-            'categories' => $categories,
-            'brands' => $brands,
-            'productsByCategory' => $productsByCategory,
-        ];
-    });
+    // 2. Heavy logic (The Service handles its own Redis caching internally)
+    $productsByCategory = $this->productService->getProductsGroupedByCategory($categories);
 
     return Inertia::render('Frontend/Index', [
         'title' => 'Online Shopping Store',
-        ...$data,
+        'categories' => $categories,
+        'brands' => $brands->map(fn($brand) => [
+            'id' => $brand->id,
+            'name' => $brand->name,
+            'slug' => $brand->slug,
+            'logo_url' => $brand->logo_url,
+        ]),
+        'productsByCategory' => $productsByCategory,
     ]);
 }
-
 
 
 
