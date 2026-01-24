@@ -18,10 +18,13 @@
         
         <meta property="og:image" content="{{ asset('logo.png') }}">
         <meta property="og:image:type" content="image/png">
+        
         <meta property="og:image:width" content="512">
         <meta property="og:image:height" content="512">
+        <meta property="og:image:alt" content="{{ config('app.name', 'Buyalot') }} Logo">
 
-        <meta name="twitter:card" content="summary"> <meta name="twitter:title" content="{{ config('app.name', 'Buyalot') }}">
+        <meta name="twitter:card" content="summary"> 
+        <meta name="twitter:title" content="{{ config('app.name', 'Buyalot') }}">
         <meta name="twitter:description" content="Quality products at the best prices. Fast delivery and secure payments.">
         <meta name="twitter:image" content="{{ asset('logo.png') }}">
 
