@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
 import { ref } from 'vue';
 
 interface BrandProp {
@@ -42,7 +41,7 @@ const scrollBrands = (direction: 'left' | 'right') => {
         <!-- Brands list -->
         <div ref="brandsContainer" class="scrollbar-hide flex space-x-4 overflow-x-auto scroll-smooth px-2 pb-4">
             <div v-for="brand in brands" :key="brand.hashid ?? brand.id" class="w-1/2 flex-none px-2 py-2 sm:w-1/3 md:w-1/6">
-                <Link :href="`/brand/${brand.slug}`" class="block">
+                <div class="block">
                     <img
                         v-if="brand.logo_url"
                         :src="brand.logo_url"
@@ -53,7 +52,7 @@ const scrollBrands = (direction: 'left' | 'right') => {
                     <div v-else class="flex h-[70px] w-[160px] items-center justify-center rounded border border-gray-200 bg-gray-100">
                         <span class="text-sm font-medium text-gray-700">{{ brand.name }}</span>
                     </div>
-                </Link>
+                </div>
             </div>
         </div>
 

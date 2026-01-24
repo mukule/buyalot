@@ -39,7 +39,7 @@ class HomeController extends Controller
 {
     $data = Cache::remember('homepage_v1', now()->addMinutes(10), function () {
 
-        // Categories with minimal columns + children
+        
         $categories = Category::query()
             ->select('id', 'name', 'slug')
             ->with([
@@ -49,9 +49,10 @@ class HomeController extends Controller
             ->orderBy('name')
             ->get();
 
-        // Brands with only needed columns + precomputed logo_url
+       
         $brands = Brand::query()
             ->select('id', 'name', 'slug', 'logo_path')
+            ->where('active', 1)
             ->orderBy('name')
             ->get()
             ->map(fn($brand) => [

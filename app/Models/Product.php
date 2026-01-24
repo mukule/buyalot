@@ -156,6 +156,13 @@ protected function primaryImageUrl(): Attribute
 }
 
 
+public function scopeActive($query)
+{
+    return $query->where('status_id', 2)
+                 ->whereNotNull('slug')
+                 ->where('slug', '!=', '');
+}
+
 
     protected function statusLabel(): Attribute
     {
