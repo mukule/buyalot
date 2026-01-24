@@ -16,7 +16,7 @@
         <meta property="og:title" content="{{ config('app.name', 'Buyalot') }} | Online Shopping">
         <meta property="og:description" content="Quality products at the best prices. Fast delivery and secure payments.">
         
-        <meta property="og:image" content="{{ asset('logo.png') }}">
+        <meta property="og:image" content="{{ asset('preview.png') }}">
         <meta property="og:image:type" content="image/png">
         
         <meta property="og:image:width" content="512">
@@ -26,7 +26,7 @@
         <meta name="twitter:card" content="summary"> 
         <meta name="twitter:title" content="{{ config('app.name', 'Buyalot') }}">
         <meta name="twitter:description" content="Quality products at the best prices. Fast delivery and secure payments.">
-        <meta name="twitter:image" content="{{ asset('logo.png') }}">
+        <meta name="twitter:image" content="{{ asset('preview.png') }}">
 
         <link rel="preconnect" href="https://fonts.bunny.net" />
         <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
