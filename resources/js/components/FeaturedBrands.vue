@@ -1,10 +1,17 @@
 <script setup lang="ts">
-import type { Brand } from '@/types'; // ✅ use global type
 import { Link } from '@inertiajs/vue3';
 import { ref } from 'vue';
 
+interface BrandProp {
+    id: number;
+    hashid?: string;
+    name: string;
+    slug: string;
+    logo_url?: string | null;
+}
+
 defineProps<{
-    brands: Brand[];
+    brands: BrandProp[];
 }>();
 
 const brandsContainer = ref<HTMLDivElement | null>(null);

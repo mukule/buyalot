@@ -22,6 +22,9 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 
 
+use Illuminate\Support\Facades\Cache;
+
+
 class HomeController extends Controller
 {
     protected FrontendProductService $productService;
@@ -34,25 +37,47 @@ class HomeController extends Controller
 
     public function index()
 {
-    $categories = Category::with(['children' => function ($query) {
+    $data = Cache::remember('homepage_v1', now()->addMinutes(10), function () {
 
-            $query->orderBy('name', 'asc');
-        }])
-        ->whereNull('parent_id')
-        ->orderBy('name', 'asc')
-        ->get();
+        // Categories with minimal columns + children
+        $categories = Category::query()
+            ->select('id', 'name', 'slug')
+            ->with([
+                'children:id,parent_id,name,slug'
+            ])
+            ->whereNull('parent_id')
+            ->orderBy('name')
+            ->get();
 
-    $brands = Brand::all();
+        // Brands with only needed columns + precomputed logo_url
+        $brands = Brand::query()
+            ->select('id', 'name', 'slug', 'logo_path')
+            ->orderBy('name')
+            ->get()
+            ->map(fn($brand) => [
+                'id' => $brand->id,
+                'name' => $brand->name,
+                'slug' => $brand->slug,
+                'logo_url' => $brand->logo_url, // precompute for Vue
+            ]);
 
-    $productsByCategory = $this->productService->getProductsGroupedByCategory($categories);
+        // Products grouped by category (already optimized in service)
+        $productsByCategory = $this->productService
+            ->getProductsGroupedByCategory($categories);
+
+        return [
+            'categories' => $categories,
+            'brands' => $brands,
+            'productsByCategory' => $productsByCategory,
+        ];
+    });
 
     return Inertia::render('Frontend/Index', [
         'title' => 'Online Shopping Store',
-        'categories' => $categories,
-        'brands' => $brands,
-        'productsByCategory' => $productsByCategory,
+        ...$data,
     ]);
 }
+
 
 
 

@@ -14,7 +14,7 @@ class Brand extends Model
         'slug',
         'active',
         'description',
-        'logo_path', // Only brand-specific fields
+        'logo_path', 
     ];
 
     protected $casts = [
