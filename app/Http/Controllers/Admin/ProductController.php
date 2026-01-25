@@ -7,7 +7,6 @@ use App\Jobs\RefreshProductCache;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Products\Product;
-use App\Models\Products\ProductRestock;
 use App\Models\Products\ProductStatus;
 use App\Models\Scopes\SellerProductScope;
 use App\Models\Unit;
@@ -333,10 +332,14 @@ public function store(Request $request, ProductService $productService)
 
 
     $product = null;
-    if ($step > 1 && $request->filled('product_id')) {
-       // $product = Product::find($request->input('product_id'));
-        $product = Product::withoutGlobalScope(SellerProductScope::class)
-    ->find($request->input('product_id'));
+    if ($step > 1) {
+        $productId = $request->filled('product_id')
+            ? $request->input('product_id')
+            : $request->session()->get('product_create_draft_id');
+        if ($productId) {
+            $product = Product::withoutGlobalScope(SellerProductScope::class)
+                ->find($productId);
+        }
     }
 
     try {
@@ -349,17 +352,19 @@ public function store(Request $request, ProductService $productService)
         );
 
         if ($step === 4) {
-            try{
-                info('Dispatching RefreshProductCache job for product ID: '.$product->id);
+            try {
+                info('Dispatching RefreshProductCache job for product ID: ' . $product->id);
                 RefreshProductCache::dispatch($product)->delay(now()->addSeconds(5));
-                info('RefreshProductCache job dispatched successfully for product ID: '.$product->id);
-            }catch(\Exception $e){
-                info('Error dispatching RefreshProductCache job for product ID: '.$product->id.' - '.$e->getMessage());
+                info('RefreshProductCache job dispatched successfully for product ID: ' . $product->id);
+            } catch (\Exception $e) {
+                info('Error dispatching RefreshProductCache job for product ID: ' . $product->id . ' - ' . $e->getMessage());
             }
+            $request->session()->forget('product_create_draft_id');
             return redirect()->route('admin.products.index')
                 ->with('success', "Product '{$product->name}' created successfully.");
         }
 
+        $request->session()->put('product_create_draft_id', $product->id);
         return back()
             ->with('success', "Step {$step} completed successfully.")
             ->with('step', $product->current_step)

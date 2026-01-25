@@ -1,19 +1,23 @@
 <?php
 
-namespace App\Models;
-use Laravel\Scout\Searchable;
+namespace App\Models\Products;
+use App\Models\Brand;
+use App\Models\Category;
 use App\Models\Payment\Discount;
+use App\Models\Products;
 use App\Models\Scopes\SellerProductScope;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Traits\HasHashid;
+use App\Models\Traits\HasSlug;
+use App\Models\Unit;
+use App\Models\User;
+use App\Models\Warranty;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Eloquent\Builder;
-use App\Models\Traits\HasSlug;
-use App\Models\Traits\HasHashid;
-use App\Models\Warranty;
-use Illuminate\Support\Facades\Storage;
+use Laravel\Scout\Searchable;
 
 class Product extends Model
 {
@@ -40,7 +44,14 @@ class Product extends Model
         'current_step',
         'unit_id',
         'max_step_completed',
-        'status_id'
+        'status_id',
+        'stock',
+        'buying_price',
+        'marked_price',
+        'regular_price',
+        'selling_price',
+        'discount',
+        'sku'
     ];
 
     protected $appends = [
@@ -83,7 +94,7 @@ class Product extends Model
 
 
    }
-    
+
 
     // protected function imageUrls(): Attribute
     // {
@@ -115,7 +126,7 @@ public function toSearchableArray(): array
             'name' => $this->name,
 
             'slug' => $this->slug,
-            'skus' => implode(' ', $variants), 
+            'skus' => implode(' ', $variants),
             'brand' => $this->brand?->name,
             'category' => $this->category?->name,
             'primary_image_url' => $this->primaryImageUrl,
@@ -320,7 +331,7 @@ public function scopeActive($query)
 
     public function updateStatus(int $statusId): bool
     {
-        $statusExists = \App\Models\ProductStatus::where('id', $statusId)->exists();
+        $statusExists = Products\ProductStatus::where('id', $statusId)->exists();
         if (! $statusExists) {
             return false;
         }

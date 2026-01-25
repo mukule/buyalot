@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\ProductVariant;
+use App\Models\Products\ProductVariant;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
 
@@ -22,12 +22,12 @@ class FrontendProductService
     {
         $cacheKey = 'home_grouped_v9_' . $categories->pluck('id')->implode('_');
 
-        $cache = Cache::supportsTags() 
-            ? Cache::tags(['frontend_products', 'homepage']) 
+        $cache = Cache::supportsTags()
+            ? Cache::tags(['frontend_products', 'homepage'])
             : Cache::getFacadeRoot();
 
         return $cache->remember($cacheKey, now()->addHours(12), function () use ($categories, $limit) {
-            
+
             // 1. Get all sub-category IDs
             $allCategoryIds = $categories->flatMap(fn($cat) => $cat->getAllCategoryIds())->unique()->toArray();
 

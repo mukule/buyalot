@@ -6,10 +6,14 @@ use App\Models\Category;
 use App\Models\Products\Product;
 use App\Models\Products\ProductStatus;
 use App\Models\Products\ProductVariant;
+use App\Models\Scopes\SellerProductScope;
 use App\Models\User;
 use App\Models\Variant;
 use App\Models\VariantCategory;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -34,49 +38,68 @@ class ProductService
     }
 
 
-public function createOrUpdateProductStep(
-    int $step,
-    array $data,
-    ?User $user = null,
-    ?array $images = null,
-    ?Product $product = null
-): Product {
-    return DB::transaction(function () use ($step, $data, $user, $images, $product) {
+    /**
+     * Run a single product-creation step with race-condition protection.
+     *
+     * - Step 1: Per-user lock prevents duplicate drafts when concurrent requests
+     *   both "find or create" draft (latestDraft + create).
+     * - Steps 2–4: Product row is locked (SELECT FOR UPDATE) to prevent lost
+     *   updates from concurrent step submissions.
+     *
+     * @throws \Throwable
+     */
+    public function createOrUpdateProductStep(
+        int $step,
+        array $data,
+        ?User $user = null,
+        ?array $images = null,
+        ?Product $product = null
+    ): Product {
+        $runStep = function () use ($step, $data, $user, $images, $product): Product {
+            return DB::transaction(function () use ($step, $data, $user, $images, $product) {
+                Log::info("Processing product step {$step}", [
+                    'product_id' => $product?->id,
+                    'user_id'    => $user?->id,
+                ]);
 
-        Log::info("Processing product step {$step}", [
-            'product_id' => $product?->id,
-            'user_id'    => $user?->id,
-        ]);
+                if (!isset($this->stepHandlers[$step])) {
+                    throw new \InvalidArgumentException("Invalid step {$step}");
+                }
 
-        // Validate step
-        if (!isset($this->stepHandlers[$step])) {
-            throw new \InvalidArgumentException("Invalid step {$step}");
+                if ($step > 1) {
+                    if (!$product || !$product->id) {
+                        throw new \LogicException("Product must exist before step {$step}");
+                    }
+                    $product = Product::withoutGlobalScope(SellerProductScope::class)
+                        ->whereKey($product->id)
+                        ->lockForUpdate()
+                        ->firstOrFail();
+                }
+
+                $method  = $this->stepHandlers[$step];
+                $product = $this->$method($data, $user, $images, $product);
+
+                if (!$product || !$product->exists) {
+                    throw new \LogicException("Step {$step} did not return a persisted product");
+                }
+
+                $product->updateStatus(Product::STATUS_PENDING);
+                $product->update([
+                    'current_step'       => $step + 1,
+                    'max_step_completed' => max((int) $product->max_step_completed, $step),
+                ]);
+
+                return $product->fresh();
+            });
+        };
+
+        if ($step === 1 && $user) {
+            $lockKey = 'product_draft:user:' . $user->id;
+            return Cache::lock($lockKey, 15)->block(10, $runStep);
         }
 
-        // Steps 2+ MUST have a persisted product
-        if ($step > 1 && (!$product || !$product->exists)) {
-            throw new \LogicException("Product must exist before step {$step}");
-        }
-
-        $method  = $this->stepHandlers[$step];
-        $product = $this->$method($data, $user, $images, $product);
-
-        // Safety check after handler
-        if (!$product || !$product->exists) {
-            throw new \LogicException("Step {$step} did not return a persisted product");
-        }
-
-        // Update product workflow status
-        $product->updateStatus(Product::STATUS_PENDING);
-
-        $product->update([
-            'current_step'       => $step + 1,
-            'max_step_completed' => max((int) $product->max_step_completed, $step),
-        ]);
-
-        return $product->fresh();
-    });
-}
+        return $runStep();
+    }
 
 
 
@@ -99,7 +122,8 @@ protected function handleStep1(array $data, ?User $user, ?array $images, ?Produc
 
     // Use product_id from incoming data if $product is null
     if (!$product && !empty($data['product_id'])) {
-        $product = Product::find($data['product_id']);
+        $product = Product::withoutGlobalScope(SellerProductScope::class)
+            ->find($data['product_id']);
         Log::info('Fetched product from product_id', [
             'product_id' => $product?->id,
         ]);
@@ -107,7 +131,13 @@ protected function handleStep1(array $data, ?User $user, ?array $images, ?Produc
 
     // Fall back to latest draft for the user if still null
     if (!$product && $user) {
-        $product = $user->products()->latestDraft()->first();
+//        $product = $user->products()->latestDraft()->first();
+        $product = Product::withoutGlobalScope(SellerProductScope::class)
+            ->where('owner_id', $user->id)
+            ->where('owner_type', 'seller')
+            ->latestDraft()
+            ->first();
+
         Log::info('Fetched latest draft', [
             'product_id' => $product?->id,
         ]);
@@ -126,13 +156,25 @@ protected function handleStep1(array $data, ?User $user, ?array $images, ?Produc
         return $product;
     }
 
-    // Create new product
+    // Create new product (retry on product_code collision)
     $this->setOwnership($data, $user);
-    $data['product_code'] = $data['product_code'] ?? $this->generateProductCode();
-    $product = $this->createBaseProduct($data, $user);
+    $maxAttempts = 5;
+    $lastException = null;
 
-    Log::info('Base product created', ['product_id' => $product->id]);
-    return $product;
+    for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+        try {
+            $data['product_code'] = $data['product_code'] ?? $this->generateProductCode();
+            $product = $this->createBaseProduct($data, $user);
+            Log::info('Base product created', ['product_id' => $product->id]);
+            return $product;
+        } catch (UniqueConstraintViolationException $e) {
+            $lastException = $e;
+            unset($data['product_code']);
+            continue;
+        }
+    }
+
+    throw $lastException ?? new \RuntimeException('Failed to create product after ' . $maxAttempts . ' attempts.');
 }
 
 
@@ -147,13 +189,9 @@ protected function handleStep2(
         throw new \LogicException('Product must exist before step 2.');
     }
 
-    // Optional but recommended: ownership / permission guard
-    if ($user && $user->hasRole('seller')) {
-        if ((int) $product->owner_id !== (int) $user->id) {
-            throw new \Illuminate\Auth\Access\AuthorizationException(
-                'You are not allowed to edit this product.'
-            );
-        }
+    // Enforce ownership for sellers (same as steps 3 & 4; no ProductPolicy)
+    if ($user && $user->hasRole('seller') && $product->owner_id !== $user->id) {
+        throw new AuthorizationException('You are not allowed to edit this product.');
     }
 
     // Apply metadata safely (should not mutate model state)
@@ -210,9 +248,8 @@ protected function handleStep3(array $data, ?User $user, ?array $images, ?Produc
     // Cache valid categories once
     $validCategories = VariantCategory::pluck('id')->flip();
 
-    // Cache existing variants & variant values
     $existingVariants = $product->variants()->get()->keyBy('id');
-    $existingVariantValues = Variant::pluck('id', DB::raw("CONCAT(variant_category_id, ':', value)"))->toArray();
+    $existingVariantValues = [];
 
     $submittedIds = [];
     $valuesToInsert = [];
@@ -220,7 +257,6 @@ protected function handleStep3(array $data, ?User $user, ?array $images, ?Produc
     foreach ($variantRows as $index => $row) {
         $variantId = $row['id'] ?? null;
 
-        // Update existing variant
         if ($variantId && isset($existingVariants[$variantId])) {
             $variant = $existingVariants[$variantId];
 
@@ -237,7 +273,6 @@ protected function handleStep3(array $data, ?User $user, ?array $images, ?Produc
                 'sku'            => $row['sku'] ?? $variant->sku,
             ]);
 
-            // Update product published status if needed
             $pstatus = ProductStatus::where('name', 'published')->first();
             if ($pstatus) {
                 $product->updateStatus($pstatus->id);
@@ -245,28 +280,23 @@ protected function handleStep3(array $data, ?User $user, ?array $images, ?Produc
 
             $productVariant = $variant;
         } else {
-            // Create new variant safely
             $sellingPrice = $row['buying_price'] ?? 0;
             $markedPrice  = $row['marked_price'] ?? 0;
-
-            $productVariant = $product->variants()->create([
-                'stock'         => $row['stock'] ?? 0,
-                'buying_price'  => $markedPrice,
-                'marked_price'  => $markedPrice,
-                'regular_price' => $markedPrice,
-                'selling_price' => $sellingPrice,
-                'discount'      => max(0, $markedPrice - $sellingPrice),
-                'sku'           => $row['sku'] ?? $this->generateSku($product, $index),
-            ]);
+            $productVariant = $this->createProductVariantWithSkuRetry(
+                $product,
+                $row,
+                $index,
+                $sellingPrice,
+                $markedPrice,
+            );
         }
 
         $submittedIds[] = $productVariant->id;
 
-        // Process variant values
         $usedCategories = [];
         foreach ($row['values'] as $categoryId => $value) {
             $categoryId = (int) $categoryId;
-            $value = trim((string)$value);
+            $value = trim((string) $value);
 
             if ($value === '' || !isset($validCategories[$categoryId]) || isset($usedCategories[$categoryId])) {
                 continue;
@@ -276,11 +306,10 @@ protected function handleStep3(array $data, ?User $user, ?array $images, ?Produc
             $key = "{$categoryId}:{$value}";
 
             if (!isset($existingVariantValues[$key])) {
-                $variantValue = Variant::create([
-                    'variant_category_id' => $categoryId,
-                    'value'               => $value,
-                    'is_active'           => true,
-                ]);
+                $variantValue = Variant::firstOrCreate(
+                    ['variant_category_id' => $categoryId, 'value' => $value],
+                    ['is_active' => true]
+                );
                 $existingVariantValues[$key] = $variantValue->id;
             }
 
@@ -576,16 +605,53 @@ protected function processProductImages(Product $product, array $images, int $pr
 
 
     protected function createProductVariant(Product $product, array $variantData, int $index): ProductVariant
-{
-    return $product->variants()->create([
-        'stock'         => $variantData['stock'] ?? 0,
-        'marked_price'  => $variantData['marked_price'] ?? 0,
-        'buying_price'  => $variantData['buying_price'] ?? 0,
-        'sku'           => $variantData['sku'] ?? $this->generateSku($product, $index),
-    ]);
-}
+    {
+        return $product->variants()->create([
+            'stock'         => $variantData['stock'] ?? 0,
+            'marked_price'  => $variantData['marked_price'] ?? 0,
+            'buying_price'  => $variantData['buying_price'] ?? 0,
+            'sku'           => $variantData['sku'] ?? $this->generateSku($product, $index),
+        ]);
+    }
 
+    /**
+     * Create a product variant with retries on SKU unique constraint violation.
+     * Prevents races when concurrent requests generate the same random SKU.
+     */
+    protected function createProductVariantWithSkuRetry(
+        Product $product,
+        array $row,
+        int $index,
+        float $sellingPrice,
+        float $markedPrice,
+    ): ProductVariant {
+        $maxAttempts = 5;
+        $useRowSku = isset($row['sku']) && $row['sku'] !== '';
+        $lastException = null;
 
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            try {
+                $sku = ($attempt === 1 && $useRowSku)
+                    ? $row['sku']
+                    : $this->generateSku($product, $index);
+
+                return $product->variants()->create([
+                    'stock'         => $row['stock'] ?? 0,
+                    'buying_price'  => $markedPrice,
+                    'marked_price'  => $markedPrice,
+                    'regular_price' => $markedPrice,
+                    'selling_price' => $sellingPrice,
+                    'discount'      => max(0, $markedPrice - $sellingPrice),
+                    'sku'           => $sku,
+                ]);
+            } catch (UniqueConstraintViolationException $e) {
+                $lastException = $e;
+                continue;
+            }
+        }
+
+        throw $lastException ?? new \RuntimeException('Failed to create product variant after ' . $maxAttempts . ' attempts.');
+    }
 
     protected function processVariantValues(ProductVariant $productVariant, array $values, int $rowIndex): void
 {
