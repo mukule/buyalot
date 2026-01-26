@@ -301,39 +301,45 @@ public function edit(Product $product)
 }
 
 
-
-
 public function store(Request $request, ProductService $productService)
 {
     $step = (int) $request->input('step');
     $data = $request->all();
     $images = $request->hasFile('images') ? $request->file('images') : [];
 
-    if ($step === 3) {
-        // Log::info('STEP 3 - VARIANT PAYLOAD', [
-        //     'variant_rows' => $data['variant_rows'] ?? null,
-        // ]);
-
-       // Optional: log variant IDs only (cleaner)
-        // Log::info('STEP 3 - VARIANT IDS', collect($data['variant_rows'] ?? [])
-        //     ->map(fn ($v) => [
-        //         'id' => $v['id'] ?? null,
-        //         'sku' => $v['sku'] ?? null,
-        //     ])
-        //     ->toArray()
-        // );
-    }
-
-
+    // 1. Gather ID candidates from all possible sources
+    $productIdFromRequest = $request->input('product_id');
+    $productIdFromSession = session('product_id');
+    $productIdFromInput = $request->old('product_id');
+   
 
     $product = null;
-    if ($step > 1 && $request->filled('product_id')) {
-       // $product = Product::find($request->input('product_id'));
-        $product = Product::withoutGlobalScope(SellerProductScope::class)
-    ->find($request->input('product_id'));
+
+    // 2. Attempt to resolve product for Steps 2, 3, and 4
+    if ($step > 1) {
+        // We prioritize Request, then Session, then Old Input
+        $idToFind = $productIdFromRequest ?? $productIdFromSession ?? $productIdFromInput;
+
+        if ($idToFind) {
+            // We use withoutGlobalScopes() to bypass the SellerProductScope filter
+            $product = \App\Models\Product::withoutGlobalScopes()->find($idToFind);
+            
+          
+        } else {
+            \Log::warning("CRITICAL: Step {$step} initiated but NO Product ID found in Request or Session.");
+        }
+
+        // 3. Manual Security Guard (Since we bypassed Global Scopes)
+        if ($product && $request->user()->user_type === 'seller') {
+            if ((int) $product->owner_id !== (int) $request->user()->id) {
+                \Log::error("SECURITY ALERT: Seller " . auth()->id() . " tried to access Product " . $product->id);
+                abort(403, 'Unauthorized access to this product.');
+            }
+        }
     }
 
     try {
+        // 4. Pass the resolved product (or null for Step 1) to the Service
         $product = $productService->createOrUpdateProductStep(
             $step,
             $data,
@@ -343,58 +349,35 @@ public function store(Request $request, ProductService $productService)
         );
 
         if ($step === 4) {
-            try{
-                info('Dispatching RefreshProductCache job for product ID: '.$product->id);
-                RefreshProductCache::dispatch($product)->delay(now()->addSeconds(5));
-                info('RefreshProductCache job dispatched successfully for product ID: '.$product->id);
-            }catch(\Exception $e){
-                info('Error dispatching RefreshProductCache job for product ID: '.$product->id.' - '.$e->getMessage());
-            }
             return redirect()->route('admin.products.index')
                 ->with('success', "Product '{$product->name}' created successfully.");
         }
 
+        // 5. Success Redirection: We flash the ID to the session explicitly
         return back()
             ->with('success', "Step {$step} completed successfully.")
             ->with('step', $product->current_step)
             ->with('product_id', $product->id);
 
-    } catch (ValidationException $e) {
-
-        $errors = $e->errors();
-
-        $response = back()
-            ->withErrors($errors)
-            ->withInput()
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        \Log::error("Step {$step} Validation Failed", ['errors' => $e->errors()]);
+        return back()
+            ->withErrors($e->errors())
+            ->withInput() // This keeps product_id in old() input
             ->with([
                 'step' => $step,
                 'product_id' => $product?->id,
             ]);
 
-        // Log the response we're about to send
-        // \Log::debug('Returning validation response', [
-        //     'session_errors' => session()->get('errors'),
-        //     'session_flash' => session()->get('_flash'),
-        // ]);
-       // info('Returning validation response with errors and input data '.$e);
-
-        return $response;
-
     } catch (\Throwable $e) {
-
-
-
-        if ($e instanceof ValidationException) {
-
-        }
+       
 
         return back()
-            ->with('error', "Something went wrong while processing the product: " . $e->getMessage())
+            ->with('error', "System Error: " . $e->getMessage())
             ->with('step', $step)
             ->with('product_id', $product?->id);
     }
 }
-
 
     public function destroy(Product $product)
 {
@@ -583,26 +566,12 @@ public function updateStatus(Request $request, Product $product)
         'status_id' => ['required', 'exists:product_statuses,id'],
     ]);
 
-    // Log the incoming data
-    Log::info('Product status update received', [
-        'product_id' => $product->id,
-        'status_id' => $request->input('status_id'),
-    ]);
-
+    // This 'update' call triggers the 'saved' event, 
+    // which the ProductObserver handles automatically!
     $product->update([
         'status_id' => $request->input('status_id'),
     ]);
 
-    //cache when status updated to published
-    $status=ProductStatus::find($request->input('status_id'));
-    if ($status && $status->name =="published") {
-        try {
-            info('Dispatching RefreshProductCache job in updateStatus for product ID: '.$product->id);
-            RefreshProductCache::dispatch($product)->delay(now()->addSeconds(5));
-        }catch (\Throwable $e){
-            info('Error dispatching RefreshProductCache job in updateStatus for product ID: '.$product->id.' - '.$e->getMessage());
-        }
-    }
     return redirect()
         ->back()
         ->with('success', 'Product status updated successfully.');

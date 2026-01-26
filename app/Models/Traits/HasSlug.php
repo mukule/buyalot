@@ -52,20 +52,22 @@ trait HasSlug
      * @param int|null $ignoreId
      * @return string
      */
-    protected static function generateUniqueSlug(string $name, ?int $ignoreId = null): string
-    {
-        $slug = Str::slug($name);
-        $originalSlug = $slug;
-        $counter = 1;
+   protected static function generateUniqueSlug(string $name, ?int $ignoreId = null): string
+{
+    $slug = Str::slug($name);
+    $originalSlug = $slug;
+    $counter = 1;
 
-        while (
-            static::where('slug', $slug)
-                ->when($ignoreId, fn($query) => $query->where('id', '!=', $ignoreId))
-                ->exists()
-        ) {
-            $slug = $originalSlug . '-' . $counter++;
-        }
-
-        return $slug;
+    // We MUST use withoutGlobalScopes() here!
+    while (
+        static::withoutGlobalScopes() // <--- Add this line
+            ->where('slug', $slug)
+            ->when($ignoreId, fn($query) => $query->where('id', '!=', $ignoreId))
+            ->exists()
+    ) {
+        $slug = $originalSlug . '-' . $counter++;
     }
+
+    return $slug;
+}
 }

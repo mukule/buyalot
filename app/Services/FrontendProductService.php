@@ -18,54 +18,66 @@ class FrontendProductService
     /**
      * HOMEPAGE — High Performance with Redis
      */
-    public function getProductsGroupedByCategory($categories, int $limit = 12)
-    {
-        $cacheKey = 'home_grouped_v9_' . $categories->pluck('id')->implode('_');
+   public function getProductsGroupedByCategory($categories, int $limit = 12)
+{
+    $cacheKey = 'home_grouped_v9_' . $categories->pluck('id')->implode('_');
+    $lockKey = $cacheKey . '_lock';
 
-        $cache = Cache::supportsTags() 
-            ? Cache::tags(['frontend_products', 'homepage']) 
-            : Cache::getFacadeRoot();
+    $cache = Cache::supportsTags() 
+        ? Cache::tags(['frontend_products', 'homepage']) 
+        : Cache::getFacadeRoot();
 
-        return $cache->remember($cacheKey, now()->addHours(12), function () use ($categories, $limit) {
-            
-            // 1. Get all sub-category IDs
-            $allCategoryIds = $categories->flatMap(fn($cat) => $cat->getAllCategoryIds())->unique()->toArray();
-
-            // 2. Fetch variants without the restrictive select() that caused errors
-            $allVariants = ProductVariant::query()
-                ->with([
-                    'product.brand',
-                    'product.primaryImage',
-                    'product.category'
-                ])
-                ->whereHas('product', function ($q) use ($allCategoryIds) {
-                    $q->whereIn('category_id', $allCategoryIds)
-                      ->where('status_id', 2)
-                      ->whereNotNull('slug')
-                      ->where('slug', '!=', '');
-                })
-                ->latest()
-                ->get();
-
-            // 3. Group and Normalize
-            return $categories->mapWithKeys(function ($category) use ($allVariants, $limit) {
-                $specificCategoryIds = $category->getAllCategoryIds()->toArray();
-
-                $categoryVariants = $allVariants->filter(function ($variant) use ($specificCategoryIds) {
-                    // Check if product exists and category matches
-                    return $variant->product && in_array($variant->product->category_id, $specificCategoryIds);
-                })->take($limit);
-
-                $priceData = $this->getPriceForVariants($categoryVariants);
-
-                return [
-                    $category->id => $categoryVariants->map(
-                        fn ($variant) => $this->normalizeVariant($variant, $priceData)
-                    )->values(), // .values() ensures clean JSON arrays
-                ];
-            });
-        });
+    // 1. Try to get it from cache first (The "Happy Path")
+    $cachedData = $cache->get($cacheKey);
+    if ($cachedData) {
+        return $cachedData;
     }
+
+    /** * 2. If not in cache, use a Lock.
+     * block(5): Wait up to 5 seconds for the lock to become free.
+     * 10: Hold the lock for 10 seconds (long enough for the query to finish).
+     */
+    return Cache::lock($lockKey, 10)->block(5, function () use ($cache, $cacheKey, $categories, $limit) {
+        
+        // 3. RE-CHECK: Another process might have finished the work while we were waiting for the lock!
+        $data = $cache->get($cacheKey);
+        if ($data) return $data;
+
+        // 4. Perform the heavy lifting
+        $allCategoryIds = $categories->flatMap(fn($cat) => $cat->getAllCategoryIds())->unique()->toArray();
+
+        $allVariants = ProductVariant::query()
+            ->with(['product.brand', 'product.primaryImage', 'product.category'])
+            ->whereHas('product', function ($q) use ($allCategoryIds) {
+                $q->whereIn('category_id', $allCategoryIds)
+                  ->where('status_id', 2)
+                  ->whereNotNull('slug')
+                  ->where('slug', '!=', '');
+            })
+            ->latest()
+            ->get();
+
+        $result = $categories->mapWithKeys(function ($category) use ($allVariants, $limit) {
+            $specificCategoryIds = $category->getAllCategoryIds()->toArray();
+            $categoryVariants = $allVariants->filter(function ($variant) use ($specificCategoryIds) {
+                return $variant->product && in_array($variant->product->category_id, $specificCategoryIds);
+            })->take($limit);
+
+            $priceData = $this->getPriceForVariants($categoryVariants);
+
+            return [
+                $category->id => $categoryVariants->map(
+                    fn ($variant) => $this->normalizeVariant($variant, $priceData)
+                )->values(),
+            ];
+        });
+
+        // 5. Save to cache and return
+        $cache->put($cacheKey, $result, now()->addHours(12));
+        
+        return $result;
+    });
+}
 
     /**
      * CATEGORY PAGE — paginated

@@ -24,7 +24,6 @@ interface VariantRow {
     stock: number;
 }
 
-// Base form interface
 interface ProductFormBase {
     product_id: number | null;
     step: number;
@@ -38,28 +37,6 @@ interface ProductFormBase {
     video_url?: string | null;
 }
 
-const videoPreview = computed(() => {
-    if (!form.video_url) return null;
-
-    try {
-        const parsed = new URL(form.video_url);
-        const hostname = parsed.hostname.toLowerCase();
-        let videoId: string | null = null;
-
-        if (hostname.includes('youtube.com')) {
-            videoId = parsed.searchParams.get('v');
-        } else if (hostname === 'youtu.be') {
-            videoId = parsed.pathname.substring(1);
-        }
-
-        if (!videoId) return null;
-        return `https://www.youtube.com/embed/${videoId}`;
-    } catch {
-        return null;
-    }
-});
-
-// Editor fields interface
 interface ProductFormEditorFields {
     description: any;
     features: any;
@@ -67,19 +44,18 @@ interface ProductFormEditorFields {
     whats_in_the_box: any;
 }
 
-// Combined form type
 type ProductForm = ProductFormBase & ProductFormEditorFields;
 
 // Inertia props
-const page = usePage().props as any;
+const page = usePage();
 
-const title = page.title ?? 'Create Product';
-const breadcrumbs = page.breadcrumbs ?? [];
-const categories = page.categories ?? [];
-const brands = page.brands ?? [];
-const units = page.units ?? [];
-const variantCategories = page.variantCategories ?? [];
-const product = page.product ?? null;
+const title = (page.props as any).title ?? 'Create Product';
+const breadcrumbs = (page.props as any).breadcrumbs ?? [];
+const categories = (page.props as any).categories ?? [];
+const brands = (page.props as any).brands ?? [];
+const units = (page.props as any).units ?? [];
+const variantCategories = (page.props as any).variantCategories ?? [];
+const product = (page.props as any).product ?? null;
 
 // Options
 const brandOptions: OptionItem[] = brands.map((b: any) => ({ id: b.id, name: b.name }));
@@ -87,14 +63,10 @@ const unitOptions: OptionItem[] = units.map((u: any) => ({ id: u.id, name: u.nam
 
 // Steps
 const steps = ['Basic Info', 'Content', 'Variants', 'Images'];
-
-// Current step
 const currentStep = reactive({ value: 0 });
-
-// Track completed steps
 const completedSteps = reactive<number[]>([]);
 
-// Form with proper typing
+// Form Initialization
 const form = useForm<ProductForm>({
     product_id: product?.id ?? null,
     step: 1,
@@ -112,10 +84,22 @@ const form = useForm<ProductForm>({
     video_url: product?.video_url ?? null,
 });
 
-// Editor fields
+const videoPreview = computed(() => {
+    if (!form.video_url) return null;
+    try {
+        const parsed = new URL(form.video_url);
+        const hostname = parsed.hostname.toLowerCase();
+        let videoId: string | null = null;
+        if (hostname.includes('youtube.com')) videoId = parsed.searchParams.get('v');
+        else if (hostname === 'youtu.be') videoId = parsed.pathname.substring(1);
+        return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
+    } catch {
+        return null;
+    }
+});
+
 const editorFields: (keyof ProductFormEditorFields)[] = ['description', 'features', 'specifications', 'whats_in_the_box'];
 
-// Variants & Images - reactive to preserve nested IDs
 const variantRows = reactive<VariantRow[]>(
     (product?.variant_rows ?? []).map((row: any) => ({
         id: row.id ?? null,
@@ -130,108 +114,89 @@ const variantRows = reactive<VariantRow[]>(
 const images = reactive<any[]>(product?.images ?? []);
 const isSubmitting = reactive({ value: false });
 
-// Initialize from product data
+// Initialize logic
 const initializeFromProduct = () => {
     if (product?.current_step) {
         const stepIndex = product.current_step - 1;
         currentStep.value = stepIndex;
-
-        if (product?.max_step_completed) {
-            const maxCompleted = product.max_step_completed - 1;
-            for (let i = 0; i <= maxCompleted; i++) {
-                if (!completedSteps.includes(i)) completedSteps.push(i);
-            }
-        } else {
-            for (let i = 0; i < stepIndex; i++) {
-                if (!completedSteps.includes(i)) completedSteps.push(i);
-            }
+        const maxCompleted = (product?.max_step_completed ?? product.current_step) - 1;
+        for (let i = 0; i <= maxCompleted; i++) {
+            if (!completedSteps.includes(i)) completedSteps.push(i);
         }
     }
 };
 
-// Restore step from backend flash
 onMounted(() => {
-    if (page.flash?.step) {
-        const flashStep = page.flash.step - 1;
+    const flash = (page.props as any).flash;
+    if (flash?.step) {
+        const flashStep = flash.step - 1;
         currentStep.value = flashStep;
+        if (flash.product_id) form.product_id = flash.product_id;
         for (let i = 0; i <= flashStep; i++) {
             if (!completedSteps.includes(i)) completedSteps.push(i);
         }
-        if (page.flash?.product_id) form.product_id = page.flash.product_id;
     } else {
         initializeFromProduct();
     }
 });
 
-// Watch page flash updates
+// Watch for flash updates (Crucial for the Refresh-Fix)
 watch(
-    () => page,
-    (newPage) => {
-        const flash = newPage.flash;
+    () => (page.props as any).flash,
+    (flash) => {
+        if (flash?.product_id) {
+            form.product_id = flash.product_id;
+        }
         if (flash?.step) {
             const stepIndex = flash.step - 1;
-            currentStep.value = stepIndex;
-            for (let i = 0; i <= stepIndex; i++) {
-                if (!completedSteps.includes(i)) completedSteps.push(i);
+            if (!completedSteps.includes(stepIndex - 1)) {
+                completedSteps.push(stepIndex - 1);
             }
-            if (flash?.product_id) form.product_id = flash.product_id;
         }
     },
     { deep: true },
 );
 
-// Tab checks
 const isTabEnabled = (index: number): boolean => {
     const lastCompletedStep = completedSteps.length ? Math.max(...completedSteps) : -1;
     return index === currentStep.value || completedSteps.includes(index) || index === lastCompletedStep + 1;
 };
 
-// Tab click handler
 const handleTabClick = (index: number) => {
     if (!isTabEnabled(index)) return;
-    const lastCompletedStep = completedSteps.length ? Math.max(...completedSteps) : -1;
-    if (index > lastCompletedStep) {
-        if (!confirm("This step hasn't been saved yet. You'll need to complete previous steps first.")) return;
-    }
     if (index !== currentStep.value && form.isDirty) {
-        if (!confirm('You have unsaved changes. Are you sure you want to leave this step?')) return;
+        if (!confirm('You have unsaved changes. Are you sure?')) return;
     }
     currentStep.value = index;
 };
 
-// Error helper
-const getError = (key: keyof ProductForm | string): string | null => {
-    const errors = form.errors as any;
-    if (errors && errors[key]) return String(errors[key]);
-    const pageErrors = (usePage().props as any).errors;
-    if (pageErrors && pageErrors[key]) return Array.isArray(pageErrors[key]) ? pageErrors[key].join(', ') : String(pageErrors[key]);
-    return null;
-};
-
-// Submit step
+// SUBMIT STEP - THE REFRESH FIX IS HERE
 const submitStep = async () => {
     if (isSubmitting.value) return;
     isSubmitting.value = true;
 
     form.step = currentStep.value + 1;
-    form.variant_rows = variantRows; // reactive preserves IDs
+    form.variant_rows = variantRows;
     form.images = images.map((i) => i.file ?? i);
 
     await form.post(route('admin.products.store'), {
         preserveScroll: true,
         preserveState: true,
-        onSuccess: () => {
-            // Mark completed step
-            if (!completedSteps.includes(currentStep.value)) completedSteps.push(currentStep.value);
+        onSuccess: (pageResponse) => {
+            // FIX: Immediately sync the product_id from the response
+            const flash = (pageResponse.props as any).flash;
+            if (flash?.product_id) {
+                form.product_id = flash.product_id;
+            }
 
-            // Advance to next step if not final
-            if (currentStep.value < steps.length - 1) currentStep.value += 1;
+            if (!completedSteps.includes(currentStep.value)) {
+                completedSteps.push(currentStep.value);
+            }
 
-            // Clear errors
+            if (currentStep.value < steps.length - 1) {
+                currentStep.value += 1;
+            }
             form.clearErrors();
-        },
-        onError: () => {
-            // Keep current step, errors will display
         },
         onFinish: () => {
             isSubmitting.value = false;

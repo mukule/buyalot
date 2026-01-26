@@ -85,11 +85,9 @@ public function createOrUpdateProductStep(
 
 
 
-
 protected function handleStep1(array $data, ?User $user, ?array $images, ?Product $product): Product
 {
-
-    $this->validateStep1($data); // existing validation
+    $this->validateStep1($data); 
     $this->applyMetadata($data);
 
     // 🔹 Leaf category check
@@ -102,20 +100,19 @@ protected function handleStep1(array $data, ?User $user, ?array $images, ?Produc
         }
     }
 
-    // Use product_id from incoming data if $product is null
+    // FIX: Use withoutGlobalScopes() to find by ID
     if (!$product && !empty($data['product_id'])) {
-        $product = Product::find($data['product_id']);
-        Log::info('Fetched product from product_id', [
-            'product_id' => $product?->id,
-        ]);
+        $product = Product::withoutGlobalScopes()->find($data['product_id']);
+       
     }
 
-    // Fall back to latest draft for the user if still null
+    // FIX: Use withoutGlobalScopes() for the latest draft fallback
     if (!$product && $user) {
-        $product = $user->products()->latestDraft()->first();
-        Log::info('Fetched latest draft', [
-            'product_id' => $product?->id,
-        ]);
+        $product = $user->products()
+            ->withoutGlobalScopes()
+            ->latestDraft()
+            ->first();
+            
     }
 
     // Update existing product
@@ -127,7 +124,8 @@ protected function handleStep1(array $data, ?User $user, ?array $images, ?Produc
             'category_id',
             'unit_id',
         ]));
-        Log::info('Step 1 updated existing product', ['product_id' => $product->id]);
+        
+       
         return $product;
     }
 
@@ -140,31 +138,30 @@ protected function handleStep1(array $data, ?User $user, ?array $images, ?Produc
     return $product;
 }
 
-
 protected function handleStep2(
     array $data,
     ?User $user,
     ?array $images,
     ?Product $product
 ): Product {
-    // Product must already exist and be persisted
+    // 1. Core existence check
     if (!$product || !$product->exists) {
-        throw new \LogicException('Product must exist before step 2.');
+        throw new \LogicException('Product record not found. Please ensure Step 1 was completed correctly.');
     }
 
-    // Optional but recommended: ownership / permission guard
-    if ($user && $user->hasRole('seller')) {
+    // 2. Ownership / Permission Guard
+    // We check against the raw owner_id since we are bypassing Global Scopes
+    if ($user && $user->user_type === 'seller') {
         if ((int) $product->owner_id !== (int) $user->id) {
             throw new \Illuminate\Auth\Access\AuthorizationException(
-                'You are not allowed to edit this product.'
+                'Unauthorized: You do not own this product.'
             );
         }
     }
 
-    // Apply metadata safely (should not mutate model state)
+    // 3. Metadata and Payload
     $this->applyMetadata($data);
 
-    // Only update whitelisted fields
     $payload = Arr::only($data, [
         'description',
         'features',
@@ -176,15 +173,10 @@ protected function handleStep2(
         'video_url',
     ]);
 
-    // Do nothing if there's nothing to update
+    // 4. Update
     if (!empty($payload)) {
         $product->update($payload);
     }
-
-    // Log::info('Product description & SEO updated', [
-    //     'product_id' => $product->id,
-    //     'user_id'    => $user?->id,
-    // ]);
 
     return $product;
 }
