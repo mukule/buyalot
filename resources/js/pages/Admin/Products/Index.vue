@@ -73,13 +73,17 @@ const draftStatusId = computed(() => {
     return draft?.id ?? null;
 });
 
-// Make a reactive copy of products so v-model works
+// Reactive products
 const reactiveProducts = reactive(
     page.props.products.data.map((p) => ({
         ...p,
         status_id: p.status_id ?? draftStatusId.value,
     })),
 );
+
+// Pagination data
+const paginationLinks = computed(() => page.props.products.links);
+const paginationMeta = computed(() => page.props.products.meta);
 
 // Search
 const searchQuery = ref('');
@@ -104,6 +108,12 @@ const filteredProducts = computed(() => {
     });
 });
 
+// Pagination handler
+function goToPage(url: string | null) {
+    if (!url) return;
+    router.get(url, {}, { preserveState: true, preserveScroll: true });
+}
+
 // Breadcrumbs
 const breadcrumbs = reactive([
     { title: 'Dashboard', href: route('admin.dashboard') },
@@ -115,7 +125,6 @@ function createProduct() {
     router.get(route('admin.products.create'));
 }
 function editProduct(hashid: string) {
-    console.log('Editing product:', hashid);
     router.get(route('admin.products.edit', { product: hashid }));
 }
 function goBack() {
@@ -139,9 +148,6 @@ const showWarrantyModal = ref(false);
 const selectedProduct = ref<ProductWithRelations | null>(null);
 
 function openWarrantyModal(product: ProductWithRelations) {
-    console.log('Opening warranty modal for product:', product);
-
-    // Unwrap Proxy objects and attach product_hashid to each warranty
     selectedProduct.value = {
         ...product,
         warranties: product.warranties
@@ -159,9 +165,7 @@ function closeWarrantyModal() {
     selectedProduct.value = null;
 }
 
-// Open Add Warranty page for a product
 function addWarranty(productHashid: string) {
-    console.log('Navigating to add warranty page for:', productHashid);
     router.get(route('admin.products.warranties.create', { product: productHashid }));
 }
 
@@ -169,62 +173,29 @@ function toggleWarrantyActive(warranty: { id: number; hashid: string; active: bo
     const currentStatus = warranty.active;
     const newStatus = !currentStatus;
 
-    // Log the warranty info before sending
-    console.log('🔹 Toggling warranty:', warranty);
-    console.log('🔹 Warranty hashid:', warranty.hashid);
-
-    // Generate the route using simplified route (no product hashid)
-    const url = route('admin.warranties.toggleActive', {
-        warranty: warranty.hashid,
-    });
-    console.log('🔹 Generated route URL:', url);
-
-    // Optimistic UI update
     warranty.active = newStatus;
 
     router.patch(
-        url,
-        {}, // no payload needed
+        route('admin.warranties.toggleActive', { warranty: warranty.hashid }),
+        {},
         {
-            onStart: () => {
-                console.log('🚀 Sending PATCH request to:', url);
-            },
-            onSuccess: (page) => {
-                console.log('✅ Success response:', page);
-
-                // Make other warranties inactive in the modal
+            onSuccess: () => {
                 if (newStatus && selectedProduct.value?.warranties) {
                     selectedProduct.value.warranties.forEach((w) => {
                         if (w.hashid !== warranty.hashid) w.active = false;
                     });
                 }
             },
-            onError: (errors) => {
-                console.error('❌ Backend error:', errors);
-                warranty.active = currentStatus; // revert UI if fail
-            },
-            onFinish: () => {
-                console.log('🔚 Request finished');
+            onError: () => {
+                warranty.active = currentStatus;
             },
         },
     );
 }
 
-// Edit warranty
 function editWarranty(warranty: { hashid: string; product_hashid: string }) {
-    console.log('Editing warranty:', warranty);
-
-    if (!warranty.hashid || !warranty.product_hashid) {
-        console.error('Warranty hashid or product hashid is missing!');
-        return;
-    }
-
-    router.get(
-        route('admin.products.warranties.edit', {
-            product: warranty.product_hashid,
-            warranty: warranty.hashid,
-        }),
-    );
+    if (!warranty.hashid || !warranty.product_hashid) return;
+    router.get(route('admin.products.warranties.edit', { product: warranty.product_hashid, warranty: warranty.hashid }));
 }
 </script>
 
@@ -294,14 +265,11 @@ function editWarranty(warranty: { hashid: string; product_hashid: string }) {
                                 <td class="border px-4 py-2">{{ product.product_code }}</td>
                                 <td class="border px-4 py-2">{{ product.stock ?? 0 }}</td>
                                 <td class="border px-4 py-2">{{ product.owner?.name ?? '-' }}</td>
-
-                                <!-- Warranty column -->
                                 <td class="border px-4 py-2">
                                     <button @click="openWarrantyModal(product)" class="text-sm text-blue-600 hover:underline">
                                         {{ product.warranties?.length ? `View (${product.warranties.length})` : 'Click to Add' }}
                                     </button>
                                 </td>
-
                                 <td class="border px-4 py-2">
                                     <select
                                         v-model="product.status_id"
@@ -320,13 +288,24 @@ function editWarranty(warranty: { hashid: string; product_hashid: string }) {
                                         </option>
                                     </select>
                                 </td>
-
                                 <td class="flex gap-2 border px-4 py-2">
                                     <button @click="editProduct(product.hashid)" class="text-sm text-blue-600 hover:underline">Edit</button>
                                 </td>
                             </tr>
                         </tbody>
                     </table>
+
+                    <!-- Pagination -->
+                    <div class="mt-4 flex justify-center gap-2">
+                        <button
+                            v-for="link in paginationLinks"
+                            :key="link.label"
+                            :disabled="!link.url"
+                            @click="goToPage(link.url)"
+                            :class="['rounded border px-3 py-1', link.active ? 'bg-primary text-white' : 'bg-white text-gray-700 hover:bg-gray-100']"
+                            v-html="link.label"
+                        ></button>
+                    </div>
                 </div>
 
                 <!-- Empty State -->
@@ -350,7 +329,6 @@ function editWarranty(warranty: { hashid: string; product_hashid: string }) {
             >
                 <div class="w-full max-w-lg rounded-lg bg-white p-6 shadow-lg">
                     <h2 class="mb-4 text-xl font-semibold text-gray-800">Product Warranties</h2>
-
                     <ul class="max-h-96 space-y-2 overflow-y-auto">
                         <template v-if="selectedProduct?.warranties?.length">
                             <li
@@ -364,24 +342,17 @@ function editWarranty(warranty: { hashid: string; product_hashid: string }) {
                                         <span
                                             v-if="warranty.active"
                                             class="ml-2 rounded bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700"
+                                            >Active</span
                                         >
-                                            Active
-                                        </span>
-                                        <span v-else class="ml-2 rounded bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
-                                            Inactive
-                                        </span>
+                                        <span v-else class="ml-2 rounded bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">Inactive</span>
                                     </div>
-
                                     <div class="flex gap-2">
-                                        <!-- Toggle Active -->
                                         <button
                                             @click="toggleWarrantyActive(warranty)"
                                             class="rounded bg-blue-500 px-2 py-1 text-xs text-white hover:bg-blue-600"
                                         >
                                             {{ warranty.active ? 'Deactivate' : 'Activate' }}
                                         </button>
-
-                                        <!-- Edit -->
                                         <button
                                             @click="editWarranty(warranty)"
                                             class="rounded bg-yellow-500 px-2 py-1 text-xs text-white hover:bg-yellow-600"
@@ -390,16 +361,11 @@ function editWarranty(warranty: { hashid: string; product_hashid: string }) {
                                         </button>
                                     </div>
                                 </div>
-
-                                <div v-if="warranty.description" class="mt-1 text-sm text-gray-600">
-                                    {{ warranty.description }}
-                                </div>
+                                <div v-if="warranty.description" class="mt-1 text-sm text-gray-600">{{ warranty.description }}</div>
                             </li>
                         </template>
-
                         <li v-else class="text-sm text-gray-500">No warranties available.</li>
                     </ul>
-
                     <button
                         v-if="selectedProduct"
                         @click="addWarranty(selectedProduct.hashid)"
@@ -407,7 +373,6 @@ function editWarranty(warranty: { hashid: string; product_hashid: string }) {
                     >
                         {{ selectedProduct?.warranties?.length ? 'Add Another Warranty' : 'Add New Warranty' }}
                     </button>
-
                     <button @click="closeWarrantyModal" class="mt-2 w-full rounded border px-4 py-2 text-gray-700 hover:bg-gray-100">Close</button>
                 </div>
             </div>

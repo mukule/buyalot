@@ -157,7 +157,7 @@ const formatPrice = (amount: number | string | null) => {
             <!-- Layout -->
             <div class="grid grid-cols-1 gap-6 lg:grid-cols-12">
                 <!-- Left Filters (Desktop) -->
-                <aside class="col-span-3 hidden rounded-lg border bg-white p-4 shadow-sm lg:block">
+                <aside class="sticky top-36 col-span-3 hidden h-fit self-start rounded-lg border bg-white p-4 shadow-sm lg:block">
                     <h2 class="mb-3 text-base font-semibold text-gray-800">Filters</h2>
 
                     <!-- Subcategories -->
@@ -277,7 +277,8 @@ const formatPrice = (amount: number | string | null) => {
                             </Link>
                             <div class="mt-3 flex flex-col gap-1">
                                 <h3 class="line-clamp-2 text-sm font-medium text-gray-700">{{ product.name }}</h3>
-                                <p class="text-xs text-gray-400">{{ product.brand ?? '' }}</p>
+                                <p class="text-xs text-secondary">{{ product.brand ?? '' }}</p>
+
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm font-semibold text-primary">{{ formatPrice(product.final_price) }}</span>
                                     <span v-if="product.marked_price > product.final_price" class="text-xs text-gray-400 line-through">{{

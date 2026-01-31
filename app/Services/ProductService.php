@@ -317,7 +317,7 @@ protected function handleStep3(array $data, ?User $user, ?array $images, ?Produc
 
 protected function processProductVariantsOptimized(Product $product, array $variantRows): void
 {
-    // Cache valid variant categories once (keyed by ID)
+    
     $validCategories = VariantCategory::pluck('id')->flip();
 
     foreach ($variantRows as $index => $row) {
@@ -398,11 +398,6 @@ protected function handleStep4(array $data, ?User $user, ?array $images, ?Produc
     // Prefer images from $data
     $images = $data['images'] ?? $images ?? [];
 
-    \Log::info('handleStep4 called', [
-        'product_id'  => $product->id,
-        'image_count' => count($images),
-        'sample'      => array_slice($images, 0, 2),
-    ]);
 
     if (empty($images)) {
         return $product; // nothing to do
@@ -461,11 +456,7 @@ protected function handleStep4(array $data, ?User $user, ?array $images, ?Produc
         }
     }
 
-    \Log::info('handleStep4 completed', [
-        'product_id'  => $product->id,
-        'final_count' => $product->images()->count(),
-        'has_primary' => $product->images()->where('is_primary', 1)->exists(),
-    ]);
+   
 
     return $product;
 }

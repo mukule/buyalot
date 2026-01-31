@@ -70,7 +70,7 @@ public function index()
             ];
         });
 
-    // Load statuses with seller restrictions
+   
     $statusesQuery = ProductStatus::orderBy('name');
     if ($user->hasRole('seller')) {
         $statusesQuery->whereIn('name', ['draft', 'submit', 'pause']);
@@ -307,7 +307,7 @@ public function store(Request $request, ProductService $productService)
     $data = $request->all();
     $images = $request->hasFile('images') ? $request->file('images') : [];
 
-    // 1. Gather ID candidates from all possible sources
+   
     $productIdFromRequest = $request->input('product_id');
     $productIdFromSession = session('product_id');
     $productIdFromInput = $request->old('product_id');
@@ -315,13 +315,13 @@ public function store(Request $request, ProductService $productService)
 
     $product = null;
 
-    // 2. Attempt to resolve product for Steps 2, 3, and 4
+    
     if ($step > 1) {
-        // We prioritize Request, then Session, then Old Input
+       
         $idToFind = $productIdFromRequest ?? $productIdFromSession ?? $productIdFromInput;
 
         if ($idToFind) {
-            // We use withoutGlobalScopes() to bypass the SellerProductScope filter
+           
             $product = \App\Models\Product::withoutGlobalScopes()->find($idToFind);
             
           
@@ -329,7 +329,7 @@ public function store(Request $request, ProductService $productService)
             \Log::warning("CRITICAL: Step {$step} initiated but NO Product ID found in Request or Session.");
         }
 
-        // 3. Manual Security Guard (Since we bypassed Global Scopes)
+        
         if ($product && $request->user()->user_type === 'seller') {
             if ((int) $product->owner_id !== (int) $request->user()->id) {
                 \Log::error("SECURITY ALERT: Seller " . auth()->id() . " tried to access Product " . $product->id);
@@ -339,7 +339,7 @@ public function store(Request $request, ProductService $productService)
     }
 
     try {
-        // 4. Pass the resolved product (or null for Step 1) to the Service
+       
         $product = $productService->createOrUpdateProductStep(
             $step,
             $data,
@@ -353,7 +353,7 @@ public function store(Request $request, ProductService $productService)
                 ->with('success', "Product '{$product->name}' created successfully.");
         }
 
-        // 5. Success Redirection: We flash the ID to the session explicitly
+        
         return back()
             ->with('success', "Step {$step} completed successfully.")
             ->with('step', $product->current_step)
