@@ -4,22 +4,22 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\RefreshProductCache;
+use App\Models\Product;
 use App\Models\Brand;
-use App\Models\Category;
-use App\Models\Products\Product;
-use App\Models\Products\ProductStatus;
-use App\Models\Scopes\SellerProductScope;
 use App\Models\Unit;
 use App\Models\VariantCategory;
-use App\Services\ProductService;
+use App\Models\Category;
 use App\Services\SearchCacheService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use App\Services\ProductService;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use App\Models\ProductStatus;
+use App\Models\Scopes\SellerProductScope;
 
 
 class ProductController extends Controller
@@ -45,11 +45,6 @@ public function index()
                 'name' => $product->name,
                 'product_code' => $product->product_code,
                 'primary_image_url' => $product->primary_image_url,
-                'product_variants' => $product->productVariants->map(fn ($v) => [
-                    'id' => $v->id,
-                    'name' => $v->name,
-                    'stock' => $v->stock,
-                ]),
                 'stock' => $product->productVariants->sum('stock'),
                 'hashid' => $product->hashid,
                 'status_id' => $product->status_id ?? null,
@@ -75,7 +70,7 @@ public function index()
             ];
         });
 
-    // Load statuses with seller restrictions
+   
     $statusesQuery = ProductStatus::orderBy('name');
     if ($user->hasRole('seller')) {
         $statusesQuery->whereIn('name', ['draft', 'submit', 'pause']);
@@ -306,43 +301,45 @@ public function edit(Product $product)
 }
 
 
-
-
 public function store(Request $request, ProductService $productService)
 {
     $step = (int) $request->input('step');
     $data = $request->all();
     $images = $request->hasFile('images') ? $request->file('images') : [];
 
-    if ($step === 3) {
-        // Log::info('STEP 3 - VARIANT PAYLOAD', [
-        //     'variant_rows' => $data['variant_rows'] ?? null,
-        // ]);
-
-       // Optional: log variant IDs only (cleaner)
-        // Log::info('STEP 3 - VARIANT IDS', collect($data['variant_rows'] ?? [])
-        //     ->map(fn ($v) => [
-        //         'id' => $v['id'] ?? null,
-        //         'sku' => $v['sku'] ?? null,
-        //     ])
-        //     ->toArray()
-        // );
-    }
-
-
+   
+    $productIdFromRequest = $request->input('product_id');
+    $productIdFromSession = session('product_id');
+    $productIdFromInput = $request->old('product_id');
+   
 
     $product = null;
+
+    
     if ($step > 1) {
-        $productId = $request->filled('product_id')
-            ? $request->input('product_id')
-            : $request->session()->get('product_create_draft_id');
-        if ($productId) {
-            $product = Product::withoutGlobalScope(SellerProductScope::class)
-                ->find($productId);
+       
+        $idToFind = $productIdFromRequest ?? $productIdFromSession ?? $productIdFromInput;
+
+        if ($idToFind) {
+           
+            $product = \App\Models\Product::withoutGlobalScopes()->find($idToFind);
+            
+          
+        } else {
+            \Log::warning("CRITICAL: Step {$step} initiated but NO Product ID found in Request or Session.");
+        }
+
+        
+        if ($product && $request->user()->user_type === 'seller') {
+            if ((int) $product->owner_id !== (int) $request->user()->id) {
+                \Log::error("SECURITY ALERT: Seller " . auth()->id() . " tried to access Product " . $product->id);
+                abort(403, 'Unauthorized access to this product.');
+            }
         }
     }
 
     try {
+       
         $product = $productService->createOrUpdateProductStep(
             $step,
             $data,
@@ -352,60 +349,35 @@ public function store(Request $request, ProductService $productService)
         );
 
         if ($step === 4) {
-            try {
-                info('Dispatching RefreshProductCache job for product ID: ' . $product->id);
-                RefreshProductCache::dispatch($product)->delay(now()->addSeconds(5));
-                info('RefreshProductCache job dispatched successfully for product ID: ' . $product->id);
-            } catch (\Exception $e) {
-                info('Error dispatching RefreshProductCache job for product ID: ' . $product->id . ' - ' . $e->getMessage());
-            }
-            $request->session()->forget('product_create_draft_id');
             return redirect()->route('admin.products.index')
                 ->with('success', "Product '{$product->name}' created successfully.");
         }
 
-        $request->session()->put('product_create_draft_id', $product->id);
+        
         return back()
             ->with('success', "Step {$step} completed successfully.")
             ->with('step', $product->current_step)
             ->with('product_id', $product->id);
 
-    } catch (ValidationException $e) {
-
-        $errors = $e->errors();
-
-        $response = back()
-            ->withErrors($errors)
-            ->withInput()
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        \Log::error("Step {$step} Validation Failed", ['errors' => $e->errors()]);
+        return back()
+            ->withErrors($e->errors())
+            ->withInput() // This keeps product_id in old() input
             ->with([
                 'step' => $step,
                 'product_id' => $product?->id,
             ]);
 
-        // Log the response we're about to send
-        // \Log::debug('Returning validation response', [
-        //     'session_errors' => session()->get('errors'),
-        //     'session_flash' => session()->get('_flash'),
-        // ]);
-       // info('Returning validation response with errors and input data '.$e);
-
-        return $response;
-
     } catch (\Throwable $e) {
-
-
-
-        if ($e instanceof ValidationException) {
-
-        }
+       
 
         return back()
-            ->with('error', "Something went wrong while processing the product: " . $e->getMessage())
+            ->with('error', "System Error: " . $e->getMessage())
             ->with('step', $step)
             ->with('product_id', $product?->id);
     }
 }
-
 
     public function destroy(Product $product)
 {
@@ -594,64 +566,16 @@ public function updateStatus(Request $request, Product $product)
         'status_id' => ['required', 'exists:product_statuses,id'],
     ]);
 
-    // Log the incoming data
-    Log::info('Product status update received', [
-        'product_id' => $product->id,
-        'status_id' => $request->input('status_id'),
-    ]);
-
+    // This 'update' call triggers the 'saved' event, 
+    // which the ProductObserver handles automatically!
     $product->update([
         'status_id' => $request->input('status_id'),
     ]);
 
-    //cache when status updated to published
-    $status=ProductStatus::find($request->input('status_id'));
-    if ($status && $status->name =="published") {
-        try {
-            info('Dispatching RefreshProductCache job in updateStatus for product ID: '.$product->id);
-            RefreshProductCache::dispatch($product)->delay(now()->addSeconds(5));
-        }catch (\Throwable $e){
-            info('Error dispatching RefreshProductCache job in updateStatus for product ID: '.$product->id.' - '.$e->getMessage());
-        }
-    }
     return redirect()
         ->back()
         ->with('success', 'Product status updated successfully.');
 }
-    public function restockVariants(Request $request, Product $product)
-    {
-        $data = $request->validate([
-            'variants' => ['required', 'array'],
-            'variants.*.id' => ['required', 'exists:product_variants,id'],
-            'variants.*.quantity' => ['required', 'integer', 'min:0'],
-            'note' => ['nullable', 'string'],
-        ]);
-
-        DB::transaction(function () use ($product, $data) {
-            foreach ($data['variants'] as $variantData) {
-
-                if ($variantData['quantity'] <= 0) {
-                    continue;
-                }
-
-                $variant = $product->productVariants()
-                    ->where('id', $variantData['id'])
-                    ->lockForUpdate()
-                    ->first();
-
-                $variant->increment('stock', $variantData['quantity']);
-
-                $variant->restocks()->create([
-                    'product_id' => $product->id,
-                    'quantity' => $variantData['quantity'],
-                    'note' => $data['note'] ?? null,
-                    'restocked_by' => auth()->id(),
-                ]);
-            }
-        });
-
-        return back()->with('success', 'Variants restocked successfully');
-    }
 
 
 }

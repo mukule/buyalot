@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Products\Product;
 use App\Services\FrontendProductService;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Inertia\Inertia;
 
 class SearchController extends Controller
@@ -25,8 +24,8 @@ class SearchController extends Controller
         $q = trim($request->input('q', ''));
         $ajax = $request->boolean('ajax', false);
         $perPage = (int) $request->input('per_page', 15);
-        $page = (int) $request->input('page', 1);
 
+        // 1. Validation for short queries
         if (strlen($q) < 2) {
             $emptyResults = [
                 'data' => [],
@@ -47,61 +46,68 @@ class SearchController extends Controller
             ]);
         }
 
-        // Search products via Meilisearch
-        $query = Product::search($q);
+        /**
+         * 2. Optimized Search Query
+         * query() allows us to eager load relations on the Eloquent models 
+         * returned by Scout. This prevents the N+1 problem in the map() below.
+         */
+        $paginator = Product::search($q)
+            ->where('status_id', 2)
+            ->query(fn($query) => $query->with([
+                'productVariants', 
+                'brand', 
+                'category', 
+                'primaryImage'
+            ]))
+            ->paginate($perPage);
 
-        $allResults = $query->get();
-        $total = $allResults->count();
+        /**
+         * 3. Map results using Service
+         * Since we used with('productVariants'), $product->productVariants is already a loaded 
+         * collection. Calling ->first() here does NOT trigger a new DB query.
+         */
+        $mappedData = collect($paginator->items())->map(function (Product $product) {
+            $variant = $product->productVariants->first();
 
-        // Map results using FrontendProductService
-        $mapped = $allResults->map(function (Product $product) {
-            $variant = $product->productVariants()->first();
-
-            // Use service to get normalized variant with proper image
             if ($variant) {
-                $normalized = $this->productService->normalizeVariant($variant);
-            } else {
-                // Fallback if no variant exists
-                $normalized = [
-                    'id' => $product->id,
-                    'name' => $product->name,
-                    'product_slug' => $product->slug,
-                    'sku' => null,
-                    'brand' => $product->brand?->name,
-                    'category' => $product->category?->name,
-                    'primary_image_url' => $product->primaryImageUrl ?? '/assets/brands/no-brand.png',
-                ];
+                // Manually link the product to the variant to ensure the 
+                // Normalizer doesn't re-query the product parent.
+                $variant->setRelation('product', $product);
+                return $this->productService->normalizeVariant($variant);
             }
 
-            return $normalized;
+            // Fallback for products without variants
+            return [
+                'id'                => $product->id,
+                'name'              => $product->name,
+                'product_slug'      => $product->slug,
+                'sku'               => null,
+                'brand'             => $product->brand?->name,
+                'category_slug'     => $product->category?->slug ?? '',
+                'primary_image_url' => $product->primaryImageUrl ?? asset('images/fallback-image.png'),
+                'final_price'       => 0,
+                'in_stock'          => false
+            ];
         });
 
-        // AJAX suggestions
+        // 4. Handle AJAX (Live Search Suggestions)
         if ($ajax) {
             return response()->json([
                 'results' => [
-                    'data' => $mapped->take($perPage)->values()
+                    'data' => $mappedData->values()
                 ]
             ]);
         }
 
-        // Inertia paginated results
-        $paginated = new LengthAwarePaginator(
-            $mapped->forPage($page, $perPage),
-            $total,
-            $perPage,
-            $page,
-            ['path' => $request->url(), 'query' => $request->query()]
-        );
-
+        // 5. Standard Search Page Response
         return Inertia::render('Frontend/SearchResults', [
-            'q' => $q,
+            'q'       => $q,
             'results' => [
-                'data' => $paginated->items(),
-                'total' => $paginated->total(),
-                'per_page' => $paginated->perPage(),
-                'current_page' => $paginated->currentPage(),
-                'last_page' => $paginated->lastPage(),
+                'data'         => $mappedData,
+                'total'        => $paginator->total(),
+                'per_page'     => $paginator->perPage(),
+                'current_page' => $paginator->currentPage(),
+                'last_page'    => $paginator->lastPage(),
             ],
         ]);
     }

@@ -84,37 +84,8 @@ class Product extends Model
     {
         static::addGlobalScope(new SellerProductScope);
 
-        static::saved(function ($product) {
-        $product->searchable(); // updates Meilisearch index
-    });
-
-    static::deleted(function ($product) {
-        $product->unsearchable(); // removes from Meilisearch index
-    });
-
-
    }
 
-
-    // protected function imageUrls(): Attribute
-    // {
-    //     return Attribute::get(fn () =>
-    //         $this->relationLoaded('images')
-    //             ? $this->images
-    //                 ->map(fn ($img) => Storage::disk('s3')->url($img->image_path))
-    //                 ->toArray()
-    //             : []
-    //     );
-    // }
-
-    // protected function primaryImageUrl(): Attribute
-    // {
-    //     return Attribute::get(fn () =>
-    //         $this->relationLoaded('primaryImage') && $this->primaryImage
-    //             ? Storage::disk('s3')->url($this->primaryImage->image_path)
-    //             : null
-    //     );
-    // }
 
 
 public function toSearchableArray(): array
@@ -134,13 +105,14 @@ public function toSearchableArray(): array
             'max_price' => $this->max_price,
             'in_stock' => $this->in_stock,
             'status' => $this->status,
+            'status_id' => (int) $this->status_id,
         ];
     }
 
 public function scoutSettings(): array
 {
     return [
-        'filterableAttributes' => ['status'], // now Meilisearch can filter by status
+        'filterableAttributes' => ['status_id', 'status'], 
     ];
 }
 

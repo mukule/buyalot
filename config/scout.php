@@ -136,15 +136,26 @@ return [
     |
     */
 
+    
     'meilisearch' => [
-        'host' => env('MEILISEARCH_HOST', 'http://localhost:7700'),
-        'key' => env('MEILISEARCH_KEY'),
-        'index-settings' => [
-            // 'users' => [
-            //     'filterableAttributes'=> ['id', 'name', 'email'],
-            // ],
+    'host' => env('MEILISEARCH_HOST', 'http://localhost:7700'),
+    'key' => env('MEILISEARCH_KEY'),
+    'index-settings' => [
+        \App\Models\Product::class => [
+            'filterableAttributes' => [
+                'id', 
+                'status_id', 
+                'status', 
+                'category_id', 
+                'brand_id'
+            ],
+            'sortableAttributes' => [
+                'created_at', 
+                'updated_at'
+            ],
         ],
     ],
+],
 
     /*
     |--------------------------------------------------------------------------
