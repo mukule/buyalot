@@ -218,9 +218,12 @@ const statusClass = computed(() => {
                                     <p class="font-medium text-gray-900">Order #{{ order.order_number }}</p>
                                     <p class="text-sm text-gray-600">{{ order.created_at }}</p>
                                 </div>
+                                <div>
+                                    <p class="font-medium text-gray-900">Status</p>
+                                    <p class="text-sm text-gray-600">{{ order.status }}</p>
+                                </div>
                                 <div class="text-right">
                                     <p class="font-medium text-gray-900">KSh {{ order.total }}</p>
-                                    <p class="text-sm text-gray-600">{{ order.status }}</p>
                                 </div>
                             </div>
                         </div>

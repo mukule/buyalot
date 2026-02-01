@@ -3,23 +3,19 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Jobs\RefreshProductCache;
-use App\Models\Product;
 use App\Models\Brand;
+use App\Models\Products\Product;
 use App\Models\Unit;
 use App\Models\VariantCategory;
 use App\Models\Category;
 use App\Services\SearchCacheService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use App\Services\ProductService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use App\Models\ProductStatus;
-use App\Models\Scopes\SellerProductScope;
+use App\Models\Products\ProductStatus;
 
 
 class ProductController extends Controller
@@ -70,7 +66,7 @@ public function index()
             ];
         });
 
-   
+
     $statusesQuery = ProductStatus::orderBy('name');
     if ($user->hasRole('seller')) {
         $statusesQuery->whereIn('name', ['draft', 'submit', 'pause']);
@@ -307,29 +303,29 @@ public function store(Request $request, ProductService $productService)
     $data = $request->all();
     $images = $request->hasFile('images') ? $request->file('images') : [];
 
-   
+
     $productIdFromRequest = $request->input('product_id');
     $productIdFromSession = session('product_id');
     $productIdFromInput = $request->old('product_id');
-   
+
 
     $product = null;
 
-    
+
     if ($step > 1) {
-       
+
         $idToFind = $productIdFromRequest ?? $productIdFromSession ?? $productIdFromInput;
 
         if ($idToFind) {
-           
-            $product = \App\Models\Product::withoutGlobalScopes()->find($idToFind);
-            
-          
+
+            $product = \App\Models\Products\Product::withoutGlobalScopes()->find($idToFind);
+
+
         } else {
             \Log::warning("CRITICAL: Step {$step} initiated but NO Product ID found in Request or Session.");
         }
 
-        
+
         if ($product && $request->user()->user_type === 'seller') {
             if ((int) $product->owner_id !== (int) $request->user()->id) {
                 \Log::error("SECURITY ALERT: Seller " . auth()->id() . " tried to access Product " . $product->id);
@@ -339,7 +335,7 @@ public function store(Request $request, ProductService $productService)
     }
 
     try {
-       
+
         $product = $productService->createOrUpdateProductStep(
             $step,
             $data,
@@ -353,7 +349,7 @@ public function store(Request $request, ProductService $productService)
                 ->with('success', "Product '{$product->name}' created successfully.");
         }
 
-        
+
         return back()
             ->with('success', "Step {$step} completed successfully.")
             ->with('step', $product->current_step)
@@ -370,7 +366,7 @@ public function store(Request $request, ProductService $productService)
             ]);
 
     } catch (\Throwable $e) {
-       
+
 
         return back()
             ->with('error', "System Error: " . $e->getMessage())
@@ -566,7 +562,7 @@ public function updateStatus(Request $request, Product $product)
         'status_id' => ['required', 'exists:product_statuses,id'],
     ]);
 
-    // This 'update' call triggers the 'saved' event, 
+    // This 'update' call triggers the 'saved' event,
     // which the ProductObserver handles automatically!
     $product->update([
         'status_id' => $request->input('status_id'),

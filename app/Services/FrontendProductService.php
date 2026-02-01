@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\ProductVariant;
+use App\Models\Products\ProductVariant;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
 
@@ -23,8 +23,8 @@ class FrontendProductService
     $cacheKey = 'home_grouped_v9_' . $categories->pluck('id')->implode('_');
     $lockKey = $cacheKey . '_lock';
 
-    $cache = Cache::supportsTags() 
-        ? Cache::tags(['frontend_products', 'homepage']) 
+    $cache = Cache::supportsTags()
+        ? Cache::tags(['frontend_products', 'homepage'])
         : Cache::getFacadeRoot();
 
     // 1. Try to get it from cache first (The "Happy Path")
@@ -38,7 +38,7 @@ class FrontendProductService
      * 10: Hold the lock for 10 seconds (long enough for the query to finish).
      */
     return Cache::lock($lockKey, 10)->block(5, function () use ($cache, $cacheKey, $categories, $limit) {
-        
+
         // 3. RE-CHECK: Another process might have finished the work while we were waiting for the lock!
         $data = $cache->get($cacheKey);
         if ($data) return $data;
@@ -74,7 +74,7 @@ class FrontendProductService
 
         // 5. Save to cache and return
         $cache->put($cacheKey, $result, now()->addHours(12));
-        
+
         return $result;
     });
 }

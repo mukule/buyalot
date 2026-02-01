@@ -2,11 +2,11 @@
 
 namespace App\Services;
 
-use App\Models\Product;
-use App\Models\ProductStatus;
+use App\Models\Products\Product;
+use App\Models\Products\ProductStatus;
 use App\Models\User;
 use App\Models\Variant;
-use App\Models\ProductVariant;
+use App\Models\Products\ProductVariant;
 use App\Models\VariantCategory;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
@@ -38,7 +38,7 @@ class ProductService
         $this->imageService = $imageService;
     }
 
-    
+
 public function createOrUpdateProductStep(
     int $step,
     array $data,
@@ -87,7 +87,7 @@ public function createOrUpdateProductStep(
 
 protected function handleStep1(array $data, ?User $user, ?array $images, ?Product $product): Product
 {
-    $this->validateStep1($data); 
+    $this->validateStep1($data);
     $this->applyMetadata($data);
 
     // 🔹 Leaf category check
@@ -103,7 +103,7 @@ protected function handleStep1(array $data, ?User $user, ?array $images, ?Produc
     // FIX: Use withoutGlobalScopes() to find by ID
     if (!$product && !empty($data['product_id'])) {
         $product = Product::withoutGlobalScopes()->find($data['product_id']);
-       
+
     }
 
     // FIX: Use withoutGlobalScopes() for the latest draft fallback
@@ -112,7 +112,7 @@ protected function handleStep1(array $data, ?User $user, ?array $images, ?Produc
             ->withoutGlobalScopes()
             ->latestDraft()
             ->first();
-            
+
     }
 
     // Update existing product
@@ -124,8 +124,8 @@ protected function handleStep1(array $data, ?User $user, ?array $images, ?Produc
             'category_id',
             'unit_id',
         ]));
-        
-       
+
+
         return $product;
     }
 
@@ -317,7 +317,7 @@ protected function handleStep3(array $data, ?User $user, ?array $images, ?Produc
 
 protected function processProductVariantsOptimized(Product $product, array $variantRows): void
 {
-    
+
     $validCategories = VariantCategory::pluck('id')->flip();
 
     foreach ($variantRows as $index => $row) {
@@ -456,7 +456,7 @@ protected function handleStep4(array $data, ?User $user, ?array $images, ?Produc
         }
     }
 
-   
+
 
     return $product;
 }

@@ -121,8 +121,8 @@ class CustomerController extends Controller
             'orders' => $customer->orders->map(function ($order) {
                 return [
                     'id' => $order->id,
-                    'order_number' => $order->order_number,
-                    'total' => number_format($order->total, 2),
+                    'order_number' => $order->order_code,
+                    'total' => number_format($order->total_amount, 2),
                     'status' => $order->status,
                     'created_at' => $order->created_at->format('M d, Y'),
                 ];

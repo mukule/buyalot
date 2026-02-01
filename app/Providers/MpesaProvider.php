@@ -105,7 +105,7 @@ class MpesaProvider implements PaymentProviderInterface
     }
 
     try {
-        Log::info('MPESA callback received', $data);
+//        Log::info('MPESA callback received', $data);
 
         $checkoutRequestId = $stk['CheckoutRequestID'];
         $mpesaRequest = MpesaRequest::where('checkout_request_id', $checkoutRequestId)->first();
@@ -125,7 +125,7 @@ class MpesaProvider implements PaymentProviderInterface
         foreach ($callbackMetadata as $item) {
             $metadata[strtolower($item['Name'])] = $item['Value'] ?? null;
         }
-
+        $requestAmountPaid = $metadata['amount'] ?? $stk['Amount'] ?? $mpesaRequest->amount;
         // Convert M-Pesa timestamp to MySQL datetime
         $transactionDate = null;
         if (!empty($metadata['transactiondate'])) {
@@ -140,7 +140,7 @@ class MpesaProvider implements PaymentProviderInterface
             // SUCCESS
             $mpesaRequest->update([
                 'status' => PaymentStatus::COMPLETED->value,
-                'result_code' => 0,
+                'result_code' =>$resultCode,
                 'result_desc' => 'Success',
                 'completed_at' => now(),
             ]);
@@ -155,6 +155,7 @@ class MpesaProvider implements PaymentProviderInterface
             $payment = Payment::create([
                 'ulid' => \Str::ulid(),
                 'amount' => $mpesaRequest->amount,
+                'amount_paid' => $metadata['amount'] ?? $requestAmountPaid,
                 'currency' => 'KES',
                 'provider' => 'mpesa',
                 'method' => $mpesaRequest->method ?? 'mobile_money',
@@ -175,7 +176,8 @@ class MpesaProvider implements PaymentProviderInterface
                 'mpesa_request_id' => $mpesaRequest->id,
                 'transaction_type' => 'STK_PUSH',
                 'phone' => $metadata['phonenumber'] ?? null,
-                'amount' => $metadata['amount'] ?? $mpesaRequest->amount,
+                'amount' => $mpesaRequest->amount,
+                'amount_paid' => $metadata['amount'] ?? $mpesaRequest->amount,
                 'mpesa_receipt' => $metadata['mpesareceiptnumber'] ?? null,
                 'transaction_id' => $metadata['mpesareceiptnumber'] ?? null,
                 'account_reference' => $mpesaRequest->account_reference,
@@ -192,7 +194,7 @@ class MpesaProvider implements PaymentProviderInterface
             if ($checkoutSession) {
                 try {
                     $order = app(\App\Services\OrderPlacementService::class)
-                        ->placeOrder($checkoutSession->id);
+                        ->placeOrder($checkoutSession->id,$requestAmountPaid,$metadata['mpesareceiptnumber']);
 
                     Log::info('Order successfully created from checkout session', [
                         'checkout_session_id' => $checkoutSession->id,
@@ -247,8 +249,6 @@ class MpesaProvider implements PaymentProviderInterface
 
     private function initiateStkPush(MpesaRequest $payment, string $phone): array
 {
-    info("initiateStkPush");
-
     $timestamp = now()->format('YmdHis');
 
     $password = base64_encode(
@@ -269,8 +269,8 @@ class MpesaProvider implements PaymentProviderInterface
             'Password' => $password,
             'Timestamp' => $timestamp,
             'TransactionType' => 'CustomerPayBillOnline',
-            //'Amount' => (int)$payment->amount,
-            'Amount' => 1,
+            'Amount' => (int)$payment->amount,
+//            'Amount' => 1,
             'PartyA' => $phone,
             'PartyB' => $this->config['business_short_code'],
             'PhoneNumber' => $phone,

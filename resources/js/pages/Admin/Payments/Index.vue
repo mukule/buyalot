@@ -85,7 +85,7 @@ function viewPayment(ulid: string) {
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reference/Order Code</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Provider</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Method</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
@@ -96,10 +96,10 @@ function viewPayment(ulid: string) {
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white">
                             <tr v-for="payment in payments" :key="payment.id" class="hover:bg-gray-50">
-                                <td class="px-4 py-4 text-sm text-gray-700">{{ payment.reference || payment.ulid }}</td>
+                                <td class="px-4 py-4 text-sm text-gray-700">{{payment.reference}}</td>
                                 <td class="px-4 py-4 text-sm text-gray-700">{{ payment.provider }}</td>
                                 <td class="px-4 py-4 text-sm text-gray-700">{{ payment.method }}</td>
-                                <td class="px-4 py-4 text-sm font-semibold text-gray-800">{{ payment.amount }} {{ payment.currency }}</td>
+                                <td class="px-4 py-4 text-sm font-semibold text-gray-800"> {{ payment.currency }} {{ payment.amount_paid }}</td>
                                 <td
                                     class="px-4 py-4 text-sm capitalize"
                                     :class="{

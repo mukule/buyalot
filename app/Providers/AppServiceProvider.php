@@ -2,7 +2,7 @@
 
 namespace App\Providers;
 
-use App\Models\Product;
+use App\Models\Products\Product;
 use App\Observers\ProductObserver;
 use Inertia\Inertia;
 use Illuminate\Support\ServiceProvider;
