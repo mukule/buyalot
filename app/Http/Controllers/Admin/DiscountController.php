@@ -6,12 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Brand;
 use App\Models\Payment\Discount;
 use App\Models\Payment\DiscountType;
-use App\Models\ProductVariant;
+use App\Models\Products\ProductVariant;
+use App\Services\DiscountService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use Inertia\Inertia;
 use Illuminate\Validation\Rule;
-use App\Services\DiscountService;
+use Inertia\Inertia;
 
 
 class DiscountController extends Controller
@@ -40,8 +40,8 @@ class DiscountController extends Controller
     {
         // Provide minimal datasets for selection UIs
         $categories = \App\Models\Category::select('id', 'name', 'parent_id')->orderBy('name')->get();
-        $products = \App\Models\Product::select('id', 'name', 'category_id')->orderBy('name')->limit(1000)->get();
-        $variants = \App\Models\ProductVariant::select('id', 'product_id')->orderBy('id')->limit(1000)->get();
+        $products = \App\Models\Products\Product::select('id', 'name', 'category_id')->orderBy('name')->limit(1000)->get();
+        $variants = \App\Models\Products\ProductVariant::select('id', 'product_id')->orderBy('id')->limit(1000)->get();
         $customers = \App\Models\Customer\Customer::select('id', 'first_name','last_name','email', 'created_at')->orderByDesc('created_at')->limit(1000)->get();
         $brands = Brand::select('id', 'name', 'slug', 'active', 'logo_path', 'created_at')->orderByDesc('created_at')->limit(1000)->get();
         $discountTypes = DiscountType::where('is_active', true)->get(['code', 'name']);
@@ -121,9 +121,9 @@ class DiscountController extends Controller
     public function edit(Discount $discount)
     {
         $categories = \App\Models\Category::select('id', 'name', 'parent_id')->orderBy('name')->get();
-        $products = \App\Models\Product::select('id', 'name', 'category_id')->orderBy('name')->limit(500)->get();
+        $products = \App\Models\Products\Product::select('id', 'name', 'category_id')->orderBy('name')->limit(500)->get();
         // ProductVariant table has no 'name' column; rely on appends (display_name) and include sku
-        $variants = \App\Models\ProductVariant::select('id', 'product_id', 'sku')->orderBy('id')->limit(1000)->get();
+        $variants = \App\Models\Products\ProductVariant::select('id', 'product_id', 'sku')->orderBy('id')->limit(1000)->get();
         $customers = \App\Models\Customer\Customer::select('id', 'first_name','last_name','email', 'created_at')->orderByDesc('created_at')->limit(500)->get();
         $discountTypes = DiscountType::where('is_active', true)->get(['code', 'name']);
         $brands = Brand::select('id', 'name', 'slug', 'active', 'logo_path', 'created_at')->orderByDesc('created_at')->limit(1000)->get();
@@ -221,68 +221,47 @@ class DiscountController extends Controller
         }
     }
 
-    // public function calculateDiscounts(Request $request)
-    // {
-    //     // Validate input
-    //     $validated = $request->validate([
-    //         'product_variant_ids' => ['required', 'array'],
-    //         'product_variant_ids.*' => ['integer', 'exists:product_variants,id'],
-    //     ]);
 
-    //     $variants = ProductVariant::with(['discounts'])
-    //         ->whereIn('id', $validated['product_variant_ids'])
-    //         ->get();
+    public function calculateDiscounts(Request $request)
+    {
+        $validated = $request->validate([
+            'product_variant_ids'   => ['required', 'array'],
+            'product_variant_ids.*' => ['integer', 'exists:product_variants,id'],
+        ]);
 
-    //     $results = [];
+        $variants = ProductVariant::whereIn('id', $validated['product_variant_ids'])->get();
 
-    //     foreach ($variants as $variant) {
-    //         $markedPrice = $variant->marked_price ?? 0;
-    //         $totalDiscount = 0;
-    //         $discountDetails = [];
+        $results = $variants->map(function ($variant) {
 
-    //         foreach ($variant->discounts as $discount) {
-    //             if (! $discount->is_active) {
-    //                 continue;
-    //             }
+            $markedPrice  = (float) ($variant->marked_price ?? 0);
+            $sellingPrice = (float) ($variant->selling_price ?? $markedPrice);
 
-    //             // Determine discount value
-    //             $discountAmount = 0;
+            // Derived discount (amount)
+            $totalDiscount = max($markedPrice - $sellingPrice, 0);
 
-    //             if ($discount->type === 'percentage') {
-    //                 $discountAmount = ($markedPrice * ($discount->value / 100));
-    //             } elseif ($discount->type === 'fixed') {
-    //                 $discountAmount = $discount->value;
-    //             }
+            // Derived discount percentage
+            $discountPercentage = $sellingPrice > 0
+                ? (int) round(($totalDiscount / $sellingPrice) * 100)
+                : 0;
 
-    //             $discountAmount = min($discountAmount, $markedPrice); // prevent over-discounting
-    //             $totalDiscount += $discountAmount;
+            return [
+                'product_variant_id'  => $variant->id,
+                'marked_price'        => round($sellingPrice, 2),
+                'discounts'           => [],
+                'total_discount'      => round($totalDiscount, 2),
+                'discount_percentage' => $discountPercentage,
+                'final_price'         => round($markedPrice, 2),
+                'has_discount'        => $totalDiscount > 0,
+            ];
+        })->values();
 
-    //             $discountDetails[] = [
-    //                 'discount_name' => $discount->name,
-    //                 'discount_amount' => round($discountAmount, 2),
-    //             ];
-    //         }
-
-    //         $sellingPrice = max($markedPrice - $totalDiscount, 0);
-
-    //         $results[] = [
-    //             'product_variant_id' => $variant->id,
-    //             'marked_price' => round($markedPrice, 2),
-    //             'discounts' => $discountDetails,
-    //             'total_discount' => round($totalDiscount, 2),
-    //             'selling_price' => round($sellingPrice, 2),
-    //         ];
-    //     }
-
-    //     logger("results", $results);
-
-    //     return response()->json([
-    //         'data' => $results,
-    //     ]);
-    // }
+        return response()->json([
+            'data' => $results,
+        ]);
+    }
 
 
-    public function calculateDiscounts(Request $request, DiscountService $discountService)
+    public function calculateDiscounts1(Request $request, DiscountService $discountService)
 {
     $validated = $request->validate([
         'product_variant_ids' => ['required', 'array'],
@@ -295,4 +274,5 @@ class DiscountController extends Controller
         'data' => $results,
     ]);
 }
+
 }

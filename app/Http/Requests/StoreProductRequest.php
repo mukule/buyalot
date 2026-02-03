@@ -49,6 +49,8 @@ class StoreProductRequest extends FormRequest
                 'meta_title' => 'nullable|string|max:255',
                 'meta_keywords' => 'nullable|string|max:255',
                 'meta_description' => 'nullable|string',
+                 'video_url' => 'nullable|url|regex:/^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[\w\-]+$/i',
+
             ],
 
             // Step 3: Variants
@@ -82,6 +84,8 @@ class StoreProductRequest extends FormRequest
             'variant_rows.*.marked_price.required' => 'Each variant row must have a marked price.',
             'variant_rows.*.buying_price.required' => 'Each variant row must have a buying price.',
             'variant_rows.*.stock.required' => 'Each variant row must have a stock quantity.',
+            'video_url.url' => 'The video URL must be a valid URL.',
+            'video_url.regex' => 'The video URL must be a valid YouTube link.',
         ];
     }
 }

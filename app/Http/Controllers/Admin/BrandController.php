@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\RefreshBrandCache;
 use App\Models\Brand;
+use App\Services\SearchCacheService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Intervention\Image\ImageManager;
@@ -14,13 +17,36 @@ use Illuminate\Support\Facades\Log;
 
 class BrandController extends Controller
 {
-    public function index()
-    {
-        $brands = Brand::latest()->paginate(10);
-        return Inertia::render('Admin/Brands/Index', [
-            'brands' => $brands,
+   
+
+
+public function index(Request $request)
+{
+    $brands = Brand::query()
+        ->when($request->search, function ($query, $search) {
+            $query->where('name', 'like', "%{$search}%");
+        })
+        ->when($request->status !== null, function ($query) use ($request) {
+            $query->where('active', $request->status);
+        })
+        ->latest()
+        ->paginate(10)
+        ->withQueryString()
+        ->through(fn ($brand) => [
+            'hashid'        => $brand->hashid,
+            'name'      => $brand->name,
+            'slug'      => $brand->slug,
+            'active'    => $brand->active,
+            'logo_url'  => $brand->logo_url,
+            'created_at'=> $brand->created_at->toDateString(),
         ]);
-    }
+
+    return Inertia::render('Admin/Brands/Index', [
+        'brands'  => $brands,
+        'filters' => $request->only(['search', 'status']),
+    ]);
+}
+
 
     public function create()
     {
@@ -68,7 +94,8 @@ class BrandController extends Controller
             Log::info('No logo file uploaded.');
         }
         $brand->save();
-        Log::info('Brand created successfully', ['id' => $brand->id]);
+        RefreshBrandCache::dispatch($brand)->delay(now()->addSeconds(5));
+       // Log::info('Brand created successfully', ['id' => $brand->id]);
 
         return redirect()->route('admin.brands.index')->with('success', 'Brand created successfully.');
     }
@@ -103,6 +130,8 @@ class BrandController extends Controller
 
         $brand->save();
 
+        RefreshBrandCache::dispatch($brand)->delay(now()->addSeconds(5));
+
         return redirect()->route('admin.brands.index')->with('success', 'Brand updated successfully.');
     }
 
@@ -113,31 +142,43 @@ class BrandController extends Controller
         }
 
         $brand->delete();
+        $brandId = $brand->id;
+        $cache['brands'] = array_filter($cache['brands'] ?? [], fn($b) => $b['id'] !== $brandId);
 
+        // Remove all products under this brand
+        $cache['products'] = array_filter($cache['products'] ?? [], fn($p) => $p['brand_id'] !== $brandId);
+        // Remove variants of deleted products
+        $cache['variants'] = array_filter($cache['variants'] ?? [], function ($v) use ($cache) {
+            $productIds = array_column($cache['products'] ?? [], 'id');
+            return !in_array($v['product_id'], $productIds);
+        });
+
+        Cache::put(SearchCacheService::CACHE_KEY, $cache, now()->addMonths(6));
         return redirect()->route('admin.brands.index')->with('success', 'Brand deleted successfully.');
     }
 
-    protected function optimizeAndStoreImage($file): string
-    {
-        try {
-            $manager = new ImageManager(new Driver());
-            $directory = 'brands';
-            Storage::disk('public')->makeDirectory($directory);
 
-            $image = $manager->read($file)
-                ->scaleDown(600)
-                ->toWebp(75);
 
-            $filename = $directory . '/' . Str::uuid() . '.webp';
-            $image->save(storage_path('app/public/' . $filename));
+protected function optimizeAndStoreImage($file): string
+{
+    $manager = new ImageManager(new Driver());
 
-            return $filename;
-        } catch (\Exception $e) {
-            Log::error('Image processing failed', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            throw new \Exception("Failed to process image: " . $e->getMessage());
-        }
-    }
+    $directory = 'brands';
+    Storage::disk('public')->makeDirectory($directory);
+
+    $image = $manager->read($file)
+        ->scaleDown(600)
+        ->toWebp(75);
+
+    $filename = $directory . '/' . Str::uuid() . '.webp';
+
+    $image->save(storage_path('app/public/' . $filename));
+
+    
+    return $filename;
+}
+
+
+
+
 }

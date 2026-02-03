@@ -2,15 +2,15 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use App\Models\Traits\HasSlug;
+use App\Models\Products\Product;
 use App\Models\Traits\HasHashid;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class Category extends Model
 {
-    use HasSlug, HasHashid, SoftDeletes;
+    use HasHashid;
 
     protected $fillable = ['name', 'slug', 'active', 'description', 'parent_id'];
 
@@ -20,38 +20,54 @@ class Category extends Model
 
     protected $appends = ['hashid', 'parent_name'];
 
-    protected static string $slugSource = 'name';
-
     /**
      * Booted callbacks for model events
      */
-    protected static function booted()
+    protected static function booted(): void
     {
-        static::created(fn() => \App\Services\SearchCacheService::refresh());
-        static::updated(fn() => \App\Services\SearchCacheService::refresh());
-        static::deleted(fn() => \App\Services\SearchCacheService::refresh());
-        static::restored(fn() => \App\Services\SearchCacheService::refresh());
+        static::creating(function ($category) {
+            if (empty($category->slug)) {
+                $category->slug = static::generateUniqueSlug($category->name);
+            }
+        });
+
+        static::updating(function ($category) {
+            if ($category->isDirty('name') && empty($category->slug)) {
+                $category->slug = static::generateUniqueSlug($category->name, $category->id);
+            }
+        });
+
+        //added category refresh cache jobs
+//        static::updated(fn($category)  => \App\Jobs\RefreshCategoryCache::dispatch($category)->delay(now()->addSeconds(5)));
+//        static::created(fn($category) => \App\Jobs\RefreshCategoryCache::dispatch($category)->delay(now()->addSeconds(5)));
+//        static::deleted(fn($category) => \App\Jobs\RefreshCategoryCache::dispatch($category)->delay(now()->addSeconds(5)));
     }
+
+
 
     /**
      * Parent category relationship
-     * Include soft-deleted parent if exists
      */
     public function parent()
     {
-        return $this->belongsTo(Category::class, 'parent_id')->withTrashed();
+        return $this->belongsTo(Category::class, 'parent_id');
     }
 
     /**
-     * Children categories relationship (recursive)
-     * Include soft-deleted children
+     * Children relationship (non-recursive)
      */
+    // public function children()
+    // {
+    //     return $this->hasMany(Category::class, 'parent_id');
+    // }
+
     public function children()
     {
         return $this->hasMany(Category::class, 'parent_id')
-                    ->with('children')
-                    ->withTrashed();
+            ->where('active', true)
+            ->with('children'); // recursion
     }
+
 
     /**
      * Many-to-many relationship with VariantCategory
@@ -60,9 +76,9 @@ class Category extends Model
     {
         return $this->belongsToMany(
             VariantCategory::class,
-            'category_variants',  // pivot table
-            'category_id',        // this model's FK
-            'variant_category_id' // related model's FK
+            'category_variants',
+            'category_id',
+            'variant_category_id'
         )->withTimestamps();
     }
 
@@ -75,7 +91,7 @@ class Category extends Model
     }
 
     /**
-     * Scope for active categories (excludes soft-deleted by default)
+     * Scope for active categories
      */
     public function scopeActive($query)
     {
@@ -83,19 +99,23 @@ class Category extends Model
     }
 
     /**
-     * Helper: Get full parent hierarchy as array (root first)
+     * Get full parent hierarchy as array (root first)
      */
     public function getHierarchy(): array
     {
+        $visited = [];
         $categories = [];
         $current = $this;
 
-        while ($current) {
+        while ($current && !in_array($current->id, $visited)) {
+            $visited[] = $current->id;
+
             $categories[] = [
-                'id' => $current->id,
+                'id'   => $current->id,
                 'name' => $current->name,
                 'slug' => $current->slug,
             ];
+
             $current = $current->parent;
         }
 
@@ -103,29 +123,34 @@ class Category extends Model
     }
 
     /**
-     * Optional: Get breadcrumb-friendly string
+     * Breadcrumb-friendly string
      */
     public function getBreadcrumb(): string
     {
-        return implode(' > ', array_map(fn($cat) => $cat['name'], $this->getHierarchy()));
+        return implode(' > ', array_map(fn ($cat) => $cat['name'], $this->getHierarchy()));
     }
 
     /**
      * Get all category IDs including children recursively
      */
-    public function getAllCategoryIds(): \Illuminate\Support\Collection
+    public function getAllCategoryIds(&$visited = []): \Illuminate\Support\Collection
     {
+        if (in_array($this->id, $visited)) {
+            return collect();
+        }
+
+        $visited[] = $this->id;
         $ids = collect([$this->id]);
 
         foreach ($this->children as $child) {
-            $ids = $ids->merge($child->getAllCategoryIds());
+            $ids = $ids->merge($child->getAllCategoryIds($visited));
         }
 
         return $ids;
     }
 
     /**
-     * Get all parent category IDs (recursive)
+     * Get all parent category IDs
      */
     public function getParentCategoryIds(): \Illuminate\Support\Collection
     {
@@ -138,5 +163,33 @@ class Category extends Model
         }
 
         return $ids;
+    }
+
+    /**
+     * Relationship with products
+     */
+    public function products()
+    {
+        return $this->hasMany(Product::class);
+    }
+
+    /**
+     * Generate a unique slug
+     */
+    protected static function generateUniqueSlug(string $name, ?int $ignoreId = null): string
+    {
+        $slug = Str::slug($name);
+        $originalSlug = $slug;
+        $count = 1;
+
+        while (static::where('slug', $slug)
+            ->when($ignoreId, fn ($q) => $q->where('id', '!=', $ignoreId))
+            ->exists()) {
+
+            $slug = $originalSlug . '-' . $count;
+            $count++;
+        }
+
+        return $slug;
     }
 }

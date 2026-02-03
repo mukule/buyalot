@@ -2,24 +2,24 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Category;
 use App\Models\Brand;
+use App\Models\Category;
 use App\Models\Customer\Customer;
 use App\Models\Orders\Order;
 use App\Models\Orders\OrderItem;
-use App\Models\Product;
+use App\Models\Products\Product;
+use App\Models\Region;
 use App\Models\Seller\Seller;
 use App\Models\User;
-use App\Models\Region;
-use App\Models\PickupPoint;
 use App\Models\Warehouse\Warehouse;
 use App\Services\FrontendProductService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Log;
+
+
+use Illuminate\Support\Facades\Cache;
 
 
 class HomeController extends Controller
@@ -33,26 +33,37 @@ class HomeController extends Controller
 
 
     public function index()
-    {
-        $categories = Category::with('children')
-            ->whereNull('parent_id')
-            ->get();
-        $brands = Brand::all();
+{
+    // 1. Light queries (Fast, no need to cache these specifically)
+    $categories = \App\Models\Category::query()
+        ->select('id', 'name', 'slug')
+        ->with(['children:id,parent_id,name,slug'])
+        ->whereNull('parent_id')
+        ->orderBy('name')
+        ->get();
 
-        $productsByCategory = $this->productService->getProductsGroupedByCategory($categories);
-        // info($productsByCategory);
+    $brands = \App\Models\Brand::query()
+        ->select('id', 'name', 'slug', 'logo_path')
+        ->where('active', 1)
+        ->orderBy('name')
+        ->get();
 
-    //     foreach ($categories as $category) {
-    //     info($this->logCategoryWithChildren($category));
-    // }
+    // 2. Heavy logic (The Service handles its own Redis caching internally)
+    $productsByCategory = $this->productService->getProductsGroupedByCategory($categories);
 
-        return Inertia::render('Frontend/Index', [
-            'title' => 'Online Shopping Store',
-            'categories' => $categories,
-            'brands' => $brands,
-            'productsByCategory' => $productsByCategory,
-        ]);
-    }
+    return Inertia::render('Frontend/Index', [
+        'title' => 'Online Shopping Store',
+        'categories' => $categories,
+        'brands' => $brands->map(fn($brand) => [
+            'id' => $brand->id,
+            'name' => $brand->name,
+            'slug' => $brand->slug,
+            'logo_url' => $brand->logo_url,
+        ]),
+        'productsByCategory' => $productsByCategory,
+    ]);
+}
+
 
 
 public function productDetails(string $slug)
@@ -63,35 +74,27 @@ public function productDetails(string $slug)
         'images',
         'productVariants.values.variant',
         'category.parent',
-        'warranties', 
+        'warranties',
     ])->where('slug', $slug)->firstOrFail();
 
-    $variantIds = $product->productVariants->pluck('id')->toArray();
-    $discountResults = app(\App\Services\DiscountService::class)->calculateDiscounts($variantIds);
-    $discountLookup = collect($discountResults)->keyBy('product_variant_id');
-
-    $variants = $product->productVariants->map(function ($variant) use ($discountLookup) {
-        $discountData = $discountLookup->get($variant->id);
-
-        $markedPrice = (float) $variant->marked_price;
-        $finalPrice = $discountData['final_price'] ?? $markedPrice;
-        $totalDiscount = $discountData['total_discount'] ?? 0;
-
-        $discountPercent = $markedPrice > 0
-            ? round(($totalDiscount / $markedPrice) * 100, 2)
-            : 0;
+    $variants = $product->productVariants->map(function ($variant) {
+        $discountPercent = 0;
+        if ($variant->marked_price > 0 && $variant->discount > 0) {
+            $discountPercent = round(($variant->discount / $variant->marked_price) * 100, 2);
+        }
 
         return [
-            'id' => $variant->id,
-            'marked_price' => round($markedPrice, 2),
-            'final_price' => round($finalPrice, 2),
+            'id'               => $variant->id,
+            'marked_price'     => $variant->marked_price,
+            'final_price'      => $variant->selling_price,
+            'discount'         => $variant->discount,
             'discount_percent' => $discountPercent,
-            'has_discount' => $totalDiscount > 0,
-            'stock' => $variant->stock,
-            'sku' => $variant->sku,
-            'values' => $variant->values->map(fn($v) => [
+            'has_discount'     => $variant->discount > 0,
+            'stock'            => $variant->stock,
+            'sku'              => $variant->sku,
+            'values'           => $variant->values->map(fn ($v) => [
                 'variant_category_id' => $v->variant->variant_category_id,
-                'value' => $v->variant->value,
+                'value'               => $v->variant->value,
             ]),
         ];
     });
@@ -103,19 +106,18 @@ public function productDetails(string $slug)
         $selectedVariant = $product->productVariants->firstWhere('id', $variantId) ?? $selectedVariant;
     }
 
-    $relatedProducts = $this->productService->getRelatedProducts($selectedVariant);
+    $relatedProducts = $selectedVariant
+        ? $this->productService->getRelatedProducts($selectedVariant)
+        : collect();
 
-    // Owner info
-    $ownerInfo = $selectedVariant->getOwnerInfo();
-
-    // Active warranty for the selected variant
-    $activeWarranty = $selectedVariant->getActiveWarranty();
+    $ownerInfo = $selectedVariant?->getOwnerInfo();
+    $activeWarranty = $selectedVariant?->getActiveWarranty();
 
     $productData = [
         'id' => $product->id,
         'slug' => $product->slug,
         'name' => $product->name,
-        'primary_image_url' => $product->primary_image_url,
+        'primary_image_url' => $product->primary_image_url, // accessor
         'stock' => $product->productVariants->sum('stock'),
         'category_hierarchy' => $product->category ? $product->category->getHierarchy() : [],
         'brand' => $product->brand ? [
@@ -126,20 +128,22 @@ public function productDetails(string $slug)
         'description' => $product->description,
         'specifications' => $product->specifications,
         'whats_in_the_box' => $product->whats_in_the_box,
-        'images' => $product->images
-            ->map(fn($img) => Storage::disk('s3')->url($img->image_path))
-            ->toArray(),
+        'images' => $product->image_urls,
         'variants' => $variants,
-        'owner' => [
+        'owner' => $ownerInfo ? [
             'type' => $ownerInfo['type'],
             'name' => $ownerInfo['name'],
-        ],
+        ] : null,
         'warranty' => $activeWarranty ? [
             'id' => $activeWarranty->id,
             'duration' => $activeWarranty->duration,
             'description' => $activeWarranty->description,
         ] : null,
     ];
+
+    if (!empty($product->video_url)) {
+    $productData['video_url'] = $product->video_url;
+}
 
     $cartVariantIds = [];
     $cart = app(\App\Services\CartService::class)->getCart(request());
@@ -177,48 +181,57 @@ public function productDetails(string $slug)
 
 
 
+
 public function category(string $slug)
 {
-    $category = Category::with('children')->where('slug', $slug)->firstOrFail();
+    // Cache category + children for 30 minutes
+    $category = Cache::remember("category_{$slug}", now()->addMinutes(30), function () use ($slug) {
+        return Category::with(['children' => fn($q) => $q->active()->select('id', 'name', 'slug', 'parent_id')])
+            ->select('id', 'name', 'slug')
+            ->where('slug', $slug)
+            ->firstOrFail();
+    });
 
+    // Get all category IDs (including subcategories)
     $categoryIds = $category->getAllCategoryIds()->toArray();
 
-
-    $selectedSubcategory = request('subcategory');
-    $selectedSubcategory = $selectedSubcategory ? (int) $selectedSubcategory : null;
-
+    // Selected filters
+    $selectedSubcategory = request('subcategory') ? (int) request('subcategory') : null;
     $selectedBrands = collect(explode(',', request('brands', '')))
         ->filter()
         ->map(fn($id) => (int) $id)
         ->toArray();
-
     $minPrice = request('min_price') !== null ? (float) request('min_price') : null;
     $maxPrice = request('max_price') !== null ? (float) request('max_price') : null;
 
-
+    // If a valid subcategory is selected, override category IDs
     if ($selectedSubcategory) {
-        $subcategory = Category::find($selectedSubcategory);
-        if ($subcategory && $subcategory->parent_id === $category->id) {
+        $subcategory = $category->children->firstWhere('id', $selectedSubcategory);
+        if ($subcategory) {
             $categoryIds = $subcategory->getAllCategoryIds()->toArray();
         }
     }
 
-
+    // Get paginated products (20 per page)
     $products = $this->productService->getPaginatedProductsByCategoryIds(
         $categoryIds,
-        20,
+        50,
         $minPrice,
         $maxPrice,
         $selectedBrands
     );
 
+    // Cache brands separately for 1 hour
+    $brands = Cache::remember('brands_list', now()->addHour(), function () {
+        return \App\Models\Brand::select('id', 'name')->orderBy('name')->get();
+    });
 
     return Inertia::render('Frontend/Category', [
         'category' => $category,
         'products' => $products,
-        'subcategories' => $category->children()->active()->get(['id', 'name', 'slug']),
+        'subcategories' => $category->children,
         'selectedSubcategory' => $selectedSubcategory,
-        'brands' => \App\Models\Brand::select('id', 'name')->get(),
+        'brands' => $brands,
         'selectedBrands' => $selectedBrands,
         'minPrice' => $minPrice,
         'maxPrice' => $maxPrice,
@@ -226,6 +239,7 @@ public function category(string $slug)
         'title' => $category->name,
     ]);
 }
+
 
 
 
@@ -237,7 +251,7 @@ public function category(string $slug)
         $user = $request->user();
         $sellerIds = null;
         $orderBase = Order::query();
-        if ($user && $user->hasRole('seller')) {
+        if ($user && $user->hasRole(['seller','vendor'])) {
             $sellerTable = (new \App\Models\Seller\Seller())->getTable();
             $sellerIds = $user->sellers()->pluck($sellerTable . '.id');
             $orderBase->forSeller($sellerIds);
@@ -274,7 +288,7 @@ public function category(string $slug)
             $stats = [
                 'sellers'           => Seller::count(),
                 'customers'         => Customer::count(),
-                'users'             => User::count(),
+                'users'             => User::where('user_type', '!=',['customer', 'seller','vendor'])->count(),
                 'orders'            => Order::count(),
                 'warehouses'        => Warehouse::count(),
                 'orders_this_week'  => $ordersThisWeek,

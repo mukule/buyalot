@@ -2,12 +2,50 @@
 
 namespace App\Services;
 
-use App\Models\ProductVariant;
-use Illuminate\Support\Facades\Log;
+use App\Models\Products\ProductVariant;
 
 class DiscountService
 {
+
     public function calculateDiscounts(array $variantIds): array
+    {
+        if (empty($variantIds)) {
+            return [];
+        }
+
+        $variants = ProductVariant::whereIn('id', $variantIds)->get();
+
+        $results = [];
+
+        foreach ($variants as $variant) {
+
+            $markedPrice  = (float) ($variant->marked_price ?? 0);
+            $sellingPrice = (float) ($variant->selling_price ?? 0);
+
+            // Discount derived from prices
+            $totalDiscount = max($markedPrice - $sellingPrice, 0);
+
+            $discountPercentage = $markedPrice > 0
+                ? (int) round(($totalDiscount / $markedPrice) * 100)
+                : 0;
+
+            $results[] = [
+                'product_variant_id'  => $variant->id,
+                'marked_price'        => round($markedPrice, 2),
+                'discounts'           => [], // legacy-compatible
+                'total_discount'      => round($totalDiscount, 2),
+                'discount_percentage' => $discountPercentage,
+                'final_price'         => round($sellingPrice, 2),
+                'has_discount'        => $totalDiscount > 0,
+            ];
+        }
+
+        return $results;
+    }
+
+
+
+    public function calculateDiscounts1(array $variantIds): array
     {
         $variants = ProductVariant::with(['discounts', 'product.discounts'])
             ->whereIn('id', $variantIds)
@@ -48,10 +86,9 @@ class DiscountService
                 ];
             }
 
-            $finalPrice = max($markedPrice - $totalDiscount, 0);
             $hasDiscount = $totalDiscount > 0;
 
-            
+
             $discountPercentage = $markedPrice > 0 ? (int) round(($totalDiscount / $markedPrice) * 100) : 0;
 
             $variantResult = [
@@ -60,7 +97,7 @@ class DiscountService
                 'discounts'           => $discountDetails,
                 'total_discount'      => round($totalDiscount, 2),
                 'discount_percentage' => $discountPercentage,
-                'final_price'         => round($finalPrice, 2),
+                'final_price'         => round($markedPrice, 2),
                 'has_discount'        => $hasDiscount,
             ];
 

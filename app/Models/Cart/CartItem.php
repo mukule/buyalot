@@ -1,7 +1,10 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\Cart;
 
+use App\Models\Products\Product;
+use App\Models\Products\ProductVariant;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -22,16 +25,16 @@ class CartItem extends Model
     ];
 
     protected $casts = [
-        'metadata' => 'array', 
+        'metadata' => 'array',
     ];
 
-   
+
     public function cart(): BelongsTo
     {
         return $this->belongsTo(Cart::class);
     }
 
-   
+
     public function productVariant(): BelongsTo
     {
         return $this->belongsTo(ProductVariant::class);
@@ -53,5 +56,5 @@ class CartItem extends Model
         return $this->belongsTo(User::class, 'seller_id');
     }
 
-    
+
 }

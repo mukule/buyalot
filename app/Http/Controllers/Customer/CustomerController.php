@@ -90,21 +90,20 @@ class CustomerController extends Controller
 
     public function dashboard(Request $request)
     {
-        info("customer dashboard");
-        info($request->customer);
       if (!Auth::check()) {
             logger("❌ User not authenticated - redirecting to login");
+            info("❌ User not authenticated - redirecting to login");
             return redirect()->route('login')->with('error', 'Please login first.');
         }
-        $customer = Customer::findOrFail($request->customer);
-      info($customer);
-
+//        $customer = Customer::findOrFail($request->customer);
+        $customer = Customer::where('user_id', Auth::id())->first();
+        if (!$customer) {
+            return redirect()->route('admin.dashboard')->with('error', 'Customer profile not found.');
+        }
         if (auth()->id() !== $customer->user_id) {
             logger("❌ Authorization failed: auth user " . auth()->id() . " !== customer user_id " . $customer->user_id);
             abort(403, 'Unauthorized action.');
         }
-        info("authed user");
-        info(auth()->user());
         $customer->load([
             'addresses' => function ($query) {
                 $query->orderBy('is_default', 'desc');
@@ -122,8 +121,8 @@ class CustomerController extends Controller
             'orders' => $customer->orders->map(function ($order) {
                 return [
                     'id' => $order->id,
-                    'order_number' => $order->order_number,
-                    'total' => number_format($order->total, 2),
+                    'order_number' => $order->order_code,
+                    'total' => number_format($order->total_amount, 2),
                     'status' => $order->status,
                     'created_at' => $order->created_at->format('M d, Y'),
                 ];

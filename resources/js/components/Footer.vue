@@ -53,7 +53,6 @@ const appName = usePage().props.appName || 'Buyalot';
                     <li><a href="#" class="text-white hover:underline">Press & News</a></li>
                     <li><a href="#" class="text-white hover:underline">Competitions</a></li>
                     <li><a href="#" class="text-white hover:underline">B2B</a></li>
-                    <li><a href="#" class="text-white hover:underline">Mr D</a></li>
                 </ul>
             </div>
 

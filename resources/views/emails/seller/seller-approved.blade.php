@@ -12,8 +12,14 @@ Your seller application has been **approved**.
 You can now log in to your account using the following credentials to proceed with Verification:
 
 @component('mail::panel')
-**Email:** {{ $user->email }}  
-**Password:** {{ $password }}
+**Email:** {{ $user->email }}
+
+@if($user->secondary_role !=null)
+
+**New Password For Both Your Accounts:** {{ $password }}
+@else
+ **Password:** {{ $password }}
+@endif
 @endcomponent
 
 @component('mail::button', ['url' => $loginUrl])

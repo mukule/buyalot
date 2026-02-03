@@ -32,7 +32,7 @@ const banners = page.props.banners ?? DEFAULT_BANNERS;
 const brands = page.props.brands ?? [];
 const productsByCategory = page.props.productsByCategory ?? {};
 
-// ✅ Transform backend variant data to simplified frontend structure
+// Transform backend variant data to simplified frontend structure
 const simplifiedProductsByCategory: Record<number, SimplifiedProduct[]> = Object.fromEntries(
     Object.entries(productsByCategory).map(([categoryId, products]) => [
         Number(categoryId),

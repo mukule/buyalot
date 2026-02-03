@@ -21,41 +21,7 @@ class HandleInertiaRequests extends Middleware
 
     public function share(Request $request): array
     {
-        [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
-
-        $user  = $request->user();
-        $roles = $user ? $user->getRoleNames() : collect();
-
-        // ------------------------
-        // Cart (works for auth + guests)
-        // ------------------------
-        $cartService = app(CartService::class);
-        $cart = $cartService
-            ->getCart($request)
-            ->load('items.productVariant.product');
-
-        // ------------------------
-        // Wishlist (using service)
-        // ------------------------
-        $wishlistService = new WishlistService($request);
-
-        $wishlistItems = $wishlistService->getWishlistVariantIds($request);
-        $wishlistCount = $wishlistService->getWishlistCount($request);
-
-        // ------------------------
-        // Customer session
-        // ------------------------
-        $customerId = null;
-        if ($user && $user->user_type === 'customer') {
-            $customerId = session('customer_id');
-            if (!$customerId) {
-                $customer = Customer::where('user_id', $user->id)->first();
-                if ($customer) {
-                    $customerId = $customer->id;
-                    session(['customer_id' => $customer->id]);
-                }
-            }
-        }
+        $user = $request->user();
 
         // ------------------------
         // Shared data
@@ -66,47 +32,73 @@ class HandleInertiaRequests extends Middleware
             'app' => [
                 'name' => config('app.name'),
                 'url'  => config('app.url'),
+                'appName' => config('app.name'),
             ],
 
-            'quote' => [
-                'message' => trim($message),
-                'author'  => trim($author),
-            ],
+            'quote' => function () {
+                [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
+                return [
+                    'message' => trim($message),
+                    'author'  => trim($author),
+                ];
+            },
 
             'auth' => [
                 'user' => $user ? [
-                    'id'    => $user->id,
-                    'name'  => $user->name,
-                    'email' => $user->email,
+                    'id'             => $user->id,
+                    'name'           => $user->name,
+                    'email'          => $user->email,
+                    'secondary_role' => $user->secondary_role,
+                    'user_type'      => $user->user_type,
                 ] : null,
-                'customer_id' => $customerId,
-                'roles' => $user ? $roles : [],
-                'permissions' => $user ? $user->getAllPermissions()->pluck('name') : [],
+                'active_role' => session('active_role', $user?->user_type),
+                'customer_id' => function () use ($user) {
+                    if ($user && $user->user_type === 'customer') {
+                        $customerId = session('customer_id');
+                        if (!$customerId) {
+                            $customer = Customer::where('user_id', $user->id)->first();
+                            if ($customer) {
+                                session(['customer_id' => $customer->id]);
+                                return $customer->id;
+                            }
+                        }
+                        return $customerId;
+                    }
+                    return null;
+                },
+                'roles'       => fn () => $user ? $user->getRoleNames() : [],
+                'permissions' => fn () => $user ? $user->getAllPermissions()->pluck('name') : [],
+                
+                // Lazy loaded Wishlist and Cart counts
                 'counts' => [
-                    'wishlist' => $wishlistCount,
-                    'cart'     => $cart->items->count(),
+                    'wishlist' => fn () => (new WishlistService($request))->getWishlistCount($request),
+                    'cart'     => fn () => app(CartService::class)->getCart($request)->items->count(),
                 ],
-                'wishlistVariantIds' => $wishlistItems,
-                'cartItems' => $cart->items->map(fn($item) => [
+                'wishlistVariantIds' => fn () => (new WishlistService($request))->getWishlistVariantIds($request),
+                'cartItems' => fn () => app(CartService::class)->getCart($request)->items->map(fn($item) => [
                     'product_variant_id' => $item->product_variant_id,
                     'quantity'           => $item->quantity,
                 ]),
             ],
 
-            // 🔑 Full cart shared globally
-            'cart' => $cart,
+            'appName' => config('app.name'),
+
+            // 🔑 Full cart shared globally - but only evaluated if used
+            'cart' => fn () => app(CartService::class)
+                ->getCart($request)
+                ->load('items.productVariant.product'),
 
             'flash' => [
-                'success'    => (string) $request->session()->get('success'),
-                'error'      => (string) $request->session()->get('error'),
-                'info'       => (string) $request->session()->get('info'),
-                'step'       => $request->session()->get('step'),
-                'product_id' => $request->session()->get('product_id'),
+                'success'    => fn () => $request->session()->get('success'),
+                'error'      => fn () => $request->session()->get('error'),
+                'info'       => fn () => $request->session()->get('info'),
+                'step'       => fn () => $request->session()->get('step'),
+                'product_id' => fn () => $request->session()->get('product_id'),
             ],
 
-            'ziggy' => [
+            'ziggy' => fn () => [
                 ...(new Ziggy)->toArray(),
-                'location' => (string) $request->url(),
+                'location' => $request->url(),
             ],
 
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',

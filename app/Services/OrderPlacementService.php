@@ -2,18 +2,17 @@
 
 namespace App\Services;
 
-use App\Models\Cart;
+use App\Mail\AdminOrderNotification;
+use App\Mail\CustomerOrderConfirmation;
 use App\Models\CheckoutSession;
+use App\Models\Customer\CustomerAddress;
 use App\Models\Orders\Order;
 use App\Models\Orders\OrderItem;
-use App\Models\ProductVariant;
-use App\Models\Customer\CustomerAddress;
+use App\Models\Payment\Payment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
-use App\Mail\CustomerOrderConfirmation;
-use App\Mail\AdminOrderNotification;
+use Illuminate\Support\Str;
 
 class OrderPlacementService
 {
@@ -22,7 +21,7 @@ class OrderPlacementService
      *
      * @throws \Exception
      */
-    public function placeOrder(int $checkoutSessionId): Order
+    public function placeOrder(int $checkoutSessionId,$paidAmount,$reference): Order
     {
         $checkoutSession = CheckoutSession::with('cart.items.productVariant.product')
             ->findOrFail($checkoutSessionId);
@@ -110,10 +109,12 @@ class OrderPlacementService
             $shipping = $checkoutSession->shipping_amount;
             $total = $checkoutSession->amount;
 
+            $gen_order_code= Str::upper(Str::random(10));
+
             // Create the order
             $order = Order::create([
                 'ulid' => Str::ulid(),
-                'order_code' => Str::upper(Str::random(10)),
+                'order_code' => $gen_order_code,
                 'customer_id' => $customerId,
                 'checkout_session_id' => $checkoutSession->id,
                 'subtotal' => $subtotal,
@@ -121,6 +122,8 @@ class OrderPlacementService
                 'shipping_amount' => $shipping,
                 'discount_amount' => $discount,
                 'total_amount' => $total,
+                'amount_paid' => $paidAmount,
+                'balance' =>(($total??0.00)-($paidAmount??0.00)),
                 'currency' => $cart->currency ?? 'KES',
                 'billing_address_id' => $billingAddress?->id,
                 'shipping_address_id' => $shippingAddress?->id ?? $billingAddress?->id,
@@ -162,13 +165,22 @@ class OrderPlacementService
             $checkoutSession->order_status = 'created';
             $checkoutSession->save();
 
+            //update payment records to link payment and order code
+            $payment_record=Payment::where('reference',$reference)->first();
+            if ($payment_record) {
+                $payment_record->reference = $gen_order_code;
+                $payment_record->save();
+            }
+
             DB::commit();
 
-            Log::info('Order placed successfully', [
-                'order_id' => $order->id,
-                'checkout_session_id' => $checkoutSessionId,
-                'cart_id' => $cart->id,
-            ]);
+//            Log::info('Order placed successfully', [
+//                'order_id' => $order->id,
+//                'checkout_session_id' => $checkoutSessionId,
+//                'cart_id' => $cart->id,
+//            ]);
+
+            //TODO: GENERATE INVOICE AND eTIMS INTEGRATION
 
             // ------------------- Send Emails -------------------
             try {

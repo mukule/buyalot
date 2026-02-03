@@ -26,10 +26,12 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Payments\MpesaPaymentController;
 use App\Http\Controllers\Payments\MpesaRequestController;
 use App\Http\Controllers\Payments\PaymentController;
+use App\Http\Controllers\RoleSwitchController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SellController;
 use App\Http\Controllers\SellerAccountController;
 use App\Http\Controllers\Seller\UserManagementController as SellerUserManagementController;
+use App\Http\Controllers\Admin\PolicyController;
 use App\Http\Controllers\Warehouse\WarehouseController;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken as VerifyCsrfTokenMiddleware;
 use Illuminate\Support\Facades\Route;
@@ -45,6 +47,8 @@ require __DIR__.'/customer.php';
 Route::get('/', [HomeController::class, 'index'])->name('home');
 
 // Product search
+Route::get('/refresh/cache', [\App\Services\SearchCacheService::class, 'refresh'])->name('refresh.cache');
+Route::get('/forget/cache', [\App\Services\SearchCacheService::class, 'forget'])->name('forget.cache');
 Route::get('/search', [SearchController::class, 'search'])->name('search');
 
 // POS Direct Login
@@ -54,10 +58,10 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth','role:admin|seller|vendor|super-admin','check_permission:view-dashboard'])->prefix('admin')->name('admin.')->group(function () {
 
     // Invoices management (Admin)
-    Route::get('/invoices', [\App\Http\Controllers\Admin\InvoiceController::class, 'index'])
-        ->name('invoices.index')
+    Route::get('/invoices', [\App\Http\Controllers\Admin\InvoiceController::class, 'index'])->name('invoices.index')
         ->middleware('check_permission:view-invoices');
     Route::get('/dashboard',[HomeController::class,'dashboard'])->name('dashboard');
 //        function () {
@@ -74,6 +78,9 @@ Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard']
         ->name('products.destroyAll');
 
     Route::resource('products', ProductController::class);
+    Route::post('/products/{product}/restock-variants', [ProductController::class, 'restockVariants'])
+        ->name('products.restock.variants');
+
 
     // Delete a single product image
     Route::delete('products/{product}/images/{imageId}', [ProductController::class, 'destroyImage'])
@@ -136,9 +143,7 @@ Route::middleware(['auth','role_or_permission:admin|view-orders'])->prefix('admi
         ->name('orders.show');
 });
 
-Route::middleware(['auth', 'role_or_permission:admin|view-categories'])
-    ->prefix('admin')
-    ->name('admin.')
+Route::middleware(['auth', 'role_or_permission:admin|super-admin|view-categories'])->prefix('admin')->name('admin.')
     ->group(function () {
 
         Route::get('/categories', [\App\Http\Controllers\Admin\CategoryController::class, 'index'])->name('categories.index');
@@ -149,12 +154,36 @@ Route::middleware(['auth', 'role_or_permission:admin|view-categories'])
         Route::delete('/categories/{category}', [\App\Http\Controllers\Admin\CategoryController::class, 'destroy'])->name('categories.destroy');
         Route::post('/categories/{category}/restore', [\App\Http\Controllers\Admin\CategoryController::class, 'restore'])->name('categories.restore');
         Route::get('/categories/{category}', [\App\Http\Controllers\Admin\CategoryController::class, 'show'])->name('categories.show');
+        Route::delete('/categories/{category}/force',[\App\Http\Controllers\Admin\CategoryController::class, 'forceDestroy'])->name('categories.force-destroy');
+
     });
 
 
-Route::middleware(['auth','role_or_permission:admin|view-brands'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth','role_or_permission:admin|super-admin|view-brands'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/brands', [\App\Http\Controllers\Admin\BrandController::class, 'index'])->name('brands.index');
 });
+
+
+Route::middleware(['auth', 'role_or_permission:admin|view-policies'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+
+        Route::get('/policies', [PolicyController::class, 'index'])->name('policies.index');
+        Route::get('/policies/create', [PolicyController::class, 'create'])->name('policies.create');
+        Route::post('/policies', [PolicyController::class, 'store'])->name('policies.store');
+        Route::get('/policies/{policy}/edit', [PolicyController::class, 'edit'])->name('policies.edit');
+        Route::put('/policies/{policy}', [PolicyController::class, 'update'])->name('policies.update');
+        Route::delete('/policies/{policy}', [PolicyController::class, 'destroy'])->name('policies.destroy');
+
+        Route::get('/policies/{policy}/versions', [\App\Http\Controllers\Admin\PolicyVersionController::class, 'index'])->name('policies.versions.index');
+        Route::get('/policies/{policy}/versions/create', [\App\Http\Controllers\Admin\PolicyVersionController::class, 'create'])->name('policies.versions.create');
+        Route::post('/policies/{policy}/versions', [\App\Http\Controllers\Admin\PolicyVersionController::class, 'store'])->name('policies.versions.store');
+        Route::get('/policies/{policy}/versions/{version}/edit', [\App\Http\Controllers\Admin\PolicyVersionController::class, 'edit'])->name('policies.versions.edit');
+        Route::put('/policies/{policy}/versions/{version}', [\App\Http\Controllers\Admin\PolicyVersionController::class, 'update'])->name('policies.versions.update');
+        Route::delete('/policies/{policy}/versions/{version}', [\App\Http\Controllers\Admin\PolicyVersionController::class, 'destroy'])->name('policies.versions.destroy');
+});
+
 
 Route::middleware(['auth', 'check_permission:access-pos'])->prefix('admin')->name('admin.')->group(function () {
     // POS Routes
@@ -332,6 +361,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
 Route::prefix('sell')->group(function () {
     Route::get('/', [SellController::class, 'index'])->name('sell.index');
     Route::get('/apply', [SellController::class, 'applyForm'])->name('sell.applyForm');
+    Route::get('/get-progress', [SellController::class, 'getProgress'])->name('sell.getProgress');
 
     Route::post('/save-progress', [SellController::class, 'saveProgress'])->name('sell.saveProgress');
     Route::post('/clear-progress', [SellController::class, 'clearProgress'])->name('sell.clearProgress');
@@ -342,8 +372,6 @@ Route::prefix('sell')->group(function () {
 Route::prefix('seller')->middleware(['auth', 'role:seller'])->name('seller.')->group(function () {
     Route::get('/profile', [SellerAccountController::class, 'profile'])->name('profile');
     Route::post('/documents', [SellerAccountController::class, 'submitDocument']);
-
-
 });
 
 Route::get('products/{slug}', [HomeController::class, 'productDetails'])->name('product.details');
@@ -383,9 +411,11 @@ Route::post('/shipping/estimate', [CartController::class, 'estimateShipping'])
 Route::post('/coupons/validate', [CouponController::class, 'validateCode'])
     ->name('coupons.validate');
 
-Route::get('{slug}', [HomeController::class, 'category'])
-    ->name('category.show');
+Route::get('/{slug}', [HomeController::class, 'category'])->name('category.show');
 
+Route::middleware(['auth'])->group(function () {
+    Route::post('/switch-role', [RoleSwitchController::class, 'switchRole'])->name('role.switch');
+});
 
 Route::prefix('payments')->name('payments.')->group(function () {
     Route::get('providers', [PaymentController::class, 'providers'])->name('providers');
@@ -396,6 +426,7 @@ Route::prefix('payments')->name('payments.')->group(function () {
     Route::get('requests/{checkout_request_id}/status', [MpesaRequestController::class, 'statusByCheckoutId'])
         ->name('requests.status');
     Route::post('callback/{provider}', [PaymentController::class, 'callback'])->withoutMiddleware([VerifyCsrfTokenMiddleware::class])->name('callback');
+});
 });
 
 

@@ -2,7 +2,7 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem, type Category, type VariantCategory, AppPageProps } from '@/types';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 interface PageProps
     extends AppPageProps<{
@@ -38,27 +38,34 @@ const form = useForm({
     name: category.name,
     slug: category.slug,
     active: category.active ?? true,
-    parent_id: category.parent_id ?? ('' as number | ''),
+    parent_id: category.parent_id ?? null,
     variant_categories: defaultVariantIds,
 });
 
 // Parent category search
-const parentSearch = ref(category.parent_id ? allCategories.find((c) => c.id === category.parent_id)?.name || '' : '');
+const parentSearch = ref(
+    category.parent_id ? allCategories.find((c) => c.id === category.parent_id)?.name || '' : ''
+);
 const showDropdown = ref(false);
 const dropdownRef = ref<HTMLElement | null>(null);
 
+// Filter parent categories (exclude self)
 const filteredParents = computed(() => {
     const candidates = allCategories.filter((c) => c.id !== category.id);
     if (!parentSearch.value) return candidates.slice(0, 5);
-    return candidates.filter((c) => c.name.toLowerCase().includes(parentSearch.value.toLowerCase())).slice(0, 5);
+    return candidates
+        .filter((c) => c.name.toLowerCase().includes(parentSearch.value.toLowerCase()))
+        .slice(0, 5);
 });
 
+// Select a parent from dropdown
 function selectParent(c: Category) {
     form.parent_id = c.id;
     parentSearch.value = c.name;
     showDropdown.value = false;
 }
 
+// Handle click outside to close dropdown
 function handleClickOutside(event: MouseEvent) {
     if (dropdownRef.value && !dropdownRef.value.contains(event.target as Node)) {
         showDropdown.value = false;
@@ -67,6 +74,13 @@ function handleClickOutside(event: MouseEvent) {
 
 onMounted(() => document.addEventListener('click', handleClickOutside));
 onBeforeUnmount(() => document.removeEventListener('click', handleClickOutside));
+
+// Watch for clearing the input to remove parent
+watch(parentSearch, (val) => {
+    if (!val) {
+        form.parent_id = null;
+    }
+});
 </script>
 
 <template>

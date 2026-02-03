@@ -16,8 +16,8 @@ use App\Mail\SellerVerificationStatusChanged;
 
 class SellerVerificationController extends Controller
 {
-   
-   
+
+
     public function show(SellerApplication $sellerApplication)
 {
     if (!$sellerApplication->isApproved()) {
@@ -26,14 +26,20 @@ class SellerVerificationController extends Controller
             ->with('info', 'Please approve the applicant first before proceeding to verification.');
     }
 
-    $application = $sellerApplication->load('user');
+//    $application = $sellerApplication->load('user');
+        $application=$sellerApplication->load(['user.sellerDocuments']);
+
+    if (!$sellerApplication->user) {
+        return redirect()->back()->with('error', 'No uploaded documents found for this seller application.');
+    }
 
     $documentTypes = DocumentType::all();
 
-    $sellerDocuments = $application->user
-        ->sellerDocuments()
-        ->get()
-        ->keyBy('document_type_id');
+//    $sellerDocuments = $application->user
+//        ->sellerDocuments()
+//        ->get()
+//        ->keyBy('document_type_id');
+        $sellerDocuments = $sellerApplication->user->sellerDocuments->keyBy('document_type_id');
 
     return Inertia::render('Admin/SellerApplications/Verification', [
         'application' => $application,

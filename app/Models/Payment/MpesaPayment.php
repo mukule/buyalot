@@ -19,6 +19,7 @@ class MpesaPayment extends Model
         'result_desc',
         'transaction_date',
         'raw_payload',
+        'amount_paid',
     ];
 
     protected $casts = [

@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
+use phpDocumentor\Reflection\Types\Boolean;
 use Vinkla\Hashids\Facades\Hashids;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
@@ -23,47 +24,51 @@ use Illuminate\Support\Facades\Log;
 
 class SellerApplicationController extends Controller
 {
+
     public function index(Request $request)
-    {
-        $search = $request->input('search');
+{
+    $search = $request->input('search');
 
-        $applicationsQuery = SellerApplication::query();
+    $applicationsQuery = SellerApplication::query();
 
-        if ($search) {
-            $applicationsQuery->where(function($query) use ($search) {
-                $query->where('business_name', 'like', "%{$search}%")
-                    ->orWhere('contact_email', 'like', "%{$search}%")
-                    ->orWhere('contact_phone', 'like', "%{$search}%")
-                    ->orWhere('company_legal_name', 'like', "%{$search}%");
-            });
-        }
-
-        $applications = $applicationsQuery
-            ->latest()
-            ->paginate(20)
-            ->through(function ($application) {
-                return [
-                    'id' => $application->id,
-                    'hashid' => Hashids::encode($application->id),
-                    'first_name' => $application->first_name,
-                    'last_name' => $application->last_name,
-                    'business_name' => $application->business_name,
-                    'company_legal_name' => $application->company_legal_name,
-                    'business_type' => $application->business_type,
-                    'primary_product_category' => $application->primary_product_category,
-                    'email' => $application->contact_email,
-                    'phone' => $application->contact_phone,
-                    'status' => $application->status,
-                    'is_active' => (int) $application->status === (int) SellerApplication::STATUS_APPROVED,
-                    'created_at' => optional($application->created_at)->toDateString(),
-                ];
-            });
-
-        return Inertia::render('Admin/SellerApplications/Index', [
-            'applications' => $applications,
-            'filters' => $request->only('search'),
-        ]);
+    if ($search) {
+        $applicationsQuery->where(function ($query) use ($search) {
+            $query->where('company_legal_name', 'like', "%{$search}%")
+                  ->orWhere('contact_email', 'like', "%{$search}%")
+                  ->orWhere('contact_phone', 'like', "%{$search}%")
+                  ->orWhere('owner_first_name', 'like', "%{$search}%")
+                  ->orWhere('owner_last_name', 'like', "%{$search}%")
+                  ->orWhere('primary_product_category', 'like', "%{$search}%")
+                  ->orWhere('business_type', 'like', "%{$search}%");
+        });
     }
+
+    $applications = $applicationsQuery
+        ->latest()
+        ->paginate(20)
+        ->through(function ($application) {
+            return [
+                'id' => $application->id,
+                'hashid' => Hashids::encode($application->id),
+                'owner_first_name' => $application->owner_first_name,
+                'owner_last_name' => $application->owner_last_name,
+                'company_legal_name' => $application->company_legal_name,
+                'business_type' => $application->business_type,
+                'primary_product_category' => $application->primary_product_category,
+                'email' => $application->contact_email,
+                'phone' => $application->contact_phone,
+                'status' => $application->status,
+                'is_active' => (int) $application->status === SellerApplication::STATUS_APPROVED,
+                'created_at' => optional($application->created_at)->toDateString(),
+            ];
+        });
+
+    return Inertia::render('Admin/SellerApplications/Index', [
+        'applications' => $applications,
+        'filters' => $request->only('search'),
+    ]);
+}
+
 
     public function show(SellerApplication $sellerApplication)
     {
@@ -83,24 +88,32 @@ class SellerApplicationController extends Controller
 
     public function approve(SellerApplication $sellerApplication)
 {
-    if (User::where('email', $sellerApplication->contact_email)->exists()) {
-        return redirect()->back()->with('error', 'A user with this email already exists.');
-    }
-
     DB::beginTransaction();
-
-    try {
-        $password = Str::random(8);
-
-        $user = User::create([
-            'name' => $sellerApplication->first_name . ' ' . $sellerApplication->last_name,
-            'email' => $sellerApplication->contact_email,
-            'password' => bcrypt($password),
-            'seller_application_id' => $sellerApplication->id,
-            'phone' => $sellerApplication->contact_phone,
-            'email_verified_at' => now(),
-            'user_type' => 'seller'
-        ]);
+         $password = Str::random(8);
+     try {
+         if (User::where('email', $sellerApplication->contact_email)->exists()) {
+             //update secondary email
+             $user = User::where('email', $sellerApplication->contact_email)->first();
+                if (SellerUser::where('user_id', $user->id)->exists()) {
+                    return redirect()->back()->with('error', 'Seller as another account already.');
+                }
+             // 2. Call update on that specific instance
+             $user->update([
+                 "secondary_role" => "seller",
+                 "password" => bcrypt($password),
+                 "seller_application_id" => $sellerApplication->id,
+             ]);
+         }else{
+             $user = User::create([
+                 'name' => $sellerApplication->first_name . ' ' . $sellerApplication->last_name,
+                 'email' => $sellerApplication->contact_email,
+                 'password' => bcrypt($password),
+                 'seller_application_id' => $sellerApplication->id,
+                 'phone' => $sellerApplication->contact_phone,
+                 'email_verified_at' => now(),
+                 'user_type' => 'seller'
+             ]);
+         }
 
         $user->assignRole('seller');
         SellerUser::create([
@@ -115,15 +128,13 @@ class SellerApplicationController extends Controller
         ]);
 
         $loginUrl = route('login');
-
+         DB::commit();
         try {
-            Mail::to($user->email)->send(new SellerApprovedMail($user, $password, $loginUrl));
-        } catch (\Exception $e) {
-            Log::error('Mail sending failed: ' . $e->getMessage());
-            throw $e;
-        }
-
-        DB::commit();
+                Mail::to($user->email)->send(new SellerApprovedMail($user, $password, $loginUrl));
+            } catch (\Exception $e) {
+                Log::error('Mail sending failed: ' . $e->getMessage());
+                throw $e;
+            }
 
         return redirect()->back()->with('success', 'Seller approved, user account created and email sent.');
     } catch (\Exception $e) {

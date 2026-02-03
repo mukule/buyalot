@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Products\Product;
+use App\Models\Products\ProductVariant;
+use App\Models\Traits\HasHashid;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Support\Str;
-use App\Models\Traits\HasHashid;
 use Vinkla\Hashids\Facades\Hashids;
 
 class Wishlist extends Model

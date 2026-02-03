@@ -14,7 +14,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Order extends Model
 {
     use SoftDeletes;
-
     protected $fillable = [
         'order_code',
         'customer_id',
@@ -42,7 +41,9 @@ class Order extends Model
         'shipped_at',
         'delivered_at',
         'cancelled_at',
-        'pos_session_id',
+        'amount_paid',
+        'balance',
+        'ulid',
     ];
 
     protected $casts = [
@@ -51,6 +52,8 @@ class Order extends Model
         'shipping_amount' => 'decimal:2',
         'discount_amount' => 'decimal:2',
         'total_amount' => 'decimal:2',
+        'amount_paid'=> 'decimal:2',
+        'balance'=> 'decimal:2',
         'metadata' => 'json',
         'fulfillment_info' => 'json',
         'applied_discounts' => 'json',

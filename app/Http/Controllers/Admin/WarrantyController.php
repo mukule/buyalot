@@ -3,12 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Product;
+use App\Models\Products\Product;
 use App\Models\Warranty;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Illuminate\Support\Facades\Log;
-
 use Vinkla\Hashids\Facades\Hashids;
 
 class WarrantyController extends Controller
@@ -28,7 +26,7 @@ class WarrantyController extends Controller
         ]);
     }
 
-    
+
     public function store(Request $request, Product $product)
 {
     // Ensure the logged-in user is the owner of the product
@@ -65,7 +63,7 @@ class WarrantyController extends Controller
 }
 
 
-   
+
     public function edit(Product $product, Warranty $warranty)
     {
         abort_if($warranty->product_id !== $product->id, 404);
@@ -76,7 +74,7 @@ class WarrantyController extends Controller
         ]);
     }
 
-  
+
 public function update(Request $request, Product $product, Warranty $warranty)
 {
     // Ensure the warranty belongs to the product
@@ -135,7 +133,7 @@ public function toggleActive(string $warranty)
 
     $warranty = Warranty::findOrFail($decoded[0]);
 
-    
+
     if ($warranty->product->owner_id !== auth()->id()) {
         return redirect()->back()->with('error', 'You are not allowed to perform this action.');
     }

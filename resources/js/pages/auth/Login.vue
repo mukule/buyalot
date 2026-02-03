@@ -49,7 +49,7 @@ const handleGoogleLogin = () => {
 </script>
 
 <template>
-    <AuthBase title="Log in to your account" description="Enter your email and password below to log in">
+    <AuthBase title="Log in to your customer account" description="Enter your email and password below to log in">
         <Head title="Log in" />
 
         <div v-if="status" class="mb-4 text-center text-sm font-medium text-green-600">
@@ -122,7 +122,7 @@ const handleGoogleLogin = () => {
                         </Label>
                     </div>
 
-                    <Button type="submit" class="mt-4 w-full" :tabindex="4" :disabled="form.processing">
+                    <Button type="submit" class="mt-4 w-full text-white" :tabindex="4" :disabled="form.processing">
                         <LoaderCircle v-if="form.processing" class="h-4 w-4 animate-spin" />
                         Log in
                     </Button>

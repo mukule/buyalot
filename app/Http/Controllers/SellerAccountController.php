@@ -16,6 +16,8 @@ class SellerAccountController extends Controller
 {
     public function profile()
     {
+
+
         $user = Auth::user();
         $application = $user->sellerApplication;
 

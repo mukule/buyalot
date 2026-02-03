@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, reactive, watch } from 'vue';
+import { nextTick, reactive, toRaw, watch } from 'vue';
 
 interface VariantCategory {
     id: number;
@@ -8,6 +8,8 @@ interface VariantCategory {
 }
 
 interface VariantRow {
+    id?: number | null;
+    sku?: string | null;
     values: Record<number, string>;
     buying_price: number;
     marked_price: number;
@@ -23,9 +25,11 @@ const emit = defineEmits<{
     (e: 'update:variantRows', value: VariantRow[]): void;
 }>();
 
+// Local reactive state
 const localVariantCategories = reactive([...props.variantCategories]);
 const variantRows = reactive<VariantRow[]>([]);
 
+// Suggestions
 const suggestionsOpen = reactive<Record<number, Record<number, boolean>>>({});
 const filteredSuggestions = reactive<Record<number, Record<number, { id: number; value: string }[]>>>({});
 const dropdownPositions = reactive<Record<number, Record<number, { top: number; left: number; width: number }>>>({});
@@ -40,22 +44,27 @@ function initSuggestionTracking(rowIndex: number, categoryId: number, initialOpt
     dropdownPositions[rowIndex][categoryId] = { top: 0, left: 0, width: 0 };
 }
 
-// Initialize from props if editing
+// Initialize from props
 if (props.variantRows?.length) {
     props.variantRows.forEach((row, rowIndex) => {
-        variantRows.push({
+        const copiedRow: VariantRow = {
+            id: row.id ?? null,
+            sku: row.sku ?? null,
             values: { ...row.values },
-            buying_price: row.buying_price,
-            marked_price: row.marked_price,
-            stock: row.stock,
-        });
+            buying_price: Number(row.buying_price) || 0,
+            marked_price: Number(row.marked_price) || 0,
+            stock: Number(row.stock) || 0,
+        };
+        variantRows.push(copiedRow);
         localVariantCategories.forEach((c) => initSuggestionTracking(rowIndex, c.id, c.options ?? []));
     });
 }
 
-// Add new row
+// Add new variant
 function addRow() {
     const newRow: VariantRow = {
+        id: null,
+        sku: null,
         values: Object.fromEntries(localVariantCategories.map((c) => [c.id, ''])),
         buying_price: 0,
         marked_price: 0,
@@ -66,7 +75,7 @@ function addRow() {
     localVariantCategories.forEach((c) => initSuggestionTracking(rowIndex, c.id, c.options ?? []));
 }
 
-// Remove row
+// Remove variant
 function removeRow(index: number) {
     variantRows.splice(index, 1);
     delete suggestionsOpen[index];
@@ -74,7 +83,7 @@ function removeRow(index: number) {
     delete dropdownPositions[index];
 }
 
-// Suggestions
+// Suggestions logic
 function updateSuggestions(rowIndex: number, category: VariantCategory, event: Event) {
     const value = variantRows[rowIndex].values[category.id]?.toLowerCase() || '';
     if (!category.options) return;
@@ -100,18 +109,20 @@ function selectSuggestion(rowIndex: number, categoryId: number, value: string) {
 }
 
 function hideSuggestions(rowIndex: number, categoryId: number) {
-    window.setTimeout(() => {
+    setTimeout(() => {
         suggestionsOpen[rowIndex][categoryId] = false;
     }, 100);
 }
 
-// Emit updates
+// Emit updates whenever variantRows change
 watch(
     variantRows,
-    (newVal) => {
+    () => {
         emit(
             'update:variantRows',
-            newVal.map((row) => ({
+            toRaw(variantRows).map((row) => ({
+                id: row.id ?? null,
+                sku: row.sku ?? null,
                 values: { ...row.values },
                 buying_price: row.buying_price,
                 marked_price: row.marked_price,
@@ -127,65 +138,54 @@ watch(
     <div class="space-y-6">
         <div class="mb-2 flex items-center justify-between">
             <h3 class="text-lg font-semibold text-gray-800">Product Variants</h3>
-            <button type="button" class="rounded-md bg-primary px-4 py-2 text-sm text-white hover:bg-secondary" @click="addRow">Add Row</button>
+            <button type="button" class="rounded-md bg-primary px-4 py-2 text-sm text-white hover:bg-secondary" @click="addRow">Add Variant</button>
         </div>
 
-        <div class="mt-2 overflow-x-auto">
-            <table class="min-w-full border border-gray-200 text-sm">
-                <thead>
-                    <tr class="bg-gray-100">
-                        <th v-for="c in localVariantCategories" :key="c.id" class="px-4 py-2 text-left">{{ c.name }}</th>
-                        <th class="px-4 py-2 text-left">Buying Price</th>
-                        <th class="px-4 py-2 text-left">Marked Price</th>
-                        <th class="px-4 py-2 text-left">Stock</th>
-                        <th class="px-4 py-2 text-left">Actions</th>
-                    </tr>
-                </thead>
-
-                <tbody>
-                    <tr v-for="(row, rowIndex) in variantRows" :key="rowIndex" class="border-t">
-                        <td v-for="c in localVariantCategories" :key="c.id" class="relative px-2 py-1">
-                            <input
-                                v-model="row.values[c.id]"
-                                type="text"
-                                placeholder="Enter value"
-                                class="w-full rounded-md border border-gray-300 px-2 py-1"
-                                @input="updateSuggestions(rowIndex, c, $event)"
-                                @focus="updateSuggestions(rowIndex, c, $event)"
-                                @blur="hideSuggestions(rowIndex, c.id)"
-                            />
-                            <teleport to="body">
-                                <ul
-                                    v-if="suggestionsOpen[rowIndex]?.[c.id]"
-                                    :style="{
-                                        top: `${dropdownPositions[rowIndex][c.id]?.top}px`,
-                                        left: `${dropdownPositions[rowIndex][c.id]?.left}px`,
-                                        width: `${dropdownPositions[rowIndex][c.id]?.width}px`,
-                                    }"
-                                    class="absolute z-50 max-h-40 overflow-auto rounded-md border bg-white shadow-lg"
+        <div class="space-y-4">
+            <div v-for="(row, rowIndex) in variantRows" :key="rowIndex" class="space-y-4 rounded-lg border border-gray-200 p-4 shadow-sm">
+                <!-- Attributes Fieldset -->
+                <fieldset class="space-y-2">
+                    <legend class="text-sm font-medium text-gray-700">Attributes</legend>
+                    <div v-for="c in localVariantCategories" :key="c.id" class="relative">
+                        <label class="block text-sm font-medium text-gray-600">{{ c.name }}</label>
+                        <input
+                            v-model="row.values[c.id]"
+                            type="text"
+                            placeholder="Enter value"
+                            class="w-full rounded-md border border-gray-300 px-2 py-1"
+                            @input="updateSuggestions(rowIndex, c, $event)"
+                            @focus="updateSuggestions(rowIndex, c, $event)"
+                            @blur="hideSuggestions(rowIndex, c.id)"
+                        />
+                        <teleport to="body">
+                            <ul
+                                v-if="suggestionsOpen[rowIndex]?.[c.id]"
+                                :style="{
+                                    top: `${dropdownPositions[rowIndex][c.id]?.top}px`,
+                                    left: `${dropdownPositions[rowIndex][c.id]?.left}px`,
+                                    width: `${dropdownPositions[rowIndex][c.id]?.width}px`,
+                                }"
+                                class="absolute z-50 max-h-40 overflow-auto rounded-md border bg-white shadow-lg"
+                            >
+                                <li
+                                    v-for="s in filteredSuggestions[rowIndex][c.id]"
+                                    :key="s.id"
+                                    class="cursor-pointer px-2 py-1 hover:bg-gray-200"
+                                    @mousedown.prevent="selectSuggestion(rowIndex, c.id, s.value)"
                                 >
-                                    <li
-                                        v-for="s in filteredSuggestions[rowIndex][c.id]"
-                                        :key="s.id"
-                                        class="cursor-pointer px-2 py-1 hover:bg-gray-200"
-                                        @mousedown.prevent="selectSuggestion(rowIndex, c.id, s.value)"
-                                    >
-                                        {{ s.value }}
-                                    </li>
-                                </ul>
-                            </teleport>
-                        </td>
+                                    {{ s.value }}
+                                </li>
+                            </ul>
+                        </teleport>
+                    </div>
+                </fieldset>
 
-                        <td class="px-2 py-1">
-                            <input
-                                v-model.number="row.buying_price"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                class="w-full rounded-md border border-gray-300 px-2 py-1"
-                            />
-                        </td>
-                        <td class="px-2 py-1">
+                <!-- Prices Fieldset -->
+                <fieldset class="space-y-2">
+                    <legend class="text-sm font-medium text-gray-700">Prices</legend>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600">Recommended Retail Price</label>
                             <input
                                 v-model.number="row.marked_price"
                                 type="number"
@@ -193,16 +193,40 @@ watch(
                                 step="0.01"
                                 class="w-full rounded-md border border-gray-300 px-2 py-1"
                             />
-                        </td>
-                        <td class="px-2 py-1">
-                            <input v-model.number="row.stock" type="number" min="0" class="w-full rounded-md border border-gray-300 px-2 py-1" />
-                        </td>
-                        <td class="px-2 py-1">
-                            <button type="button" class="text-red-600 hover:underline" @click="removeRow(rowIndex)">Remove</button>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600">Selling Price</label>
+                            <input
+                                v-model.number="row.buying_price"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                class="w-full rounded-md border border-gray-300 px-2 py-1"
+                            />
+                        </div>
+
+                        <span
+                            v-if="row.buying_price > 0 && row.marked_price > row.buying_price"
+                            class="mt-1 inline-block rounded bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700"
+                        >
+                        Discount Offered:  &nbsp; {{ (row.marked_price - row.buying_price).toFixed(2) }}
+                         </span>
+
+                    </div>
+                </fieldset>
+
+                <!-- Stock Fieldset -->
+                <fieldset class="space-y-2">
+                    <legend class="text-sm font-medium text-gray-700">Stock</legend>
+                    <input v-model.number="row.stock" type="number" min="0" class="w-full rounded-md border border-gray-300 px-2 py-1" />
+                </fieldset>
+
+                <!-- Actions -->
+                <div class="flex justify-end">
+                    <button type="button" class="text-red-600 hover:underline" @click="removeRow(rowIndex)">Remove</button>
+                </div>
+            </div>
         </div>
     </div>
 </template>

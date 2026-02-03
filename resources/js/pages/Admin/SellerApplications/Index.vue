@@ -52,15 +52,14 @@ function statusLabel(status: number | undefined): string {
     }
 }
 
-const currentApp = computed(() =>
-    applications.value.find((a) => a.id === dropdownAppId.value) ?? null
-);
+const currentApp = computed(() => applications.value.find((a) => a.id === dropdownAppId.value) ?? null);
 
 function goToPreviousPage() {
     if (page.props.applications.prev_page_url) {
         router.visit(page.props.applications.prev_page_url, { preserveState: true, replace: true });
     }
 }
+
 function goToNextPage() {
     if (page.props.applications.next_page_url) {
         router.visit(page.props.applications.next_page_url, { preserveState: true, replace: true });
@@ -138,29 +137,34 @@ watch(search, (val) => {
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="p-4">
             <div class="card flex flex-col gap-6 rounded-lg bg-white p-4 shadow-sm">
+                <!-- Header + Search -->
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <h1 class="text-2xl font-semibold">Vendor Applications</h1>
                     <input
                         v-model="search"
                         type="text"
-                        placeholder="Search business type, company name, or product category"
+                        placeholder="Search by name, company, business type, or product category"
                         class="w-full max-w-xs rounded border border-gray-300 p-2 text-sm sm:w-auto"
                     />
                 </div>
+
                 <hr />
-                <div class="overflow-visible overflow-x-auto rounded-xl">
-                    <table class="min-w-full table-auto text-left text-sm">
-                        <thead class="bg-primary text-white">
+
+                <!-- Table -->
+                <div class="overflow-visible overflow-x-auto">
+                    <table class="w-full table-auto divide-y divide-gray-200 text-sm">
+                        <thead class="bg-gray-200">
                             <tr>
-                                <th class="px-4 py-3">#</th>
-                                <th class="px-4 py-3">Name</th>
-                                <th class="px-4 py-3">Company Name</th>
-                                <th class="px-4 py-3">Business Type</th>
-                                <th class="px-4 py-3">Primary Products</th>
-                                <th class="px-4 py-3">Status</th>
-                                <th class="px-4 py-3">Actions</th>
+                                <th class="px-4 py-3 text-left">#</th>
+                                <th class="px-4 py-3 text-left">Name</th>
+                                <th class="px-4 py-3 text-left">Company Name</th>
+                                <th class="px-4 py-3 text-left">Business Type</th>
+                                <th class="px-4 py-3 text-left">Primary Products</th>
+                                <th class="px-4 py-3 text-left">Status</th>
+                                <th class="px-4 py-3 text-left">Actions</th>
                             </tr>
                         </thead>
+
                         <tbody>
                             <tr v-for="(app, index) in applications" :key="app.id">
                                 <td class="px-4 py-3">{{ index + 1 }}</td>
@@ -168,7 +172,7 @@ watch(search, (val) => {
                                     class="cursor-pointer px-4 py-3 font-medium text-primary hover:underline"
                                     @click="goToApplicationShow(app.hashid)"
                                 >
-                                    {{ app.first_name }} {{ app.last_name }}
+                                    {{ (app.owner_first_name || '') + ' ' + (app.owner_last_name || '') }}
                                 </td>
                                 <td class="px-4 py-3">{{ app.company_legal_name ?? '-' }}</td>
                                 <td class="px-4 py-3">{{ app.business_type ?? '-' }}</td>
@@ -194,6 +198,7 @@ watch(search, (val) => {
                     </table>
                 </div>
 
+                <!-- Pagination -->
                 <div class="mt-4 flex justify-end space-x-4">
                     <button
                         @click="goToPreviousPage"
@@ -212,52 +217,7 @@ watch(search, (val) => {
                 </div>
             </div>
 
-            <!-- Dropdown rendered via Teleport to prevent table overflow -->
-<!--            <Teleport to="body">-->
-<!--                <div-->
-<!--                    v-if="dropdownAppId !== null"-->
-<!--                    class="ring-opacity-5 absolute z-[9999] w-36 rounded-md border bg-white"-->
-<!--                    :style="{ left: `${dropdownCoords.x}px`, top: `${dropdownCoords.y}px` }"-->
-<!--                    @click.outside="closeDropdown"-->
-<!--                >-->
-<!--                    <ul class="divide-y divide-gray-200 text-sm">-->
-<!--                        <li>-->
-<!--                            <button-->
-<!--                                class="w-full px-4 py-2 text-left text-green-700 hover:bg-green-100"-->
-<!--                                @click="-->
-<!--                                    approveApplication(applications.find((a) => a.id === dropdownAppId)?.hashid ?? '');-->
-<!--                                    closeDropdown();-->
-<!--                                "-->
-<!--                            >-->
-<!--                                Approve-->
-<!--                            </button>-->
-<!--                        </li>-->
-<!--                        <li>-->
-<!--                            <button-->
-<!--                                class="w-full px-4 py-2 text-left text-red-700 hover:bg-red-100"-->
-<!--                                @click="-->
-<!--                                    openRejectModal(applications.find((a) => a.id === dropdownAppId)?.hashid ?? '');-->
-<!--                                    closeDropdown();-->
-<!--                                "-->
-<!--                            >-->
-<!--                                Reject-->
-<!--                            </button>-->
-<!--                        </li>-->
-<!--                        <li>-->
-<!--                            <button-->
-<!--                                @click="-->
-<!--                                    goToSellerVerification(applications.find((a) => a.id === dropdownAppId)?.hashid ?? '');-->
-<!--                                    closeDropdown();-->
-<!--                                "-->
-<!--                                class="w-full px-4 py-2 text-left text-blue-700 hover:bg-blue-100"-->
-<!--                            >-->
-<!--                                Verify-->
-<!--                            </button>-->
-<!--                        </li>-->
-<!--                    </ul>-->
-<!--                </div>-->
-<!--            </Teleport>-->
-
+            <!-- Dropdown via Teleport -->
             <Teleport to="body">
                 <div
                     v-if="dropdownAppId !== null"
@@ -267,38 +227,34 @@ watch(search, (val) => {
                 >
                     <ul class="divide-y divide-gray-200 text-sm">
                         <template v-if="currentApp">
-                            <!-- ✅ Show Approve + Reject only if NOT approved (status != 1) -->
                             <li v-if="currentApp.status !== 1">
                                 <button
                                     class="w-full px-4 py-2 text-left text-green-700 hover:bg-green-100"
                                     @click="
-              approveApplication(currentApp.hashid);
-              closeDropdown();
-            "
+                                        approveApplication(currentApp.hashid);
+                                        closeDropdown();
+                                    "
                                 >
                                     Approve
                                 </button>
                             </li>
-
                             <li v-if="currentApp.status !== 1">
                                 <button
                                     class="w-full px-4 py-2 text-left text-red-700 hover:bg-red-100"
                                     @click="
-              openRejectModal(currentApp.hashid);
-              closeDropdown();
-            "
+                                        openRejectModal(currentApp.hashid);
+                                        closeDropdown();
+                                    "
                                 >
                                     Reject
                                 </button>
                             </li>
-
-                            <!-- ✅ Show Verify only if approved (status == 1) -->
                             <li v-if="currentApp.status === 1">
                                 <button
                                     @click="
-              goToSellerVerification(currentApp.hashid);
-              closeDropdown();
-            "
+                                        goToSellerVerification(currentApp.hashid);
+                                        closeDropdown();
+                                    "
                                     class="w-full px-4 py-2 text-left text-blue-700 hover:bg-blue-100"
                                 >
                                     Verify
@@ -308,8 +264,6 @@ watch(search, (val) => {
                     </ul>
                 </div>
             </Teleport>
-
-
 
             <!-- Reject Modal -->
             <transition name="fade">

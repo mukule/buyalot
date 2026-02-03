@@ -64,6 +64,9 @@ class PermissionSeeder extends Seeder
                 'view-verification-documents',
                 'approve-verification-documents',
                 'reject-verification-documents',
+                "view-seller-accounts",
+                "update-seller-accounts",
+
             ],
 
             // Products Management
@@ -80,6 +83,13 @@ class PermissionSeeder extends Seeder
                 'view-product-analytics',
                 'import-products',
                 'export-products',
+            ],
+
+            'product-statuses' => [
+                'view-product-statuses',
+                'create-product-statuses',
+                'edit-product-statuses',
+                'delete-product-statuses',
             ],
 
             // Categories Management
@@ -100,6 +110,7 @@ class PermissionSeeder extends Seeder
                 'delete-subcategories',
                 'assign-subcategories-to-categories',
             ],
+            
 
             // Brands Management
             'brands' => [
@@ -110,6 +121,14 @@ class PermissionSeeder extends Seeder
                 'approve-brands',
                 'feature-brands',
             ],
+             'policies' => [
+                'view-policies',
+                'create-policies',
+                'edit-policies',
+                'delete-policies',
+            ],
+                
+
 
             // Sub-brands Management
             'subbrands' => [
@@ -359,6 +378,19 @@ class PermissionSeeder extends Seeder
             'view-orders',
             'view-inventory',
             'view-user-profile', 'edit-user-profile',
+            'view-seller-accounts', 'update-seller-accounts',
+            'view-users','create-users','edit-users','delete-users'
+//            'view-branches', 'create-branches', 'edit-branches',
+//            'view-warehouses', 'create-warehouses', 'edit-warehouses',
+//            'view-brands',
+//            'view-subbrands',
+//            'view-categories',
+//            'view-subcategories',
+//            'view-units',
+//            'view-variants',
+//            'view-promotions',
+//            'view-discounts',
+//            'view-invoices'
         ])->get();
         $seller->givePermissionTo($sellerPermissions);
 

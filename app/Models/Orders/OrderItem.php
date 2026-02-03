@@ -2,9 +2,8 @@
 
 namespace App\Models\Orders;
 
-use App\Models\Product;
-use App\Models\ProductVariant;
-use App\Models\ProductVariantValue;
+use App\Models\Products\Product;
+use App\Models\Products\ProductVariant;
 use App\Models\Seller\SellerAccount;
 use App\Models\Variant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;

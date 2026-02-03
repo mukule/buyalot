@@ -3,16 +3,16 @@
 namespace App\Http\Controllers\Warehouse;
 
 use App\Http\Controllers\Controller;
+use App\Models\Category;
+use App\Models\Products\Product;
+use App\Models\Products\ProductVariant;
 use App\Models\Region;
 use App\Models\User;
-use App\Models\Product;
-use App\Models\Category;
-use App\Models\ProductVariant;
 use App\Models\Warehouse\Warehouse;
 use App\Models\Warehouse\WarehouseActivityLog;
+use App\Models\Warehouse\WarehouseInventoryMovement;
 use App\Models\Warehouse\WarehouseManager;
 use App\Models\Warehouse\WarehouseProductInventory;
-use App\Models\Warehouse\WarehouseInventoryMovement;
 use App\Models\Warehouse\WarehouseReceivable;
 use App\Models\Warehouse\WarehouseRejectionReason;
 use App\Traits\HasPermissionCheck;
@@ -85,7 +85,7 @@ class WarehouseController extends Controller
                 ->all();
         }
 
-        $variantsQuery = \App\Models\ProductVariant::with(['product:id,name', 'values.variant'])
+        $variantsQuery = \App\Models\Products\ProductVariant::with(['product:id,name', 'values.variant'])
             ->when($q !== '', function ($query) use ($q) {
                 $query->whereHas('product', function ($sub) use ($q) {
                     $sub->where('name', 'like', "%{$q}%");

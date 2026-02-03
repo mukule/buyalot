@@ -48,7 +48,7 @@ const allNavItems: NavItem[] = [
         title: 'Account',
         href: '/seller/profile',
         icon: KeyRound,
-        permissions: ['view-accounts'],
+        permissions: ['view-seller-accounts', 'update-seller-accounts'],
     },
     {
         title: 'Vendors',
@@ -146,6 +146,7 @@ const allNavItems: NavItem[] = [
                 title: 'Product Statuses',
                 href: '/admin/product-statuses',
                 icon: Workflow,
+                permissions: ['view-product-statuses'],
             },
             {
                 title: 'Promotion Types',
@@ -274,19 +275,14 @@ const allNavItems: NavItem[] = [
                 icon: Truck,
                 permissions: ['view-regions'],
             },
-            // {
-            //     title: 'Areas',
-            //     href: '/admin/areas',
-            //     icon: MapPin,
-            //     permissions: ['view-regions'],
-            // },
-            // {
-            //     title: 'Routes',
-            //     href: '/admin/routes',
-            //     icon: MapPin,
-            //     permissions: ['view-regions'],
-            // },
         ],
+    },
+
+    {
+        title: 'Policies',
+        href: '/admin/policies',
+        icon: FileCheck,
+        permissions: ['view-policies'],
     },
 ];
 

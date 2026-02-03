@@ -1,11 +1,13 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\Products;
 
+use App\Models\ReviewImage;
+use App\Models\Traits\HasHashid;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Models\Traits\HasHashid;
 use Vinkla\Hashids\Facades\Hashids;
 
 class ProductReview extends Model

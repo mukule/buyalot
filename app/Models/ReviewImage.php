@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Products\ProductReview;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Vinkla\Hashids\Facades\Hashids;

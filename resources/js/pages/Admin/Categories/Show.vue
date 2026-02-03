@@ -5,6 +5,7 @@ import { Head, router, usePage } from '@inertiajs/vue3';
 import { PlusIcon } from 'lucide-vue-next';
 import { computed } from 'vue';
 
+// Child category interface
 interface ChildCategory {
     id: number;
     name: string;
@@ -13,42 +14,49 @@ interface ChildCategory {
     active: boolean;
 }
 
+// Category with children & optional breadcrumb
 interface CategoryWithHashid extends Category {
     hashid: string;
     children?: ChildCategory[];
     parent?: CategoryWithHashid | null;
+    breadcrumb?: { name: string; hashid: string }[];
 }
 
-// Get page props
-const page = usePage<AppPageProps<{ category: CategoryWithHashid; children: ChildCategory[]; parent?: CategoryWithHashid | null }>>();
+// Page props
+const page = usePage<AppPageProps<{ category: CategoryWithHashid; children: ChildCategory[] }>>();
 const category = page.props.category;
-
-// Use the passed children directly
 const children = computed(() => page.props.children || []);
 
-// Breadcrumbs
-const breadcrumbs = [
-    { title: 'Dashboard', href: route('admin.dashboard') },
-    { title: 'Categories', href: route('admin.categories.index') },
-    { title: category.name, href: '' },
-];
+// Breadcrumbs using the BreadcrumbItem interface
+const breadcrumbs = computed(() => {
+    const crumbs = [{ title: 'Dashboard', href: route('admin.dashboard') }];
+    if (category.breadcrumb && category.breadcrumb.length) {
+        category.breadcrumb.forEach((c: { name: string; hashid: string }) => {
+            crumbs.push({ title: c.name, href: route('admin.categories.show', { category: c.hashid }) });
+        });
+    }
+    // Add current category
+    crumbs.push({ title: category.name, href: '' });
+    return crumbs;
+});
 
 // Actions
 function createChild(categoryHashid: string) {
-    if (!categoryHashid) return console.error('createChild called without categoryHashid');
     router.get(route('admin.categories.create', { parent: categoryHashid }));
 }
 
 function editChild(childHashid: string) {
-    if (!childHashid) return console.error('editChild called without childHashid');
     router.get(route('admin.categories.edit', { category: childHashid }));
 }
 
 function deleteChild(childHashid: string) {
-    if (!childHashid) return console.error('deleteChild called without childHashid');
     if (confirm('Are you sure you want to delete this category?')) {
         router.delete(route('admin.categories.destroy', { category: childHashid }));
     }
+}
+
+function showCategory(categoryHashid: string) {
+    router.get(route('admin.categories.show', { category: categoryHashid }));
 }
 </script>
 
@@ -70,7 +78,7 @@ function deleteChild(childHashid: string) {
                     </button>
                 </div>
 
-                <!-- Table -->
+                <!-- Children Table -->
                 <div v-if="children.length" class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
@@ -84,7 +92,7 @@ function deleteChild(childHashid: string) {
                             <tr v-for="(child, index) in children" :key="child.hashid" class="hover:bg-gray-50">
                                 <td class="px-4 py-4 align-top text-sm text-gray-500">{{ index + 1 }}</td>
                                 <td
-                                    @click="editChild(child.hashid)"
+                                    @click="showCategory(child.hashid)"
                                     class="cursor-pointer px-4 py-4 align-top text-sm font-medium text-primary hover:underline"
                                 >
                                     {{ child.name }}
@@ -103,7 +111,7 @@ function deleteChild(childHashid: string) {
                     <div class="p-8">
                         <PlusIcon class="mx-auto h-12 w-12 text-gray-400" />
                         <h3 class="mt-2 text-sm font-medium text-gray-900">No categories here</h3>
-                        <p class="mt-1 text-sm text-gray-500">Start by creating a new category for this .</p>
+                        <p class="mt-1 text-sm text-gray-500">Start by creating a new category for this.</p>
                         <div class="mt-6">
                             <button
                                 @click="createChild(category.hashid)"

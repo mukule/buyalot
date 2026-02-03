@@ -2,120 +2,112 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\SearchCacheService;
+use App\Models\Products\Product;
+use App\Services\FrontendProductService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Inertia\Inertia;
 
 class SearchController extends Controller
 {
+    protected FrontendProductService $productService;
+
+    public function __construct(FrontendProductService $productService)
+    {
+        $this->productService = $productService;
+    }
+
     /**
-     * Main search entry point
-     * Supports both Inertia full results and AJAX suggestions.
+     * Search products with Meilisearch and return normalized results
      */
     public function search(Request $request)
     {
-        $q = strtolower(trim($request->input('q', '')));
+        $q = trim($request->input('q', ''));
         $ajax = $request->boolean('ajax', false);
         $perPage = (int) $request->input('per_page', 15);
-        $page = (int) $request->input('page', 1);
 
+        // 1. Validation for short queries
         if (strlen($q) < 2) {
+            $emptyResults = [
+                'data' => [],
+                'total' => 0,
+                'per_page' => $perPage,
+                'current_page' => 1,
+                'last_page' => 1
+            ];
+
             if ($ajax) {
-                return response()->json(['results' => ['data' => []]]);
+                return response()->json(['results' => $emptyResults]);
             }
 
             return Inertia::render('Frontend/SearchResults', [
                 'q' => $q,
-                'results' => [
-                    'data' => [],
-                    'total' => 0,
-                    'per_page' => $perPage,
-                    'current_page' => 1,
-                    'last_page' => 1,
-                ],
+                'results' => $emptyResults,
                 'message' => 'Please enter at least 2 characters to search.',
             ]);
         }
 
-        // 🔹 Load cached search data
-        $cache = SearchCacheService::get();
-        if (!$cache) {
-            SearchCacheService::rebuild();
-            $cache = SearchCacheService::get();
-        }
+        /**
+         * 2. Optimized Search Query
+         * query() allows us to eager load relations on the Eloquent models 
+         * returned by Scout. This prevents the N+1 problem in the map() below.
+         */
+        $paginator = Product::search($q)
+            ->where('status_id', 2)
+            ->query(fn($query) => $query->with([
+                'productVariants', 
+                'brand', 
+                'category', 
+                'primaryImage'
+            ]))
+            ->paginate($perPage);
 
-        $products = collect($cache['products'] ?? []);
-        $variants = collect($cache['variants'] ?? []);
-        $brands = collect($cache['brands'] ?? []);
-        $categories = collect($cache['categories'] ?? []);
+        /**
+         * 3. Map results using Service
+         * Since we used with('productVariants'), $product->productVariants is already a loaded 
+         * collection. Calling ->first() here does NOT trigger a new DB query.
+         */
+        $mappedData = collect($paginator->items())->map(function (Product $product) {
+            $variant = $product->productVariants->first();
 
-        // 🔹 Match variants + products
-        $matches = $variants->filter(function ($variant) use ($products, $q) {
-            $product = $products->firstWhere('id', $variant['product_id']);
-            if (!$product || ($product['status_id'] ?? null) != 2) {
-                return false;
+            if ($variant) {
+                // Manually link the product to the variant to ensure the 
+                // Normalizer doesn't re-query the product parent.
+                $variant->setRelation('product', $product);
+                return $this->productService->normalizeVariant($variant);
             }
 
-            $brand = strtolower($product['brand'] ?? '');
-            $name = strtolower($product['name'] ?? '');
-            $sku = strtolower($variant['sku'] ?? '');
-
-            return Str::contains($name, $q)
-                || Str::contains($sku, $q)
-                || Str::contains($brand, $q);
-        })->map(function ($variant) use ($products, $brands, $categories) {
-            $product = $products->firstWhere('id', $variant['product_id']);
-            $brand = $brands->firstWhere('id', $product['brand_id'] ?? null);
-            $category = $categories->firstWhere('id', $product['category_id'] ?? null);
-
+            // Fallback for products without variants
             return [
-                'id' => $variant['id'],
-                'sku' => $variant['sku'],
-                'name' => $product['name'],
-                'product_slug' => $product['slug'],
-//                'primary_image_url' => $product['primary_image_url'] ?? null,
-                'primary_image_url' => $product['primary_image_url']
-                    ?? $variant['primary_image_url']
-                        ?? '/assets/images/logo.png',
-                'brand' => $brand['name'] ?? null,
-                'category' => $category['name'] ?? null,
+                'id'                => $product->id,
+                'name'              => $product->name,
+                'product_slug'      => $product->slug,
+                'sku'               => null,
+                'brand'             => $product->brand?->name,
+                'category_slug'     => $product->category?->slug ?? '',
+                'primary_image_url' => $product->primaryImageUrl ?? asset('images/fallback-image.png'),
+                'final_price'       => 0,
+                'in_stock'          => false
             ];
         });
 
-        // 🔹 Ranking
-        $scored = $matches->map(function ($item) use ($q) {
-            $nameScore = similar_text(strtolower($item['name']), $q);
-            $skuScore = similar_text(strtolower($item['sku']), $q);
-            $brandScore = similar_text(strtolower($item['brand'] ?? ''), $q);
-            $item['score'] = $nameScore * 2 + $skuScore + $brandScore;
-            return $item;
-        })->sortByDesc('score')->values();
-
-        // AJAX call (auto-suggest)
+        // 4. Handle AJAX (Live Search Suggestions)
         if ($ajax) {
-            $suggestions = $scored->take($perPage)->values();
-            return response()->json(['results' => ['data' => $suggestions]]);
+            return response()->json([
+                'results' => [
+                    'data' => $mappedData->values()
+                ]
+            ]);
         }
 
-        // Inertia paginated search results
-        $paginated = new LengthAwarePaginator(
-            $scored->forPage($page, $perPage),
-            $scored->count(),
-            $perPage,
-            $page,
-            ['path' => $request->url(), 'query' => $request->query()]
-        );
-
+        // 5. Standard Search Page Response
         return Inertia::render('Frontend/SearchResults', [
-            'q' => $q,
+            'q'       => $q,
             'results' => [
-                'data' => $paginated->items(),
-                'total' => $paginated->total(),
-                'per_page' => $paginated->perPage(),
-                'current_page' => $paginated->currentPage(),
-                'last_page' => $paginated->lastPage(),
+                'data'         => $mappedData,
+                'total'        => $paginator->total(),
+                'per_page'     => $paginator->perPage(),
+                'current_page' => $paginator->currentPage(),
+                'last_page'    => $paginator->lastPage(),
             ],
         ]);
     }

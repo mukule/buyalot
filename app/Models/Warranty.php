@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Products\Product;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -24,28 +25,28 @@ class Warranty extends Model
         'active' => 'boolean',
     ];
 
-    
+
     protected $appends = ['hashid'];
 
-    
+
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
     }
 
-    
+
     public function getHashidAttribute(): string
     {
         return Hashids::encode($this->id);
     }
 
-   
+
     public function getRouteKey(): string
     {
         return $this->hashid;
     }
 
-   
+
     public function resolveRouteBinding($value, $field = null)
     {
         $decoded = Hashids::decode($value);

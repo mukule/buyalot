@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\Products;
 
+use App\Models\Variant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Vinkla\Hashids\Facades\Hashids;

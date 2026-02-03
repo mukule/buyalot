@@ -17,6 +17,8 @@ const props = defineProps<{
         specifications?: string;
         whats_in_the_box?: string;
         primary_image_url?: string | null;
+        video_url?: string | null;
+
         images: string[];
         brand?: { name: string };
         category_hierarchy?: { id: number; name: string; slug: string }[];
@@ -63,8 +65,7 @@ onMounted(() => {
     }
 });
 
-// --- PRICE / DISCOUNT ---
-const formatPrice = (amount: number | null): string => `KSh ${amount?.toLocaleString() ?? 0}`;
+const formatPrice = (amount: number | string | null): string => `KSh ${(Number(amount) ?? 0).toLocaleString()}`;
 
 const displayPrice = computed(() => {
     if (!selectedVariant.value) return null;
@@ -170,6 +171,19 @@ const updatePickupPoints = () => {
 };
 
 watch(selectedRegionId, updatePickupPoints);
+
+// --- VIDEO PREVIEW ---
+const videoEmbedUrl = computed<string | null>(() => {
+    if (!('video_url' in props.product) || !props.product.video_url) return null;
+
+    try {
+        const url = new URL(props.product.video_url);
+        let videoId = url.searchParams.get('v') ?? url.pathname.split('/').pop() ?? null;
+        return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
+    } catch {
+        return null;
+    }
+});
 </script>
 
 <template>
@@ -419,6 +433,19 @@ watch(selectedRegionId, updatePickupPoints);
                     <div v-if="product.whats_in_the_box" class="rounded-xl bg-white p-4 shadow">
                         <h4 class="mb-2 font-semibold text-gray-700">What's in the Box</h4>
                         <p class="text-sm leading-relaxed text-gray-600" v-html="product.whats_in_the_box"></p>
+                    </div>
+
+                    <!-- Product Video -->
+                    <div v-if="videoEmbedUrl" class="rounded-xl bg-white p-1 shadow">
+                        <div class="aspect-video w-full overflow-hidden rounded-md border">
+                            <iframe
+                                :src="videoEmbedUrl"
+                                frameborder="0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowfullscreen
+                                class="h-full w-full"
+                            ></iframe>
+                        </div>
                     </div>
                 </div>
             </div>

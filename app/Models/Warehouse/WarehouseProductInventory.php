@@ -2,7 +2,7 @@
 
 namespace App\Models\Warehouse;
 
-use App\Models\ProductVariant;
+use App\Models\Products\ProductVariant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 

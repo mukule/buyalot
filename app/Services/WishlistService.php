@@ -54,7 +54,7 @@ class WishlistService
             )
         );
 
-        Log::info('Created new wishlist token for guest.', ['token' => $token]);
+      // Log::info('Created new wishlist token for guest.', ['token' => $token]);
     }
 
     $this->wishlist = Wishlist::firstOrCreate(['wishlist_token' => $token]);

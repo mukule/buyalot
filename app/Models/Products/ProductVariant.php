@@ -1,18 +1,26 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\Products;
 
+use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\Payment\Discount;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 
 class ProductVariant extends Model
 {
+    /**
+     * Whenever a variant is updated, notify the parent Product.
+     * This triggers the ProductObserver to sync Meilisearch and clear Redis.
+     */
+    protected $touches = ['product'];
 
     protected $fillable = [
+        'display_name',
         'product_id',
         'buying_price',
         'marked_price',
@@ -20,6 +28,8 @@ class ProductVariant extends Model
         'selling_price',
         'stock',
         'sku',
+        'is_active',
+        'discount',
     ];
 
     protected $appends = [
@@ -37,24 +47,16 @@ class ProductVariant extends Model
     // Relationships
     // ----------------------
 
-    protected static function booted()
-    {
-        static::created(fn() => \App\Services\SearchCacheService::refresh());
-        static::updated(fn() => \App\Services\SearchCacheService::refresh());
-        static::deleted(fn() => \App\Services\SearchCacheService::refresh());
-    }
-
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
     }
+
     public function discounts()
     {
         return $this->morphToMany(Discount::class, 'model', 'discount_applicable_tables')
             ->activeAndValid();
     }
-
-
 
     public function values(): HasMany
     {
@@ -103,7 +105,6 @@ class ProductVariant extends Model
 
     public function getFinalPriceAttribute(): float
     {
-        // Final price: use selling price if available, else marked, else regular
         $price = $this->selling_price ?? $this->marked_price ?? $this->regular_price ?? 0.0;
         return round((float) $price, 2);
     }
@@ -135,12 +136,10 @@ class ProductVariant extends Model
         return round((($this->marked_price - $this->buying_price) / $this->buying_price) * 100, 2);
     }
 
-    /**
-     * Scope: limit product variants to those whose parent product belongs to the given seller application id(s).
-     * Uses seller_applications IDs via products.owner_id when owner_type = 'seller'.
-     * @param Builder $query
-     * @param int|array|\Illuminate\Support\Collection $sellerIds
-     */
+    // ----------------------
+    // Scopes
+    // ----------------------
+
     public function scopeForSeller(Builder $query, $sellerIds): Builder
     {
         $ids = collect($sellerIds)->flatten()->filter()->values();
@@ -170,60 +169,35 @@ class ProductVariant extends Model
             });
     }
 
-
-    
     public function getOwnerInfo(): array
-{
-    if (! $this->product) {
-        return [
-            'type' => null,
-            'name' => 'Unknown Seller',
-        ];
+    {
+        if (! $this->product) {
+            return ['type' => null, 'name' => 'Unknown Seller'];
+        }
+
+        if ($this->product->owner_type === 'admin') {
+            return ['type' => 'admin', 'name' => 'Buyalot Store'];
+        }
+
+        $sellerName = $this->product->owner?->sellerApplication?->company_legal_name
+            ?? $this->product->owner?->name
+            ?? 'Unknown Seller';
+
+        return ['type' => 'seller', 'name' => $sellerName];
     }
 
-    if ($this->product->owner_type === 'admin') {
-        return [
-            'type' => 'admin',
-            'name' => 'Buyalot Store',
-        ];
+    public function getActiveWarranty(): ?\App\Models\Warranty
+    {
+        return $this->product ? $this->product->activeWarranty() : null;
     }
 
-    // If owner is a seller
-    $sellerName = $this->product->owner?->sellerApplication?->company_legal_name
-        ?? $this->product->owner?->name
-        ?? 'Unknown Seller';
-
-    return [
-        'type' => 'seller',
-        'name' => $sellerName,
-    ];
-}
-
-
-public function getActiveWarranty(): ?\App\Models\Warranty
-{
-    if (! $this->product) {
-        return null;
+    public function orderItems()
+    {
+        return $this->hasMany(OrderItem::class, 'product_variant_id');
     }
 
-    return $this->product->warranties()
-        ->where('active', true)
-        ->orderBy('id') 
-        ->first();
-}
-
-
-
-
-//    public function discounts()
-// {
-//    return $this->belongsToMany(\App\Models\Payment\Discount::class, 'discount_product_variants', 'product_variant_id', 'discount_id')
-//        ->where('is_active', true)
-//        ->where(function ($q) {
-//            $now = now();
-//            $q->whereNull('starts_at')->orWhere('starts_at', '<=', $now);
-//            $q->whereNull('expires_at')->orWhere('expires_at', '>=', $now);
-//        });
-// }
-
+    public function orders()
+    {
+        return $this->hasManyThrough(Order::class, OrderItem::class, 'product_variant_id', 'id', 'id', 'order_id');
+    }
 }

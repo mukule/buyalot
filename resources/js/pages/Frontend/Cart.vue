@@ -126,7 +126,7 @@ const goToProduct = (product: SimplifiedProduct) => {
                                             </span>
 
                                             <span v-if="item.discount_amount && item.discount_amount > 0" class="text-sm text-gray-500 line-through">
-                                                {{ formatPrice(item.unit_price) }}
+                                                {{ formatPrice(item.marked_price) }}
                                             </span>
 
                                             <span

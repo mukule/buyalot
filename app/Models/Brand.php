@@ -14,7 +14,7 @@ class Brand extends Model
         'slug',
         'active',
         'description',
-        'logo_path', // Only brand-specific fields
+        'logo_path', 
     ];
 
     protected $casts = [
@@ -23,14 +23,16 @@ class Brand extends Model
 
     protected $appends = [
         'hashid',
-        'logo_url', // Removed 'category_name'
+        'logo_url',
     ];
 
-    protected static function booted()
+    protected static function booted(): void
     {
-        static::created(fn() => \App\Services\SearchCacheService::refresh());
-        static::updated(fn() => \App\Services\SearchCacheService::refresh());
-        static::deleted(fn() => \App\Services\SearchCacheService::refresh());
+//        static::updated(fn($brand) => \App\Jobs\RefreshBrandCache::dispatch($brand)->delay(now()->addSeconds(5)));
+//        static::created(fn($brand) => \App\Jobs\RefreshBrandCache::dispatch($brand)->delay(now()->addSeconds(5)));
+//        static::deleted(fn($brand) => \App\Jobs\RefreshBrandCache::dispatch($brand)->delay(now()->addSeconds(5)));
+//        static::deleted(fn($brand) => \App\Jobs\RebuildSearchCache::dispatch()->delay(now()->addSeconds(5)));
+
     }
 
     protected static function boot()
@@ -94,7 +96,7 @@ class Brand extends Model
 
     public function products()
 {
-    return $this->hasMany(\App\Models\Product::class, 'brand_id');
+    return $this->hasMany(Products\Product::class, 'brand_id');
 }
 
 }

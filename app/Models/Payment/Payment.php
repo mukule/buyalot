@@ -31,10 +31,12 @@ class Payment extends Model
         'payable_id',
         'mpesa_receipt_number',
         'verified_at',
+        'amount_paid',
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'amount_paid' => 'decimal:2',
         'metadata' => 'array',
         'expires_at' => 'datetime',
         'completed_at' => 'datetime',

@@ -5,7 +5,7 @@ namespace Tests\Http\Controllers\Payments;
 use App\Http\DTOs\PaymentResponse;
 use App\Models\Orders\Order;
 use App\Models\Orders\OrderItem;
-use App\Models\ProductVariant;
+use App\Models\Products\ProductVariant;
 use App\Services\PaymentService;
 use Exception;
 use Illuminate\Foundation\Testing\RefreshDatabase;

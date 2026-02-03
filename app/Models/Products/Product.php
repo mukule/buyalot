@@ -1,23 +1,27 @@
 <?php
 
-namespace App\Models;
-
+namespace App\Models\Products;
+use App\Models\Brand;
+use App\Models\Category;
 use App\Models\Payment\Discount;
+use App\Models\Products;
 use App\Models\Scopes\SellerProductScope;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Traits\HasHashid;
+use App\Models\Traits\HasSlug;
+use App\Models\Unit;
+use App\Models\User;
+use App\Models\Warranty;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Eloquent\Builder;
-use App\Models\Traits\HasSlug;
-use App\Models\Traits\HasHashid;
-use App\Models\Warranty;
-use Illuminate\Support\Facades\Storage;
+use Laravel\Scout\Searchable;
 
 class Product extends Model
 {
-    use HasSlug, HasHashid;
+    use HasSlug, HasHashid, Searchable;
     protected static string $slugSource = 'name';
 
     protected $fillable = [
@@ -31,6 +35,7 @@ class Product extends Model
         'meta_title',
         'meta_keywords',
         'meta_description',
+        'video_url',
         'status',
         'owner_type',
         'owner_id',
@@ -39,7 +44,14 @@ class Product extends Model
         'current_step',
         'unit_id',
         'max_step_completed',
-        'status_id'
+        'status_id',
+        'stock',
+        'buying_price',
+        'marked_price',
+        'regular_price',
+        'selling_price',
+        'discount',
+        'sku'
     ];
 
     protected $appends = [
@@ -59,44 +71,51 @@ class Product extends Model
     ];
 
 
-    const STATUS_DRAFT    = 0; 
-    const STATUS_PENDING  = 1; 
-    const STATUS_APPROVED = 2; 
-    const STATUS_REJECTED = 3; 
+    const STATUS_DRAFT    = 0;
+    const STATUS_PENDING  = 1;
+    const STATUS_APPROVED = 2;
+    const STATUS_REJECTED = 3;
 
     // ----------------------
     // Attributes
     // ----------------------
 
-    protected static function booted()
+    protected static function booted(): void
     {
         static::addGlobalScope(new SellerProductScope);
 
-        static::created(fn() => \App\Services\SearchCacheService::refresh());
-        static::updated(fn() => \App\Services\SearchCacheService::refresh());
-        static::deleted(fn() => \App\Services\SearchCacheService::refresh());
+   }
+
+
+
+public function toSearchableArray(): array
+    {
+        $variants = $this->productVariants->map(fn($v) => $v->sku)->toArray();
+
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+
+            'slug' => $this->slug,
+            'skus' => implode(' ', $variants),
+            'brand' => $this->brand?->name,
+            'category' => $this->category?->name,
+            'primary_image_url' => $this->primaryImageUrl,
+            'min_price' => $this->min_price,
+            'max_price' => $this->max_price,
+            'in_stock' => $this->in_stock,
+            'status' => $this->status,
+            'status_id' => (int) $this->status_id,
+        ];
     }
 
+public function scoutSettings(): array
+{
+    return [
+        'filterableAttributes' => ['status_id', 'status'], 
+    ];
+}
 
-    // protected function imageUrls(): Attribute
-    // {
-    //     return Attribute::get(fn () =>
-    //         $this->relationLoaded('images')
-    //             ? $this->images
-    //                 ->map(fn ($img) => Storage::disk('s3')->url($img->image_path))
-    //                 ->toArray()
-    //             : []
-    //     );
-    // }
-
-    // protected function primaryImageUrl(): Attribute
-    // {
-    //     return Attribute::get(fn () =>
-    //         $this->relationLoaded('primaryImage') && $this->primaryImage
-    //             ? Storage::disk('s3')->url($this->primaryImage->image_path)
-    //             : null
-    //     );
-    // }
 
 
     protected function imageUrls(): Attribute
@@ -119,6 +138,13 @@ protected function primaryImageUrl(): Attribute
     );
 }
 
+
+public function scopeActive($query)
+{
+    return $query->where('status_id', 2)
+                 ->whereNotNull('slug')
+                 ->where('slug', '!=', '');
+}
 
 
     protected function statusLabel(): Attribute
@@ -277,7 +303,7 @@ protected function primaryImageUrl(): Attribute
 
     public function updateStatus(int $statusId): bool
     {
-        $statusExists = \App\Models\ProductStatus::where('id', $statusId)->exists();
+        $statusExists = Products\ProductStatus::where('id', $statusId)->exists();
         if (! $statusExists) {
             return false;
         }
@@ -286,7 +312,7 @@ protected function primaryImageUrl(): Attribute
         return true;
     }
 
-   
+
     public function scopeForSeller(Builder $query, $sellerIds): Builder
     {
         $ids = collect($sellerIds)->flatten()->filter()->values();

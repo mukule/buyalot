@@ -25,6 +25,7 @@ export interface Auth {
     permissions: string[];
     customer: Customer | null;
     customerOrders: MyOrders | null;
+    active
 }
 
 export interface BreadcrumbItem {
@@ -85,6 +86,7 @@ export interface User {
     email_verified_at: string | null;
     created_at: string;
     updated_at: string;
+    secondary_role: string | null;
 }
 
 export interface UserDetails {
@@ -429,6 +431,15 @@ export interface SimplifiedProduct {
     category_slug?: string;
 }
 
+export interface PaginatedProducts<T> {
+    data: T[];
+    meta: {
+        current_page: number;
+        last_page: number;
+        has_more: boolean;
+    };
+}
+
 export interface VariantCategory {
     id: number;
     name: string;
@@ -477,6 +488,16 @@ interface PickupPoint {
     contact_email?: string;
     is_active: boolean;
     region: { name: string };
+}
+
+interface Policy {
+    id: number;
+    title: string;
+    scope: string;
+    status: 0 | 1;
+    is_mandatory: boolean;
+    created_at: string;
+    updated_at: string;
 }
 
 const page = usePage<

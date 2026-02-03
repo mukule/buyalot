@@ -5,33 +5,39 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Customer\Customer;
 use App\Models\User;
+use App\Models\UserDetail;
+use App\Notifications\CustomerRegistrationPendingApproval;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class RegisteredUserController extends Controller
 {
-    
-    
+
+
     public function create(): Response
     {
         return Inertia::render('auth/Register');
     }
 
-  
 
+    /**
+     * @throws \Throwable
+     */
     public function store(Request $request): RedirectResponse
     {
-        
+
         if ($request->has('email')) {
             $request->merge(['email' => strtolower((string) $request->input('email'))]);
         }
-        
+
 
         $normalizeName = function ($s) {
             $s = trim((string) $s);
@@ -41,6 +47,7 @@ class RegisteredUserController extends Controller
             $rest = mb_substr($lower, 1, null, 'UTF-8');
             return $first . $rest;
         };
+
         if ($request->has('first_name')) {
             $request->merge(['first_name' => $normalizeName($request->input('first_name'))]);
         }
@@ -48,13 +55,21 @@ class RegisteredUserController extends Controller
             $request->merge(['last_name' => $normalizeName($request->input('last_name'))]);
         }
 
-        
+
+
         $validated = $request->validate([
-            'email' => 'required|string|lowercase|email|max:255|unique:' . User::class,
+            'email' => [
+                'required',
+                'string',
+                'lowercase',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->where(fn($q) => $q->whereNotIn('user_type', ['seller', 'vendor','user'])),
+            ],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
             'phone' => 'required|string|max:255',
 
-            
+
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
 
@@ -76,14 +91,54 @@ class RegisteredUserController extends Controller
             'address.longitude' => 'nullable|numeric|between:-180,180',
         ]);
 
-        
+
         $name = trim(($request->string('name') ?? '') . '');
         if ($name === '') {
             $name = trim($validated['first_name'] . ' ' . $validated['last_name']);
         }
-
-        
         $phone = (string) $validated['phone'];
+        $existingSeller = User::where('email', $validated['email'])
+            ->whereIn('user_type', ['seller', 'vendor','user'])
+            ->first();
+
+        if ($existingSeller) {
+            if ($existingSeller->customer) {
+                return redirect()->route('login')
+                    ->with('info', 'You already have a customer profile linked to this account.');
+            }
+
+            \DB::transaction(function () use ($validated, $existingSeller, $phone) {
+                $customer = Customer::create([
+                    'first_name'     => $validated['first_name'],
+                    'last_name'      => $validated['last_name'],
+                    'email'          => $validated['email'],
+                    'phone'          => $phone,
+                    'avatar'         => null,
+                    'customer_type'  => $validated['customer_type'] ?? 'individual',
+                    'status'         => 'inactive', // wait for approval
+                    'user_id'        => $existingSeller->id,
+                ]);
+
+                $activationUrl = URL::temporarySignedRoute(
+                    'customer.activate',
+                    now()->addDays(7),
+                    ['customer' => $customer->getRouteKey()]
+                );
+                $existingSeller->notify(new CustomerRegistrationPendingApproval($customer, $activationUrl));
+
+            });
+            if (!$existingSeller->hasAnyRole(['customer', 'seller'])) {
+                UserDetail::create([
+                    'user_id' => $existingSeller->id,
+                    'gender' => $validated['gender'] ?? null,
+                    'phone'  => $phone,
+                    'idno'   => $validated['idno'] ?? null,
+                ]);
+            }
+
+            return redirect()->route('login')
+                ->with('success', 'Thanks! We emailed you an activation link to enable your customer account.');
+        }
 
         \DB::transaction(function () use ($validated, $name, $phone, &$user) {
             $user = User::create([
@@ -110,7 +165,7 @@ class RegisteredUserController extends Controller
                 'user_id' => $user->id,
             ]);
 
-            
+
             $addr = $validated['address'] ?? [];
             $hasAddress = ($addr['address_line_1'] ?? null) || ($addr['city'] ?? null) || ($addr['country_code'] ?? null);
             if ($hasAddress) {
@@ -146,6 +201,38 @@ class RegisteredUserController extends Controller
 
         return redirect('/')
             ->with('success', 'Registration successful! Welcome aboard.');
+    }
+
+    public function activateCustomer(Request $request, Customer $customer): RedirectResponse
+    {
+        if (! $request->hasValidSignature()) {
+            abort(401);
+        }
+
+        $user = $customer->user;
+        if (! $user || ! in_array($user->user_type, ['seller', 'vendor'])) {
+            abort(403);
+        }
+
+        if ($customer->status === 'active') {
+            return redirect()->route('login')
+                ->with('info', 'Your customer account is already active.');
+        }
+
+        //add the secondary role
+        if (!$user->secondary_role) {
+            $user->update(['secondary_role' => 'customer']);
+        }
+
+        \DB::transaction(function () use ($customer, $user) {
+            $customer->update(['status' => 'active']);
+            if (! $user->hasRole('customer')) {
+                $user->assignRole('customer');
+            }
+        });
+
+        return redirect()->route('login')
+            ->with('success', 'Customer account activated. You can now switch to the customer portal.');
     }
 
 }
