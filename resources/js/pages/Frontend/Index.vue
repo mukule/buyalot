@@ -41,6 +41,7 @@ const simplifiedProductsByCategory: Record<number, SimplifiedProduct[]> = Object
             hashid: p.variant_hashid,
             product_slug: p.product_slug,
             name: p.name,
+            brand: p.brand ?? null,
             image: p.primary_image_url || '/fallback-image.png',
             marked_price: p.marked_price ?? 0,
             final_price: p.final_price ?? 0,

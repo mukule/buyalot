@@ -2,40 +2,52 @@
 
 namespace App\Http\Controllers\Billing;
 
+use App\Domains\Invoicing\DTOs\CreateInvoiceDTO;
+use App\Domains\Invoicing\Services\InvoiceService;
 use App\Http\Controllers\Controller;
 use App\Models\Billing\Invoice;
 use App\Models\Billing\InvoiceItem;
 use App\Models\Billing\Receipt;
 use App\Models\Billing\ReceiptAllocation;
 use App\Services\DocumentNumberService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
 class InvoiceController extends Controller
 {
-    public function index(Request $request)
+    public function __construct(
+        private InvoiceService $invoiceService
+    ) {}
+
+    public function index(Request $request): JsonResponse
     {
         $query = Invoice::query()
-            ->when($request->seller_id, fn($q) => $q->where('seller_id', $request->integer('seller_id')))
-            ->when($request->status, fn($q) => $q->where('status', $request->string('status')))
-            ->when($request->type, fn($q) => $q->where('type', $request->string('type')))
+            ->when($request->seller_id, fn ($q) => $q->where('seller_id', $request->integer('seller_id')))
+            ->when($request->status, fn ($q) => $q->where('status', $request->string('status')))
+            ->when($request->type, fn ($q) => $q->where('type', $request->string('type')))
+            ->when($request->etims_status, fn ($q) => $q->where('etims_status', $request->string('etims_status')))
+            ->with(['creditNotes', 'deliveryNotes'])
             ->orderByDesc('id');
 
         return response()->json($query->paginate(20));
     }
 
-    public function show(Invoice $invoice)
+    public function show(Invoice $invoice): JsonResponse
     {
-        $invoice->load('items');
+        $invoice->load(['items', 'creditNotes', 'deliveryNotes.items']);
         return response()->json($invoice);
     }
 
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
             'seller_id' => 'required|exists:sellers,id',
             'buyer_id' => 'nullable|exists:users,id',
+            'buyer_name' => 'nullable|string|max:255',
+            'buyer_kra_pin' => 'nullable|string|max:32',
+            'buyer_email' => 'nullable|email|max:255',
+            'buyer_phone' => 'nullable|string|max:32',
             'order_id' => 'nullable|exists:orders,id',
             'type' => 'nullable|string|in:tax_invoice,credit_note,debit_note,proforma,commercial',
             'currency' => 'required|string|size:3',
@@ -47,98 +59,65 @@ class InvoiceController extends Controller
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price_minor' => 'required|integer|min:0',
             'items.*.discount_minor' => 'nullable|integer|min:0',
-            'items.*.tax_rate' => 'nullable|numeric|min:0', // e.g., 0.16 for 16%
+            'items.*.tax_rate' => 'nullable|numeric|min:0',
         ]);
 
-        return DB::transaction(function () use ($data) {
-            $type = $data['type'] ?? 'tax_invoice';
+        $dto = new CreateInvoiceDTO(
+            sellerId: $data['seller_id'],
+            buyerId: $data['buyer_id'] ?? null,
+            buyerName: $data['buyer_name'] ?? null,
+            buyerKraPin: $data['buyer_kra_pin'] ?? null,
+            buyerEmail: $data['buyer_email'] ?? null,
+            buyerPhone: $data['buyer_phone'] ?? null,
+            orderId: $data['order_id'] ?? null,
+            type: $data['type'] ?? 'tax_invoice',
+            currency: strtoupper($data['currency']),
+            dueDate: $data['due_date'] ?? null,
+            items: $data['items'],
+        );
 
-            $subtotal = 0; $discountTotal = 0; $taxTotal = 0; $grand = 0;
-            $itemsPayload = $data['items'];
-
-            /** @var Invoice $invoice */
-            $invoice = Invoice::create([
-                'seller_id' => $data['seller_id'],
-                'buyer_id' => $data['buyer_id'] ?? null,
-                'order_id' => $data['order_id'] ?? null,
-                'number' => 'DRAFT',
-                'type' => $type,
-                'status' => 'draft',
-                'issue_date' => null,
-                'due_date' => $data['due_date'] ?? null,
-                'currency' => strtoupper($data['currency']),
-                'subtotal_minor' => 0,
-                'discount_minor' => 0,
-                'tax_minor' => 0,
-                'total_minor' => 0,
-                'balance_minor' => 0,
-            ]);
-
-            foreach ($itemsPayload as $it) {
-                $qty = (int)$it['quantity'];
-                $unit = (int)$it['unit_price_minor'];
-                $disc = (int)($it['discount_minor'] ?? 0);
-                $rate = isset($it['tax_rate']) ? (float)$it['tax_rate'] : 0.0;
-
-                $lineNet = ($qty * $unit) - $disc; // minor units
-                if ($lineNet < 0) {
-                    throw ValidationException::withMessages(['items' => ['Line total cannot be negative.']]);
-                }
-                $lineTax = (int) round($lineNet * $rate, 0, PHP_ROUND_HALF_UP);
-                $lineTotal = $lineNet + $lineTax;
-
-                $subtotal += ($qty * $unit);
-                $discountTotal += $disc;
-                $taxTotal += $lineTax;
-                $grand += $lineTotal;
-
-                InvoiceItem::create([
-                    'invoice_id' => $invoice->id,
-                    'product_id' => $it['product_id'] ?? null,
-                    'description' => $it['description'],
-                    'quantity' => $qty,
-                    'unit_price_minor' => $unit,
-                    'discount_minor' => $disc,
-                    'tax_rate' => $rate,
-                    'tax_minor' => $lineTax,
-                    'line_total_minor' => $lineTotal,
-                ]);
-            }
-
-            $invoice->update([
-                'subtotal_minor' => $subtotal,
-                'discount_minor' => $discountTotal,
-                'tax_minor' => $taxTotal,
-                'total_minor' => $grand,
-                'balance_minor' => $grand,
-            ]);
-
-            if (!empty($data['issue_now'])) {
-                $this->issue($invoice);
-            }
-
-            $invoice->load('items');
-            return response()->json($invoice, 201);
-        });
+        $invoice = $this->invoiceService->create($dto, ! empty($data['issue_now']));
+        return response()->json($invoice, 201);
     }
 
-    public function issue(Invoice $invoice)
+    public function issue(Invoice $invoice): JsonResponse
     {
-        if ($invoice->status !== 'draft') {
-            return response()->json(['message' => 'Only draft invoices can be issued.'], 422);
+        try {
+            $invoice = $this->invoiceService->issue($invoice);
+            return response()->json($invoice);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
         }
-        $year = (int) now()->format('Y');
-        // Choose prefix and doc type per invoice type
-        if ($invoice->type === 'proforma') {
-            $prefix = 'PF-' . $invoice->seller_id . '-' . $year . '-';
-            $number = DocumentNumberService::nextNumber($invoice->seller_id, 'proforma', $year, $prefix);
-        } else {
-            $prefix = 'INV-' . $invoice->seller_id . '-' . $year . '-';
-            $number = DocumentNumberService::nextNumber($invoice->seller_id, 'invoice', $year, $prefix);
+    }
+
+    /**
+     * Mark invoice as signed by ETIMS (middleware integration point).
+     */
+    public function etimsSigned(Request $request, Invoice $invoice): JsonResponse
+    {
+        $data = $request->validate([
+            'etims_reference' => 'required|string|max:128',
+        ]);
+
+        try {
+            $invoice = $this->invoiceService->markSigned($invoice, $data['etims_reference']);
+            return response()->json($invoice);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
         }
-        $invoice->number = $number;
-        $invoice->markIssued();
-        return response()->json($invoice);
+    }
+
+    /**
+     * Mark invoice ETIMS submission as failed.
+     */
+    public function etimsFailed(Invoice $invoice): JsonResponse
+    {
+        try {
+            $invoice = $this->invoiceService->markEtimsFailed($invoice);
+            return response()->json($invoice);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
     }
 
     /**
@@ -156,6 +135,10 @@ class InvoiceController extends Controller
             $new = Invoice::create([
                 'seller_id' => $invoice->seller_id,
                 'buyer_id' => $invoice->buyer_id,
+                'buyer_name' => $invoice->buyer_name,
+                'buyer_kra_pin' => $invoice->buyer_kra_pin,
+                'buyer_email' => $invoice->buyer_email,
+                'buyer_phone' => $invoice->buyer_phone,
                 'order_id' => $invoice->order_id,
                 'number' => 'DRAFT',
                 'type' => 'tax_invoice',
@@ -168,6 +151,7 @@ class InvoiceController extends Controller
                 'tax_minor' => $invoice->tax_minor,
                 'total_minor' => $invoice->total_minor,
                 'balance_minor' => $invoice->total_minor,
+                'etims_status' => $invoice->etims_status?->value ?? 'pending',
                 'meta' => [
                     'converted_from_proforma_id' => $invoice->id,
                     'converted_from_number' => $invoice->number,

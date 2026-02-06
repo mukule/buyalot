@@ -430,3 +430,7 @@ Route::prefix('payments')->name('payments.')->group(function () {
 });
 
 
+Route::get('/policies/{slug}', [HomeController::class, 'show'])
+    ->name('policies.show');
+
+

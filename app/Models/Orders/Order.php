@@ -9,15 +9,18 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Traits\HasPayments;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Order extends Model
 {
-    use SoftDeletes;
+    use HasPayments, SoftDeletes;
+
     protected $fillable = [
         'order_code',
         'customer_id',
         'checkout_session_id',
+        'pos_session_id',
         'status',
         'subtotal',
         'tax_amount',
@@ -93,6 +96,11 @@ class Order extends Model
     public function billingAddress()
     {
         return $this->belongsTo(CustomerAddress::class, 'billing_address_id');
+    }
+
+    public function posSession()
+    {
+        return $this->belongsTo(\App\Models\POS\PosSession::class, 'pos_session_id');
     }
 
     // Scopes
