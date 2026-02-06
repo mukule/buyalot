@@ -215,7 +215,13 @@ const videoEmbedUrl = computed<string | null>(() => {
                             <!-- LEFT: IMAGES -->
                             <div class="w-full md:w-1/2">
                                 <div class="relative">
-                                    <img :src="mainImage" class="max-h-[400px] w-full rounded-md object-contain" />
+                                    <div class="group flex h-[400px] items-center justify-center overflow-hidden rounded-md bg-gray-50">
+                                        <img
+                                            :src="mainImage"
+                                            class="max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-125"
+                                        />
+                                    </div>
+
                                     <button
                                         @click="openPreview"
                                         class="bg-opacity-75 hover:bg-opacity-100 absolute top-2 right-2 flex items-center gap-1 rounded bg-white px-3 py-1 text-sm font-semibold text-gray-800 shadow"
@@ -242,7 +248,7 @@ const videoEmbedUrl = computed<string | null>(() => {
                             <!-- RIGHT: DETAILS -->
                             <div class="w-full space-y-4 md:w-1/2">
                                 <h1 class="text-2xl font-bold text-gray-800">{{ product.name }}</h1>
-                                <p class="text-sm text-gray-600">Brand: {{ product.brand?.name }}</p>
+                                <p class="text-sm text-secondary">Brand: {{ product.brand?.name }}</p>
                                 <hr />
 
                                 <!-- Price + Discount -->
@@ -264,8 +270,8 @@ const videoEmbedUrl = computed<string | null>(() => {
                                     </p>
                                 </div>
 
-                                <!-- Stock -->
-                                <p v-if="selectedVariant" class="text-sm text-gray-600">Available in stock: {{ selectedVariant.stock }}</p>
+                                <!-- Out of Stock -->
+                                <p v-if="selectedVariant?.stock === 0" class="font-semibold text-red-600">Out of Stock</p>
 
                                 <!-- Ratings -->
                                 <div class="flex gap-[2px] text-yellow-400">

@@ -20,6 +20,8 @@ use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use App\Models\Policy\Policy;
+
 
 
 use Illuminate\Support\Facades\Cache;
@@ -354,6 +356,42 @@ public function category(string $slug)
 
     return $data;
 }
+
+
+
+public function show($slug)
+{
+    $policy = Policy::where('slug', $slug)
+        ->active()
+        ->customer()
+        ->with('latestActiveVersion')
+        ->firstOrFail();
+
+    $version = $policy->latestActiveVersion;
+
+    if (!$version) {
+    return Inertia::render('Frontend/Policy', [
+        'policy' => [
+            'title' => $policy->title,
+            'content' => '<p>This policy is currently unavailable.</p>',
+            'version' => null,
+            'effective_from' => null,
+        ]
+    ]);
+}
+
+
+    return Inertia::render('Frontend/Policy', [
+        'policy' => [
+            'title' => $policy->title,
+            'content' => $version->content,
+            'version' => $version->version_number,
+            'effective_from' => $version->effective_from_local,
+        ]
+    ]);
+}
+
+
 
 
 }

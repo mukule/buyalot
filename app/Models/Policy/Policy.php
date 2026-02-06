@@ -2,58 +2,93 @@
 
 namespace App\Models\Policy;
 
+use App\Models\Traits\HasSlug;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 
 class Policy extends Model
 {
+    use HasSlug;
+
+    protected static string $slugSource = 'title';
+
     protected $fillable = [
-        'scope',       // 'seller' or 'customer'
+        'scope',
         'title',
         'is_mandatory',
         'status',
-        'code',        // make code fillable
+        'code',
     ];
 
-    /**
-     * Boot method to set code automatically.
-     */
     protected static function booted()
     {
+        // Generate code safely
         static::creating(function (Policy $policy) {
             if (empty($policy->code) && !empty($policy->title)) {
-                $policy->code = strtolower(str_replace(' ', '_', $policy->title));
+                $policy->code = Str::slug($policy->title, '_');
             }
         });
 
         static::updating(function (Policy $policy) {
-            // Optionally update code when title changes
-            if (empty($policy->code) && !empty($policy->title)) {
-                $policy->code = strtolower(str_replace(' ', '_', $policy->title));
+            if ($policy->isDirty('title')) {
+                $policy->code = Str::slug($policy->title, '_');
             }
+        });
+
+        
+        static::saved(function () {
+            Cache::tags(['policies'])->flush();
+        });
+
+        static::deleted(function () {
+            Cache::tags(['policies'])->flush();
         });
     }
 
-    /**
-     * Get all versions of this policy.
-     */
     public function policyVersions(): HasMany
     {
         return $this->hasMany(PolicyVersion::class);
     }
 
-    /**
-     * Get all user agreements linked to this policy through versions.
-     */
     public function userAgreements(): HasMany
     {
         return $this->hasManyThrough(
             UserPolicyAgreement::class,
             PolicyVersion::class,
-            'policy_id',          
-            'policy_version_id',  
-            'id',                 
-            'id'                  
+            'policy_id',
+            'policy_version_id',
+            'id',
+            'id'
         );
     }
+
+    public function scopeActive($query)
+{
+    return $query->where('status', 1);
+}
+
+public function scopeCustomer($query)
+{
+    return $query->where('scope', 'customer');
+}
+
+
+    public function scopeSeller($query)
+    {
+        return $query->where('scope', 'seller');
+    }
+
+    public function latestActiveVersion()
+{
+    return $this->hasOne(PolicyVersion::class)
+        ->where('status', true)
+        ->where(function ($q) {
+            $q->whereNull('effective_from')
+              ->orWhere('effective_from', '<=', now()->toDateString());
+        })
+        ->latest('version_number');
+}
+
 }

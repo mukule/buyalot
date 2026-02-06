@@ -25,7 +25,7 @@ export interface Auth {
     permissions: string[];
     customer: Customer | null;
     customerOrders: MyOrders | null;
-    active
+    active;
 }
 
 export interface BreadcrumbItem {
@@ -429,6 +429,7 @@ export interface SimplifiedProduct {
     has_discount: boolean;
     rating?: number;
     category_slug?: string;
+    brand?: string | null;
 }
 
 export interface VariantCategory {
