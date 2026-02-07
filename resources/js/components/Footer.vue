@@ -1,11 +1,24 @@
 <script setup lang="ts">
 import { usePage } from '@inertiajs/vue3';
-const appName = usePage().props.appName || 'Buyalot';
+
+// Type for customer policies
+interface CustomerPolicy {
+    title: string;
+    slug: string;
+}
+
+const page = usePage();
+
+// Explicitly tell TS that customerPolicies is CustomerPolicy[]
+const customerPolicies = (page.props.customerPolicies as CustomerPolicy[]) ?? [];
+
+const appName = page.props.appName || 'Buyalot';
 </script>
 
 <template>
     <footer class="border-t border-white/20 bg-[color:var(--primary)] px-4 pt-12 pb-6 text-[color:var(--primary-foreground)] sm:px-6 md:px-8">
         <div class="mx-auto grid max-w-7xl grid-cols-2 gap-8 sm:grid-cols-3 md:grid-cols-5">
+            <!-- Shop -->
             <div>
                 <h4 class="mb-3 font-semibold text-white">Shop</h4>
                 <ul class="space-y-1 text-sm">
@@ -16,6 +29,7 @@ const appName = usePage().props.appName || 'Buyalot';
                 </ul>
             </div>
 
+            <!-- Account -->
             <div>
                 <h4 class="mb-3 font-semibold text-white">Account</h4>
                 <ul class="space-y-1 text-sm">
@@ -28,6 +42,7 @@ const appName = usePage().props.appName || 'Buyalot';
                 </ul>
             </div>
 
+            <!-- Help -->
             <div>
                 <h4 class="mb-3 font-semibold text-white">Help</h4>
                 <ul class="space-y-1 text-sm">
@@ -56,16 +71,13 @@ const appName = usePage().props.appName || 'Buyalot';
                 </ul>
             </div>
 
-            <!-- Policy -->
+            <!-- Policies -->
             <div>
                 <h4 class="mb-3 font-semibold text-white">Policy</h4>
-                <ul class="space-y-1 text-sm">
-                    <li><a href="#" class="text-white hover:underline">Returns Policy</a></li>
-                    <li><a href="#" class="text-white hover:underline">Terms & Conditions</a></li>
-                    <li><a href="#" class="text-white hover:underline">Privacy Policy</a></li>
-                    <li><a href="#" class="text-white hover:underline">Human Rights Statement</a></li>
-                    <li><a href="#" class="text-white hover:underline">Code of Advertising</a></li>
-                    <li><a href="#" class="text-white hover:underline">Speak Up Process</a></li>
+                <ul class="space-y-1 text-sm text-white">
+                    <li v-for="policy in customerPolicies" :key="policy.slug" class="truncate">
+                        <a :href="`/policies/${policy.slug}`" class="text-white hover:underline"> {{ policy.title }} </a>
+                    </li>
                 </ul>
             </div>
         </div>
@@ -76,3 +88,12 @@ const appName = usePage().props.appName || 'Buyalot';
         </div>
     </footer>
 </template>
+
+<style scoped>
+.truncate {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+</style>

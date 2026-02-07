@@ -130,7 +130,7 @@ function statusBadgeClass(status?: string) {
               <div class="flex justify-between"><span>Subtotal</span><span>{{ formatMoney(order?.subtotal) }}</span></div>
               <div class="flex justify-between"><span>Shipping</span><span>{{ formatMoney(order?.shipping_amount) }}</span></div>
               <div class="flex justify-between"><span>Tax</span><span>{{ formatMoney(order?.tax_amount) }}</span></div>
-              <div class="flex justify-between" v-if="order?.discount_amount && Number(order.discount_amount) > 0"><span>Discount</span><span>-{{ formatMoney(order?.discount_amount) }}</span></div>
+              <div class="flex justify-between" v-if="order?.discount_amount && Number(order.discount_amount) > 0"><span>Total Discount</span><span>- {{ formatMoney(order?.discount_amount) }}</span></div>
               <hr class="my-1 border-gray-200" />
               <div class="flex justify-between font-semibold text-gray-900"><span>Total</span><span>{{ formatMoney(order?.total_amount) }}</span></div>
             </div>

@@ -7,11 +7,7 @@ import { Edit, PlusCircle } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { route } from 'ziggy-js';
 
-// --- Types ---
-interface ShippingOption {
-    cost: number;
-    days?: number;
-}
+/* -------------------- TYPES -------------------- */
 
 interface Address {
     id: number;
@@ -22,12 +18,6 @@ interface Address {
     region?: string;
     pickup_point?: { id: number; name: string; region?: { name: string } };
     is_default: boolean;
-    selected_shipping?: {
-        method: string;
-        cost: number;
-        days?: number;
-        region?: string;
-    };
 }
 
 interface Owner {
@@ -71,15 +61,17 @@ interface Cart {
     coupon_error?: string;
 }
 
-// --- Page Props ---
+/* -------------------- PAGE PROPS -------------------- */
+
 const page = usePage();
+
 const cart = (page.props as any).cart as Cart;
 const addresses = (page.props as any).customer_addresses as Address[];
-
-// Related products from backend
+const selectedShipping = (page.props as any).selected_shipping ?? null;
 const relatedProducts = (page.props as any).relatedProducts ?? [];
 
-// Map to SimplifiedProduct
+/* -------------------- RELATED PRODUCTS -------------------- */
+
 const simplifiedRelatedProducts = computed<SimplifiedProduct[]>(() =>
     relatedProducts.map((p: any) => ({
         id: p.id,
@@ -95,26 +87,29 @@ const simplifiedRelatedProducts = computed<SimplifiedProduct[]>(() =>
     })),
 );
 
-// Navigate to product detail page
 const goToProduct = (product: SimplifiedProduct) => {
     router.visit(route('products.show', { slug: product.product_slug }));
 };
 
-// --- Computed ---
+/* -------------------- COMPUTED -------------------- */
+
 const defaultAddress = computed(() => addresses.find((a) => a.is_default) || addresses[0] || null);
 
-// Totals directly from backend
 const sub_total = computed(() => Number(cart.totals.subtotal ?? 0));
-const grand_total = computed(() => Number(cart.totals.grand_total ?? 0));
 const perItemDiscount = computed(() => Number(cart.totals.per_item_discount ?? 0));
 const shippingCost = computed(() => Number(cart.totals.shipping ?? 0));
 const totalWithShipping = computed(() => Number(cart.totals.grand_total ?? 0));
 
 const addressLinkLabel = computed(() => (addresses.length > 0 ? 'Change' : 'Add Address'));
+
 const addressLinkIcon = computed(() => (addresses.length > 0 ? Edit : PlusCircle));
+
 const addressLinkUrl = computed(() => route('checkout.addresses.index'));
 
-const formatPrice = (amount?: number | null) => `KSh ${(amount ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+const formatPrice = (amount?: number | null) =>
+    `KSh ${(amount ?? 0).toLocaleString(undefined, {
+        maximumFractionDigits: 2,
+    })}`;
 
 const proceedToPayment = () => {
     router.visit(route('checkout.payment'), {
@@ -129,7 +124,7 @@ const proceedToPayment = () => {
     <MainLayout>
         <section class="mx-auto mt-4 mb-4 flex flex-col gap-4 lg:flex-row">
             <!-- LEFT -->
-            <div class="flex w-full flex-col gap-4 lg:w-8/12">
+            <div class="flex w-full flex-col gap-4 lg:w-9/12">
                 <!-- Delivery Address -->
                 <div class="rounded-lg bg-white p-4 shadow">
                     <div class="mb-2 flex items-center justify-between">
@@ -143,26 +138,33 @@ const proceedToPayment = () => {
                     <hr class="mb-4 border-gray-200" />
 
                     <div v-if="defaultAddress" class="flex flex-col gap-2">
-                        <!-- Address Info -->
-                        <span class="font-medium text-gray-700">{{ defaultAddress.first_name }} {{ defaultAddress.last_name }}</span>
+                        <span class="font-medium text-gray-700">
+                            {{ defaultAddress.first_name }}
+                            {{ defaultAddress.last_name }}
+                        </span>
+
                         <div class="text-sm text-gray-600">
                             <span>
-                                <template v-if="defaultAddress.phone">{{ defaultAddress.phone }}</template>
-                                <template v-if="defaultAddress.pickup_point?.region"> | {{ defaultAddress.pickup_point.region.name }}</template>
-                                <template v-if="defaultAddress.pickup_point?.name"> | {{ defaultAddress.pickup_point.name }}</template>
+                                <template v-if="defaultAddress.phone">
+                                    {{ defaultAddress.phone }}
+                                </template>
+                                <template v-if="defaultAddress.pickup_point?.region"> | {{ defaultAddress.pickup_point.region.name }} </template>
+                                <template v-if="defaultAddress.pickup_point?.name"> | {{ defaultAddress.pickup_point.name }} </template>
                             </span>
                         </div>
 
-                        <!-- Shipping Info -->
-                        <div v-if="defaultAddress.selected_shipping" class="mt-2 text-sm text-gray-700">
-                            <span class="font-medium">{{ defaultAddress.selected_shipping.method === 'pickup' ? 'Pickup' : 'Door Delivery' }}:</span>
-                            KSh {{ defaultAddress.selected_shipping.cost.toLocaleString() }}
-                            <template v-if="defaultAddress.selected_shipping.days">
-                                | Estimated {{ defaultAddress.selected_shipping.days }} day(s)
+                        <!-- Shipping Display -->
+                        <div v-if="selectedShipping" class="mt-2 text-sm text-gray-700">
+                            <span class="font-medium"> {{ selectedShipping.method === 'pickup' ? 'Pickup' : 'Door Delivery' }}: </span>
+
+                            {{ formatPrice(selectedShipping.cost) }}
+
+                            <template v-if="selectedShipping.days">
+                                | Estimated
+                                {{ selectedShipping.days }} day(s)
                             </template>
-                            <template v-if="defaultAddress.selected_shipping.region">
-                                | Region: {{ defaultAddress.selected_shipping.region }}
-                            </template>
+
+                            <template v-if="selectedShipping.region"> | Region: {{ selectedShipping.region }} </template>
                         </div>
                     </div>
 
@@ -172,23 +174,33 @@ const proceedToPayment = () => {
                 <!-- Delivery Details -->
                 <div class="rounded-lg bg-white p-4 shadow">
                     <h2 class="mb-4 text-lg font-semibold text-gray-800">Delivery Details</h2>
+
                     <hr class="mb-4 border-gray-200" />
 
                     <div v-if="cart.items.length" class="space-y-4">
                         <div v-for="item in cart.items" :key="item.id" class="flex items-center justify-between gap-4">
                             <div class="flex items-center gap-4">
-                                <img
-                                    :src="item.product.primary_image_url || '/fallback-image.png'"
-                                    class="h-16 w-16 rounded object-cover"
-                                    alt="Product Image"
-                                />
+                                <img :src="item.product.primary_image_url || '/fallback-image.png'" class="h-16 w-16 rounded object-cover" />
+
                                 <div class="flex flex-col">
-                                    <span class="font-medium text-gray-800">{{ item.product.name }}</span>
-                                    <span class="text-sm text-gray-500">Supplied By: {{ item.owner?.name ?? 'N/A' }}</span>
-                                    <span class="text-sm text-gray-700">X {{ item.quantity }}</span>
-                                    <span class="text-sm text-gray-700">Unit Price: {{ formatPrice(item.unit_price) }}</span>
+                                    <span class="font-medium text-gray-800">
+                                        {{ item.product.name }}
+                                    </span>
+
+                                    <span class="text-sm text-gray-500">
+                                        Supplied By:
+                                        {{ item.owner?.name ?? 'N/A' }}
+                                    </span>
+
+                                    <span class="text-sm text-gray-700"> X {{ item.quantity }} </span>
+
+                                    <span class="text-sm text-gray-700">
+                                        Unit Price:
+                                        {{ formatPrice(item.unit_price) }}
+                                    </span>
                                 </div>
                             </div>
+
                             <div class="font-medium text-gray-700">
                                 {{ formatPrice(item.total_price) }}
                             </div>
@@ -200,9 +212,11 @@ const proceedToPayment = () => {
             </div>
 
             <!-- RIGHT -->
-            <div class="w-full lg:w-4/12">
+            <div class="w-full lg:w-3/12">
                 <div class="space-y-4 rounded-lg bg-white p-4 shadow">
-                    <h2 class="text-lg font-semibold text-gray-800">Checkout Summary</h2>
+                    <div>
+                        <img src="/free_del.jpeg" alt="Free Delivery" class="w-full rounded-md object-contain" />
+                    </div>
 
                     <div class="space-y-2 text-sm text-gray-700">
                         <div class="flex justify-between">
@@ -215,7 +229,7 @@ const proceedToPayment = () => {
                             <span>-{{ formatPrice(perItemDiscount) }}</span>
                         </div>
 
-                        <div class="flex justify-between" v-if="shippingCost > 0">
+                        <div class="flex justify-between">
                             <span>Shipping</span>
                             <span>{{ formatPrice(shippingCost) }}</span>
                         </div>
@@ -230,12 +244,12 @@ const proceedToPayment = () => {
                         @click="proceedToPayment"
                         class="mt-4 flex w-full items-center justify-center gap-2 rounded bg-primary px-4 py-2 text-white hover:bg-primary/90"
                     >
-                        Proceed to Payment
+                        Proceed Checkout
                     </button>
 
                     <p class="mt-2 text-center text-xs text-gray-600">
                         By proceeding, you are automatically accepting the
-                        <a :href="route('terms')" class="text-primary underline hover:text-primary/80">Terms &amp; Conditions</a>
+                        <a :href="route('terms')" class="text-primary underline hover:text-primary/80"> Terms &amp; Conditions </a>
                     </p>
                 </div>
             </div>

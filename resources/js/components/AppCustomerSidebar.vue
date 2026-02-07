@@ -71,31 +71,31 @@ const allNavItems: NavItem[] = [
         title: 'Account Management',
         icon: Settings,
         children: [
-            {
-                title: 'Profile Settings',
-                href: '/customer/profile',
-                icon: Settings,
-            },
-            {
-                title: 'Payment Settings',
-                href: '#',
-                icon: CreditCard,
-            },
-            {
-                title: 'Address Book',
-                href: customerId.value ? `/customers/${customerId.value}/addresses` : '#',
-                icon: MapPin,
-            },
-            {
-                title: 'Loyalty Points',
-                href: customerId.value ? `/customers/${customerId.value}/loyalty-points` : '#',
-                icon: Star,
-            },
-            {
-                title: 'Newsletter Preferences',
-                href: '#',
-                icon: Bell,
-            },
+            // {
+            //     title: 'Profile Settings',
+            //     href: '/customer/profile',
+            //     icon: Settings,
+            // },
+            // {
+            //     title: 'Payment Settings',
+            //     href: '#',
+            //     icon: CreditCard,
+            // },
+            // {
+            //     title: 'Address Book',
+            //     href: customerId.value ? `/customers/${customerId.value}/addresses` : '#',
+            //     icon: MapPin,
+            // },
+            // {
+            //     title: 'Loyalty Points',
+            //     href: customerId.value ? `/customers/${customerId.value}/loyalty-points` : '#',
+            //     icon: Star,
+            // },
+            // {
+            //     title: 'Newsletter Preferences',
+            //     href: '#',
+            //     icon: Bell,
+            // },
             {
                 title: 'Close Account',
                 href: '/customer/account',

@@ -3,35 +3,41 @@
 namespace App\Providers;
 
 use App\Models\Products\Product;
+use App\Models\Policy\Policy;
 use App\Observers\ProductObserver;
-use Inertia\Inertia;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\URL;
+use Inertia\Inertia;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
         //
     }
 
-    /**
-     * Bootstrap any application services.
-     */
+
     public function boot(): void
-    {
-        // Register the Product Observer to handle Meilisearch and Redis Cache
-        Product::observe(ProductObserver::class);
+{
+    Product::observe(ProductObserver::class);
 
-        // if (config('app.url')) {
-        // URL::forceRootUrl(config('app.url'));
-        // }
+    Inertia::share([
+        'appName' => config('app.name'),
 
-        Inertia::share([
-            'appName' => config('app.name'),
-        ]);
-    }
+        'customerPolicies' => function () {
+            $policies = Cache::tags(['policies'])->rememberForever('customer_policies', function () {
+                return Policy::active()
+                    ->customer()
+                    ->orderBy('title')
+                    ->get(['title', 'slug']);
+            });
+
+            // Log the result to storage/logs/laravel.log
+            \Log::info('Customer policies loaded', ['policies' => $policies->toArray()]);
+
+            return $policies;
+        },
+    ]);
+}
+
 }
