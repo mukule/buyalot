@@ -413,6 +413,10 @@ const videoEmbedUrl = computed<string | null>(() => {
                         </div>
                     </div>
 
+                    <div class="mt-3">
+                        <img src="/free_del.jpeg" alt="Free Delivery" class="w-full rounded-md object-contain" />
+                    </div>
+
                     <!-- Seller Info -->
                     <div class="rounded-xl bg-white p-4 shadow">
                         <h2 class="flex items-center gap-2 text-lg font-semibold text-gray-800">

@@ -96,7 +96,20 @@ const paymentId = ref<string | null>(null);
 const paymentReference = ref<string | null>(null);
 const currentOrder = ref<null | { id: number; ulid?: string; total_amount: number; currency?: string; paymentInit: any }>(null);
 
-const canPay = computed(() => !!phone.value && phone.value.trim().length >= 9 && !!selectedAddressId.value && !initiating.value && !polling.value);
+const canPay = computed(() => {
+    if (!selectedAddressId.value) return false;
+    if (initiating.value || polling.value) return false;
+
+    if (paymentMethod.value === 'mpesa') {
+        return !!phone.value && phone.value.trim().length >= 9;
+    }
+
+    if (paymentMethod.value === 'cod') {
+        return true; // no phone required for COD
+    }
+
+    return false;
+});
 
 let pollTimer: any = null;
 let dotsTimer: any = null;
@@ -156,6 +169,11 @@ async function decreaseQty(item: SummaryItem) {
 // --- PAYMENT FUNCTIONS ---
 async function startPayment() {
     if (!canPay.value) return;
+
+    if (paymentMethod.value === 'cod') {
+        await placeCashOnDeliveryOrder();
+        return;
+    }
 
     try {
         status.value = 'initiating';
@@ -232,7 +250,7 @@ async function pollPayment(order: { paymentInit: any }) {
             const customerId = (page.props as any)?.auth?.customer_id;
             setTimeout(() => {
                 router.visit(route('customers.dashboard', { customer: customerId }), {
-                    data: { success: message.value }
+                    data: { success: message.value },
                 });
             }, 2000);
         }
@@ -316,6 +334,51 @@ async function pollVerifyUntilComplete(checkoutRequestId: string) {
     });
 }
 
+async function placeCashOnDeliveryOrder() {
+    try {
+        status.value = 'initiating';
+        initiating.value = true;
+        message.value = 'Placing your order...';
+
+        const axios = (window as any).axios || (await import('axios')).default;
+
+        const resp = await axios.post(
+            route('orders.store'),
+            {
+                cart_id: cart.cart_id,
+                customer_id: (page.props as any)?.auth?.customer_id,
+                billing_address_id: selectedAddressId.value,
+                shipping_address_id: selectedAddressId.value,
+                notes: 'Cash on Delivery Order',
+                coupon_code: cart.coupon_code,
+                shipping_amount: cart.totals.shipping,
+                payment_provider: 'cod', // 👈 important difference
+            },
+            {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                withCredentials: true,
+            },
+        );
+
+        status.value = 'success';
+        initiating.value = false;
+        message.value = 'Order placed successfully. You will pay upon delivery.';
+
+        const customerId = (page.props as any)?.auth?.customer_id;
+
+        setTimeout(() => {
+            router.visit(route('customers.dashboard', { customer: customerId }), {
+                data: { success: 'Order placed successfully (Cash on Delivery).' },
+            });
+        }, 2000);
+    } catch (e: any) {
+        status.value = 'failed';
+        initiating.value = false;
+        message.value = e?.response?.data?.message || 'Failed to place order.';
+        console.error(e);
+    }
+}
+
 // --- RELATED PRODUCTS ---
 const relatedProducts = (props.relatedProducts ?? []) as any[];
 
@@ -346,35 +409,38 @@ function goBack() {
 const goToAddressPage = () => {
     router.visit(route('checkout.addresses.index'));
 };
+
+const paymentMethod = ref<'mpesa' | 'cod'>('mpesa');
 </script>
 
 <template>
     <MainLayout>
         <section class="mx-auto mt-4 mb-4 px-2">
             <div class="grid gap-4 lg:grid-cols-12">
-                <!-- LEFT — Payment (8/12) -->
-                <div class="lg:col-span-8">
+                <!-- LEFT — Payment -->
+                <div class="lg:col-span-9">
                     <div class="space-y-4 rounded-lg bg-white p-4 shadow">
                         <h1 class="text-lg font-semibold text-gray-800">Payment</h1>
 
-                        <!-- COMPACT CART ITEMS LIST -->
+                        <!-- CART ITEMS -->
                         <div v-if="cart.items.length" class="mb-4 space-y-2">
                             <template v-for="item in cart.items" :key="item.id">
                                 <div class="flex items-center justify-between gap-2 text-xs text-gray-700">
-                                    <!-- Product image -->
                                     <img
                                         :src="item.product.primary_image_url || '/fallback-image.png'"
                                         class="h-10 w-10 rounded object-cover"
                                         alt="Product Image"
                                     />
 
-                                    <!-- Product name & unit price -->
                                     <div class="flex flex-1 flex-col overflow-hidden">
-                                        <span class="truncate font-medium">{{ item.product.name }}</span>
-                                        <span class="text-gray-500">{{ formatPrice(item.unit_price) }}</span>
+                                        <span class="truncate font-medium">
+                                            {{ item.product.name }}
+                                        </span>
+                                        <span class="text-gray-500">
+                                            {{ formatPrice(item.unit_price) }}
+                                        </span>
                                     </div>
 
-                                    <!-- Quantity controls -->
                                     <div class="flex items-center gap-1">
                                         <button
                                             @click="decreaseQty(item)"
@@ -383,7 +449,9 @@ const goToAddressPage = () => {
                                             -
                                         </button>
 
-                                        <span class="w-5 text-center">{{ item.quantity }}</span>
+                                        <span class="w-5 text-center">
+                                            {{ item.quantity }}
+                                        </span>
 
                                         <button
                                             @click="increaseQty(item)"
@@ -393,13 +461,14 @@ const goToAddressPage = () => {
                                         </button>
                                     </div>
 
-                                    <!-- Total price -->
-                                    <span class="ml-2 w-12 text-right font-medium">{{ formatPrice(item.total_price) }}</span>
+                                    <span class="ml-2 w-12 text-right font-medium">
+                                        {{ formatPrice(item.total_price) }}
+                                    </span>
                                 </div>
                             </template>
                         </div>
 
-                        <!-- Pickup Point / Shipping Address (read-only) -->
+                        <!-- PICKUP POINT -->
                         <div>
                             <h2 class="mb-2 text-sm font-medium text-gray-700">PickUp Point</h2>
 
@@ -411,62 +480,101 @@ const goToAddressPage = () => {
 
                                     <button
                                         @click="goToAddressPage"
-                                        class="focus:ring-opacity-50 focus:outline-non rounded border border-primary px-4 py-2 font-medium text-primary transition-colors duration-200 hover:bg-primary hover:text-white focus:ring-2 focus:ring-primary"
+                                        class="rounded border border-primary px-4 py-2 font-medium text-primary transition hover:bg-primary hover:text-white"
                                     >
                                         Change
                                     </button>
                                 </div>
 
                                 <p class="mt-1 text-xs text-gray-500">
-                                    If you order now, you will receive your order in {{ selected_shipping?.days ?? '?' }} day{{
-                                        selected_shipping?.days && selected_shipping.days > 1 ? 's' : ''
-                                    }}.
+                                    If you order now, you will receive your order in
+                                    {{ selected_shipping?.days ?? '?' }}
+                                    day{{ selected_shipping?.days && selected_shipping.days > 1 ? 's' : '' }}.
                                 </p>
                             </div>
                         </div>
 
-                        <!-- Phone -->
+                        <!-- PAYMENT METHOD -->
                         <div>
-                            <label class="mb-1 block text-sm font-medium text-gray-700">Phone Number (M-Pesa)</label>
+                            <h2 class="mb-2 text-sm font-medium text-gray-700">Payment Method</h2>
+
+                            <div class="space-y-2">
+                                <label class="flex cursor-pointer items-center gap-2 rounded border p-3 hover:bg-gray-50">
+                                    <input type="radio" value="mpesa" v-model="paymentMethod" />
+                                    <span class="text-sm font-medium text-gray-800"> M-Pesa </span>
+                                </label>
+
+                                <label class="flex cursor-pointer items-center gap-2 rounded border p-3 hover:bg-gray-50">
+                                    <input type="radio" value="cod" v-model="paymentMethod" />
+                                    <span class="text-sm font-medium text-gray-800"> Pay on Delivery </span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- PHONE (MPESA ONLY) -->
+                        <div v-if="paymentMethod === 'mpesa'">
+                            <label class="mb-1 block text-sm font-medium text-gray-700"> Phone Number (M-Pesa) </label>
+
                             <input
                                 v-model="phone"
                                 type="tel"
                                 placeholder="e.g. 07xxxxxxxx or 2547xxxxxxxx"
                                 class="w-full rounded border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none"
                             />
+
                             <p class="mt-1 text-xs text-gray-500">We prefilled your phone number. You can change it before paying.</p>
+
                             <div v-if="status === 'polling'" class="mt-2 text-sm font-medium text-primary">
                                 Awaiting M-Pesa payment {{ animatedDots }}
                             </div>
                         </div>
 
-                        <!-- Status + Progress -->
+                        <!-- COD NOTICE -->
+                        <div v-if="paymentMethod === 'cod'" class="rounded p-3 text-xs">
+                            <p class="mb-2">You will pay in cash when your order is delivered.</p>
+
+                            <div class="flex justify-start">
+                                <img src="/cod.jpeg" alt="Pay on Delivery" class="h-32 w-auto object-contain" />
+                            </div>
+                        </div>
+
+                        <!-- STATUS + PROGRESS -->
                         <div v-if="status === 'initiating' || status === 'polling'" class="space-y-2">
                             <div v-if="status === 'initiating'" class="text-sm font-medium text-primary">
                                 Sending Payment request {{ animatedDots }}
                             </div>
+
                             <div v-if="status === 'polling'" class="hidden h-2 w-full overflow-hidden rounded bg-gray-200">
-                                <div class="h-2 bg-primary transition-all" :style="{ width: `${Math.min(100, Math.round(progress))}%` }"></div>
+                                <div
+                                    class="h-2 bg-primary transition-all"
+                                    :style="{
+                                        width: `${Math.min(100, Math.round(progress))}%`,
+                                    }"
+                                ></div>
                             </div>
-                            <div class="text-sm text-gray-700">{{ message }}</div>
-                            <ul class="list-inside list-disc text-xs text-gray-600">
+
+                            <div class="text-sm text-gray-700">
+                                {{ message }}
+                            </div>
+
+                            <ul v-if="paymentMethod === 'mpesa'" class="list-inside list-disc text-xs text-gray-600">
                                 <li>Ensure your phone is on and has network coverage.</li>
-                                <li>Check for the M-Pesa prompt and enter your PIN to complete.</li>
-                                <li>Do not close this page while we confirm your payment.</li>
+                                <li>Check for the M-Pesa prompt and enter your PIN.</li>
+                                <li>Do not close this page while we confirm payment.</li>
                             </ul>
                         </div>
 
-                        <!-- Success -->
+                        <!-- SUCCESS -->
                         <div v-if="status === 'success'" class="rounded border border-green-200 bg-green-50 p-3 text-sm text-green-800">
                             {{ message }}
                         </div>
 
-                        <!-- Failed -->
+                        <!-- FAILED -->
                         <div v-if="status === 'failed'" class="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
                             {{ message }}
                         </div>
 
-                        <!-- Actions -->
+                        <!-- ACTIONS -->
                         <div class="flex items-center gap-2">
                             <button
                                 @click="startPayment"
@@ -478,7 +586,7 @@ const goToAddressPage = () => {
 
                             <button
                                 @click="goBack"
-                                class="focus:ring-opacity-50 rounded border border-primary px-4 py-2 font-medium text-primary transition-colors duration-200 hover:bg-primary hover:text-white focus:ring-2 focus:ring-primary focus:outline-none"
+                                class="rounded border border-primary px-4 py-2 font-medium text-primary transition hover:bg-primary hover:text-white"
                             >
                                 Back
                             </button>
@@ -491,10 +599,12 @@ const goToAddressPage = () => {
                     </div>
                 </div>
 
-                <!-- RIGHT — Order Summary (4/12) -->
-                <div class="lg:col-span-4">
+                <!-- RIGHT — ORDER SUMMARY -->
+                <div class="lg:col-span-3">
                     <div class="space-y-4 rounded-lg bg-white p-4 shadow">
-                        <h2 class="text-lg font-semibold text-gray-800">Order Summary</h2>
+                        <div>
+                            <img src="/free_del.jpeg" alt="Free Delivery" class="w-full rounded-md object-contain" />
+                        </div>
 
                         <div class="space-y-2 text-sm text-gray-700">
                             <div class="flex justify-between">
@@ -534,6 +644,7 @@ const goToAddressPage = () => {
             </div>
         </section>
 
+        <!-- RELATED PRODUCTS -->
         <section class="mx-auto mt-8 mb-8" v-if="simplifiedRelatedProducts.length">
             <ProductCarouselSection
                 title="Related Products"
