@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
+import { route } from 'ziggy-js';
 import { Bar, Pie } from 'vue-chartjs';
 import {
     Chart as ChartJS,
@@ -19,6 +20,7 @@ const props = defineProps({
     stats: Object,
     ordersByStatus: Object,
     productVariantPerformance: Array,
+    returns: Array,
 });
 
 // --- Prepare chart data ---
@@ -232,6 +234,47 @@ const getGradient = (key) => {
                         <Pie :data="pieData" :options="options" />
                     </div>
                 </div>
+            </div>
+
+            <!-- Returns list (below orders chart section) -->
+            <div class="rounded-lg bg-white shadow p-6">
+                <h2 class="text-lg font-semibold text-green-400 mb-4">
+                    Recent Returns
+                </h2>
+                <div v-if="props.returns && props.returns.length" class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 text-left font-medium text-gray-500 uppercase">Order</th>
+                                <th class="px-4 py-2 text-left font-medium text-gray-500 uppercase">Status</th>
+                                <th class="px-4 py-2 text-left font-medium text-gray-500 uppercase">Reason</th>
+                                <th class="px-4 py-2 text-left font-medium text-gray-500 uppercase">Type</th>
+                                <th class="px-4 py-2 text-left font-medium text-gray-500 uppercase">Date</th>
+                                <th class="px-4 py-2 text-right font-medium text-gray-500 uppercase">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 bg-white">
+                            <tr v-for="r in props.returns" :key="r.id">
+                                <td class="px-4 py-2 font-medium">{{ r.order_code || '—' }}</td>
+                                <td class="px-4 py-2 capitalize">{{ (r.status || '—').replace(/_/g, ' ') }}</td>
+                                <td class="px-4 py-2">{{ r.reason || '—' }}</td>
+                                <td class="px-4 py-2">{{ r.is_full_return ? 'Full' : 'Partial' }}</td>
+                                <td class="px-4 py-2 text-gray-600">{{ r.created_at || '—' }}</td>
+                                <td class="px-4 py-2 text-right">
+                                    <Link
+                                        v-if="r.order_ulid"
+                                        :href="route('admin.orders.show', r.order_ulid)"
+                                        class="text-green-600 hover:underline"
+                                    >
+                                        View order
+                                    </Link>
+                                    <span v-else class="text-gray-400">—</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p v-else class="py-6 text-center text-gray-500">No returns yet.</p>
             </div>
         </div>
     </AppLayout>

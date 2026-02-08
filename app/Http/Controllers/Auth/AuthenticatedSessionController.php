@@ -187,4 +187,40 @@ public function store(
         }
     }
 
+    public function createDeliveryLogin(Request $request): Response
+    {
+        return Inertia::render('auth/DeliveryLogin', [
+            'canResetPassword' => Route::has('password.request'),
+            'status' => $request->session()->get('status'),
+        ]);
+    }
+
+    public function deliveryStore(LoginRequest $request): RedirectResponse
+    {
+        $request->authenticate();
+
+        if (!Auth::check()) {
+            return back()->withErrors([
+                'email' => 'These credentials do not match our records.',
+            ]);
+        }
+
+        $request->session()->regenerate();
+        $user = Auth::user();
+
+        $isDelivery = $user->hasRole('delivery');
+        $isActive = in_array($user->status, ['active', 1, true], true);
+
+        if ($isDelivery && $isActive) {
+            $user->update(['last_login_at' => now()]);
+            return redirect()->intended(route('delivery.dashboard'))
+                ->with('success', 'Welcome back, ' . $user->name . '!');
+        }
+
+        Auth::logout();
+        $request->session()->invalidate();
+        return redirect()->back()->withErrors([
+            'password' => 'You do not have an active delivery account. Please contact admin.',
+        ]);
+    }
 }

@@ -6,8 +6,10 @@ use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerAddress;
 use App\Models\Payment\Discount;
 use App\Models\User;
+use App\Models\Warehouse\WarehouseReceivable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -34,6 +36,7 @@ class Order extends Model
         'fulfillment_status',
         'fulfillment_info',
         'payment_status',
+        'payment_method',
         'applied_discounts',
         'discount_id',
         'coupon_code',
@@ -70,6 +73,8 @@ class Order extends Model
         'cancelled_at',
     ];
 
+    protected $appends = ['assigned_rider', 'delivery_assignment_status'];
+
     // Relationships
     public function customer(): BelongsTo
     {
@@ -93,6 +98,36 @@ class Order extends Model
     public function billingAddress()
     {
         return $this->belongsTo(CustomerAddress::class, 'billing_address_id');
+    }
+
+    public function delivery(): HasOne
+    {
+        return $this->hasOne(Delivery::class);
+    }
+
+    public function orderReturns(): HasMany
+    {
+        return $this->hasMany(OrderReturn::class);
+    }
+
+    /** @deprecated Use delivery->deliveryUser instead; kept for backward compatibility. */
+    public function assignedRider()
+    {
+        return $this->hasOneThrough(User::class, Delivery::class, 'order_id', 'id', 'id', 'delivery_id');
+    }
+
+    public function getAssignedRiderAttribute(): ?array
+    {
+        $user = $this->delivery?->deliveryUser;
+        if (!$user) {
+            return null;
+        }
+        return ['id' => $user->id, 'name' => $user->name, 'email' => $user->email];
+    }
+
+    public function getDeliveryAssignmentStatusAttribute(): ?string
+    {
+        return $this->delivery?->assignment_status;
     }
 
     // Scopes
@@ -146,6 +181,38 @@ class Order extends Model
         return $query->whereHas('orderItems', function ($q) use ($ids) {
             $q->whereIn('seller_id', $ids);
         });
+    }
+
+    /**
+     * Scope: orders assigned to a specific delivery user.
+     */
+    public function scopeAssignedToDelivery($query, $userId)
+    {
+        return $query->whereHas('delivery', fn ($q) => $q->where('delivery_id', $userId));
+    }
+
+    /**
+     * Scope: orders pending delivery person acceptance.
+     */
+    public function scopeDeliveryAssignmentPending($query)
+    {
+        return $query->whereHas('delivery', fn ($q) => $q->where('assignment_status', 'pending'));
+    }
+
+    /**
+     * Scope: orders accepted by delivery person.
+     */
+    public function scopeDeliveryAssignmentAccepted($query)
+    {
+        return $query->whereHas('delivery', fn ($q) => $q->where('assignment_status', 'accepted'));
+    }
+
+    /**
+     * Scope: orders rejected by delivery person.
+     */
+    public function scopeDeliveryRejected($query)
+    {
+        return $query->whereHas('delivery', fn ($q) => $q->where('assignment_status', 'rejected'));
     }
 
     // Accessors & Mutators
@@ -235,6 +302,121 @@ class Order extends Model
         return $this->orderItems->sum('quantity');
     }
 
+    /**
+     * Build delivery note summary: paid status, payment method, order items (product name, variant, quantity), and cash-on-delivery notice.
+     */
+    public function getDeliveryNoteSummary(): string
+    {
+        $this->loadMissing(
+            'orderItems.productVariant.values.variant',
+            'orderItems.productVariant.product',
+            'delivery.pickupWarehouse',
+            'shippingAddress'
+        );
+
+        $lines = [];
+        $lines[] = 'Order #' . $this->order_code;
+        $lines[] = 'Already paid: ' . ($this->payment_status === 'paid' ? 'Yes' : 'No');
+        $method = $this->payment_method ? str_replace('_', ' ', $this->payment_method) : 'Not specified';
+        $lines[] = 'Method of payment: ' . ucfirst($method);
+        $lines[] = '';
+        $lines[] = 'Items:';
+        foreach ($this->orderItems as $item) {
+            $name = $item->product_snapshot['name'] ?? $item->productVariant?->product?->name ?? 'Item';
+            $variantStr = '';
+            if ($item->productVariant && $item->productVariant->relationLoaded('values')) {
+                $variantStr = $item->productVariant->values
+                    ->map(fn ($v) => $v->relationLoaded('variant') ? $v->variant?->value : null)
+                    ->filter()
+                    ->join(', ');
+            }
+            if ($variantStr === '' && $item->productVariant) {
+                $variantStr = $item->product_snapshot['sku'] ?? $item->productVariant->sku ?? '';
+            } elseif ($variantStr === '') {
+                $variantStr = $item->product_snapshot['sku'] ?? '';
+            }
+            if ($variantStr !== '') {
+                $variantStr = ' — ' . $variantStr;
+            }
+            $lines[] = '  • ' . $name . $variantStr . ' × ' . $item->quantity;
+        }
+        $lines[] = '';
+        $lines[] = 'Delivery:';
+        if ($this->delivery) {
+            $deliveryType = $this->delivery->delivery_type ?? 'customer_address';
+            if ($deliveryType === 'pickup_point' && $this->delivery->pickupWarehouse) {
+                $w = $this->delivery->pickupWarehouse;
+                $lines[] = '  Pickup point: ' . $w->name;
+                if (! empty($w->address)) {
+                    $lines[] = '  ' . $w->address;
+                }
+                if (! empty($w->location)) {
+                    $lines[] = '  ' . $w->location;
+                }
+            } else {
+                $addr = $this->shippingAddress ?: $this->customer?->getDefaultAddress();
+                if ($addr) {
+                    $lines[] = '  Deliver to customer address:';
+                    $parts = array_filter([
+                        $addr->address_line_1,
+                        $addr->address_line_2,
+                        $addr->city,
+                        $addr->state_province ?? $addr->state ?? null,
+                        $addr->postal_code,
+                        $addr->country_name ?? $addr->country ?? $addr->country_code ?? null,
+                    ]);
+                    $lines[] = '  ' . implode(', ', $parts);
+                    if (! empty($addr->phone)) {
+                        $lines[] = '  Phone: ' . $addr->phone;
+                    }
+                } else {
+                    $lines[] = '  (Customer address not set)';
+                }
+            }
+        } else {
+            $lines[] = '  (Delivery not assigned)';
+        }
+        $lines[] = '';
+        if (strtolower($this->payment_method ?? '') === 'cash_on_delivery') {
+            $lines[] = '*** Payment on delivery: collect ' . $this->currency . ' ' . number_format($this->total_amount, 2) . ' from customer. ***';
+        }
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Create warehouse receivables at the pickup point warehouse for this order (one per order item).
+     * Called when delivery is assigned with delivery_type = pickup_point. Skips if receivables already exist for this order.
+     */
+    public function createReceivablesForPickupPoint(): void
+    {
+        $delivery = $this->delivery;
+        if (! $delivery || $delivery->delivery_type !== 'pickup_point' || ! $delivery->pickup_warehouse_id) {
+            return;
+        }
+
+        $warehouseId = $delivery->pickup_warehouse_id;
+        $fromWarehouseId = $delivery->dispatching_warehouse_id;
+
+        $existingQuery = WarehouseReceivable::where('order_id', $this->id)->whereNull('order_return_id');
+        if ((clone $existingQuery)->where('warehouse_id', $warehouseId)->exists()) {
+            return;
+        }
+        $existingQuery->delete();
+
+        $note = 'Order #' . $this->order_code;
+        foreach ($this->orderItems as $item) {
+            WarehouseReceivable::create([
+                'warehouse_id' => $warehouseId,
+                'order_id' => $this->id,
+                'from_warehouse_id' => $fromWarehouseId,
+                'product_variant_id' => $item->product_variant_id,
+                'quantity' => $item->quantity,
+                'status' => 'pending',
+                'note' => $note,
+            ]);
+        }
+    }
+
     public function getUniqueProductsCount(): int
     {
         return $this->orderItems->count();
@@ -245,10 +427,19 @@ class Order extends Model
         return $this->orderItems->pluck('seller_id')->unique()->count();
     }
 
-    // Route key binding
+    // Route key binding: resolve by ulid or by id (for legacy orders without ulid)
     public function getRouteKeyName(): string
     {
         return 'ulid';
+    }
+
+    public function resolveRouteBinding($value, $field = null)
+    {
+        if (is_numeric($value)) {
+            return static::where('id', (int) $value)->first();
+        }
+
+        return static::where($field ?? $this->getRouteKeyName(), $value)->first();
     }
 
     // Boot method for model events
@@ -263,15 +454,20 @@ class Order extends Model
         });
     }
 
-    public function assignedRider()
-    {
-        return $this->belongsTo(User::class, 'delivery_id');
-    }
-
-
     public function items(): HasMany
 {
     return $this->orderItems();
 }
+
+    public static function generateUniqueOrderCode(): string
+    {
+        // Get the last record's ID
+        $lastId = self::max('id') ?? 01;
+
+        $nextId = $lastId + 1;
+
+        // str_pad(input, length, character, side)
+        return "ORD-" . str_pad($nextId, 6, '0', STR_PAD_LEFT);
+    }
 
 }

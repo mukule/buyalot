@@ -2,11 +2,60 @@
 import AppLayout from '@/layouts/CustomerAppSidebarLayout.vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
+import { Package, CheckCircle, Cog, Truck, Home, XCircle } from 'lucide-vue-next';
 
 const page = usePage();
 const order = computed<any>(() => (page.props as any).order || {});
 
 const paying = ref(false);
+
+// Order stages for the stepper (in progression order)
+const ORDER_STAGES = [
+  { key: 'pending', label: 'Order placed', icon: Package },
+  { key: 'confirmed', label: 'Confirmed', icon: CheckCircle },
+  { key: 'processing', label: 'Processing', icon: Cog },
+  { key: 'out_for_delivery', label: 'Out for Delivery', icon: Truck },
+  { key: 'delivered', label: 'Delivered', icon: Home },
+] as const;
+
+const STAGE_ORDER: Record<string, number> = {
+  pending: 0,
+  confirmed: 1,
+  processing: 2,
+  on_hold: 2,
+  shipped: 3,
+  out_for_delivery: 3,
+  delivered: 4,
+  returned: -1,
+  partially_returned: -1,
+  refunded: -1,
+  partially_refunded: -1,
+  cancelled: -1,
+  failed: -1,
+};
+
+const currentStageIndex = computed(() => {
+  const status = (order.value?.status || 'pending').toLowerCase();
+  const idx = STAGE_ORDER[status] ?? 0;
+  return idx >= 0 ? idx : 0;
+});
+
+const isTerminalNegative = computed(() => {
+  const s = (order.value?.status || '').toLowerCase();
+  return ['cancelled', 'refunded', 'partially_refunded', 'returned', 'partially_returned', 'failed'].includes(s);
+});
+
+function stageStatus(index: number): 'completed' | 'current' | 'upcoming' {
+  if (isTerminalNegative.value) {
+    const lastPositive = Math.max(0, currentStageIndex.value);
+    if (index < lastPositive) return 'completed';
+    if (index === lastPositive) return 'current';
+    return 'upcoming';
+  }
+  if (index < currentStageIndex.value) return 'completed';
+  if (index === currentStageIndex.value) return 'current';
+  return 'upcoming';
+}
 
 const canPay = computed(() => {
   const o = order.value;
@@ -63,11 +112,18 @@ async function payNow() {
 function statusBadgeClass(status?: string) {
   switch ((status || '').toLowerCase()) {
     case 'pending': return 'bg-yellow-100 text-yellow-800';
-    case 'processing': return 'bg-blue-100 text-blue-800';
+    case 'processing':
+    case 'on_hold': return 'bg-blue-100 text-blue-800';
     case 'confirmed': return 'bg-indigo-100 text-indigo-800';
-    case 'shipped': return 'bg-purple-100 text-purple-800';
+    case 'shipped':
+    case 'out_for_delivery': return 'bg-purple-100 text-purple-800';
     case 'delivered': return 'bg-green-100 text-green-800';
-    case 'cancelled': return 'bg-red-100 text-red-800';
+    case 'returned':
+    case 'partially_returned':
+    case 'cancelled':
+    case 'refunded':
+    case 'partially_refunded':
+    case 'failed': return 'bg-red-100 text-red-800';
     default: return 'bg-gray-100 text-gray-800';
   }
 }
@@ -91,6 +147,58 @@ function statusBadgeClass(status?: string) {
             @click="payNow"
             class="rounded bg-primary px-4 py-2 text-sm text-white hover:bg-primary/90 disabled:opacity-60"
           >{{ paying ? 'Processing…' : 'Pay Now' }}</button>
+        </div>
+      </div>
+
+      <!-- Order stages stepper -->
+      <div class="mb-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <h2 class="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">Order progress</h2>
+        <div v-if="isTerminalNegative" class="mb-4 flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
+          <XCircle class="h-5 w-5 shrink-0" />
+          <span class="capitalize">Order {{ order?.status }}</span>
+        </div>
+        <div class="relative flex items-start justify-between">
+          <!-- Progress line behind steps -->
+          <div
+            class="absolute top-6 h-0.5 bg-gray-200"
+            style="left: 24px; right: 24px;"
+          />
+          <div
+            class="absolute top-6 h-0.5 overflow-hidden bg-emerald-500 transition-all duration-500"
+            style="left: 24px; right: 24px;"
+          >
+            <div
+              class="h-full bg-emerald-500"
+              :style="{ width: `${(currentStageIndex / (ORDER_STAGES.length - 1)) * 100}%` }"
+            />
+          </div>
+          <template v-for="(stage, index) in ORDER_STAGES" :key="stage.key">
+            <div class="relative z-10 flex flex-col items-center">
+              <div
+                class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 transition-all"
+                :class="{
+                  'border-emerald-500 bg-emerald-500 text-white': stageStatus(index) === 'completed',
+                  'border-primary bg-primary text-white ring-4 ring-primary/20': stageStatus(index) === 'current',
+                  'border-gray-200 bg-gray-50 text-gray-400': stageStatus(index) === 'upcoming',
+                }"
+              >
+                <component
+                  :is="stageStatus(index) === 'completed' ? CheckCircle : stage.icon"
+                  class="h-6 w-6"
+                />
+              </div>
+              <p
+                class="mt-2 max-w-[72px] text-center text-xs font-medium sm:max-w-none sm:text-sm"
+                :class="{
+                  'text-emerald-700': stageStatus(index) === 'completed',
+                  'text-primary font-semibold': stageStatus(index) === 'current',
+                  'text-gray-400': stageStatus(index) === 'upcoming',
+                }"
+              >
+                {{ stage.label }}
+              </p>
+            </div>
+          </template>
         </div>
       </div>
 

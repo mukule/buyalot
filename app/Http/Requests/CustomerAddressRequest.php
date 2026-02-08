@@ -18,8 +18,8 @@ class CustomerAddressRequest extends FormRequest
             'last_name'        => 'required|string|max:255',
             'phone'            => 'nullable|string|max:20',
             'address_line_1'   => 'required|string|max:255',
-            'region_id'        => 'required|exists:regions,id',
-            'pickup_point_id'  => 'required|exists:pickup_points,id',
+            'region_id'           => 'required|exists:regions,id',
+            'pickup_warehouse_id' => 'required|exists:warehouses,id',
             'is_default'       => 'sometimes|boolean',
         ];
     }

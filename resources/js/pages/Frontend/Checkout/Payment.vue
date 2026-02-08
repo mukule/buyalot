@@ -360,6 +360,8 @@ async function placeCashOnDeliveryOrder() {
             },
         );
 
+        console.log("payment on delivery response {} ",resp);
+
         status.value = 'success';
         initiating.value = false;
         message.value = 'Order placed successfully. You will pay upon delivery.';
@@ -475,7 +477,7 @@ const paymentMethod = ref<'mpesa' | 'cod'>('mpesa');
                             <div v-if="addresses.length > 0" class="space-y-2 rounded border p-3">
                                 <div class="flex items-start justify-between">
                                     <p class="text-sm text-gray-800">
-                                        {{ selected_shipping ? `${selected_shipping.region} - ${selected_shipping.pickup_point ?? ''}` : '' }}
+                                        {{ selected_shipping ? [selected_shipping.region, selected_shipping.pickup_point].filter(Boolean).join(' – ') || 'Pickup point selected' : 'Select an address with a pickup point' }}
                                     </p>
 
                                     <button
@@ -540,7 +542,7 @@ const paymentMethod = ref<'mpesa' | 'cod'>('mpesa');
 
                         <!-- STATUS + PROGRESS -->
                         <div v-if="status === 'initiating' || status === 'polling'" class="space-y-2">
-                            <div v-if="status === 'initiating'" class="text-sm font-medium text-primary">
+                            <div v-if="status === 'initiating' && paymentMethod != 'cod'" class="text-sm font-medium text-primary">
                                 Sending Payment request {{ animatedDots }}
                             </div>
 

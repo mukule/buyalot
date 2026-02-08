@@ -20,6 +20,7 @@ import {
     Map,
     MapPin,
     MapPinCheck,
+    RotateCcw,
     RulerIcon,
     ShieldCheck,
     Tag,
@@ -166,6 +167,12 @@ const allNavItems: NavItem[] = [
         href: '/admin/orders',
         icon: LucideListOrdered,
         permissions: ['view-orders'],
+    },
+    {
+        title: 'Returns',
+        href: '/admin/returns',
+        icon: RotateCcw,
+        permissions: ['view-dashboard'],
     },
     {
         title: 'Invoices',

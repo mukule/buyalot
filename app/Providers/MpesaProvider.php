@@ -194,7 +194,7 @@ class MpesaProvider implements PaymentProviderInterface
             if ($checkoutSession) {
                 try {
                     $order = app(\App\Services\OrderPlacementService::class)
-                        ->placeOrder($checkoutSession->id,$requestAmountPaid,$metadata['mpesareceiptnumber']);
+                        ->placeOrder($checkoutSession->id,$requestAmountPaid,$metadata['mpesareceiptnumber'],'MPESA');
 
                     Log::info('Order successfully created from checkout session', [
                         'checkout_session_id' => $checkoutSession->id,

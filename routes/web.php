@@ -46,6 +46,15 @@ require __DIR__.'/customer.php';
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
 
+// Delivery person: login at /delivery/login, then access delivery dashboard
+Route::middleware(['auth', 'role:delivery'])->prefix('admin')->name('delivery.')->group(function () {
+    Route::get('/delivery', [\App\Http\Controllers\Delivery\DeliveryController::class, 'dashboard'])->name('dashboard');
+    Route::post('/delivery/orders/{order}/accept', [\App\Http\Controllers\Delivery\DeliveryController::class, 'accept'])->name('orders.accept');
+    Route::post('/delivery/orders/{order}/reject', [\App\Http\Controllers\Delivery\DeliveryController::class, 'reject'])->name('orders.reject');
+    Route::post('/delivery/orders/{order}/confirm-picked', [\App\Http\Controllers\Delivery\DeliveryController::class, 'confirmPickedForDelivery'])->name('orders.confirm-picked');
+    Route::post('/delivery/orders/{order}/raise-return', [\App\Http\Controllers\Delivery\DeliveryController::class, 'raiseReturn'])->name('orders.raise-return');
+});
+
 // Product search
 Route::get('/refresh/cache', [\App\Services\SearchCacheService::class, 'refresh'])->name('refresh.cache');
 Route::get('/forget/cache', [\App\Services\SearchCacheService::class, 'forget'])->name('forget.cache');
@@ -57,6 +66,7 @@ Route::middleware(['auth','role:admin|seller|vendor|super-admin','check_permissi
     Route::get('/invoices', [\App\Http\Controllers\Admin\InvoiceController::class, 'index'])->name('invoices.index')
         ->middleware('check_permission:view-invoices');
     Route::get('/dashboard',[HomeController::class,'dashboard'])->name('dashboard');
+    Route::get('/returns', [HomeController::class, 'returnsIndex'])->name('returns.index');
 //        function () {
 //        return Inertia::render('Dashboard');
 //    })->name('dashboard');
@@ -134,6 +144,14 @@ Route::middleware(['auth','role_or_permission:admin|view-orders'])->prefix('admi
     Route::get('/orders', [\App\Http\Controllers\Orders\OrderController::class, 'index'])->name('orders.index');
     Route::get('/orders/{order}', [\App\Http\Controllers\Admin\OrderController::class, 'show'])
         ->name('orders.show');
+    Route::post('/orders/{order}/assign-delivery', [\App\Http\Controllers\Admin\OrderController::class, 'assignDelivery'])
+        ->name('orders.assign-delivery');
+    Route::post('/orders/{order}/change-delivery', [\App\Http\Controllers\Admin\OrderController::class, 'changeDelivery'])
+        ->name('orders.change-delivery');
+    Route::get('/orders/{order}/delivery-note', [\App\Http\Controllers\Admin\OrderController::class, 'deliveryNote'])
+        ->name('orders.delivery-note');
+    Route::post('/orders/{order}/allocate-for-pickup', [\App\Http\Controllers\Admin\OrderController::class, 'allocateForPickup'])
+        ->name('orders.allocate-for-pickup');
 });
 
 Route::middleware(['auth', 'role_or_permission:admin|super-admin|view-categories'])->prefix('admin')->name('admin.')

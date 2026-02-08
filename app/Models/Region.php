@@ -50,6 +50,16 @@ class Region extends Model
         return $this->hasMany(PickupPoint::class);
     }
 
+    /**
+     * Warehouses that serve this region (via pivot or direct region_id).
+     * Used for pickup point selection (types: pickup_point, dispatch_center, general).
+     */
+    public function warehouses()
+    {
+        return $this->belongsToMany(\App\Models\Warehouse\Warehouse::class, 'warehouse_region')
+            ->withPivot([]);
+    }
+
     public function zone()
     {
         return $this->belongsTo(Zone::class);

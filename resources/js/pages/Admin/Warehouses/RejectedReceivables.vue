@@ -5,7 +5,7 @@ import { ref } from 'vue';
 
 const props = defineProps<{
   warehouse: { id: number; hashid: string; name: string; code: string };
-  items: { id: number; product_name: string; variant_display?: string|null; quantity: number; from_warehouse?: string|null; rejected_reason?: string|null; rejected_at?: string|null; note?: string|null }[];
+  items: { id: number; product_name: string; variant_display?: string|null; quantity: number; from_warehouse?: string|null; rejected_reason?: string|null; rejected_at?: string|null; note?: string|null; order_return_id?: number|null; order_code?: string|null; order_ulid?: string|null }[];
   pagination: any;
   filters: { search: string; per_page: number };
 }>();
@@ -67,6 +67,7 @@ function goBackInventory() {
               <th class="px-4 py-2 text-left font-medium text-gray-500 uppercase">Rejected Reason</th>
               <th class="px-4 py-2 text-left font-medium text-gray-500 uppercase">Rejected At</th>
               <th class="px-4 py-2 text-left font-medium text-gray-500 uppercase">Note</th>
+              <th class="px-4 py-2 text-right font-medium text-gray-500 uppercase">Action</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-200 bg-white">
@@ -78,6 +79,10 @@ function goBackInventory() {
               <td class="px-4 py-2">{{ it.rejected_reason || '—' }}</td>
               <td class="px-4 py-2">{{ it.rejected_at || '—' }}</td>
               <td class="px-4 py-2">{{ it.note || '—' }}</td>
+              <td class="px-4 py-2 text-right">
+                <a v-if="it.order_ulid" :href="route('admin.orders.show', it.order_ulid)" class="text-green-600 hover:underline">View order</a>
+                <span v-else class="text-gray-400">—</span>
+              </td>
             </tr>
             <tr v-if="!props.items || props.items.length === 0">
               <td colspan="7" class="px-4 py-6 text-center text-gray-500">No rejected transfers.</td>

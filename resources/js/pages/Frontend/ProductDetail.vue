@@ -8,6 +8,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 
 // --- Props ---
 const props = defineProps<{
+    googleMapsApiKey?: string;
     product: {
         id: number;
         slug: string;
@@ -141,6 +142,10 @@ const decreaseQty = () => {
 interface PickupPoint {
     id: number;
     name: string;
+    address?: string | null;
+    location?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
 }
 
 interface ShippingOptions {
@@ -171,6 +176,43 @@ const updatePickupPoints = () => {
 };
 
 watch(selectedRegionId, updatePickupPoints);
+
+const selectedPickupPoint = computed(() => {
+    if (!selectedPickupId.value || !Array.isArray(filteredPickupPoints.value)) return null;
+    return filteredPickupPoints.value.find((p) => p.id === selectedPickupId.value) ?? null;
+});
+
+const showMapModal = ref(false);
+
+/** Static map URL (OpenStreetMap) when we have lat/lng – no API key needed, avoids Google Maps load errors */
+const pickupMapImageUrl = computed(() => {
+    const p = selectedPickupPoint.value;
+    if (!p || p.latitude == null || p.longitude == null) return '';
+    const lat = p.latitude;
+    const lng = p.longitude;
+    return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=15&size=600x300&markers=${lat},${lng},red-pushpin`;
+});
+
+function openMapModal() {
+    if (!selectedPickupPoint.value) return;
+    showMapModal.value = true;
+}
+
+function closeMapModal() {
+    showMapModal.value = false;
+}
+
+function openGoogleMapsExternal() {
+    const p = selectedPickupPoint.value;
+    if (!p) return;
+    const lat = p.latitude;
+    const lng = p.longitude;
+    if (lat != null && lng != null) {
+        window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank');
+    } else if (p.address || p.location) {
+        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.address || p.location || p.name)}`, '_blank');
+    }
+}
 
 // --- VIDEO PREVIEW ---
 const videoEmbedUrl = computed<string | null>(() => {
@@ -383,6 +425,17 @@ const videoEmbedUrl = computed<string | null>(() => {
                                     {{ pickup.name }}
                                 </option>
                             </select>
+                            <p v-if="selectedPickupPoint?.address || selectedPickupPoint?.location" class="mt-1 text-xs text-gray-500">
+                                {{ selectedPickupPoint?.address || selectedPickupPoint?.location }}
+                            </p>
+                            <button
+                                v-if="selectedPickupPoint && (selectedPickupPoint.latitude != null || selectedPickupPoint.address || selectedPickupPoint.location)"
+                                type="button"
+                                class="mt-2 w-full rounded border border-primary bg-primary/10 px-2 py-1.5 text-sm font-medium text-primary hover:bg-primary/20"
+                                @click="openMapModal"
+                            >
+                                View on map
+                            </button>
 
                             <div v-if="selectedShippingOptions" class="mt-2 space-y-4 text-sm">
                                 <div class="rounded border border-gray-200 p-3">
@@ -455,6 +508,33 @@ const videoEmbedUrl = computed<string | null>(() => {
                                 allowfullscreen
                                 class="h-full w-full"
                             ></iframe>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pickup point map modal (uses OpenStreetMap static map – no API key required) -->
+            <div v-if="showMapModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" @click.self="closeMapModal">
+                <div class="relative max-h-[90vh] w-full max-w-2xl rounded-lg bg-white shadow-xl" @click.stop>
+                    <div class="flex items-center justify-between border-b px-4 py-2">
+                        <h3 class="font-semibold text-gray-800">{{ selectedPickupPoint?.name ?? 'Pickup point' }}</h3>
+                        <button type="button" class="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700" @click="closeMapModal" aria-label="Close">×</button>
+                    </div>
+                    <div class="p-2">
+                        <div v-if="pickupMapImageUrl" class="h-[400px] w-full overflow-hidden rounded border bg-gray-100">
+                            <img :src="pickupMapImageUrl" alt="Pickup point map" class="h-full w-full object-cover" />
+                        </div>
+                        <p v-else-if="selectedPickupPoint && (selectedPickupPoint.latitude == null || selectedPickupPoint.longitude == null) && (selectedPickupPoint.address || selectedPickupPoint.location)" class="mt-2 text-center text-sm text-gray-500">
+                            No coordinates for this pickup point. You can open the address in Google Maps.
+                        </p>
+                        <div class="mt-2 flex justify-center">
+                            <button
+                                type="button"
+                                class="rounded bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90"
+                                @click="openGoogleMapsExternal"
+                            >
+                                Open in Google Maps
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -145,6 +145,7 @@ export interface Product {
 
 export interface Order {
     id: number;
+    ulid?: string;
     order_code: string;
     status: string;
     payment_status: string;
@@ -161,6 +162,9 @@ export interface Order {
 
     // Delivery
     rider_id?: number;
+    delivery_id?: number | null;
+    delivery_assignment_status?: string | null;
+    assigned_rider?: { id: number; name: string; email: string } | null;
 }
 
 export interface Permission {
@@ -287,7 +291,11 @@ export interface Warehouse {
     hashid?: string;
     name: string;
     slug: string;
+    type?: string;
+    region_id?: number | null;
     location?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
     active: boolean;
 }
 

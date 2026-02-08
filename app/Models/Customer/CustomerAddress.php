@@ -11,7 +11,7 @@ class CustomerAddress extends Model
     use HasFactory;
 
     protected $fillable = [
-        'customer_id', 'pickup_point_id', 'type', 'label', 'first_name', 'last_name',
+        'customer_id', 'pickup_point_id', 'pickup_warehouse_id', 'type', 'label', 'first_name', 'last_name',
         'company', 'address_line_1', 'address_line_2', 'city',
         'state_province', 'postal_code', 'country_code', 'country_name', 'phone', 'is_default',
         'latitude', 'longitude', 'delivery_instructions', 'is_validated', 'validation_data',
@@ -62,6 +62,11 @@ class CustomerAddress extends Model
     public function pickupPoint(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(\App\Models\PickupPoint::class, 'pickup_point_id');
+    }
+
+    public function pickupWarehouse(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Warehouse\Warehouse::class, 'pickup_warehouse_id');
     }
 
     /*
@@ -163,9 +168,14 @@ class CustomerAddress extends Model
     public function getSimplifiedAddressAttribute(): array
     {
         $regionName = null;
+        $pickupName = null;
 
-        if ($this->pickup_point_id && $this->pickupPoint) {
+        if ($this->pickup_warehouse_id && $this->relationLoaded('pickupWarehouse') && $this->pickupWarehouse) {
+            $regionName = $this->pickupWarehouse->region?->name ?? null;
+            $pickupName = $this->pickupWarehouse->name;
+        } elseif ($this->pickup_point_id && $this->pickupPoint) {
             $regionName = $this->pickupPoint->region?->name ?? null;
+            $pickupName = $this->pickupPoint->name;
         }
 
         return [
@@ -174,7 +184,7 @@ class CustomerAddress extends Model
             'phone'        => $this->phone,
             'address'      => $this->address_line_1,
             'region'       => $regionName,
-            'pickup_point' => $this->pickup_point_id,
+            'pickup_point' => $pickupName ?? $this->pickup_point_id ?? $this->pickup_warehouse_id,
         ];
     }
 }

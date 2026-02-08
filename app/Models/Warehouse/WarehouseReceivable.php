@@ -2,6 +2,8 @@
 
 namespace App\Models\Warehouse;
 
+use App\Models\Orders\Order;
+use App\Models\Orders\OrderReturn;
 use App\Models\Products\ProductVariant;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -14,6 +16,8 @@ class WarehouseReceivable extends Model
 
     protected $fillable = [
         'warehouse_id',
+        'order_id',
+        'order_return_id',
         'from_warehouse_id',
         'product_variant_id',
         'quantity',
@@ -36,6 +40,16 @@ class WarehouseReceivable extends Model
     public function warehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class);
+    }
+
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(Order::class);
+    }
+
+    public function orderReturn(): BelongsTo
+    {
+        return $this->belongsTo(OrderReturn::class);
     }
 
     public function productVariant(): BelongsTo

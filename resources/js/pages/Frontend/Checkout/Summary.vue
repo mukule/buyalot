@@ -148,8 +148,12 @@ const proceedToPayment = () => {
                                 <template v-if="defaultAddress.phone">
                                     {{ defaultAddress.phone }}
                                 </template>
-                                <template v-if="defaultAddress.pickup_point?.region"> | {{ defaultAddress.pickup_point.region.name }} </template>
-                                <template v-if="defaultAddress.pickup_point?.name"> | {{ defaultAddress.pickup_point.name }} </template>
+                                <template v-if="(defaultAddress.pickup_warehouse?.region?.name ?? defaultAddress.pickup_point?.region?.name)">
+                                    | {{ defaultAddress.pickup_warehouse?.region?.name ?? defaultAddress.pickup_point?.region?.name }}
+                                </template>
+                                <template v-if="(defaultAddress.pickup_warehouse?.name ?? defaultAddress.pickup_point?.name)">
+                                    | {{ defaultAddress.pickup_warehouse?.name ?? defaultAddress.pickup_point?.name }}
+                                </template>
                             </span>
                         </div>
 

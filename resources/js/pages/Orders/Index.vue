@@ -35,10 +35,6 @@ const searchForm = useForm({
 const selectedOrders = ref<string[]>([])
 const showBulkActions = computed(() => selectedOrders.value.length > 0)
 
-// Modal states
-const showViewModal = ref(false)
-const selectedOrder = ref<Order | null>(null)
-
 // Breadcrumbs
 const breadcrumbs = [
     { title: 'Dashboard', href: '/admin/dashboard' },
@@ -75,12 +71,6 @@ function toggleSelectAll() {
     } else {
         selectedOrders.value = orders.value.map((o) => o.id.toString())
     }
-}
-
-// Open view modal
-function openViewModal(order: Order) {
-    selectedOrder.value = order
-    showViewModal.value = true
 }
 
 // Watch filters and auto-search
@@ -166,6 +156,7 @@ watch(
                             <th class="px-4 py-3">Status</th>
                             <th class="px-4 py-3">Payment</th>
                             <th class="px-4 py-3">Total</th>
+                            <th class="px-4 py-3">Delivery</th>
                             <th class="px-4 py-3">Date</th>
                             <th class="px-4 py-3">Actions</th>
                         </tr>
@@ -181,9 +172,14 @@ watch(
                             <td class="px-4 py-3 capitalize">{{ order.status || '-' }}</td>
                             <td class="px-4 py-3 capitalize">{{ order.payment_status || '-' }}</td>
                             <td class="px-4 py-3 font-semibold">{{ order.total_amount != null ? Number(order.total_amount).toFixed(2) : '0.00' }}</td>
+                            <td class="px-4 py-3">
+                                <span v-if="order.assigned_rider">{{ order.assigned_rider.name }}</span>
+                                <span v-else class="text-gray-500">—</span>
+                                <span v-if="order.assigned_rider && order.delivery_assignment_status" class="ml-1 text-xs text-gray-500">({{ order.delivery_assignment_status }})</span>
+                            </td>
                             <td class="px-4 py-3">{{ order.created_at ? new Date(order.created_at).toLocaleDateString() : '-' }}</td>
                             <td class="px-4 py-3">
-                                <button @click="openViewModal(order)" class="text-sm text-blue-600 hover:underline">View</button>
+                                <Link :href="route('admin.orders.show', order.ulid ?? order.id)" class="text-sm text-blue-600 hover:underline">View</Link>
                             </td>
                         </tr>
                         </tbody>

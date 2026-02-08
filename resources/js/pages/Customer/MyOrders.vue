@@ -265,9 +265,6 @@ async function initiatePayment(order: OrderItem, phone: string) {
                                     </span>
                                 </td>
                                 <td class="px-4 py-4 text-right text-sm font-medium flex items-center justify-end gap-3">
-                                    <button @click="viewOrder(order.ulid)" aria-label="View Order" class="text-blue-600 transition hover:text-blue-800">
-                                        <Eye class="h-5 w-5" />
-                                    </button>
                                     <button
                                         v-if="order.payment_status === 'pending'"
                                         :disabled="payingOrderId === order.id"
@@ -276,6 +273,9 @@ async function initiatePayment(order: OrderItem, phone: string) {
                                         title="Pay for this order"
                                     >
                                         {{ payingOrderId === order.id ? 'Processing…' : 'Pay Now' }}
+                                    </button>
+                                    <button @click="viewOrder(order.ulid)" aria-label="View Order" class="text-blue-600 transition hover:text-blue-800">
+                                        <Eye class="h-5 w-5" />
                                     </button>
                                 </td>
                             </tr>

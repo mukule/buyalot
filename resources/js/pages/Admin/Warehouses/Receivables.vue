@@ -124,7 +124,7 @@ function submitReject() {
           </thead>
           <tbody class="divide-y divide-gray-200 bg-white">
             <tr v-for="r in props.receivables" :key="r.id">
-              <td class="px-4 py-2">{{ r.product_name }}</td>
+              <td class="px-4 py-2">{{ r.product_name || '—' }}</td>
               <td class="px-4 py-2">{{ r.variant_display || '—' }}</td>
               <td class="px-4 py-2">{{ r.quantity }}</td>
               <td class="px-4 py-2">{{ r.note || '—' }}</td>

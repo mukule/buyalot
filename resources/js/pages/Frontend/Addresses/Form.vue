@@ -13,6 +13,10 @@ const isEdit = (page.props as any).is_edit || false;
 interface PickupPoint {
     id: string | number;
     name: string;
+    address?: string | null;
+    location?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
 }
 
 interface ShippingOption {
@@ -37,7 +41,7 @@ const defaultLast = (page.props as any).last_name || '';
 const defaultPhone = (page.props as any).phone || '';
 const defaultAddressLine = (page.props as any).address_line_1 || '';
 const defaultRegionId = (page.props as any).selected_region_id || '';
-const defaultPickupPointId = (page.props as any).selected_pickup_point_id || '';
+const defaultPickupWarehouseId = (page.props as any).selected_pickup_warehouse_id || '';
 const defaultIsDefault = Boolean((page.props as any).is_default);
 
 // --- Form ---
@@ -47,7 +51,7 @@ interface AddressForm {
     phone: string;
     address_line_1: string;
     region_id: string | number;
-    pickup_point_id: string | number;
+    pickup_warehouse_id: string | number;
     is_default: boolean;
 }
 
@@ -57,7 +61,7 @@ const form = useForm<AddressForm>({
     phone: defaultPhone,
     address_line_1: defaultAddressLine,
     region_id: defaultRegionId,
-    pickup_point_id: '', // set after nextTick to ensure select options exist
+    pickup_warehouse_id: '', // set after nextTick to ensure select options exist
     is_default: defaultIsDefault,
 });
 
@@ -67,12 +71,43 @@ const availablePickupPoints = computed(() => {
     return selectedRegion?.pickup_points || [];
 });
 
-// --- Prefill pickup_point_id after nextTick ---
-if (defaultPickupPointId) {
+// --- Selected pickup point / warehouse (for map) ---
+const selectedPickupPoint = computed<PickupPoint | null>(() => {
+    if (!form.pickup_warehouse_id || !availablePickupPoints.value.length) return null;
+    return availablePickupPoints.value.find((p) => p.id == form.pickup_warehouse_id) ?? null;
+});
+
+// --- Map modal (static map like ProductDetail – no Google API key needed) ---
+const showMapModal = ref(false);
+const pickupMapImageUrl = computed(() => {
+    const p = selectedPickupPoint.value;
+    if (!p || p.latitude == null || p.longitude == null) return '';
+    const lat = p.latitude;
+    const lng = p.longitude;
+    return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=15&size=600x300&markers=${lat},${lng},red-pushpin`;
+});
+function openMapModal() {
+    if (!selectedPickupPoint.value) return;
+    showMapModal.value = true;
+}
+function closeMapModal() {
+    showMapModal.value = false;
+}
+function openGoogleMapsExternal() {
+    const p = selectedPickupPoint.value;
+    if (!p) return;
+    if (p.latitude != null && p.longitude != null) {
+        window.open(`https://www.google.com/maps?q=${p.latitude},${p.longitude}`, '_blank');
+    } else if (p.address || p.location) {
+        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.address || p.location || p.name)}`, '_blank');
+    }
+}
+
+// --- Prefill pickup_warehouse_id after nextTick ---
+if (defaultPickupWarehouseId) {
     nextTick(() => {
-        // Ensure the pickup point exists in the computed list
-        if (availablePickupPoints.value.find((p) => p.id == defaultPickupPointId)) {
-            form.pickup_point_id = defaultPickupPointId;
+        if (availablePickupPoints.value.find((p) => p.id == defaultPickupWarehouseId)) {
+            form.pickup_warehouse_id = defaultPickupWarehouseId;
         }
     });
 }
@@ -88,8 +123,8 @@ watch(
     () => form.region_id,
     () => {
         shippingFee.value = selectedShippingOption.value?.cost ?? 0;
-        // Reset pickup point if region changes
-        form.pickup_point_id = '';
+        // Reset pickup warehouse if region changes
+        form.pickup_warehouse_id = '';
     },
     { immediate: true },
 );
@@ -186,17 +221,28 @@ const formatPrice = (amount?: number | null) => `KSh ${(amount ?? 0).toLocaleStr
                             <p v-if="form.errors.region_id" class="mt-1 text-xs text-red-600">{{ form.errors.region_id }}</p>
                         </div>
 
-                        <div>
+                        <div class="md:col-span-2">
                             <label class="mb-1 block text-sm font-medium text-gray-700">Pickup Point</label>
                             <select
-                                v-model="form.pickup_point_id"
+                                v-model="form.pickup_warehouse_id"
                                 required
                                 class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:ring focus:ring-primary/30"
                             >
                                 <option value="">Select pickup point</option>
                                 <option v-for="p in availablePickupPoints" :key="p.id" :value="p.id">{{ p.name }}</option>
                             </select>
-                            <p v-if="form.errors.pickup_point_id" class="mt-1 text-xs text-red-600">{{ form.errors.pickup_point_id }}</p>
+                            <p v-if="selectedPickupPoint?.address || selectedPickupPoint?.location" class="mt-1 text-xs text-gray-500">
+                                {{ selectedPickupPoint?.address || selectedPickupPoint?.location }}
+                            </p>
+                            <button
+                                v-if="selectedPickupPoint && (selectedPickupPoint.latitude != null || selectedPickupPoint.address || selectedPickupPoint.location)"
+                                type="button"
+                                class="mt-2 w-full rounded-md border border-primary bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/20"
+                                @click="openMapModal"
+                            >
+                                View on map
+                            </button>
+                            <p v-if="form.errors.pickup_warehouse_id" class="mt-1 text-xs text-red-600">{{ form.errors.pickup_warehouse_id }}</p>
                         </div>
                     </fieldset>
 
@@ -264,5 +310,34 @@ const formatPrice = (amount?: number | null) => `KSh ${(amount ?? 0).toLocaleStr
                 </p>
             </div>
         </section>
+
+        <!-- Pickup point map modal -->
+        <div v-if="showMapModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" @click.self="closeMapModal">
+            <div class="relative max-h-[90vh] w-full max-w-2xl rounded-lg bg-white shadow-xl" @click.stop>
+                <div class="flex items-center justify-between border-b px-4 py-2">
+                    <h3 class="font-semibold text-gray-800">{{ selectedPickupPoint?.name ?? 'Pickup point' }}</h3>
+                    <button type="button" class="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700" @click="closeMapModal" aria-label="Close">×</button>
+                </div>
+                <div class="p-4">
+                    <div v-if="pickupMapImageUrl" class="h-[400px] w-full overflow-hidden rounded border bg-gray-100">
+                        <img :src="pickupMapImageUrl" alt="Pickup point map" class="h-full w-full object-cover" @error="($event.target as HTMLImageElement).style.display = 'none'" />
+                    </div>
+                    <div v-else class="flex min-h-[200px] flex-col items-center justify-center rounded border border-gray-200 bg-gray-50 py-8 text-center">
+                        <p class="text-sm text-gray-600">
+                            {{ (selectedPickupPoint?.address || selectedPickupPoint?.location) ? 'No coordinates for this pickup point. You can open the address in Google Maps below.' : 'Open in Google Maps to view the pickup point location.' }}
+                        </p>
+                    </div>
+                    <div class="mt-4 flex justify-center">
+                        <button
+                            type="button"
+                            class="rounded bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90"
+                            @click="openGoogleMapsExternal"
+                        >
+                            Open in Google Maps
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </MainLayout>
 </template>

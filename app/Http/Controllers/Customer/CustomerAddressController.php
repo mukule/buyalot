@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Customer;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CustomerAddressRequest;
 use App\Models\Customer\CustomerAddress;
+use App\Models\Region;
+use App\Models\Warehouse\Warehouse;
 use Inertia\Inertia;
 use App\Services\CartReservationService;
 use Illuminate\Http\Request;
@@ -115,6 +117,7 @@ public function index(CartReservationService $cartService)
     // Fetch all customer addresses with eager-loaded relations and map to simplified format
     $addresses = $customer->addresses()
         ->with(['pickupPoint.region'])
+        ->with(['pickupPoint.region', 'pickupWarehouse' => fn($q) => $q->withoutGlobalScopes()->with('region')])
         ->orderByDesc('is_default')
         ->get()
         ->map(fn($address) => [
@@ -123,8 +126,8 @@ public function index(CartReservationService $cartService)
             'last_name'    => $address->last_name,
             'phone'        => $address->phone,
             'address'      => $address->address_line_1,
-            'region'       => $address->pickupPoint?->region?->name,
-            'pickup_point' => $address->pickupPoint?->name,
+            'region'       => $address->pickupWarehouse?->region?->name ?? $address->pickupPoint?->region?->name,
+            'pickup_point' => $address->pickupWarehouse?->name ?? $address->pickupPoint?->name,
             'is_default'   => $address->is_default,
         ]);
 
@@ -171,18 +174,30 @@ public function form(CustomerAddress $address = null, CartReservationService $ca
     // Shipping service
     $shippingService = app(\App\Services\ShippingService::class);
 
-    // Regions with pickup points and shipping options
-    $regions = \App\Models\Region::with(['pickupPoints' => fn($q) => $q->active()])
-        ->active()
+    // Regions with warehouses as pickup points (type: pickup_point, dispatch_center, general)
+    $regions = Region::active()
         ->level('region')
         ->get()
         ->map(function ($region) use ($shippingService) {
+            $warehouses = Warehouse::withoutGlobalScopes()
+                ->where(function ($q) use ($region) {
+                    $q->where('region_id', $region->id)
+                        ->orWhereHas('regions', fn($r) => $r->where('regions.id', $region->id));
+                })
+                ->whereIn('type', ['pickup_point', 'dispatch_center', 'general'])
+                ->where('active', true)
+                ->get(['id', 'name', 'address', 'location', 'latitude', 'longitude']);
+
             return [
                 'id' => $region->id,
                 'name' => $region->name,
-                'pickup_points' => $region->pickupPoints->map(fn($pp) => [
-                    'id' => $pp->id,
-                    'name' => $pp->name,
+                'pickup_points' => $warehouses->map(fn($w) => [
+                    'id' => $w->id,
+                    'name' => $w->name,
+                    'address' => $w->address,
+                    'location' => $w->location,
+                    'latitude' => $w->latitude !== null && $w->latitude !== '' ? (float) $w->latitude : null,
+                    'longitude' => $w->longitude !== null && $w->longitude !== '' ? (float) $w->longitude : null,
                 ])->values()->toArray(),
                 'shipping_options' => $shippingService->getOptionsByRegion($region->id),
             ];
@@ -195,11 +210,20 @@ public function form(CustomerAddress $address = null, CartReservationService $ca
 
     $method = $isEdit ? 'put' : 'post';
 
-    // Prefill region if editing and pickup point exists
+    // Prefill region and pickup warehouse when editing
     $selectedRegionId = null;
-    if ($isEdit && $address->pickup_point_id) {
-        $pickupPoint = \App\Models\PickupPoint::with('region')->find($address->pickup_point_id);
-        $selectedRegionId = $pickupPoint?->region?->id;
+    $selectedPickupWarehouseId = null;
+    if ($isEdit) {
+        if ($address->pickup_warehouse_id) {
+            $warehouse = Warehouse::withoutGlobalScopes()->with(['region', 'regions'])->find($address->pickup_warehouse_id);
+            if ($warehouse) {
+                $selectedPickupWarehouseId = $address->pickup_warehouse_id;
+                $selectedRegionId = $warehouse->region_id ?? $warehouse->regions->first()?->id;
+            }
+        } elseif ($address->pickup_point_id) {
+            $pickupPoint = \App\Models\PickupPoint::with('region')->find($address->pickup_point_id);
+            $selectedRegionId = $pickupPoint?->region?->id;
+        }
     }
 
     return Inertia::render('Frontend/Addresses/Form', [
@@ -208,8 +232,8 @@ public function form(CustomerAddress $address = null, CartReservationService $ca
         'customer'                  => $customer,
         'cart_subtotal'             => $totals['grand_total'] ?? 0,
         'regions'                   => $regions,
-        'selected_region_id'        => $selectedRegionId,             // Prefill region
-        'selected_pickup_point_id'  => $address?->pickup_point_id ?? null, // Prefill pickup point
+        'selected_region_id'        => $selectedRegionId,
+        'selected_pickup_warehouse_id' => $selectedPickupWarehouseId,
         'is_default'                => $address?->is_default ?? false,    // Prefill default checkbox
         'first_name'                => $address?->first_name ?? $firstName,
         'last_name'                 => $address?->last_name ?? $lastName,
@@ -230,6 +254,7 @@ public function store(CustomerAddressRequest $request)
 
     $data = $request->validated();
     $data['is_default'] = boolval($request->input('is_default', false));
+    $data['pickup_point_id'] = null; // we use pickup_warehouse_id for warehouse pickup points
 
     $address = $customer->addresses()->create($data);
 
@@ -251,6 +276,7 @@ public function update(CustomerAddressRequest $request, CustomerAddress $address
     $isDefault = boolval($request->input('is_default', false));
 
     unset($data['is_default']); // ← prevent conflicting save
+    $data['pickup_point_id'] = null; // we use pickup_warehouse_id for warehouse pickup points
 
     \Log::info('Updating customer address (before update)', [
         'address_id' => $address->id,

@@ -16,7 +16,7 @@ class Cart extends Model
     protected $fillable = [
         'user_id',
         'cart_token',
-        'status', // new field for cart status
+        'status',
     ];
 
     protected static function booted()

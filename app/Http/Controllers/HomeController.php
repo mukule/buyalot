@@ -7,6 +7,7 @@ use App\Models\Brand;
 use App\Models\Customer\Customer;
 use App\Models\Orders\Order;
 use App\Models\Orders\OrderItem;
+use App\Models\Orders\OrderReturn;
 use App\Models\Products\Product;
 use App\Models\Region;
 use App\Models\Seller\Seller;
@@ -157,27 +158,42 @@ public function productDetails(string $slug)
 
     $shippingService = app(\App\Services\ShippingService::class);
 
-    $regions = Region::with(['pickupPoints' => fn($q) => $q->active()])
-        ->active()
+    $regions = Region::active()
         ->level('region')
         ->get()
         ->map(function ($region) use ($shippingService) {
+            $warehouses = Warehouse::withoutGlobalScopes()
+                ->where(function ($q) use ($region) {
+                    $q->where('region_id', $region->id)
+                        ->orWhereHas('regions', fn ($r) => $r->where('regions.id', $region->id));
+                })
+                ->whereIn('type', ['pickup_point', 'dispatch_center', 'general'])
+                ->where('active', true)
+                ->get(['id', 'name', 'address', 'location', 'latitude', 'longitude']);
+
             return [
                 'id' => $region->id,
                 'name' => $region->name,
-                'pickup_points' => $region->pickupPoints->map(fn($pp) => [
-                    'id' => $pp->id,
-                    'name' => $pp->name,
+                'pickup_points' => $warehouses->map(fn ($w) => [
+                    'id' => $w->id,
+                    'name' => $w->name,
+                    'address' => $w->address,
+                    'location' => $w->location,
+                    'latitude' => $w->latitude ? (float) $w->latitude : null,
+                    'longitude' => $w->longitude ? (float) $w->longitude : null,
                 ])->values()->toArray(),
                 'shipping_options' => $shippingService->getOptionsByRegion($region->id),
             ];
         });
+
+    $googleMapsApiKey = config('services.google.maps_api_key', '');
 
     return Inertia::render('Frontend/ProductDetail', [
         'product' => $productData,
         'relatedProducts' => $relatedProducts,
         'cartVariantIds' => $cartVariantIds,
         'regions' => $regions,
+        'googleMapsApiKey' => $googleMapsApiKey,
         'title' => $product->name,
     ]);
 }
@@ -332,14 +348,84 @@ public function category(string $slug)
                 ];
             });
 
+        // Recent returns (scoped to seller orders when seller/vendor)
+        $returnsQuery = OrderReturn::with('order:id,order_code,ulid,status')
+            ->latest()
+            ->limit(15);
+        if ($user && $user->hasRole(['seller', 'vendor']) && $sellerIds !== null) {
+            $returnsQuery->whereHas('order', fn ($q) => $q->forSeller($sellerIds));
+        }
+        $returns = $returnsQuery->get()->map(function ($r) {
+            $reasonLabel = OrderReturn::reasonOptions()[$r->reason] ?? $r->reason;
+            return [
+                'id' => $r->id,
+                'order_id' => $r->order_id,
+                'order_code' => $r->order?->order_code,
+                'order_ulid' => $r->order?->ulid,
+                'order_status' => $r->order?->status,
+                'status' => $r->status,
+                'reason' => $reasonLabel,
+                'reason_notes' => $r->reason_notes,
+                'is_full_return' => $r->is_full_return,
+                'created_at' => $r->created_at?->toDateTimeString(),
+            ];
+        });
+
         return Inertia::render('Dashboard', [
             'stats' => $stats,
             'ordersByStatus' => $ordersByStatus,
             'productVariantPerformance' => $productVariantPerformance,
+            'returns' => $returns,
         ]);
     }
 
+    /**
+     * Admin returns list (full page).
+     */
+    public function returnsIndex(Request $request)
+    {
+        $user = $request->user();
+        $sellerIds = null;
+        if ($user && $user->hasRole(['seller', 'vendor'])) {
+            $sellerIds = $user->sellers()->pluck((new \App\Models\Seller\Seller())->getTable() . '.id');
+        }
 
+        $query = OrderReturn::with('order:id,order_code,ulid,status')
+            ->latest();
+        if ($user && $user->hasRole(['seller', 'vendor']) && $sellerIds !== null) {
+            $query->whereHas('order', fn ($q) => $q->forSeller($sellerIds));
+        }
+
+        $perPage = (int) $request->input('per_page', 20);
+        $paginated = $query->paginate($perPage)->withQueryString();
+
+        $returns = $paginated->getCollection()->map(function ($r) {
+            $reasonLabel = OrderReturn::reasonOptions()[$r->reason] ?? $r->reason;
+            return [
+                'id' => $r->id,
+                'order_id' => $r->order_id,
+                'order_code' => $r->order?->order_code,
+                'order_ulid' => $r->order?->ulid,
+                'order_status' => $r->order?->status,
+                'status' => $r->status,
+                'reason' => $reasonLabel,
+                'reason_notes' => $r->reason_notes,
+                'is_full_return' => $r->is_full_return,
+                'created_at' => $r->created_at?->toDateTimeString(),
+            ];
+        });
+
+        return Inertia::render('Admin/Returns/Index', [
+            'returns' => $returns,
+            'pagination' => [
+                'links' => $paginated->toArray()['links'] ?? [],
+                'meta' => $paginated->toArray(),
+            ],
+            'filters' => [
+                'per_page' => $perPage,
+            ],
+        ]);
+    }
 
     protected function logCategoryWithChildren(Category $category, int $level = 0): array
 {
