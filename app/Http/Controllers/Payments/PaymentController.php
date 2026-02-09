@@ -77,13 +77,13 @@ class PaymentController extends Controller
     {
         $response = $this->paymentService->verifyPayment($payment);
 
-        \Log::info('Payment status checked', [
-        'payment_ulid' => $payment->ulid,
-        'payment_id' => $payment->id,
-        'status' => $payment->status->value,
-        'verification_success' => $response->success,
-        'verification_message' => $response->message,
-    ]);
+    //     \Log::info('Payment status checked', [
+    //     'payment_ulid' => $payment->ulid,
+    //     'payment_id' => $payment->id,
+    //     'status' => $payment->status->value,
+    //     'verification_success' => $response->success,
+    //     'verification_message' => $response->message,
+    // ]);
 
         return response()->json([
             'payment' => [
@@ -266,8 +266,8 @@ class PaymentController extends Controller
                 $message = 'Payment completed successfully.';
                 break;
 
-            case '1032': // User cancelled
-            case '1037': // Timeout / no response
+            case '1032': 
+            case '1037': 
                 if ($isFinalized) {
                     $success = false;
                     $message = $resultDesc
@@ -275,7 +275,7 @@ class PaymentController extends Controller
                             ? 'Payment cancelled by user.'
                             : 'Payment request expired or no response from user.');
                 } else {
-                    // STK still processing — do not mark as canceled yet
+                    
                     $success = null;
                     $message = 'Awaiting user confirmation.';
                 }

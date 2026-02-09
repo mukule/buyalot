@@ -59,17 +59,17 @@ class PaymentService
 
     try {
         $response = $provider->initialize($log, $request);
-        \Log::info('Payment provider response', [
-            'payment_id' => $log->id,
-            'response' => $response->toArray()
-        ]);
+        // \Log::info('Payment provider response', [
+        //     'payment_id' => $log->id,
+        //     'response' => $response->toArray()
+        // ]);
         return $response;
     } catch (\Exception $e) {
-        \Log::error('Payment initialization failed', [
-            'payment_id' => $log->id,
-            'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString(),
-        ]);
+        // \Log::error('Payment initialization failed', [
+        //     'payment_id' => $log->id,
+        //     'error' => $e->getMessage(),
+        //     'trace' => $e->getTraceAsString(),
+        // ]);
         return PaymentResponse::failed('Server error while processing payment: ' . $e->getMessage());
     }
 }

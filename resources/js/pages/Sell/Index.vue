@@ -2,7 +2,12 @@
 import MainLayout from '@/layouts/MainLayout.vue';
 import { Link } from '@inertiajs/vue3';
 
+import endToEnd from '@/assets/images/banners/hfl.jpeg';
+import optimiseGrowth from '@/assets/images/banners/optimize.jpg';
+import securePayments from '@/assets/images/banners/safe.jpg';
 import sell_on_buyalot from '@/assets/images/banners/sell-on-buyalot.png';
+import hassleFree from '@/assets/images/banners/tools.png';
+
 import start_selling_bg from '@/assets/images/bg/start-selling.jpg';
 import application from '@/assets/images/icons/application.svg';
 import approval from '@/assets/images/icons/approval.svg';
@@ -15,23 +20,23 @@ const cards = [
     {
         title: 'Optimise Your Growth',
         description: 'Easily boost your sales by leveraging our online shoppers',
-        image: 'https://www.takealot.com/36c5e68ec7d3ea31fd9999e79398490f69e476ec/static/media/src/images/sell-on-takealot/cards/optimise-your-growth.jpg-758bca1bd6b74237d09e.jpg',
+        image: optimiseGrowth,
     },
     {
         title: 'End–to–End Solutions',
         description:
             "We'll provide the tools you need to set up and sell – manage your stock, pricing, product selection and more from Buyalot Seller Portal.",
-        image: 'https://www.takealot.com/36c5e68ec7d3ea31fd9999e79398490f69e476ec/static/media/src/images/sell-on-takealot/cards/end-to-end-solutions.jpg-73b9874edfdf9aeaa3b5.jpg',
+        image: endToEnd,
     },
     {
         title: 'Hassle–Free Logistics',
         description: "From handling warehousing to delivery and returns, we've made online retail easier than ever.",
-        image: 'https://www.takealot.com/36c5e68ec7d3ea31fd9999e79398490f69e476ec/static/media/src/images/sell-on-takealot/cards/hassle-free-logistics.jpg-dfeefa2f54d08b8ca3ce.jpg',
+        image: hassleFree,
     },
     {
         title: 'Safe & Secure Payments',
         description: 'Payments are made directly to you four times per month.',
-        image: 'https://www.takealot.com/36c5e68ec7d3ea31fd9999e79398490f69e476ec/static/media/src/images/sell-on-takealot/cards/safe-and-secure-payments.jpg-ed8aa4f3e9d11eefe1dc.jpg',
+        image: securePayments,
     },
 ];
 
@@ -124,9 +129,21 @@ const steps = [
                         :key="card.title"
                         class="h-full overflow-hidden rounded-xl bg-white text-center shadow-md transition-all duration-300 hover:shadow-lg"
                     >
-                        <img :src="card.image" :alt="card.title" class="h-48 w-full object-cover" loading="lazy" />
+                        <!-- Image Wrapper -->
+                        <div class="h-56 w-full overflow-hidden">
+                            <img
+                                :src="card.image"
+                                :alt="card.title"
+                                class="h-full w-full object-cover object-center transition-transform duration-500 hover:scale-105"
+                                loading="lazy"
+                            />
+                        </div>
+
+                        <!-- Content -->
                         <div class="space-y-3 p-6">
-                            <h3 class="text-xl font-semibold text-primary">{{ card.title }}</h3>
+                            <h3 class="text-xl font-semibold text-primary">
+                                {{ card.title }}
+                            </h3>
                             <p class="text-base leading-relaxed text-gray-600">
                                 {{ card.description }}
                             </p>

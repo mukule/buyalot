@@ -1,12 +1,11 @@
 <script setup lang="ts">
+import RestockModal from '@/components/RestockModal.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { AppPageProps, ProductStatus } from '@/types';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { debounce } from 'lodash';
 import { ArrowLeft, FilterIcon, PlusIcon, SearchIcon } from 'lucide-vue-next';
-import { computed, reactive, ref, watch } from 'vue';
-import RestockModal from '@/components/RestockModal.vue';
-// import form from '@/pages/Admin/Policies/Form.vue';
+import { computed, ref, watch } from 'vue';
 
 // Product type
 interface ProductWithRelations {
@@ -18,18 +17,8 @@ interface ProductWithRelations {
     hashid: string;
     status_label: string;
     status_id?: number | null;
-    owner?: {
-        id: number;
-        name: string;
-    } | null;
-    warranties?: {
-        id: number;
-        hashid: string;
-        product_hashid: string;
-        duration: number;
-        description?: string;
-        active: boolean;
-    }[];
+    owner?: { id: number; name: string } | null;
+    warranties?: { id: number; hashid: string; product_hashid: string; duration: number; description?: string; active: boolean }[];
 }
 
 // Product status type
@@ -37,7 +26,7 @@ interface ProductStatusWithHashid extends ProductStatus {
     hashid: string;
 }
 
-// Pagination interfaces
+// Pagination types
 interface PaginationLink {
     url: string | null;
     label: string;
@@ -63,64 +52,30 @@ const page = usePage<
     AppPageProps<{
         products: PaginatedResponse<ProductWithRelations>;
         productStatuses: ProductStatusWithHashid[];
+        filters: { search?: string };
     }>
 >();
 
-// Status options
-const statuses = computed(() => page.props.productStatuses ?? []);
-
-// Compute Draft status ID for fallback
-const draftStatusId = computed(() => {
-    const draft = statuses.value.find((s) => s.name.toLowerCase() === 'draft');
-    return draft?.id ?? null;
-});
-
-// Reactive products
-const reactiveProducts = reactive(
-    page.props.products.data.map((p) => ({
-        ...p,
-        status_id: p.status_id ?? draftStatusId.value,
-    })),
-);
-
-// Pagination data
+// Compute products so pagination updates automatically
+const products = computed(() => page.props.products.data);
 const paginationLinks = computed(() => page.props.products.links);
 const paginationMeta = computed(() => page.props.products.meta);
+const statuses = computed(() => page.props.productStatuses ?? []);
+
+// Breadcrumbs
+const breadcrumbs = [
+    { title: 'Dashboard', href: route('admin.dashboard') },
+    { title: 'Products', href: route('admin.products.index') },
+];
 
 // Search
-const searchQuery = ref('');
-const debouncedQuery = ref(searchQuery.value);
-
+const searchQuery = ref(page.props.filters.search ?? '');
 watch(
     searchQuery,
     debounce((val: string) => {
-        debouncedQuery.value = val;
+        router.get(route('admin.products.index'), { search: val }, { preserveState: true, preserveScroll: true });
     }, 300),
 );
-
-const filteredProducts = computed(() => {
-    const query = debouncedQuery.value.trim().toLowerCase();
-    return reactiveProducts.filter((p) => {
-        if (!query) return true;
-        return (
-            p.name.toLowerCase().includes(query) ||
-            (p.product_code?.toLowerCase().includes(query) ?? false) ||
-            (p.owner?.name.toLowerCase().includes(query) ?? false)
-        );
-    });
-});
-
-// Pagination handler
-function goToPage(url: string | null) {
-    if (!url) return;
-    router.get(url, {}, { preserveState: true, preserveScroll: true });
-}
-
-// Breadcrumbs
-const breadcrumbs = reactive([
-    { title: 'Dashboard', href: route('admin.dashboard') },
-    { title: 'Products', href: route('admin.products.index') },
-]);
 
 // Actions
 function createProduct() {
@@ -132,49 +87,37 @@ function editProduct(hashid: string) {
 function goBack() {
     router.get(route('admin.dashboard'));
 }
-
-// Truncate helper
+function goToPage(url: string | null) {
+    if (!url) return;
+    router.get(url, {}, { preserveState: true, preserveScroll: true });
+}
 function truncateName(name: string, length: number) {
-    if (name.length <= length) return name;
-    return name.slice(0, length - 3) + '...';
+    return name.length <= length ? name : name.slice(0, length - 3) + '...';
 }
-
 function updateStatus(productHashid: string, statusId: number) {
-    router.patch(route('admin.products.updateStatus', { product: productHashid }), {
-        status_id: statusId,
-    });
+    router.patch(route('admin.products.updateStatus', { product: productHashid }), { status_id: statusId });
 }
 
-// Warranty modal state
+// Warranty modal
 const showWarrantyModal = ref(false);
 const selectedProduct = ref<ProductWithRelations | null>(null);
-
 function openWarrantyModal(product: ProductWithRelations) {
     selectedProduct.value = {
         ...product,
-        warranties: product.warranties
-            ? product.warranties.map((w) => ({
-                  ...w,
-                  product_hashid: product.hashid,
-              }))
-            : [],
+        warranties: product.warranties ? product.warranties.map((w) => ({ ...w, product_hashid: product.hashid })) : [],
     };
     showWarrantyModal.value = true;
 }
-
 function closeWarrantyModal() {
     showWarrantyModal.value = false;
     selectedProduct.value = null;
 }
-
 function addWarranty(productHashid: string) {
     router.get(route('admin.products.warranties.create', { product: productHashid }));
 }
-
 function toggleWarrantyActive(warranty: { id: number; hashid: string; active: boolean }) {
     const currentStatus = warranty.active;
     const newStatus = !currentStatus;
-
     warranty.active = newStatus;
 
     router.patch(
@@ -194,19 +137,14 @@ function toggleWarrantyActive(warranty: { id: number; hashid: string; active: bo
         },
     );
 }
-
 function editWarranty(warranty: { hashid: string; product_hashid: string }) {
     if (!warranty.hashid || !warranty.product_hashid) return;
     router.get(route('admin.products.warranties.edit', { product: warranty.product_hashid, warranty: warranty.hashid }));
 }
 
+// Restock modal
 const showRestockModal = ref(false);
-
-const restockForm = useForm({
-    variants: [],
-    note: '',
-});
-
+const restockForm = useForm({ variants: [], note: '' });
 const openRestock = (product: any) => {
     selectedProduct.value = product;
     showRestockModal.value = true;
@@ -246,14 +184,13 @@ const openRestock = (product: any) => {
                 </div>
 
                 <!-- Products Table -->
-                <div v-if="filteredProducts.length" class="overflow-x-auto">
+                <div v-if="products.length" class="overflow-x-auto">
                     <table class="w-full table-auto border-collapse border border-gray-200">
                         <thead class="bg-gray-100">
                             <tr>
                                 <th class="border px-2 py-1 text-left">#</th>
                                 <th class="border px-4 py-2 text-left">Image</th>
                                 <th class="border px-4 py-2 text-left">Name</th>
-                                <th class="border px-4 py-2 text-left">Code</th>
                                 <th class="border px-4 py-2 text-left">Stock</th>
                                 <th class="border px-4 py-2 text-left">Store</th>
                                 <th class="border px-4 py-2 text-left">Warranty</th>
@@ -262,7 +199,7 @@ const openRestock = (product: any) => {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="(product, index) in filteredProducts" :key="product.id" class="hover:bg-gray-50">
+                            <tr v-for="(product, index) in products" :key="product.id" class="hover:bg-gray-50">
                                 <td class="border px-2 py-1">{{ index + 1 }}</td>
                                 <td class="border px-4 py-2">
                                     <img
@@ -278,7 +215,7 @@ const openRestock = (product: any) => {
                                         {{ truncateName(product.name, 30) }}
                                     </a>
                                 </td>
-                                <td class="border px-4 py-2">{{ product.product_code }}</td>
+
                                 <td class="border px-4 py-2">{{ product.stock ?? 0 }}</td>
                                 <td class="border px-4 py-2">{{ product.owner?.name ?? '-' }}</td>
                                 <td class="border px-4 py-2">
@@ -306,7 +243,6 @@ const openRestock = (product: any) => {
                                 </td>
                                 <td class="flex gap-2 border px-4 py-2">
                                     <button @click="editProduct(product.hashid)" class="text-sm text-blue-600 hover:underline">Edit</button>
-                                    <!--                                    <button @click="openRestock(product)" class="text-sm text-green-400 hover:underline">Restock</button>-->
                                 </td>
                             </tr>
                         </tbody>

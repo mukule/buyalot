@@ -22,16 +22,35 @@ class ProductController extends Controller
 {
 
 
-public function index()
+public function index(Request $request)
 {
     $user = auth()->user();
 
-    $query = Product::with(['primaryImage', 'productVariants', 'category', 'owner.roles', 'warranties'])
-        ->orderBy('created_at', 'desc');
+    $query = Product::with([
+        'primaryImage', 
+        'productVariants', 
+        'category', 
+        'owner.roles', 
+        'owner.sellerApplication', // <-- make sure this is loaded
+        'warranties'
+    ])->orderBy('created_at', 'desc');
 
+    // Only seller sees own products
     if ($user->hasRole('seller')) {
         $query->where('owner_type', 'seller')
               ->where('owner_id', $user->id);
+    }
+
+    // 🔹 Backend search filter
+    if ($request->filled('search')) {
+        $search = $request->search;
+        $query->where(function ($q) use ($search) {
+            $q->where('name', 'like', "%{$search}%")
+              ->orWhere('product_code', 'like', "%{$search}%")
+              ->orWhereHas('owner.sellerApplication', function ($q2) use ($search) {
+                  $q2->where('company_legal_name', 'like', "%{$search}%");
+              });
+        });
     }
 
     $products = $query->paginate(15)
@@ -53,7 +72,7 @@ public function index()
                     : null,
                 'owner' => [
                     'id' => $product->owner?->id,
-                    'name' => $product->company_legal_name,
+                    'name' => $product->owner?->sellerApplication?->company_legal_name ?? $product->owner?->name,
                 ],
                 'warranties' => $product->warranties->map(fn($warranty) => [
                     'id' => $warranty->id,
@@ -66,7 +85,7 @@ public function index()
             ];
         });
 
-
+    // Statuses
     $statusesQuery = ProductStatus::orderBy('name');
     if ($user->hasRole('seller')) {
         $statusesQuery->whereIn('name', ['draft', 'submit', 'pause']);
@@ -95,14 +114,15 @@ public function index()
         }
     }
 
-    // Re-index numerically for Inertia
     $statuses = array_values($statuses);
 
     return Inertia::render('Admin/Products/Index', [
         'products' => $products,
         'productStatuses' => $statuses,
+        'filters' => $request->only('search'), // pass search back to Vue
     ]);
 }
+
 
 
 public function create()

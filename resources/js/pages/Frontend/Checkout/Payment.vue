@@ -352,7 +352,7 @@ async function placeCashOnDeliveryOrder() {
                 notes: 'Cash on Delivery Order',
                 coupon_code: cart.coupon_code,
                 shipping_amount: cart.totals.shipping,
-                payment_provider: 'cod', // 👈 important difference
+                payment_provider: 'cod',
             },
             {
                 headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -360,7 +360,7 @@ async function placeCashOnDeliveryOrder() {
             },
         );
 
-        console.log("payment on delivery response {} ",resp);
+        console.log('payment on delivery response {} ', resp);
 
         status.value = 'success';
         initiating.value = false;
@@ -477,7 +477,12 @@ const paymentMethod = ref<'mpesa' | 'cod'>('mpesa');
                             <div v-if="addresses.length > 0" class="space-y-2 rounded border p-3">
                                 <div class="flex items-start justify-between">
                                     <p class="text-sm text-gray-800">
-                                        {{ selected_shipping ? [selected_shipping.region, selected_shipping.pickup_point].filter(Boolean).join(' – ') || 'Pickup point selected' : 'Select an address with a pickup point' }}
+                                        {{
+                                            selected_shipping
+                                                ? [selected_shipping.region, selected_shipping.pickup_point].filter(Boolean).join(' – ') ||
+                                                  'Pickup point selected'
+                                                : 'Select an address with a pickup point'
+                                        }}
                                     </p>
 
                                     <button
