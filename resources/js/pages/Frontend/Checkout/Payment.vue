@@ -57,7 +57,8 @@ type Address = {
     country?: string | null;
     phone?: string | null;
     is_default?: boolean;
-    coordinates?: { lat?: number; lng?: number; accuracy?: number } | null;
+    latitude?: number | null;
+    longitude?: number | null;
     delivery_instructions?: string | null;
 };
 
@@ -73,6 +74,40 @@ const selected_shipping = ref<{
     region: string;
     pickup_point?: string;
 } | null>(props.selected_shipping ?? null);
+
+// Delivery mode during checkout: pickup vs home delivery.
+// Default from selected_shipping if provided, otherwise pickup.
+const deliveryMode = ref<'pickup' | 'door'>(
+    (selected_shipping.value?.method as 'pickup' | 'door' | undefined) ?? 'pickup',
+);
+
+const selectedAddress = computed(() => {
+    if (!selectedAddressId.value) return null;
+    return addresses.value.find((a) => a.id === selectedAddressId.value) ?? null;
+});
+
+const deliveryMapUrl = computed(() => {
+    const addr = selectedAddress.value;
+    if (!addr || addr.latitude == null || addr.longitude == null) return '';
+    const lat = addr.latitude;
+    const lng = addr.longitude;
+    return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=15&size=600x300&markers=${lat},${lng},red-pushpin`;
+});
+
+// --- Shipping fees in checkout ---
+const baseShipping = computed(() => Number(cart.totals.shipping ?? 0));
+
+// Pickup: base shipping. Home delivery: base + KSh 250 (surcharge applied here and saved on the order).
+const effectiveShipping = computed(() =>
+    deliveryMode.value === 'door' ? baseShipping.value + 250 : baseShipping.value,
+);
+
+// Adjust grand total to reflect the effective shipping used at order placement.
+const effectiveGrandTotal = computed(() => {
+    const baseGrand = Number(cart.totals.grand_total ?? 0);
+    const diff = effectiveShipping.value - baseShipping.value;
+    return baseGrand + diff;
+});
 
 const formatPrice = (amount?: number | null) => {
     if (amount == null || isNaN(amount)) return 'KSh 0.00';
@@ -170,6 +205,18 @@ async function decreaseQty(item: SummaryItem) {
 async function startPayment() {
     if (!canPay.value) return;
 
+    // Require a valid delivery option. For pickup, enforce that a pickup point exists.
+    if (!selected_shipping.value) {
+        status.value = 'failed';
+        message.value = 'Please select a delivery option (pickup point or door delivery) before completing your order.';
+        return;
+    }
+    if (deliveryMode.value === 'pickup' && !selected_shipping.value.pickup_point) {
+        status.value = 'failed';
+        message.value = 'Please select your PickUp Point in the address step before completing your order.';
+        return;
+    }
+
     if (paymentMethod.value === 'cod') {
         await placeCashOnDeliveryOrder();
         return;
@@ -188,6 +235,8 @@ async function startPayment() {
 
         message.value = 'Initializing payment...';
 
+        const shippingAmount = effectiveShipping.value;
+
         const createPaymentPayload = {
             cart_id: cart.cart_id,
             customer_id: (page.props as any)?.auth?.customer_id,
@@ -195,7 +244,7 @@ async function startPayment() {
             shipping_address_id: selectedAddressId.value,
             notes: 'Customer requested express delivery',
             coupon_code: cart.coupon_code,
-            shipping_amount: cart.totals.shipping,
+            shipping_amount: shippingAmount,
             payment_provider: 'mpesa',
             phone: phone.value.trim(),
         };
@@ -342,6 +391,8 @@ async function placeCashOnDeliveryOrder() {
 
         const axios = (window as any).axios || (await import('axios')).default;
 
+        const shippingAmount = effectiveShipping.value;
+
         const resp = await axios.post(
             route('orders.store'),
             {
@@ -351,7 +402,7 @@ async function placeCashOnDeliveryOrder() {
                 shipping_address_id: selectedAddressId.value,
                 notes: 'Cash on Delivery Order',
                 coupon_code: cart.coupon_code,
-                shipping_amount: cart.totals.shipping,
+                shipping_amount: shippingAmount,
                 payment_provider: 'cod',
             },
             {
@@ -470,33 +521,50 @@ const paymentMethod = ref<'mpesa' | 'cod'>('mpesa');
                             </template>
                         </div>
 
-                        <!-- PICKUP POINT -->
+                        <!-- DELIVERY METHOD / LOCATION -->
                         <div>
-                            <h2 class="mb-2 text-sm font-medium text-gray-700">PickUp Point</h2>
+                            <h2 class="mb-2 text-sm font-medium text-gray-700">Delivery details</h2>
 
-                            <div v-if="addresses.length > 0" class="space-y-2 rounded border p-3">
-                                <div class="flex items-start justify-between">
-                                    <p class="text-sm text-gray-800">
-                                        {{
-                                            selected_shipping
-                                                ? [selected_shipping.region, selected_shipping.pickup_point].filter(Boolean).join(' – ') ||
-                                                  'Pickup point selected'
-                                                : 'Select an address with a pickup point'
-                                        }}
-                                    </p>
+                            <div class="mb-2 flex items-center justify-between">
+                                <p class="text-xs text-gray-600">
+                                    {{
+                                        selected_shipping
+                                            ? (selected_shipping.method === 'pickup' ? 'Pickup point' : 'Home delivery') +
+                                              (selected_shipping.region ? ` – ${selected_shipping.region}` : '')
+                                            : 'Select an address with a delivery method'
+                                    }}
+                                </p>
 
-                                    <button
-                                        @click="goToAddressPage"
-                                        class="rounded border border-primary px-4 py-2 font-medium text-primary transition hover:bg-primary hover:text-white"
-                                    >
-                                        Change
-                                    </button>
-                                </div>
+                                <button
+                                    @click="goToAddressPage"
+                                    class="rounded border border-primary px-4 py-2 text-xs font-medium text-primary transition hover:bg-primary hover:text-white"
+                                >
+                                    Change address / method
+                                </button>
+                            </div>
+
+                            <div v-if="selected_shipping" class="space-y-2 rounded border p-3">
+                                <p class="text-sm text-gray-800">
+                                    <span class="font-medium">
+                                        {{ selected_shipping.method === 'pickup' ? 'Pickup point' : 'Home delivery' }}
+                                    </span>
+                                    <span v-if="selected_shipping.pickup_point">
+                                        – {{ selected_shipping.pickup_point }}
+                                    </span>
+                                </p>
 
                                 <p class="mt-1 text-xs text-gray-500">
                                     If you order now, you will receive your order in
-                                    {{ selected_shipping?.days ?? '?' }}
-                                    day{{ selected_shipping?.days && selected_shipping.days > 1 ? 's' : '' }}.
+                                    {{ selected_shipping.days ?? '?' }}
+                                    day{{ selected_shipping.days && selected_shipping.days > 1 ? 's' : '' }}.
+                                </p>
+
+                                <!-- Map preview for delivery coordinates (home delivery or precise address) -->
+                                <div v-if="deliveryMapUrl" class="mt-2 h-[220px] w-full overflow-hidden rounded border bg-gray-100">
+                                    <img :src="deliveryMapUrl" alt="Delivery location map" class="h-full w-full object-cover" />
+                                </div>
+                                <p v-else class="mt-1 text-xs text-gray-500">
+                                    To see a map here, edit your address and allow us to use your location so we can store coordinates.
                                 </p>
                             </div>
                         </div>
@@ -631,7 +699,7 @@ const paymentMethod = ref<'mpesa' | 'cod'>('mpesa');
 
                             <div class="flex justify-between">
                                 <span>Shipping</span>
-                                <span>{{ formatPrice(cart.totals.shipping) }}</span>
+                                <span>{{ formatPrice(effectiveShipping) }}</span>
                             </div>
 
                             <div class="flex justify-between" v-if="cart.totals.tax > 0">
@@ -644,7 +712,7 @@ const paymentMethod = ref<'mpesa' | 'cod'>('mpesa');
 
                         <div class="flex justify-between text-base font-semibold text-gray-800">
                             <span>Total</span>
-                            <span>{{ formatPrice(cart.totals.grand_total) }}</span>
+                            <span>{{ formatPrice(effectiveGrandTotal) }}</span>
                         </div>
                     </div>
                 </div>

@@ -18,6 +18,8 @@ use App\Models\Warehouse\WarehouseProductInventory;
 use App\Models\Orders\OrderItem;
 use App\Models\Orders\OrderReturn;
 use App\Models\Orders\OrderReturnItem;
+use App\Models\Payment\Payment;
+use App\Models\Payment\PaymentStatus;
 use App\Models\Warehouse\WarehouseReceivable;
 use App\Models\Warehouse\WarehouseRejectionReason;
 use App\Traits\HasPermissionCheck;
@@ -1503,5 +1505,123 @@ class WarehouseController extends Controller
         });
 
         return back()->with('success', 'Published to variant inventory successfully.');
+    }
+
+    /**
+     * Orders ready for customer pickup at this warehouse (status shipped, pickup_point, pickup_warehouse_id = this warehouse).
+     * Store/pickup point attendant uses this to confirm customer picked and collect COD if needed.
+     */
+    public function ordersReadyForPickup(Request $request, Warehouse $warehouse)
+    {
+        if (! $this->sellerOwns($warehouse)) {
+            $permissionCheck = $this->checkPermissionOrFail('manage-inventory');
+            if ($permissionCheck) {
+                return $permissionCheck;
+            }
+        }
+
+        $orders = Order::with(['customer:id,first_name,last_name,email', 'delivery', 'orderItems.productVariant.product:id,name'])
+            ->where('status', 'shipped')
+            ->whereHas('delivery', function ($q) use ($warehouse) {
+                $q->where('delivery_type', 'pickup_point')->where('pickup_warehouse_id', $warehouse->id);
+            })
+            ->orderByDesc('updated_at')
+            ->get()
+            ->map(function ($order) {
+                return [
+                    'id' => $order->id,
+                    'ulid' => $order->ulid,
+                    'order_code' => $order->order_code,
+                    'payment_status' => $order->payment_status,
+                    'payment_method' => $order->payment_method,
+                    'total_amount' => (float) $order->total_amount,
+                    'currency' => $order->currency,
+                    'customer' => $order->customer ? [
+                        'id' => $order->customer->id,
+                        'first_name' => $order->customer->first_name,
+                        'last_name' => $order->customer->last_name,
+                        'email' => $order->customer->email,
+                    ] : null,
+                    'order_items_summary' => $order->orderItems->map(fn ($i) => [
+                        'product_name' => $i->productVariant?->product?->name ?? '—',
+                        'quantity' => $i->quantity,
+                    ])->toArray(),
+                ];
+            });
+
+        return Inertia::render('Admin/Warehouses/OrdersReadyForPickup', [
+            'warehouse' => [
+                'id' => $warehouse->id,
+                'hashid' => $warehouse->hashid,
+                'name' => $warehouse->name,
+                'code' => $warehouse->code,
+            ],
+            'orders' => $orders,
+            'paymentsInitiateUrl' => route('payments.initiate'),
+        ]);
+    }
+
+    /**
+     * Mark order as delivered when customer collects at pickup point. If COD and not paid, require payment (cash or M-Pesa) first.
+     */
+    public function customerPickedOrder(Request $request, Warehouse $warehouse, Order $order)
+    {
+        if (! $this->sellerOwns($warehouse)) {
+            $permissionCheck = $this->checkPermissionOrFail('manage-inventory');
+            if ($permissionCheck) {
+                return $permissionCheck;
+            }
+        }
+
+        $delivery = $order->delivery;
+        if (! $delivery || (int) $delivery->pickup_warehouse_id !== (int) $warehouse->id) {
+            return back()->with('error', 'This order is not for pickup at this warehouse.');
+        }
+        if ($delivery->delivery_type !== 'pickup_point') {
+            return back()->with('error', 'Not a pickup point order.');
+        }
+        if ($order->status !== 'shipped') {
+            return back()->with('error', 'Order is not ready for pickup (status must be shipped).');
+        }
+        if ($delivery->delivered_at) {
+            return back()->with('error', 'Order is already marked as delivered.');
+        }
+
+        $isCod = strtolower($order->payment_method ?? '') === 'cash_on_delivery' && $order->payment_status !== 'paid';
+        if ($isCod) {
+            $request->validate([
+                'payment_method_collected' => 'required|string|in:cash,mpesa',
+                'mpesa_receipt_number' => 'required_if:payment_method_collected,mpesa|nullable|string|max:50',
+            ]);
+        }
+
+        DB::transaction(function () use ($order, $delivery, $isCod, $request) {
+            if ($isCod) {
+                $reference = 'COD-PICKUP-' . $order->order_code . '-' . now()->format('YmdHisu');
+                Payment::create([
+                    'payable_type' => Order::class,
+                    'payable_id' => $order->id,
+                    'amount' => $order->total_amount,
+                    'amount_paid' => $order->total_amount,
+                    'currency' => $order->currency ?? 'KES',
+                    'provider' => 'cod',
+                    'method' => $request->payment_method_collected,
+                    'status' => PaymentStatus::COMPLETED,
+                    'reference' => $reference,
+                    'provider_reference' => $request->mpesa_receipt_number,
+                    'mpesa_receipt_number' => $request->mpesa_receipt_number,
+                    'completed_at' => now(),
+                ]);
+                $order->update(['payment_status' => 'paid']);
+            }
+
+            $delivery->update(['delivered_at' => now()]);
+            $order->update([
+                'status' => 'delivered',
+                'delivered_at' => $order->delivered_at ?? now(),
+            ]);
+        });
+
+        return back()->with('success', 'Order marked as delivered. ' . ($isCod ? 'Payment recorded.' : ''));
     }
 }

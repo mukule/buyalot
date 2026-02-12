@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Models\Permission;
+use Spatie\Permission\PermissionRegistrar;
 
 class PermissionController extends Controller
 {
@@ -56,8 +57,14 @@ class PermissionController extends Controller
 
     public function create()
     {
-        // Get existing modules for the dropdown
+        // Get existing modules for the dropdown, or common defaults for new installs
         $modules = Permission::distinct()->pluck('module')->filter()->sort()->values();
+        if ($modules->isEmpty()) {
+            $modules = collect([
+                'dashboard', 'users', 'roles', 'permissions', 'sellers', 'products',
+                'categories', 'brands', 'inventory', 'warehouses', 'orders', 'customers',
+            ]);
+        }
 
         return Inertia::render('Admin/Permissions/Create', [
             'modules' => $modules,
@@ -79,6 +86,8 @@ class PermissionController extends Controller
             'module' => $validated['module'],
             'description' => $validated['description'],
         ]);
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         $permission->hashid = $permission->getRouteKey();
 
@@ -110,7 +119,7 @@ class PermissionController extends Controller
         }
 
         // Return Inertia view for web requests
-        return Inertia::render('Admin/Permissions', [
+        return Inertia::render('Admin/Permissions/Show', [
             'permission' => $permission,
             'roles' => $rolesWithPermission,
         ]);
@@ -145,6 +154,8 @@ class PermissionController extends Controller
             'description' => $validated['description'],
         ]);
 
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
         $permission->hashid = $permission->getRouteKey();
 
         if ($request->wantsJson() || $request->is('api/*')) {
@@ -170,6 +181,8 @@ class PermissionController extends Controller
         }
 
         $permission->delete();
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         if ($request->wantsJson() || $request->is('api/*')) {
             return response()->json(['message' => 'Permission deleted successfully']);
@@ -206,6 +219,8 @@ class PermissionController extends Controller
         }
 
         Permission::whereIn('id', $validated['permissions'])->delete();
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         if ($request->wantsJson() || $request->is('api/*')) {
             return response()->json(['message' => 'Permissions deleted successfully']);

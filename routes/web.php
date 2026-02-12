@@ -46,12 +46,18 @@ require __DIR__.'/customer.php';
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
 
+// Distributor portal: login at /distributor/login or switch from customer/seller
+Route::middleware(['auth', 'ensure.portal.role:distributor'])->prefix('distributor')->name('distributor.')->group(function () {
+    Route::get('/dashboard', [\App\Http\Controllers\Distributor\DistributorController::class, 'dashboard'])->name('dashboard');
+});
+
 // Delivery person: login at /delivery/login, then access delivery dashboard
 Route::middleware(['auth', 'role:delivery'])->prefix('admin')->name('delivery.')->group(function () {
     Route::get('/delivery', [\App\Http\Controllers\Delivery\DeliveryController::class, 'dashboard'])->name('dashboard');
     Route::post('/delivery/orders/{order}/accept', [\App\Http\Controllers\Delivery\DeliveryController::class, 'accept'])->name('orders.accept');
     Route::post('/delivery/orders/{order}/reject', [\App\Http\Controllers\Delivery\DeliveryController::class, 'reject'])->name('orders.reject');
     Route::post('/delivery/orders/{order}/confirm-picked', [\App\Http\Controllers\Delivery\DeliveryController::class, 'confirmPickedForDelivery'])->name('orders.confirm-picked');
+    Route::post('/delivery/orders/{order}/mark-delivered', [\App\Http\Controllers\Delivery\DeliveryController::class, 'markDelivered'])->name('orders.mark-delivered');
     Route::post('/delivery/orders/{order}/raise-return', [\App\Http\Controllers\Delivery\DeliveryController::class, 'raiseReturn'])->name('orders.raise-return');
 });
 
@@ -118,6 +124,8 @@ Route::middleware(['auth','role:admin|seller|vendor|super-admin','check_permissi
     Route::post('{warehouse}/transfer', [WarehouseController::class, 'transferStock'])->name('inventory.transfer');
 
     // Receivables & Dispatches
+    Route::get('{warehouse}/orders-ready-for-pickup', [WarehouseController::class, 'ordersReadyForPickup'])->name('orders-ready-for-pickup');
+    Route::post('{warehouse}/orders/{order}/customer-picked', [WarehouseController::class, 'customerPickedOrder'])->name('orders.customer-picked');
     Route::get('{warehouse}/receivables', [WarehouseController::class, 'receivables'])->name('receivables.index');
     Route::get('{warehouse}/receivables/rejected', [WarehouseController::class, 'rejectedReceivables'])->name('receivables.rejected');
     Route::post('{warehouse}/receivables/create', [WarehouseController::class, 'createReceivable'])->name('receivables.create');
@@ -253,6 +261,16 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::put('/{sellerApplication}/reject', [SellerApplicationController::class, 'reject'])->name('reject');
         });
     });
+
+    // Delivery persons (requires view-delivery-persons permission)
+    Route::middleware(['check_permission:view-delivery-persons'])->prefix('delivery-persons')->name('delivery-persons.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Admin\DeliveryPersonController::class, 'index'])->name('index');
+        Route::get('/{deliveryPerson}/document/{type}', [\App\Http\Controllers\Admin\DeliveryPersonController::class, 'document'])->name('document');
+        Route::get('/{deliveryPerson}', [\App\Http\Controllers\Admin\DeliveryPersonController::class, 'show'])->name('show');
+        Route::put('/{deliveryPerson}/approve', [\App\Http\Controllers\Admin\DeliveryPersonController::class, 'approve'])->name('approve');
+        Route::put('/{deliveryPerson}/reject', [\App\Http\Controllers\Admin\DeliveryPersonController::class, 'reject'])->name('reject');
+    });
+
     Route::resource('document-types', DocumentTypeController::class);
     Route::middleware(['check_permission:view-verification-documents'])->group(function () {
         Route::get('/seller-verification/{sellerApplication}', [SellerVerificationController::class, 'show'])

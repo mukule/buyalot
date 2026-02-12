@@ -30,6 +30,12 @@ Route::middleware('guest')->group(function () {
     Route::get('/delivery/login', [AuthenticatedSessionController::class, 'createDeliveryLogin'])->name('delivery.login');
     Route::post('/delivery/login', [AuthenticatedSessionController::class, 'deliveryStore'])->name('delivery.login.store');
 
+    Route::get('/delivery/register', [\App\Http\Controllers\Auth\DeliveryRegistrationController::class, 'create'])->name('delivery.register');
+    Route::post('/delivery/register', [\App\Http\Controllers\Auth\DeliveryRegistrationController::class, 'store'])->name('delivery.register.store');
+
+    Route::get('/distributor/login', [AuthenticatedSessionController::class, 'createDistributorLogin'])->name('distributor.login');
+    Route::post('/distributor/login', [AuthenticatedSessionController::class, 'distributorStore'])->name('distributor.login.store');
+
     Route::post('login', [AuthenticatedSessionController::class, 'store']);
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])

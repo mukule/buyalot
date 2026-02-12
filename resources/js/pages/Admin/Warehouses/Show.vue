@@ -2,7 +2,7 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { AppPageProps } from '@/types';
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeftIcon, BoxesIcon, TruckIcon, ClipboardListIcon, PencilIcon, PowerIcon, UsersIcon } from 'lucide-vue-next';
+import { ArrowLeftIcon, BoxesIcon, TruckIcon, ClipboardListIcon, PencilIcon, PowerIcon, UsersIcon, PackageCheckIcon } from 'lucide-vue-next';
 
 type Manager = { name: string; role?: string | null; phone?: string | null };
 type Region = { id: number; name: string } | null;
@@ -58,6 +58,9 @@ function openReceivables() {
 }
 function openDispatches() {
   router.get(route('admin.dispatches.index', { warehouse: warehouse.hashid }));
+}
+function openOrdersReadyForPickup() {
+  router.get(route('admin.orders-ready-for-pickup', { warehouse: warehouse.hashid }));
 }
 </script>
 
@@ -138,6 +141,9 @@ function openDispatches() {
             </button>
             <button @click="openDispatches" class="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-gray-700 hover:bg-gray-50">
               <TruckIcon class="h-4 w-4" /> Dispatches
+            </button>
+            <button @click="openOrdersReadyForPickup" class="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-gray-700 hover:bg-gray-50">
+              <PackageCheckIcon class="h-4 w-4" /> Orders ready for pickup
             </button>
           </div>
         </div>

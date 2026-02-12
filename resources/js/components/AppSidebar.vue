@@ -232,6 +232,12 @@ const allNavItems: NavItem[] = [
     },
 
     {
+        title: 'Delivery Persons',
+        href: '/admin/delivery-persons',
+        icon: Truck,
+        permissions: ['view-delivery-persons'],
+    },
+    {
         title: 'Delivery Address',
         href: 'null',
         icon: MapPinCheck,

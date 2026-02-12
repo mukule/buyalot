@@ -8,6 +8,8 @@ use App\Models\Traits\HasHashid;
 
 class Region extends Model
 {
+    use HasHashid;
+
     protected $fillable = [
         'name',
         'code',
@@ -17,7 +19,7 @@ class Region extends Model
         'zone_id',
     ];
 
-//    protected $appends = ['hashid'];
+protected $appends = ['hashid'];
 
 
     protected static function boot()

@@ -5,12 +5,14 @@ namespace App\Models\Orders;
 use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerAddress;
 use App\Models\Payment\Discount;
+use App\Models\Payment\Payment;
 use App\Models\User;
 use App\Models\Warehouse\WarehouseReceivable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Order extends Model
@@ -108,6 +110,11 @@ class Order extends Model
     public function orderReturns(): HasMany
     {
         return $this->hasMany(OrderReturn::class);
+    }
+
+    public function payments(): MorphMany
+    {
+        return $this->morphMany(Payment::class, 'payable');
     }
 
     /** @deprecated Use delivery->deliveryUser instead; kept for backward compatibility. */

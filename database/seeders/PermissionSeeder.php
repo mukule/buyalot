@@ -291,6 +291,9 @@ class PermissionSeeder extends Seeder
                 'edit-delivery_charges',
                 'delete-delivery_charges',
             ],
+            'delivery_persons' => [
+                'view-delivery-persons',
+            ],
             'invoices' =>[
                 'view-invoices',
                 'view-invoice-details',

@@ -50,6 +50,25 @@ class Delivery extends Model
         return $this->belongsTo(Warehouse::class, 'dispatching_warehouse_id')->withoutGlobalScopes();
     }
 
+    /**
+     * Get delivery location coordinates (lat/lng) from the shipping address, if available.
+     * Useful for dispatch maps and routing.
+     */
+    public function getLocationCoordinatesAttribute(): ?array
+    {
+        $order = $this->order;
+        $addr = $order?->shippingAddress;
+
+        if (! $addr || $addr->latitude === null || $addr->longitude === null) {
+            return null;
+        }
+
+        return [
+            'lat' => (float) $addr->latitude,
+            'lng' => (float) $addr->longitude,
+        ];
+    }
+
     public function isPending(): bool
     {
         return $this->assignment_status === 'pending';

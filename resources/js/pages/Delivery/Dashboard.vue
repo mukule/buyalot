@@ -132,6 +132,12 @@ const returnForm = useForm({
     items: [] as { order_item_id: number; quantity_returned: number }[],
 });
 
+const markDeliveredOrder = ref<DeliveryOrder | null>(null);
+const markDeliveredForm = useForm({
+    payment_method_collected: '' as '' | 'cash' | 'mpesa',
+    mpesa_receipt_number: '',
+});
+
 function openRaiseReturn(order: DeliveryOrder) {
     returnOrder.value = order;
     returnForm.reason = '';
@@ -177,6 +183,36 @@ function confirmPickedForDelivery() {
     router.post(route('delivery.orders.confirm-picked', confirmPickOrder.value.ulid), {}, {
         onSuccess: () => closeConfirmPick(),
     });
+}
+
+function openMarkDelivered(order: DeliveryOrder) {
+    markDeliveredOrder.value = order;
+    markDeliveredForm.payment_method_collected = '';
+    markDeliveredForm.mpesa_receipt_number = '';
+}
+
+function closeMarkDelivered() {
+    markDeliveredOrder.value = null;
+    markDeliveredForm.reset();
+}
+
+function submitMarkDelivered() {
+    if (!markDeliveredOrder.value) return;
+    const isCod = (markDeliveredOrder.value.payment_method || '').toLowerCase() === 'cash_on_delivery'
+        && markDeliveredOrder.value.payment_status !== 'paid';
+
+    const payload: Record<string, unknown> = {};
+    if (isCod) {
+        payload.payment_method_collected = markDeliveredForm.payment_method_collected;
+        payload.mpesa_receipt_number = markDeliveredForm.mpesa_receipt_number || null;
+    }
+
+    markDeliveredForm.transform(() => payload).post(
+        route('delivery.orders.mark-delivered', markDeliveredOrder.value!.ulid),
+        {
+            onSuccess: () => closeMarkDelivered(),
+        },
+    );
 }
 </script>
 
@@ -288,6 +324,14 @@ function confirmPickedForDelivery() {
                             >
                                 Confirm items & mark as picked for delivery
                             </Button>
+                            <Button
+                                v-if="order.delivery_type === 'customer_address' && order.picked_at && (order.status === 'out_for_delivery' || order.status === 'shipped')"
+                                size="sm"
+                                variant="outline"
+                                @click="openMarkDelivered(order)"
+                            >
+                                Mark as delivered
+                            </Button>
                         </div>
                         <template v-if="order.delivery_type === 'pickup_point'">
                             <div v-if="order.allocated_for_pickup_at || order.pickup_receivables_status" class="mt-3 flex flex-wrap items-center gap-2">
@@ -365,6 +409,83 @@ function confirmPickedForDelivery() {
                 </div>
             </template>
         </div>
+
+        <!-- Mark delivered (customer picked / delivered) dialog -->
+        <Dialog :open="!!markDeliveredOrder" @update:open="(v: boolean) => !v && closeMarkDelivered()">
+            <DialogContent class="max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>
+                        {{ markDeliveredOrder?.delivery_type === 'pickup_point'
+                            ? 'Confirm customer picked order'
+                            : 'Mark order as delivered' }}
+                        – Order #{{ markDeliveredOrder?.order_code }}
+                    </DialogTitle>
+                    <DialogDescription>
+                        Confirm that the customer has received the order.
+                        <span v-if="markDeliveredOrder && (markDeliveredOrder.payment_method || '').toLowerCase() === 'cash_on_delivery' && markDeliveredOrder.payment_status !== 'paid'">
+                            This is a cash-on-delivery order – record how the customer paid.
+                        </span>
+                    </DialogDescription>
+                </DialogHeader>
+                <div v-if="markDeliveredOrder" class="space-y-4">
+                    <div>
+                        <p class="mb-1 text-sm font-medium">Summary</p>
+                        <pre class="whitespace-pre-wrap rounded bg-muted p-2 text-xs">{{ markDeliveredOrder.delivery_note_summary }}</pre>
+                    </div>
+                    <div
+                        v-if="(markDeliveredOrder.payment_method || '').toLowerCase() === 'cash_on_delivery'
+                            && markDeliveredOrder.payment_status !== 'paid'"
+                        class="space-y-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm"
+                    >
+                        <p class="font-medium text-amber-800">Cash on delivery payment</p>
+                        <div class="space-y-2">
+                            <Label>How did the customer pay?</Label>
+                            <div class="flex gap-4">
+                                <label class="flex items-center gap-2">
+                                    <input
+                                        v-model="markDeliveredForm.payment_method_collected"
+                                        type="radio"
+                                        value="cash"
+                                        class="rounded border-input"
+                                    />
+                                    Cash
+                                </label>
+                                <label class="flex items-center gap-2">
+                                    <input
+                                        v-model="markDeliveredForm.payment_method_collected"
+                                        type="radio"
+                                        value="mpesa"
+                                        class="rounded border-input"
+                                    />
+                                    M-Pesa
+                                </label>
+                            </div>
+                        </div>
+                        <div v-if="markDeliveredForm.payment_method_collected === 'mpesa'">
+                            <Label for="mpesa-receipt">M-Pesa receipt number</Label>
+                            <input
+                                id="mpesa-receipt"
+                                v-model="markDeliveredForm.mpesa_receipt_number"
+                                type="text"
+                                class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                placeholder="e.g. QFG123XYZ"
+                            />
+                        </div>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button type="button" variant="outline" @click="closeMarkDelivered">Cancel</Button>
+                    <Button
+                        @click="submitMarkDelivered"
+                        :disabled="(markDeliveredOrder && (markDeliveredOrder.payment_method || '').toLowerCase() === 'cash_on_delivery'
+                            && markDeliveredOrder.payment_status !== 'paid'
+                            && !markDeliveredForm.payment_method_collected) || markDeliveredForm.processing"
+                    >
+                        Confirm delivered
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
 
         <!-- Confirm items & mark as picked dialog -->
         <Dialog :open="!!confirmPickOrder" @update:open="(v: boolean) => !v && closeConfirmPick()">

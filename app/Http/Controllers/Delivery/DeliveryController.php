@@ -8,6 +8,8 @@ use App\Mail\OrderReturnRaisedNotifyDispatch;
 use App\Models\Orders\Order;
 use App\Models\Orders\OrderReturn;
 use App\Models\Orders\OrderReturnItem;
+use App\Models\Payment\Payment;
+use App\Models\Payment\PaymentStatus;
 use App\Models\User;
 use App\Models\Warehouse\WarehouseInventoryMovement;
 use App\Models\Warehouse\WarehouseManager;
@@ -264,6 +266,71 @@ class DeliveryController extends Controller
         }
 
         return back()->with('success', 'Order received at pickup point. Customer has been notified.');
+    }
+
+    /**
+     * Mark order as delivered: customer picked up (pickup_point) or delivered to address (customer_address).
+     * If order is COD and not yet paid, record payment (cash or M-Pesa) and link to order.
+     */
+    public function markDelivered(Request $request, Order $order)
+    {
+        $delivery = $order->delivery;
+        if (! $delivery || (int) $delivery->delivery_id !== (int) $request->user()->id) {
+            abort(403, 'This delivery is not assigned to you.');
+        }
+        if ($delivery->delivered_at) {
+            return back()->with('error', 'Order is already marked as delivered.');
+        }
+
+        if ($delivery->delivery_type === 'pickup_point') {
+            return back()->with('error', 'Pickup point orders must be marked as delivered by the store/pickup point attendant when the customer collects.');
+        }
+
+        if (! in_array($order->status, ['out_for_delivery'], true)) {
+            return back()->with('error', 'Order status does not allow marking as delivered.');
+        }
+
+        $isCod = strtolower($order->payment_method ?? '') === 'cash_on_delivery' && $order->payment_status !== 'paid';
+        $paymentMethodCollected = null;
+        $mpesaReceiptNumber = null;
+
+        if ($isCod) {
+            $request->validate([
+                'payment_method_collected' => 'required|string|in:cash,mpesa',
+                'mpesa_receipt_number' => 'required_if:payment_method_collected,mpesa|nullable|string|max:50',
+            ]);
+            $paymentMethodCollected = $request->payment_method_collected;
+            $mpesaReceiptNumber = $request->mpesa_receipt_number;
+        }
+
+        DB::transaction(function () use ($order, $delivery, $isCod, $paymentMethodCollected, $mpesaReceiptNumber) {
+            if ($isCod && $paymentMethodCollected) {
+                $reference = 'COD-' . $order->order_code . '-' . now()->format('YmdHisu');
+                Payment::create([
+                    'payable_type' => Order::class,
+                    'payable_id' => $order->id,
+                    'amount' => $order->total_amount,
+                    'amount_paid' => $order->total_amount,
+                    'currency' => $order->currency ?? 'KES',
+                    'provider' => 'cod',
+                    'method' => $paymentMethodCollected,
+                    'status' => PaymentStatus::COMPLETED,
+                    'reference' => $reference,
+                    'provider_reference' => $mpesaReceiptNumber,
+                    'mpesa_receipt_number' => $mpesaReceiptNumber,
+                    'completed_at' => now(),
+                ]);
+                $order->update(['payment_status' => 'paid']);
+            }
+
+            $delivery->update(['delivered_at' => now()]);
+            $order->update([
+                'status' => 'delivered',
+                'delivered_at' => $order->delivered_at ?? now(),
+            ]);
+        });
+
+        return back()->with('success', 'Order marked as delivered.' . ($isCod ? ' Payment recorded.' : ''));
     }
 
     /**
