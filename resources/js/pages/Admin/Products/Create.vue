@@ -3,27 +3,36 @@ import CategoryDropdown from '@/components/CategoryDropdown.vue';
 import ProductImageUploader from '@/components/ProductImageUploader.vue';
 import ProductVariantCreator from '@/components/ProductVariantCreator.vue';
 import SearchableSelect from '@/components/SearchableSelect.vue';
+import VariantImages from '@/components/VariantImages.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head, useForm, usePage } from '@inertiajs/vue3';
+import type { ImageItem, VariantRow } from '@/types/product';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { QuillEditor } from '@vueup/vue-quill';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
-import { computed, onMounted, reactive, watch } from 'vue';
 
-// Types
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+
+// ------------------ Types ------------------
 interface OptionItem {
     id: number | string;
     name: string;
 }
 
-interface VariantRow {
-    id: number | null;
-    sku: string | null;
-    values: Record<number, string>;
-    buying_price: number;
-    marked_price: number;
-    stock: number;
+// Extend VariantRow for frontend Step 5
+interface VariantRowWithImages extends VariantRow {
+    primaryImage?: ImageItem;
+    galleryImages?: ImageItem[];
 }
 
+interface VariantImagePayload {
+    id: number | null;
+    variant_id: number | null;
+    file: File | null;
+    is_primary: boolean;
+    sort_order: number;
+}
+
+// ------------------ Form Types ------------------
 interface ProductFormBase {
     product_id: number | null;
     step: number;
@@ -33,7 +42,8 @@ interface ProductFormBase {
     brand_id: string;
     unit_id: string;
     variant_rows: VariantRow[];
-    images: any[];
+    variant_images: VariantImagePayload[];
+    images: ImageItem[];
     video_url?: string | null;
 }
 
@@ -46,9 +56,8 @@ interface ProductFormEditorFields {
 
 type ProductForm = ProductFormBase & ProductFormEditorFields;
 
-// Inertia props
+// ------------------ Page Props ------------------
 const page = usePage();
-
 const title = (page.props as any).title ?? 'Create Product';
 const breadcrumbs = (page.props as any).breadcrumbs ?? [];
 const categories = (page.props as any).categories ?? [];
@@ -62,11 +71,55 @@ const brandOptions: OptionItem[] = brands.map((b: any) => ({ id: b.id, name: b.n
 const unitOptions: OptionItem[] = units.map((u: any) => ({ id: u.id, name: u.name }));
 
 // Steps
-const steps = ['Basic Info', 'Content', 'Variants', 'Images'];
+const steps = ['Basic Info', 'Content', 'Variants', 'Images', 'Variant Images'];
 const currentStep = reactive({ value: 0 });
 const completedSteps = reactive<number[]>([]);
 
-// Form Initialization
+// ------------------ Helper to map images ------------------
+const mapToImageItems = (images: any[]): ImageItem[] =>
+    images.map((img) => ({
+        id: img.id,
+        url: img.url,
+        is_primary: img.is_primary ?? false,
+        file: null as File | null,
+        preview: img.url,
+    }));
+
+// ------------------ Variants / Images ------------------
+const variantRows = ref<VariantRow[]>(
+    (product?.variant_rows ?? []).map((row: VariantRow) => ({
+        ...row,
+        values: Object.fromEntries(Object.entries(row.values ?? {}).map(([k, v]) => [String(k), v])),
+        buying_price: Number(row.buying_price) || 0,
+        marked_price: Number(row.marked_price) || 0,
+        stock: Number(row.stock) || 0,
+        images: mapToImageItems(row.images ?? []),
+    })),
+);
+
+const images = ref<ImageItem[]>(mapToImageItems(product?.images ?? []));
+
+// Step 5: Variant rows with primaryImage / galleryImages
+const variantRowsWithImages = ref<VariantRowWithImages[]>(
+    (product?.variant_rows ?? []).map((row: VariantRow) => {
+        const rowImages = mapToImageItems(row.images ?? []);
+        const primary = rowImages.find((i) => i.is_primary);
+        const gallery = rowImages.filter((i) => !i.is_primary);
+
+        return {
+            ...row,
+            values: Object.fromEntries(Object.entries(row.values ?? {}).map(([k, v]) => [String(k), v])),
+            buying_price: Number(row.buying_price) || 0,
+            marked_price: Number(row.marked_price) || 0,
+            stock: Number(row.stock) || 0,
+            images: rowImages,
+            primaryImage: primary,
+            galleryImages: gallery,
+        };
+    }),
+);
+
+// ------------------ Form ------------------
 const form = useForm<ProductForm>({
     product_id: product?.id ?? null,
     step: 1,
@@ -79,11 +132,13 @@ const form = useForm<ProductForm>({
     features: product?.features ?? '',
     specifications: product?.specifications ?? '',
     whats_in_the_box: product?.whats_in_the_box ?? '',
-    variant_rows: product?.variant_rows ?? [],
-    images: product?.images ?? [],
+    variant_rows: variantRows.value,
+    images: images.value,
     video_url: product?.video_url ?? null,
+    variant_images: [],
 });
 
+// ------------------ Video Preview ------------------
 const videoPreview = computed(() => {
     if (!form.video_url) return null;
     try {
@@ -100,29 +155,15 @@ const videoPreview = computed(() => {
 
 const editorFields: (keyof ProductFormEditorFields)[] = ['description', 'features', 'specifications', 'whats_in_the_box'];
 
-const variantRows = reactive<VariantRow[]>(
-    (product?.variant_rows ?? []).map((row: any) => ({
-        id: row.id ?? null,
-        sku: row.sku ?? null,
-        values: { ...row.values },
-        buying_price: row.buying_price ?? 0,
-        marked_price: row.marked_price ?? 0,
-        stock: row.stock ?? 0,
-    })),
-);
-
-const images = reactive<any[]>(product?.images ?? []);
+// ------------------ Submit & Navigation ------------------
 const isSubmitting = reactive({ value: false });
 
-// Initialize logic
 const initializeFromProduct = () => {
     if (product?.current_step) {
         const stepIndex = product.current_step - 1;
         currentStep.value = stepIndex;
         const maxCompleted = (product?.max_step_completed ?? product.current_step) - 1;
-        for (let i = 0; i <= maxCompleted; i++) {
-            if (!completedSteps.includes(i)) completedSteps.push(i);
-        }
+        for (let i = 0; i <= maxCompleted; i++) completedSteps.push(i);
     }
 };
 
@@ -132,111 +173,281 @@ onMounted(() => {
         const flashStep = flash.step - 1;
         currentStep.value = flashStep;
         if (flash.product_id) form.product_id = flash.product_id;
-        for (let i = 0; i <= flashStep; i++) {
-            if (!completedSteps.includes(i)) completedSteps.push(i);
-        }
+        for (let i = 0; i <= flashStep; i++) completedSteps.push(i);
     } else {
         initializeFromProduct();
     }
 });
 
-// Watch for flash updates (Crucial for the Refresh-Fix)
 watch(
     () => (page.props as any).flash,
     (flash) => {
-        if (flash?.product_id) {
-            form.product_id = flash.product_id;
-        }
+        if (flash?.product_id) form.product_id = flash.product_id;
         if (flash?.step) {
             const stepIndex = flash.step - 1;
-            if (!completedSteps.includes(stepIndex - 1)) {
-                completedSteps.push(stepIndex - 1);
-            }
+            if (!completedSteps.includes(stepIndex - 1)) completedSteps.push(stepIndex - 1);
+        }
+        // ✅ Update variantRows when variants are created in Step 3
+        if (flash?.variant_rows) {
+            variantRows.value = flash.variant_rows.map((row: any) => ({
+                ...row,
+                values: Object.fromEntries(Object.entries(row.values ?? {}).map(([k, v]) => [String(k), v])),
+                buying_price: Number(row.buying_price) || 0,
+                marked_price: Number(row.marked_price) || 0,
+                stock: Number(row.stock) || 0,
+                images: mapToImageItems(row.images ?? []),
+            }));
         }
     },
     { deep: true },
 );
 
-const isTabEnabled = (index: number): boolean => {
+// ✅ Sync variantRows from Step 3 to variantRowsWithImages for Step 5
+watch(
+    variantRows,
+    (newRows) => {
+        // When variants are updated in Step 3, sync them to Step 5
+        variantRowsWithImages.value = newRows.map((row) => {
+            const rowImages = row.images ?? [];
+            const primary = rowImages.find((i) => i.is_primary);
+            const gallery = rowImages.filter((i) => !i.is_primary);
+
+            return {
+                ...row,
+                primaryImage: primary,
+                galleryImages: gallery,
+            };
+        });
+    },
+    { deep: true },
+);
+
+const isTabEnabled = (index: number) => {
     const lastCompletedStep = completedSteps.length ? Math.max(...completedSteps) : -1;
     return index === currentStep.value || completedSteps.includes(index) || index === lastCompletedStep + 1;
 };
 
 const handleTabClick = (index: number) => {
     if (!isTabEnabled(index)) return;
-    if (index !== currentStep.value && form.isDirty) {
-        if (!confirm('You have unsaved changes. Are you sure?')) return;
-    }
+    if (index !== currentStep.value && form.isDirty && !confirm('You have unsaved changes. Are you sure?')) return;
     currentStep.value = index;
 };
 
-// SUBMIT STEP - THE REFRESH FIX IS HERE
+// ------------------ Submit Step ------------------
 const submitStep = async () => {
     if (isSubmitting.value) return;
     isSubmitting.value = true;
 
-    form.step = currentStep.value + 1;
-    form.variant_rows = variantRows;
-    form.images = images.map((i) => i.file ?? i);
+    const step = currentStep.value + 1;
+
+    // ------------------ Step 3: Variants ------------------
+    if (currentStep.value === 2) {
+        form.step = step;
+        form.variant_rows = variantRows.value;
+
+        await form.post(route('admin.products.store'), {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: handleSuccess,
+            onFinish: () => {
+                isSubmitting.value = false;
+            },
+        });
+        return;
+    }
+
+    // ------------------ Step 4: Product Images ------------------
+    if (currentStep.value === 3) {
+        form.step = step;
+        form.images = images.value;
+
+        // Ensure at least one primary image
+        if (!form.images.some((i) => i.is_primary) && form.images.length) {
+            form.images[0].is_primary = true;
+        }
+
+        await form.post(route('admin.products.store'), {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: handleSuccess,
+            onFinish: () => {
+                isSubmitting.value = false;
+            },
+        });
+        return;
+    }
+
+    // ------------------ Step 5: Variant Images ------------------
+    if (currentStep.value === 4) {
+        const formData = new FormData();
+
+        // Ensure product_id exists
+        if (!form.product_id) {
+            console.warn('Warning: product_id is missing for Step 5. Step 3 must return product_id!');
+        }
+
+        formData.append('product_id', String(form.product_id ?? ''));
+        formData.append('step', String(step));
+
+        // Flatten variant images
+        const flatVariantImages: VariantImagePayload[] = variantRowsWithImages.value.flatMap((row) => {
+            const imgs = row.images ?? [];
+            return imgs.map((img, idx) => ({
+                id: typeof img.id === 'number' ? img.id : null,
+                variant_id: typeof row.id === 'number' ? row.id : parseInt(String(row.id)),
+                file: img.file instanceof File ? img.file : null,
+                is_primary: !!img.is_primary,
+                sort_order: idx,
+            }));
+        });
+
+        flatVariantImages.forEach((img, index) => {
+            formData.append(`variant_images[${index}][id]`, img.id !== null ? String(img.id) : '');
+            formData.append(`variant_images[${index}][variant_id]`, String(img.variant_id));
+            formData.append(`variant_images[${index}][is_primary]`, img.is_primary ? '1' : '0');
+            formData.append(`variant_images[${index}][sort_order]`, String(img.sort_order));
+
+            if (img.file instanceof File) {
+                formData.append(`variant_images[${index}][file]`, img.file);
+            }
+        });
+
+        // Add variant_rows separately
+        const variantRowsData = variantRowsWithImages.value.map((row) => ({
+            id: row.id,
+            sku: row.sku,
+            buying_price: Number(row.buying_price) || 0,
+            marked_price: Number(row.marked_price) || 0,
+            stock: Number(row.stock) || 0,
+            values: row.values,
+        }));
+
+        formData.append('variant_rows', JSON.stringify(variantRowsData));
+
+        // Debugging log
+        console.log('Step 5 FormData payload:', {
+            product_id: form.product_id,
+            step,
+            variant_images_count: flatVariantImages.length,
+            variant_rows_count: variantRowsData.length,
+        });
+
+        // Use router.post for FormData upload
+        router.post(route('admin.products.store'), formData, {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: (pageResponse) => {
+                const flash = (pageResponse.props as any).flash;
+                if (flash?.product_id) form.product_id = flash.product_id;
+
+                if (!completedSteps.includes(currentStep.value)) {
+                    completedSteps.push(currentStep.value);
+                }
+
+                if (currentStep.value < steps.length - 1) {
+                    currentStep.value += 1;
+                }
+
+                form.clearErrors();
+            },
+            onFinish: () => {
+                isSubmitting.value = false;
+            },
+        });
+        return;
+    }
+
+    // ------------------ Steps 1 & 2: Basic Info & Content ------------------
+    form.step = step;
 
     await form.post(route('admin.products.store'), {
         preserveScroll: true,
         preserveState: true,
-        onSuccess: (pageResponse) => {
-            // FIX: Immediately sync the product_id from the response
-            const flash = (pageResponse.props as any).flash;
-            if (flash?.product_id) {
-                form.product_id = flash.product_id;
-            }
-
-            if (!completedSteps.includes(currentStep.value)) {
-                completedSteps.push(currentStep.value);
-            }
-
-            if (currentStep.value < steps.length - 1) {
-                currentStep.value += 1;
-            }
-            form.clearErrors();
-        },
+        onSuccess: handleSuccess,
         onFinish: () => {
             isSubmitting.value = false;
         },
     });
 };
+
+function handleSuccess(pageResponse: any) {
+    const flash = (pageResponse.props as any).flash;
+    if (flash?.product_id) form.product_id = flash.product_id;
+
+    if (!completedSteps.includes(currentStep.value)) {
+        completedSteps.push(currentStep.value);
+    }
+
+    if (currentStep.value < steps.length - 1) {
+        currentStep.value += 1;
+    }
+
+    form.clearErrors();
+}
 </script>
 
 <template>
-    <Head>
-        <title>{{ title }}</title>
-    </Head>
+    <Head
+        ><title>{{ title }}</title></Head
+    >
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="p-4">
-            <div class="mx-auto w-full max-w-6xl space-y-6 rounded-xl bg-white p-6 shadow">
-                <h2 class="text-center text-2xl font-bold text-gray-800">{{ title }}</h2>
+        <div class="p-6">
+            <div class="mx-auto w-full max-w-6xl space-y-8 rounded-xl border border-gray-200 bg-white p-8 shadow-lg">
+                <div class="text-center">
+                    <h2 class="text-3xl font-bold text-gray-900">{{ title }}</h2>
+                    <p class="mt-2 text-sm text-gray-500">Follow the steps below to create your product</p>
+                </div>
 
                 <!-- Tabs -->
-                <div class="border-b border-gray-200">
-                    <nav class="-mb-px flex space-x-8" aria-label="Tabs">
-                        <button
-                            v-for="(step, index) in steps"
-                            :key="index"
-                            @click="handleTabClick(index)"
-                            type="button"
-                            class="border-b-2 px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors"
-                            :class="[
-                                currentStep.value === index
-                                    ? 'border-primary text-primary'
-                                    : isTabEnabled(index)
-                                      ? 'cursor-pointer border-transparent text-gray-700 hover:border-gray-300 hover:text-gray-900'
-                                      : 'cursor-not-allowed border-transparent text-gray-400',
-                            ]"
-                            :disabled="!isTabEnabled(index)"
-                        >
-                            {{ step }}
-                            <span v-if="completedSteps.includes(index) && currentStep.value !== index" class="ml-1 text-green-500">✓</span>
-                        </button>
-                    </nav>
+                <div class="mb-8">
+                    <div class="flex justify-center">
+                        <nav class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1" aria-label="Tabs">
+                            <button
+                                v-for="(step, index) in steps"
+                                :key="index"
+                                @click="handleTabClick(index)"
+                                type="button"
+                                class="relative rounded-md px-6 py-2.5 text-sm font-medium whitespace-nowrap transition-all duration-200"
+                                :class="[
+                                    currentStep.value === index
+                                        ? 'bg-primary text-white shadow-sm'
+                                        : isTabEnabled(index)
+                                          ? 'cursor-pointer text-gray-700 hover:bg-white hover:text-primary hover:shadow-sm'
+                                          : 'cursor-not-allowed text-gray-400 opacity-50',
+                                ]"
+                                :disabled="!isTabEnabled(index)"
+                            >
+                                <span class="flex items-center gap-2">
+                                    <span
+                                        class="flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold"
+                                        :class="[
+                                            currentStep.value === index
+                                                ? 'bg-white/20 text-white'
+                                                : completedSteps.includes(index)
+                                                  ? 'bg-green-100 text-green-600'
+                                                  : 'bg-gray-200 text-gray-600',
+                                        ]"
+                                    >
+                                        <svg
+                                            v-if="completedSteps.includes(index) && currentStep.value !== index"
+                                            class="h-4 w-4"
+                                            fill="currentColor"
+                                            viewBox="0 0 20 20"
+                                        >
+                                            <path
+                                                fill-rule="evenodd"
+                                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                                clip-rule="evenodd"
+                                            />
+                                        </svg>
+                                        <span v-else>{{ index + 1 }}</span>
+                                    </span>
+                                    <span>{{ step }}</span>
+                                </span>
+                            </button>
+                        </nav>
+                    </div>
                 </div>
 
                 <form @submit.prevent="submitStep" class="w-full space-y-6">
@@ -275,7 +486,6 @@ const submitStep = async () => {
 
                     <!-- Step 2: Content -->
                     <div v-show="currentStep.value === 1" class="space-y-6">
-                        <!-- Editor fields -->
                         <div v-for="field in editorFields" :key="field" class="space-y-2">
                             <label class="block text-sm font-medium text-gray-700">{{
                                 field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
@@ -288,18 +498,14 @@ const submitStep = async () => {
                                 class="min-h-[200px] rounded-md border border-gray-200"
                             />
                         </div>
-
-                        <!-- YouTube Video URL -->
                         <div class="mt-4">
                             <label class="mb-1 block text-sm font-medium text-gray-700">YouTube Video URL (optional)</label>
                             <input
                                 type="url"
                                 v-model="form.video_url"
                                 placeholder="https://www.youtube.com/watch?v=VIDEO_ID"
-                                class="block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-700 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:outline-none"
+                                class="block w-full rounded-md border px-3 py-2"
                             />
-
-                            <!-- Video Preview -->
                             <div v-if="videoPreview" class="mt-2 w-full max-w-md overflow-hidden rounded-md border">
                                 <iframe
                                     :src="videoPreview"
@@ -322,18 +528,57 @@ const submitStep = async () => {
                         <ProductImageUploader v-model="images" />
                     </div>
 
+                    <!-- Step 5: Variant Images -->
+                    <div v-show="currentStep.value === 4">
+                        <VariantImages v-model:variantRows="variantRowsWithImages" :variantCategories="variantCategories" />
+                    </div>
+
                     <!-- Navigation -->
-                    <div class="flex justify-between pt-6">
+                    <div class="flex items-center justify-between border-t border-gray-200 pt-6">
                         <button
                             type="button"
                             v-if="currentStep.value > 0"
                             @click="handleTabClick(currentStep.value - 1)"
-                            class="rounded-md bg-gray-200 px-6 py-2.5"
+                            class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-6 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:border-gray-400 hover:bg-gray-50"
                         >
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                            </svg>
                             Previous
                         </button>
-                        <button type="submit" class="ml-auto rounded-md bg-primary px-6 py-2.5 text-white">
-                            {{ currentStep.value < steps.length - 1 ? 'Save & Next' : 'Save Product' }}
+                        <div v-else></div>
+
+                        <button
+                            type="submit"
+                            :disabled="isSubmitting.value"
+                            class="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-primary/90 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            <span v-if="isSubmitting.value" class="flex items-center gap-2">
+                                <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path
+                                        class="opacity-75"
+                                        fill="currentColor"
+                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                    ></path>
+                                </svg>
+                                Saving...
+                            </span>
+                            <span v-else class="flex items-center gap-2">
+                                {{ currentStep.value < steps.length - 1 ? 'Save & Continue' : 'Finish & Save Product' }}
+                                <svg
+                                    v-if="currentStep.value < steps.length - 1"
+                                    class="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                </svg>
+                                <svg v-else class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </span>
                         </button>
                     </div>
                 </form>

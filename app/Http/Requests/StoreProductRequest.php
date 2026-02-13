@@ -13,6 +13,7 @@ class StoreProductRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        // Decode JSON strings if sent as text
         if ($this->has('variant_categories') && is_string($this->variant_categories)) {
             $this->merge([
                 'variant_categories' => json_decode($this->variant_categories, true) ?? [],
@@ -22,6 +23,12 @@ class StoreProductRequest extends FormRequest
         if ($this->has('variant_rows') && is_string($this->variant_rows)) {
             $this->merge([
                 'variant_rows' => json_decode($this->variant_rows, true) ?? [],
+            ]);
+        }
+
+        if ($this->has('variant_images') && is_string($this->variant_images)) {
+            $this->merge([
+                'variant_images' => json_decode($this->variant_images, true) ?? [],
             ]);
         }
     }
@@ -49,8 +56,7 @@ class StoreProductRequest extends FormRequest
                 'meta_title' => 'nullable|string|max:255',
                 'meta_keywords' => 'nullable|string|max:255',
                 'meta_description' => 'nullable|string',
-                 'video_url' => 'nullable|url|regex:/^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[\w\-]+$/i',
-
+                'video_url' => 'nullable|url|regex:/^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[\w\-]+$/i',
             ],
 
             // Step 3: Variants
@@ -66,11 +72,20 @@ class StoreProductRequest extends FormRequest
                 'variant_rows.*.stock' => 'required|integer|min:0',
             ],
 
-            // Step 4: Images
+            // Step 4: Product Images
             4 => [
                 'images' => 'nullable|array',
                 'images.*' => 'image|mimes:jpg,jpeg,png,gif,webp|max:10240',
                 'primary_image_index' => 'nullable|integer|min:0',
+            ],
+
+            // Step 5: Variant Images
+            5 => [
+                'variant_images' => 'required|array|min:1',
+                'variant_images.*.variant_id' => 'required|integer|exists:product_variants,id',
+                'variant_images.*.file' => 'nullable|file|image|mimes:jpg,jpeg,png,gif,webp|max:10240',
+                'variant_images.*.is_primary' => 'required|boolean',
+                'variant_images.*.sort_order' => 'required|integer|min:0',
             ],
 
             default => [],
@@ -86,6 +101,9 @@ class StoreProductRequest extends FormRequest
             'variant_rows.*.stock.required' => 'Each variant row must have a stock quantity.',
             'video_url.url' => 'The video URL must be a valid URL.',
             'video_url.regex' => 'The video URL must be a valid YouTube link.',
+            'variant_images.*.variant_id.required' => 'Each variant image must have a variant ID.',
+            'variant_images.*.is_primary.required' => 'Each variant image must specify if it is primary.',
+            'variant_images.*.sort_order.required' => 'Each variant image must have a sort order.',
         ];
     }
 }

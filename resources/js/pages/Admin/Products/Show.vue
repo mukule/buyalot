@@ -1,13 +1,21 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
-import { router } from '@inertiajs/vue3'; // <-- Inertia router
-import { computed, ref } from 'vue';
+import { router } from '@inertiajs/vue3';
+import { computed, ref, watch } from 'vue';
 
 interface Category {
     id: number;
     name: string;
     slug: string;
     parent?: Category | null;
+}
+
+interface VariantImage {
+    id: number;
+    url: string;
+    is_primary: boolean;
+    sort_order: number;
+    alt_text?: string;
 }
 
 interface Variant {
@@ -17,6 +25,7 @@ interface Variant {
     stock: number;
     sku: string;
     values: { variant_category_id: number; value: string }[];
+    images: VariantImage[];
 }
 
 interface Product {
@@ -34,30 +43,56 @@ interface Product {
     features?: string;
     specifications?: string;
     whats_in_the_box?: string;
+    stock?: number;
 }
 
 const props = defineProps<{ product: Product }>();
 
-// Image selection & preview
-const mainImage = ref(props.product.primary_image_url || props.product.image_urls?.[0] || '');
+// Active tab state
+const activeTab = ref<'description' | 'features' | 'specifications'>('description');
+
+// Selected variant state
+const selectedVariant = ref<Variant | null>(props.product.variants?.[0] || null);
+
+// Current images - combines product and variant images
+const currentImages = computed(() => {
+    if (selectedVariant.value?.images?.length) {
+        // If variant has images, show those
+        return selectedVariant.value.images.map((img) => img.url);
+    }
+    // Otherwise show product images
+    return props.product.image_urls || [];
+});
+
+// Main image display
+const mainImageIndex = ref(0);
+const mainImage = computed(() => currentImages.value[mainImageIndex.value] || props.product.primary_image_url || '');
+
+// Watch for variant changes to reset image index
+watch(selectedVariant, () => {
+    mainImageIndex.value = 0;
+});
+
+// Image preview modal
 const showPreview = ref(false);
 const openPreview = () => (showPreview.value = true);
 const closePreview = () => (showPreview.value = false);
-const selectImage = (img: string) => (mainImage.value = img);
+const selectImage = (index: number) => (mainImageIndex.value = index);
+
+// Navigate images
+const nextImage = () => {
+    if (mainImageIndex.value < currentImages.value.length - 1) {
+        mainImageIndex.value++;
+    }
+};
+const prevImage = () => {
+    if (mainImageIndex.value > 0) {
+        mainImageIndex.value--;
+    }
+};
 
 // Price formatting
 const formatPrice = (amount?: number) => (amount != null ? `KSh ${amount.toLocaleString()}` : '-');
-
-// Category breadcrumb
-const categoryBreadcrumb = computed(() => {
-    const items: { title: string; href: string | null }[] = [];
-    if (props.product.category_hierarchy?.length) {
-        props.product.category_hierarchy.forEach((cat) => {
-            items.push({ title: cat.name, href: `/category/${cat.slug}` });
-        });
-    }
-    return items;
-});
 
 // Calculate discount %
 const calcDiscount = (regular: number, selling: number) => {
@@ -65,7 +100,74 @@ const calcDiscount = (regular: number, selling: number) => {
     return Math.round(((regular - selling) / regular) * 100);
 };
 
-// Button handlers using Inertia
+// Current prices based on selected variant
+const currentPrice = computed(() => selectedVariant.value?.buying_price || 0);
+const markedPrice = computed(() => selectedVariant.value?.marked_price || 0);
+const discount = computed(() => calcDiscount(markedPrice.value, currentPrice.value));
+const currentStock = computed(() => selectedVariant.value?.stock || 0);
+
+// Get unique variant attributes (e.g., Color, Size)
+const variantAttributes = computed(() => {
+    if (!props.product.variants?.length) return [];
+
+    const attributesMap = new Map<number, { id: number; values: Set<string> }>();
+
+    props.product.variants.forEach((variant) => {
+        variant.values.forEach((val) => {
+            if (!attributesMap.has(val.variant_category_id)) {
+                attributesMap.set(val.variant_category_id, {
+                    id: val.variant_category_id,
+                    values: new Set(),
+                });
+            }
+            attributesMap.get(val.variant_category_id)?.values.add(val.value);
+        });
+    });
+
+    return Array.from(attributesMap.values()).map((attr) => ({
+        id: attr.id,
+        values: Array.from(attr.values),
+    }));
+});
+
+// Selected attribute values
+const selectedAttributes = ref<Record<number, string>>({});
+
+// Initialize selected attributes with first variant
+if (selectedVariant.value) {
+    selectedVariant.value.values.forEach((val) => {
+        selectedAttributes.value[val.variant_category_id] = val.value;
+    });
+}
+
+// Update variant when attributes change
+const selectAttribute = (categoryId: number, value: string) => {
+    selectedAttributes.value[categoryId] = value;
+
+    // Find matching variant
+    const matchingVariant = props.product.variants?.find((variant) => {
+        return variant.values.every((val) => selectedAttributes.value[val.variant_category_id] === val.value);
+    });
+
+    if (matchingVariant) {
+        selectedVariant.value = matchingVariant;
+    }
+};
+
+// Check if attribute option is available
+const isAttributeAvailable = (categoryId: number, value: string) => {
+    return (
+        props.product.variants?.some((variant) => {
+            const hasValue = variant.values.some((v) => v.variant_category_id === categoryId && v.value === value);
+            const matchesOthers = variant.values.every(
+                (v) => v.variant_category_id === categoryId || selectedAttributes.value[v.variant_category_id] === v.value,
+            );
+            return hasValue && matchesOthers && variant.stock > 0;
+        }) || false
+    );
+};
+
+// Button handlers
 const editProduct = () => {
     router.get(route('admin.products.edit', { product: props.product.hashid }));
 };
@@ -79,139 +181,336 @@ const backToProducts = () => {
     <AppLayout
         :breadcrumbs="[
             { title: 'Dashboard', href: '/' },
-            { title: 'Products', href: '/products' },
+            { title: 'Products', href: '/admin/products' },
+            { title: props.product.name, href: '' },
         ]"
     >
-        <section class="px-4 py-6">
-            <!-- Breadcrumb -->
-            <nav class="mb-6 text-sm text-gray-600">
-                <ol class="flex flex-wrap items-center gap-1">
-                    <li v-for="(item, idx) in categoryBreadcrumb" :key="idx" class="flex items-center">
-                        <template v-if="item.href">
-                            <a :href="item.href" class="text-primary hover:underline">{{ item.title }}</a>
-                        </template>
-                        <template v-else>
-                            <span class="font-semibold text-gray-800">{{ item.title }}</span>
-                        </template>
-                        <span v-if="idx < categoryBreadcrumb.length - 1" class="mx-1">/</span>
-                    </li>
-                    <li class="flex items-center">
-                        <span class="mx-1">/</span>
-                        <span class="font-semibold text-gray-800">{{ props.product.name }}</span>
-                    </li>
-                </ol>
-            </nav>
+        <div class="min-h-screen bg-gray-50 py-8">
+            <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                <!-- Header Actions -->
+                <div class="mb-6 flex items-center justify-between">
+                    <button
+                        @click="backToProducts"
+                        class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+                    >
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                        Back to Products
+                    </button>
+                    <button
+                        @click="editProduct"
+                        class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-primary/90"
+                    >
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                            />
+                        </svg>
+                        Edit Product
+                    </button>
+                </div>
 
-            <div class="flex flex-col gap-6 lg:flex-row">
-                <!-- Left Column -->
-                <div class="flex w-full flex-col gap-6 lg:w-10/12">
-                    <div class="flex justify-between">
-                        <button @click="backToProducts" class="rounded bg-gray-200 px-4 py-2 text-sm font-semibold hover:bg-gray-300">Back</button>
-                        <button @click="editProduct" class="rounded bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90">
-                            Edit Product
-                        </button>
-                    </div>
+                <!-- Main Product Section -->
+                <div class="grid grid-cols-1 gap-8 lg:grid-cols-12">
+                    <!-- Left: Images -->
+                    <div class="lg:col-span-7">
+                        <div class="sticky top-8 rounded-xl bg-white p-6 shadow-sm">
+                            <!-- Main Image -->
+                            <div class="relative mb-4 overflow-hidden rounded-lg bg-gray-100">
+                                <img :src="mainImage" :alt="props.product.name" class="h-[500px] w-full object-contain" />
 
-                    <div class="rounded-xl bg-white p-6 shadow">
-                        <div class="flex flex-col gap-6 md:flex-row">
-                            <!-- Images -->
-                            <div class="w-full md:w-1/2">
-                                <div class="relative">
-                                    <img :src="mainImage" class="max-h-[400px] w-full rounded-md object-contain" />
-                                    <button
-                                        @click="openPreview"
-                                        title="Preview Image"
-                                        class="bg-opacity-75 hover:bg-opacity-100 absolute top-2 right-2 flex items-center gap-1 rounded bg-white px-3 py-1 text-sm font-semibold text-gray-800 shadow"
-                                    >
-                                        Preview
-                                    </button>
-                                </div>
-                                <div class="mt-4 flex gap-2 overflow-x-auto">
-                                    <img
-                                        v-for="(img, idx) in props.product.image_urls ?? []"
-                                        :key="idx"
-                                        :src="img"
-                                        @click="selectImage(img)"
-                                        :class="[
-                                            'h-16 w-16 cursor-pointer rounded border transition',
-                                            img === mainImage ? 'border-primary' : 'border-gray-300',
-                                        ]"
-                                    />
-                                </div>
+                                <!-- Image Navigation -->
+                                <button
+                                    v-if="currentImages.length > 1 && mainImageIndex > 0"
+                                    @click="prevImage"
+                                    class="absolute top-1/2 left-4 -translate-y-1/2 rounded-full bg-white/90 p-2 shadow-lg transition hover:bg-white"
+                                >
+                                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                                    </svg>
+                                </button>
+
+                                <button
+                                    v-if="currentImages.length > 1 && mainImageIndex < currentImages.length - 1"
+                                    @click="nextImage"
+                                    class="absolute top-1/2 right-4 -translate-y-1/2 rounded-full bg-white/90 p-2 shadow-lg transition hover:bg-white"
+                                >
+                                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                    </svg>
+                                </button>
+
+                                <!-- Preview Button -->
+                                <button
+                                    @click="openPreview"
+                                    class="absolute top-4 right-4 flex items-center gap-2 rounded-lg bg-white/90 px-3 py-2 text-sm font-medium shadow-lg transition hover:bg-white"
+                                >
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"
+                                        />
+                                    </svg>
+                                    Zoom
+                                </button>
                             </div>
 
-                            <!-- Info -->
-                            <div class="flex w-full flex-col gap-2 md:w-1/2">
-                                <h1 class="text-2xl font-bold text-gray-800">{{ props.product.name }}</h1>
-                                <p><strong>Product Code:</strong> {{ props.product.product_code ?? '-' }}</p>
-                                <p><strong>Brand:</strong> {{ props.product.brand?.name ?? '-' }}</p>
-                                <p><strong>Owner:</strong> {{ props.product.owner?.name ?? '-' }}</p>
-                                <p v-if="props.product.owner?.roles"><strong>Owner Roles:</strong> {{ props.product.owner.roles.join(', ') }}</p>
+                            <!-- Thumbnail Gallery -->
+                            <div v-if="currentImages.length > 1" class="flex gap-2 overflow-x-auto pb-2">
+                                <button
+                                    v-for="(img, idx) in currentImages"
+                                    :key="idx"
+                                    @click="selectImage(idx)"
+                                    :class="[
+                                        'h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border-2 transition',
+                                        idx === mainImageIndex ? 'border-primary ring-2 ring-primary/20' : 'border-gray-200 hover:border-gray-300',
+                                    ]"
+                                >
+                                    <img :src="img" class="h-full w-full object-cover" />
+                                </button>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Description -->
-                    <div v-if="props.product.description" class="rounded-xl bg-white p-4 shadow">
-                        <h3 class="mb-2 font-semibold text-gray-800">Description</h3>
-                        <p v-html="props.product.description"></p>
+                    <!-- Right: Product Details -->
+                    <div class="lg:col-span-5">
+                        <div class="rounded-xl bg-white p-6 shadow-sm">
+                            <!-- Product Name -->
+                            <h1 class="mb-3 text-3xl font-bold text-gray-900">{{ props.product.name }}</h1>
+
+                            <!-- Brand & Code -->
+                            <div class="mb-4 flex flex-wrap gap-4 text-sm text-gray-600">
+                                <div v-if="props.product.brand" class="flex items-center gap-2">
+                                    <span class="font-medium">Brand:</span>
+                                    <span class="rounded-full bg-gray-100 px-3 py-1">{{ props.product.brand.name }}</span>
+                                </div>
+                                <div v-if="props.product.product_code" class="flex items-center gap-2">
+                                    <span class="font-medium">SKU:</span>
+                                    <span class="font-mono">{{ props.product.product_code }}</span>
+                                </div>
+                            </div>
+
+                            <!-- Price Section -->
+                            <div class="mb-6 rounded-lg bg-gray-50 p-4">
+                                <div class="flex items-baseline gap-3">
+                                    <span class="text-3xl font-bold text-gray-900">{{ formatPrice(currentPrice) }}</span>
+                                    <span v-if="discount" class="text-lg text-gray-500 line-through">{{ formatPrice(markedPrice) }}</span>
+                                    <span v-if="discount" class="rounded-full bg-red-100 px-2 py-1 text-sm font-semibold text-red-700">
+                                        -{{ discount }}%
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Stock Status -->
+                            <div class="mb-6">
+                                <div
+                                    :class="[
+                                        'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium',
+                                        currentStock > 10
+                                            ? 'bg-green-100 text-green-800'
+                                            : currentStock > 0
+                                              ? 'bg-yellow-100 text-yellow-800'
+                                              : 'bg-red-100 text-red-800',
+                                    ]"
+                                >
+                                    <div
+                                        :class="[
+                                            'h-2 w-2 rounded-full',
+                                            currentStock > 10 ? 'bg-green-600' : currentStock > 0 ? 'bg-yellow-600' : 'bg-red-600',
+                                        ]"
+                                    ></div>
+                                    <span v-if="currentStock > 10">In Stock ({{ currentStock }} available)</span>
+                                    <span v-else-if="currentStock > 0">Low Stock ({{ currentStock }} left)</span>
+                                    <span v-else>Out of Stock</span>
+                                </div>
+                            </div>
+
+                            <!-- Variant Selection -->
+                            <div v-if="props.product.variants && props.product.variants.length > 1" class="mb-6 space-y-4">
+                                <div v-for="attribute in variantAttributes" :key="attribute.id" class="space-y-2">
+                                    <label class="block text-sm font-medium text-gray-700"> Select Option </label>
+                                    <div class="flex flex-wrap gap-2">
+                                        <button
+                                            v-for="value in attribute.values"
+                                            :key="value"
+                                            @click="selectAttribute(attribute.id, value)"
+                                            :disabled="!isAttributeAvailable(attribute.id, value)"
+                                            :class="[
+                                                'rounded-lg border-2 px-4 py-2 text-sm font-medium transition',
+                                                selectedAttributes[attribute.id] === value
+                                                    ? 'border-primary bg-primary text-white'
+                                                    : isAttributeAvailable(attribute.id, value)
+                                                      ? 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                                                      : 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 line-through',
+                                            ]"
+                                        >
+                                            {{ value }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Selected Variant Details -->
+                            <div v-if="selectedVariant" class="mb-6 rounded-lg border border-gray-200 p-4">
+                                <h3 class="mb-3 text-sm font-semibold text-gray-700">Selected Variant Details</h3>
+                                <div class="space-y-2 text-sm">
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-600">SKU:</span>
+                                        <span class="font-mono font-medium">{{ selectedVariant.sku }}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-600">Stock:</span>
+                                        <span class="font-medium">{{ selectedVariant.stock }} units</span>
+                                    </div>
+                                    <div v-if="selectedVariant.values.length" class="flex justify-between">
+                                        <span class="text-gray-600">Variant:</span>
+                                        <span class="font-medium">
+                                            {{ selectedVariant.values.map((v) => v.value).join(', ') }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Owner Info (Admin) -->
+                            <div v-if="props.product.owner" class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                                <h3 class="mb-2 text-sm font-semibold text-gray-700">Owner Information</h3>
+                                <div class="space-y-1 text-sm">
+                                    <p>
+                                        <span class="text-gray-600">Name:</span> <span class="font-medium">{{ props.product.owner.name }}</span>
+                                    </p>
+                                    <p v-if="props.product.owner.roles?.length">
+                                        <span class="text-gray-600">Roles:</span>
+                                        <span class="font-medium">{{ props.product.owner.roles.join(', ') }}</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- What's in the Box -->
+                        <div v-if="props.product.whats_in_the_box" class="mt-6 rounded-xl bg-white p-6 shadow-sm">
+                            <h3 class="mb-3 text-lg font-semibold text-gray-900">What's in the Box</h3>
+                            <div v-html="props.product.whats_in_the_box" class="prose prose-sm max-w-none text-gray-700"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Product Information Tabs -->
+                <div class="mt-8 rounded-xl bg-white shadow-sm">
+                    <div class="border-b border-gray-200">
+                        <nav class="flex gap-8 px-6" aria-label="Tabs">
+                            <button
+                                @click="activeTab = 'description'"
+                                :class="[
+                                    'border-b-2 px-1 py-4 text-sm font-medium transition',
+                                    activeTab === 'description'
+                                        ? 'border-primary text-primary'
+                                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700',
+                                ]"
+                            >
+                                Description
+                            </button>
+                            <button
+                                v-if="props.product.features"
+                                @click="activeTab = 'features'"
+                                :class="[
+                                    'border-b-2 px-1 py-4 text-sm font-medium transition',
+                                    activeTab === 'features'
+                                        ? 'border-primary text-primary'
+                                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700',
+                                ]"
+                            >
+                                Features
+                            </button>
+                            <button
+                                v-if="props.product.specifications"
+                                @click="activeTab = 'specifications'"
+                                :class="[
+                                    'border-b-2 px-1 py-4 text-sm font-medium transition',
+                                    activeTab === 'specifications'
+                                        ? 'border-primary text-primary'
+                                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700',
+                                ]"
+                            >
+                                Specifications
+                            </button>
+                        </nav>
                     </div>
 
-                    <!-- Features & Specifications -->
-                    <div v-if="props.product.features || props.product.specifications" class="rounded-xl bg-white p-4 shadow">
-                        <div class="flex flex-col gap-6 md:flex-row">
-                            <div v-if="props.product.features" class="rounded border border-gray-300 p-4 md:w-1/2">
-                                <h4 class="mb-2 font-semibold text-gray-700">Features</h4>
+                    <div class="p-6">
+                        <!-- Description Tab -->
+                        <div v-show="activeTab === 'description'">
+                            <div v-if="props.product.description" class="prose max-w-none">
+                                <div v-html="props.product.description"></div>
+                            </div>
+                            <div v-else class="text-gray-500">No description available.</div>
+                        </div>
+
+                        <!-- Features Tab -->
+                        <div v-show="activeTab === 'features'" v-if="props.product.features">
+                            <div class="prose max-w-none">
                                 <div v-html="props.product.features"></div>
                             </div>
-                            <div v-if="props.product.specifications" class="rounded border border-gray-300 p-4 md:w-1/2">
-                                <h4 class="mb-2 font-semibold text-gray-700">Specifications</h4>
+                        </div>
+
+                        <!-- Specifications Tab -->
+                        <div v-show="activeTab === 'specifications'" v-if="props.product.specifications">
+                            <div class="prose max-w-none">
                                 <div v-html="props.product.specifications"></div>
                             </div>
                         </div>
                     </div>
                 </div>
-
-                <!-- Right Column -->
-                <div class="flex w-full flex-col gap-6 lg:w-2/12">
-                    <!-- Variants -->
-                    <div class="rounded-xl border bg-white p-3 shadow-sm">
-                        <div v-if="props.product.variants?.length" class="space-y-2">
-                            <div v-for="variant in props.product.variants" :key="variant.id" class="mb-3">
-                                <p v-if="variant.values.length">
-                                    <span v-for="(val, idx) in variant.values" :key="val.variant_category_id">
-                                        {{ val.value }}<span v-if="idx < variant.values.length - 1">, </span>
-                                    </span>
-                                </p>
-
-                                <p><strong>Stock:</strong> {{ variant.stock }}</p>
-
-                                <p><strong>Marked Price:</strong> {{ formatPrice(variant.marked_price) }}</p>
-                                <p><strong>Buying Price:</strong> {{ formatPrice(variant.buying_price) }}</p>
-
-                                <hr />
-                            </div>
-                        </div>
-                        <div v-else class="rounded border p-4 text-gray-500">No variants available</div>
-                    </div>
-
-                    <!-- What's in the Box -->
-                    <div v-if="props.product.whats_in_the_box" class="max-w-full overflow-hidden rounded-xl bg-white p-4 shadow">
-                        <h4 class="mb-2 font-semibold text-gray-700">What's in the Box</h4>
-
-                        <div
-                            v-html="props.product.whats_in_the_box"
-                            class="prose prose-sm max-w-none overflow-hidden break-words text-gray-700 [&>*]:max-w-full [&>img]:max-w-full [&>pre]:overflow-x-auto [&>table]:block [&>table]:w-full [&>table]:overflow-x-auto"
-                        ></div>
-                    </div>
-                </div>
             </div>
+        </div>
 
-            <!-- Image Preview Modal -->
-            <div v-if="showPreview" @click.self="closePreview" class="bg-opacity-70 fixed inset-0 z-50 flex items-center justify-center bg-black p-4">
-                <button @click="closePreview" class="absolute top-4 right-4 rounded bg-white px-3 py-1 text-gray-800 hover:bg-gray-200">Close</button>
-                <img :src="mainImage" alt="Preview Image" class="max-h-[90vh] max-w-full rounded-md shadow-lg" />
+        <!-- Image Preview Modal -->
+        <Transition
+            enter-active-class="transition-opacity duration-200"
+            enter-from-class="opacity-0"
+            enter-to-class="opacity-100"
+            leave-active-class="transition-opacity duration-200"
+            leave-from-class="opacity-100"
+            leave-to-class="opacity-0"
+        >
+            <div
+                v-if="showPreview"
+                @click.self="closePreview"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+            >
+                <button @click="closePreview" class="absolute top-4 right-4 rounded-full bg-white p-2 shadow-lg transition hover:bg-gray-100">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+                <img :src="mainImage" alt="Preview" class="max-h-[90vh] max-w-full rounded-lg shadow-2xl" />
             </div>
-        </section>
+        </Transition>
     </AppLayout>
 </template>
+
+<style scoped>
+/* Custom scrollbar for thumbnail gallery */
+.overflow-x-auto::-webkit-scrollbar {
+    height: 6px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 3px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+</style>

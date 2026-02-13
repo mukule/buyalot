@@ -31,6 +31,7 @@ class ProductService
         2 => 'handleStep2',
         3 => 'handleStep3',
         4 => 'handleStep4',
+        5 => 'handleStep5',
     ];
 
     public function __construct(ImageService $imageService)
@@ -39,7 +40,7 @@ class ProductService
     }
 
 
-public function createOrUpdateProductStep(
+    public function createOrUpdateProductStep(
     int $step,
     array $data,
     ?User $user = null,
@@ -47,11 +48,6 @@ public function createOrUpdateProductStep(
     ?Product $product = null
 ): Product {
     return DB::transaction(function () use ($step, $data, $user, $images, $product) {
-
-        Log::info("Processing product step {$step}", [
-            'product_id' => $product?->id,
-            'user_id'    => $user?->id,
-        ]);
 
         // Validate step
         if (!isset($this->stepHandlers[$step])) {
@@ -63,8 +59,13 @@ public function createOrUpdateProductStep(
             throw new \LogicException("Product must exist before step {$step}");
         }
 
-        $method  = $this->stepHandlers[$step];
-        $product = $this->$method($data, $user, $images, $product);
+        $method = $this->stepHandlers[$step];
+
+        // Pull images from $data if present, fallback to $images argument
+        $imagesData = $data['images'] ?? $images ?? [];
+
+        // Call step handler: all handlers expect ($data, $user, $images, $product)
+        $product = $this->$method($data, $user, $imagesData, $product);
 
         // Safety check after handler
         if (!$product || !$product->exists) {
@@ -354,152 +355,280 @@ protected function processProductVariantsOptimized(Product $product, array $vari
 }
 
 
+protected function handleStep4(
+    array $data,
+    ?User $user,
+    ?array $images,
+    ?Product $product
+): Product {
 
-protected function handleStep4(array $data, ?User $user, ?array $images, ?Product $product): Product
-{
+    $imagesData = $images ?? [];
+
+    // Log::info('STEP 4 START', [
+    //     'product_id' => $product?->id,
+    //     'user_id'    => $user?->id,
+    //     'images_count' => count($imagesData),
+    // ]);
+
     if (!$product || !$product->exists) {
+       // Log::error('Step 4 failed: Product does not exist.');
         throw new \LogicException("Product must exist before step 4.");
     }
 
-    // Optional: enforce ownership for sellers
     if ($user && $user->hasRole('seller') && $product->owner_id !== $user->id) {
-        throw new \Illuminate\Auth\Access\AuthorizationException("You are not allowed to edit this product.");
+        // Log::warning('Unauthorized image edit attempt', [
+        //     'product_id' => $product->id,
+        //     'owner_id'   => $product->owner_id,
+        //     'user_id'    => $user->id,
+        // ]);
+        throw new \Illuminate\Auth\Access\AuthorizationException(
+            "You cannot edit this product."
+        );
     }
 
-    // Prefer images from $data
-    $images = $data['images'] ?? $images ?? [];
+    DB::transaction(function () use ($product, $imagesData) {
 
+       // Log::info('Processing images', ['images' => $imagesData]);
 
-    if (empty($images)) {
-        return $product; // nothing to do
-    }
+        $existingIds = [];
+        $primaryFound = false;
 
-    $primaryIndex = $data['primary_image_index'] ?? 0;
-    $newImages = [];
-    $submittedExistingIds = [];
+        foreach ($imagesData as $index => $img) {
 
-    foreach ($images as $index => $img) {
-        if (is_array($img) && !empty($img['id'])) {
-            $submittedExistingIds[] = $img['id'];
-        } elseif ($img instanceof \Illuminate\Http\UploadedFile) {
-            $newImages[] = ['file' => $img, 'index' => $index];
-        } elseif (is_array($img) && !empty($img['file'])) {
-            $newImages[] = $img;
+            $id = $img['id'] ?? null;
+            $file = $img['file'] ?? null;
+            $isPrimary = !empty($img['is_primary']);
+            $sortOrder = $index;
+
+            // Log::info('Processing image row', [
+            //     'index' => $index,
+            //     'id' => $id,
+            //     'has_file' => $file instanceof \Illuminate\Http\UploadedFile,
+            //     'is_primary' => $isPrimary,
+            // ]);
+
+            // --- EXISTING IMAGE WITHOUT NEW FILE ---
+            if ($id && !$file) {
+                $existingIds[] = $id;
+
+                $product->images()->where('id', $id)->update([
+                    'is_primary' => $isPrimary ? 1 : 0,
+                    'sort_order' => $sortOrder,
+                    'alt_text'   => substr($product->name, 0, 15),
+                ]);
+
+                if ($isPrimary) $primaryFound = true;
+
+                Log::info('Updated existing image', ['image_id' => $id]);
+            }
+
+            // --- NEW UPLOADED IMAGE (or existing with new file) ---
+            if ($file instanceof \Illuminate\Http\UploadedFile) {
+
+                $path = $file->store('products', 'public');
+
+                $created = $product->images()->create([
+                    'image_path' => $path,
+                    'is_primary' => $isPrimary ? 1 : 0,
+                    'sort_order' => $sortOrder,
+                    'alt_text'   => substr($product->name, 0, 15),
+                ]);
+
+                Log::info('New image stored', [
+                    'image_id' => $created->id,
+                    'path' => $path,
+                ]);
+
+                $existingIds[] = $created->id; // keep it to prevent deletion
+                if ($isPrimary) $primaryFound = true;
+            }
         }
-    }
 
-    // Delete removed images
-    if (!empty($submittedExistingIds)) {
-        $product->images()
-            ->whereNotIn('id', $submittedExistingIds)
-            ->get()
-            ->each(function ($img) {
-                Storage::disk('s3')->delete($img->image_path);
-                $img->delete();
-            });
-    }
+        // --- DELETE REMOVED IMAGES ---
+       // Log::info('Deleting removed images', ['existing_ids_kept' => $existingIds]);
 
-    // Update existing images
-    foreach ($images as $index => $img) {
-        if (is_array($img) && !empty($img['id'])) {
-            $isPrimary = ($primaryIndex === $index);
-            $sortOrder = $img['sort_order'] ?? $index;
-            $altText   = substr($product->name, 0, 15);
+        $imagesToDelete = $product->images()
+            ->when(!empty($existingIds), fn($q) => $q->whereNotIn('id', $existingIds))
+            ->get();
 
-            $product->images()->where('id', $img['id'])->update([
-                'is_primary' => $isPrimary ? 1 : 0,
-                'sort_order' => $sortOrder,
-                'alt_text'   => $altText,
-            ]);
+        foreach ($imagesToDelete as $img) {
+            Storage::disk('public')->delete($img->image_path);
+            $img->delete();
+
+            // Log::info('Deleted image', [
+            //     'image_id' => $img->id,
+            //     'path' => $img->image_path,
+            // ]);
         }
-    }
 
-    // Process new images
-    if (!empty($newImages)) {
-        $this->processProductImages($product, $newImages, $primaryIndex);
-    }
+        // --- ENSURE PRIMARY IMAGE EXISTS ---
+        if (!$primaryFound) {
+            $first = $product->images()->orderBy('sort_order')->first();
 
-    // Ensure at least one primary image
-    if (!$product->images()->where('is_primary', 1)->exists()) {
-        $first = $product->images()->orderBy('sort_order')->first();
-        if ($first) {
-            $first->update(['is_primary' => 1]);
+            if ($first) {
+                $product->images()->update(['is_primary' => 0]);
+                $first->update(['is_primary' => 1]);
+
+              //  Log::info('Primary image auto-assigned', ['image_id' => $first->id]);
+            } else {
+               // Log::warning('No images exist to assign as primary');
+            }
         }
-    }
 
+       // Log::info('Step 4 transaction complete.');
+    });
 
+  //  Log::info('STEP 4 END');
 
-    return $product;
+    return $product->fresh('images');
 }
 
 
+protected function handleStep5(
+    array $data,
+    ?User $user,
+    ?array $variantImages,
+    ?Product $product
+) {
+    $variantImagesData = $variantImages ?? [];
 
-protected function processProductImages(Product $product, array $images, int $primaryIndex): void
-{
-    foreach ($images as $index => $image) {
-        $file = $image instanceof \Illuminate\Http\UploadedFile
-            ? $image
-            : (is_array($image) ? ($image['file'] ?? null) : null);
+    // \Log::info('STEP 5 START', [
+    //     'product_id' => $product?->id,
+    //     'user_id'    => $user?->id,
+    //     'variant_images_count' => count($variantImagesData),
+    // ]);
 
-        \Log::info('processProductImages: inspecting file', [
-            'index' => $index,
-            'type'  => is_object($file) ? get_class($file) : gettype($file),
-            'name'  => $file instanceof \Illuminate\Http\UploadedFile ? $file->getClientOriginalName() : null,
-        ]);
+    if (!$product || !$product->exists) {
+       // \Log::error('Step 5 failed: Product does not exist.');
+        throw new \LogicException("Product must exist before step 5.");
+    }
 
-        if (!$file instanceof \Illuminate\Http\UploadedFile) {
-            \Log::warning('processProductImages: skipped invalid file', [
-                'index' => $index,
-                'value' => $image,
-            ]);
-            continue;
-        }
+    DB::transaction(function () use ($variantImagesData, $product, $user) {
 
-        if ($file instanceof \Illuminate\Http\UploadedFile) {
-            try {
-                // Store locally in "storage/app/public/products"
-                $path = $file->store('products', 'public');
+        $imagesByVariant = collect($variantImagesData)
+            ->filter(fn($img) => !empty($img['variant_id']))
+            ->groupBy('variant_id');
 
-                \Log::info('processProductImages: image stored', [
-                    'product_id' => $product->id,
-                    'path'       => $path,
-                    'url'        => url("storage/{$path}"), // Local URL
-                ]);
+        // \Log::info('Images grouped by variant', [
+        //     'grouped' => $imagesByVariant->map(fn($v) => count($v))->toArray()
+        // ]);
 
-                // Save in DB
-                $product->images()->create([
-                    'image_path' => $path,
-                    'is_primary' => $primaryIndex === $index ? 1 : 0,
-                    'sort_order' => $index,
-                    'alt_text'   => substr($product->name, 0, 15),
-                ]);
-            } catch (\Exception $e) {
-                \Log::error('processProductImages: upload failed', [
-                    'error' => $e->getMessage(),
-                ]);
+        foreach ($imagesByVariant as $variantId => $imagesData) {
+
+            $variant = \App\Models\products\ProductVariant::with(['product', 'images'])
+                ->where('product_id', $product->id)
+                ->find($variantId);
+
+            if (!$variant) {
+                //\Log::warning('Variant not found or does not belong to product', ['variant_id' => $variantId]);
+                continue;
             }
-        } else {
-            \Log::warning('processProductImages: skipped file', [
-                'index' => $index,
-                'value' => $image,
-            ]);
-        }
-    }
 
-    // Ensure a primary image exists
-    if (!$product->images()->where('is_primary', 1)->exists()) {
-        $firstImage = $product->images()->orderBy('sort_order')->first();
-        if ($firstImage) {
-            $firstImage->update(['is_primary' => 1]);
-        }
-    }
+            if ($user && $user->hasRole('seller') && $variant->product->owner_id !== $user->id) {
+                throw new \Illuminate\Auth\Access\AuthorizationException("You cannot edit this variant.");
+            }
 
-    \Log::info('processProductImages completed', [
-        'product_id'   => $product->id,
-        'final_count'  => $product->images()->count(),
-        'primary_index'=> $primaryIndex,
-        'has_primary'  => $product->images()->where('is_primary', 1)->exists(),
-    ]);
+            $keptImageIds = [];
+            $primaryFound = false;
+
+            foreach ($imagesData as $index => $img) {
+                $id        = $img['id'] ?? null;
+                $file      = $img['file'] ?? null;
+                $isPrimary = !empty($img['is_primary']);
+                $sortOrder = $img['sort_order'] ?? $index;
+                $preview   = $img['preview'] ?? null; // new: handle blob URLs
+
+                // \Log::info('Processing image row', [
+                //     'variant_id' => $variantId,
+                //     'image_id'   => $id,
+                //     'has_file'   => $file instanceof \Illuminate\Http\UploadedFile,
+                //     'is_primary' => $isPrimary,
+                //     'sort_order' => $sortOrder,
+                //     'preview'    => $preview,
+                // ]);
+
+                // UPDATE EXISTING IMAGE
+                if ($id) {
+                    $variantImage = $variant->images->firstWhere('id', $id);
+                    if ($variantImage) {
+                        if ($file instanceof \Illuminate\Http\UploadedFile) {
+                            \Storage::disk('public')->delete($variantImage->image_path);
+                            $path = $file->store('product_variants', 'public');
+                            $variantImage->image_path = $path;
+                        }
+                        $variantImage->update([
+                            'is_primary' => $isPrimary ? 1 : 0,
+                            'sort_order' => $sortOrder,
+                            'alt_text'   => 'Variant Image',
+                        ]);
+                        $keptImageIds[] = $variantImage->id;
+                        if ($isPrimary) $primaryFound = true;
+                        continue;
+                    }
+                }
+
+                // CREATE NEW IMAGE
+                if ($file instanceof \Illuminate\Http\UploadedFile) {
+                    $path = $file->store('product_variants', 'public');
+                } elseif ($preview && preg_match('/^blob:|^http/', $preview)) {
+                    // fallback: save existing image URL as path (you might copy it to storage if needed)
+                    $path = $preview;
+                } else {
+                    continue; // skip invalid row
+                }
+
+                $created = $variant->images()->create([
+                    'image_path' => $path,
+                    'is_primary' => $isPrimary ? 1 : 0,
+                    'sort_order' => $sortOrder,
+                    'alt_text'   => 'Variant Image',
+                ]);
+
+                $keptImageIds[] = $created->id;
+                if ($isPrimary) $primaryFound = true;
+
+                // \Log::info('Stored new variant image', [
+                //     'image_id' => $created->id,
+                //     'path'     => $path
+                // ]);
+            }
+
+            // DELETE REMOVED IMAGES
+            $imagesToDelete = $variant->images()
+                ->when(!empty($keptImageIds), fn($q) => $q->whereNotIn('id', $keptImageIds))
+                ->get();
+
+            foreach ($imagesToDelete as $img) {
+                if (preg_match('/storage/', $img->image_path)) {
+                    \Storage::disk('public')->delete($img->image_path);
+                }
+                $img->delete();
+                // \Log::info('Deleted variant image', [
+                //     'image_id' => $img->id,
+                //     'path'     => $img->image_path
+                // ]);
+            }
+
+            // ENSURE PRIMARY IMAGE
+            if (!$primaryFound) {
+                $first = $variant->images()->orderBy('sort_order')->first();
+                if ($first) {
+                    $variant->images()->update(['is_primary' => 0]);
+                    $first->update(['is_primary' => 1]);
+                    // \Log::info('Primary image auto-assigned', [
+                    //     'variant_id' => $variantId,
+                    //     'image_id'   => $first->id
+                    // ]);
+                }
+            }
+        }
+
+       // \Log::info('Step 5 transaction complete.');
+    });
+
+   // \Log::info('STEP 5 END', ['product_id' => $product?->id]);
+
+    return $product->fresh('variants.images');
 }
 
 

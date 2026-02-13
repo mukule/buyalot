@@ -31,7 +31,7 @@ public function index(Request $request)
         'productVariants', 
         'category', 
         'owner.roles', 
-        'owner.sellerApplication', // <-- make sure this is loaded
+        'owner.sellerApplication', 
         'warranties'
     ])->orderBy('created_at', 'desc');
 
@@ -135,23 +135,83 @@ public function create()
         ->with('children')
         ->get();
 
-    // Get the latest draft product if exists
+    
     $draftProduct = auth()->user()->products()->latestDraft()->first();
 
     $selectedCategoryId = $draftProduct?->category_id ?? null;
 
-    // Fetch variant categories based on selected category
+    
     $variantCategories = VariantCategory::when($selectedCategoryId, function ($query, $categoryId) {
         $query->whereHas('categories', fn($q) => $q->where('categories.id', $categoryId));
     })
     ->with(['variants' => fn($q) => $q->where('is_active', true)])
     ->get();
 
-    // Fallback to default if none found
+    
     if ($variantCategories->isEmpty()) {
         $variantCategories = VariantCategory::where('default', true)
             ->with(['variants' => fn($q) => $q->where('is_active', true)])
             ->get();
+    }
+
+    
+    $variantRows = [];
+    if ($draftProduct) {
+        $variantRows = $draftProduct->variants()
+            ->with(['values.variant', 'images' => fn($q) => $q->orderBy('sort_order')])
+            ->get()
+            ->map(function ($variant) {
+                $row = [
+                    'id' => $variant->id,
+                    'marked_price' => $variant->marked_price,
+                    'buying_price' => $variant->selling_price,
+                    'stock' => $variant->stock,
+                    'sku' => $variant->sku,
+                    'values' => [],
+                    'images' => [],
+                ];
+
+                // Map variant attribute values
+                foreach ($variant->values as $pvValue) {
+                    $row['values'][$pvValue->variant->variant_category_id] = $pvValue->variant->value;
+                }
+
+                // Map variant images
+                if ($variant->images) {
+                    $row['images'] = $variant->images->map(function ($img) {
+                        return [
+                            'id' => $img->id,
+                            'url' => $img->url,
+                            'preview' => $img->url,
+                            'is_primary' => $img->is_primary,
+                            'sort_order' => $img->sort_order,
+                            'file' => null,
+                        ];
+                    })->toArray();
+                }
+
+                return $row;
+            })
+            ->toArray();
+
+        // Collect the actual variant category IDs used by saved variants
+        $usedVariantCategoryIds = collect($variantRows)
+            ->flatMap(fn($row) => array_keys($row['values']))
+            ->unique()
+            ->values();
+
+        // Merge in any missing variant categories from the saved variants
+        if ($usedVariantCategoryIds->isNotEmpty()) {
+            $extraCategories = VariantCategory::whereIn('id', $usedVariantCategoryIds)
+                ->with(['variants' => fn($q) => $q->where('is_active', true)])
+                ->get();
+
+            $existingIds = $variantCategories->pluck('id')->toArray();
+
+            $variantCategories = $variantCategories->merge(
+                $extraCategories->filter(fn($cat) => !in_array($cat->id, $existingIds))
+            )->values();
+        }
     }
 
     // Map for frontend
@@ -165,31 +225,6 @@ public function create()
             ])->toArray(),
         ];
     });
-
-    // Prepare variant rows if draft exists
-    $variantRows = [];
-    if ($draftProduct) {
-        $variantRows = $draftProduct->variants()
-            ->with('values.variant')
-            ->get()
-            ->map(function ($variant) {
-                $row = [
-                    'id' => $variant->id,
-                    'marked_price' => $variant->marked_price,
-                    'buying_price' => $variant->selling_price,
-                    'stock' => $variant->stock,
-                    'sku' => $variant->sku,
-                    'values' => [],
-                ];
-
-                foreach ($variant->values as $pvValue) {
-                    $row['values'][$pvValue->variant->variant_category_id] = $pvValue->variant->value;
-                }
-
-                return $row;
-            })
-            ->toArray();
-    }
 
     // Prepare draft product data
     $productData = $draftProduct ? [
@@ -206,6 +241,7 @@ public function create()
         'features' => $draftProduct->features,
         'specifications' => $draftProduct->specifications,
         'whats_in_the_box' => $draftProduct->whats_in_the_box,
+        'video_url' => $draftProduct->video_url,
         'variant_rows' => $variantRows,
         'images' => $draftProduct->images ?? [],
     ] : null;
@@ -255,8 +291,9 @@ public function edit(Product $product)
         ];
     });
 
+    // Load variants with their images ordered by sort_order
     $variantRows = $product->variants()
-        ->with('values.variant')
+        ->with(['values.variant', 'images' => fn($q) => $q->orderBy('sort_order')])
         ->get()
         ->map(function ($variant) {
             $row = [
@@ -266,24 +303,39 @@ public function edit(Product $product)
                 'stock' => $variant->stock,
                 'sku' => $variant->sku,
                 'values' => [],
+                'images' => [],
             ];
 
+            // Map variant attribute values
             foreach ($variant->values as $pvValue) {
-                $row['values'][$pvValue->variant->variant_category_id] =
-                    $pvValue->variant->value;
+                $row['values'][$pvValue->variant->variant_category_id] = $pvValue->variant->value;
+            }
+
+            // Map variant images with full details
+            if ($variant->images) {
+                $row['images'] = $variant->images->map(function ($img) {
+                    return [
+                        'id' => $img->id,
+                        'url' => $img->url, // Uses the model accessor
+                        'preview' => $img->url, // For frontend display
+                        'is_primary' => $img->is_primary,
+                        'sort_order' => $img->sort_order,
+                        'file' => null, // No file object for existing images
+                    ];
+                })->toArray();
             }
 
             return $row;
         })
         ->toArray();
 
+    // Map product images
     $images = collect($product->images ?? [])->map(function ($img) {
-        $path = $img->url ?? $img->image_path ?? '';
         return [
             'id' => $img->id,
             'file' => null,
-            'preview' => $path ? Storage::url($path) : '',
-            'url' => $path ? Storage::url($path) : '',
+            'preview' => $img->url ?? Storage::url($img->image_path ?? ''),
+            'url' => $img->url ?? Storage::url($img->image_path ?? ''),
             'is_primary' => $img->is_primary ?? false,
         ];
     })->toArray();
@@ -313,39 +365,118 @@ public function edit(Product $product)
         'units' => $units,
         'variantCategories' => $variantCategories,
         'product' => $productData,
+        'title' => 'Edit Product',
+        'breadcrumbs' => [
+            ['label' => 'Products', 'url' => route('admin.products.index')],
+            ['label' => 'Edit Product', 'url' => null],
+        ],
     ]);
 }
+
 
 
 public function store(Request $request, ProductService $productService)
 {
     $step = (int) $request->input('step');
     $data = $request->all();
-    $images = $request->hasFile('images') ? $request->file('images') : [];
 
+    // --- LOG FULL REQUEST FROM FRONTEND ---
+     \Log::info("Step {$step} received payload from frontend", [
+         'all' => $data,
+         'variant_rows' => $request->input('variant_rows', []),
+         'variant_images' => $request->input('variant_images', []),
+         'images' => $request->input('images', []),
+     ]);
 
+    // --- MERGE FILES AND INPUT INTO CONSISTENT STRUCTURE FOR PRODUCT IMAGES ---
+    $imagesInput = $request->input('images', []);
+    $imagesFiles = $request->file('images', []);
+
+    $images = [];
+    foreach ($imagesInput as $index => $img) {
+        $images[] = [
+            'id'         => $img['id'] ?? null,
+            'is_primary' => !empty($img['is_primary']),
+            'file'       => $imagesFiles[$index]['file'] ?? null,
+        ];
+    }
+
+    // --- MERGE VARIANT IMAGES (for Step 5) ---
+    $variantImages = [];
+    if ($step === 5) {
+        // Get the variant_images metadata (without files)
+        $variantImagesInput = $request->input('variant_images', []);
+        
+        // \Log::info("Step 5: Processing variant_images", [
+        //     'count' => count($variantImagesInput),
+        //     'has_files' => $request->hasFile('variant_images'),
+        //     'all_files' => $request->allFiles(),
+        // ]);
+
+        foreach ($variantImagesInput as $index => $img) {
+            // Skip if variant_id is missing
+            if (empty($img['variant_id'])) {
+               // \Log::warning('Skipping image: variant_id missing', ['image' => $img, 'index' => $index]);
+                continue;
+            }
+
+            // Laravel stores file uploads separately - access via file() method
+            $file = null;
+            if ($request->hasFile("variant_images.{$index}.file")) {
+                $file = $request->file("variant_images.{$index}.file");
+                // \Log::info("File found for variant image", [
+                //     'index' => $index,
+                //     'variant_id' => $img['variant_id'],
+                //     'filename' => $file->getClientOriginalName(),
+                //     'size' => $file->getSize(),
+                //     'mime' => $file->getMimeType(),
+                // ]);
+            } else {
+               // \Log::warning("No file found for variant image at index {$index}");
+            }
+
+            $variantImages[] = [
+                'variant_id' => (int) $img['variant_id'],
+                'id'         => !empty($img['id']) && is_numeric($img['id']) ? (int) $img['id'] : null,
+                'is_primary' => !empty($img['is_primary']) && ($img['is_primary'] === '1' || $img['is_primary'] === 1 || $img['is_primary'] === true),
+                'file'       => $file,
+                'sort_order' => isset($img['sort_order']) ? (int) $img['sort_order'] : 0,
+            ];
+        }
+
+        // \Log::info("Prepared Variant Images for Step 5", [
+        //     'count' => count($variantImages),
+        //     'files_with_uploads' => count(array_filter($variantImages, fn($img) => $img['file'] !== null)),
+        //     'breakdown' => array_map(function($img) {
+        //         return [
+        //             'variant_id' => $img['variant_id'],
+        //             'id' => $img['id'],
+        //             'is_primary' => $img['is_primary'],
+        //             'has_file' => $img['file'] !== null,
+        //             'filename' => $img['file'] ? $img['file']->getClientOriginalName() : null,
+        //             'sort_order' => $img['sort_order'],
+        //         ];
+        //     }, $variantImages)
+        // ]);
+    }
+
+    // --- DETERMINE PRODUCT ---
     $productIdFromRequest = $request->input('product_id');
     $productIdFromSession = session('product_id');
     $productIdFromInput = $request->old('product_id');
 
-
     $product = null;
 
-
     if ($step > 1) {
-
         $idToFind = $productIdFromRequest ?? $productIdFromSession ?? $productIdFromInput;
 
         if ($idToFind) {
-
             $product = \App\Models\Products\Product::withoutGlobalScopes()->find($idToFind);
-
-
         } else {
-            \Log::warning("CRITICAL: Step {$step} initiated but NO Product ID found in Request or Session.");
+           // \Log::warning("CRITICAL: Step {$step} initiated but NO Product ID found in Request or Session.");
         }
 
-
+        // Authorization: ensure seller owns the product
         if ($product && $request->user()->user_type === 'seller') {
             if ((int) $product->owner_id !== (int) $request->user()->id) {
                 \Log::error("SECURITY ALERT: Seller " . auth()->id() . " tried to access Product " . $product->id);
@@ -355,20 +486,33 @@ public function store(Request $request, ProductService $productService)
     }
 
     try {
+        // --- PARSE VARIANT ROWS IF JSON STRING (for Step 5) ---
+        if ($step === 5 && isset($data['variant_rows']) && is_string($data['variant_rows'])) {
+            $data['variant_rows'] = json_decode($data['variant_rows'], true);
+            \Log::info("Decoded variant_rows from JSON", ['variant_rows' => $data['variant_rows']]);
+        }
+
+        // --- CHOOSE IMAGE PAYLOAD BASED ON STEP ---
+        $imagesToSave = $step === 5 ? $variantImages : $images;
+
+        // \Log::info("Images to save for step {$step}", [
+        //     'count' => count($imagesToSave),
+        //     'is_variant_images' => $step === 5,
+        // ]);
 
         $product = $productService->createOrUpdateProductStep(
             $step,
             $data,
             $request->user(),
-            $images,
+            $imagesToSave,
             $product
         );
 
-        if ($step === 4) {
+        // --- REDIRECT AFTER LAST STEP ---
+        if ($step >= 5) {
             return redirect()->route('admin.products.index')
                 ->with('success', "Product '{$product->name}' created successfully.");
         }
-
 
         return back()
             ->with('success', "Step {$step} completed successfully.")
@@ -376,18 +520,20 @@ public function store(Request $request, ProductService $productService)
             ->with('product_id', $product->id);
 
     } catch (\Illuminate\Validation\ValidationException $e) {
-        \Log::error("Step {$step} Validation Failed", ['errors' => $e->errors()]);
+      //  \Log::error("Step {$step} Validation Failed", ['errors' => $e->errors()]);
         return back()
             ->withErrors($e->errors())
-            ->withInput() // This keeps product_id in old() input
+            ->withInput()
             ->with([
                 'step' => $step,
                 'product_id' => $product?->id,
             ]);
 
     } catch (\Throwable $e) {
-
-
+        // \Log::error("Step {$step} System Error", [
+        //     'error' => $e->getMessage(),
+        //     'trace' => $e->getTraceAsString(),
+        // ]);
         return back()
             ->with('error', "System Error: " . $e->getMessage())
             ->with('step', $step)
@@ -395,16 +541,19 @@ public function store(Request $request, ProductService $productService)
     }
 }
 
+
+
+
     public function destroy(Product $product)
 {
-    // Delete all product images from storage
+    
     foreach ($product->images ?? [] as $image) {
         if (!empty($image['file_path']) && Storage::exists($image['file_path'])) {
             Storage::delete($image['file_path']);
         }
     }
 
-    // Delete related variants
+   
     if (method_exists($product, 'variants')) {
         $product->variants()->delete();
     }
@@ -413,10 +562,10 @@ public function store(Request $request, ProductService $productService)
         $product->variant_rows()->delete();
     }
 
-    // Delete the product itself
+    
     $product->delete();
 
-// Remove product and its variants from cache
+
         $cache = SearchCacheService::get();
         $productId = $product->id;
         $cache['products'] = array_filter($cache['products'] ?? [], fn($p) => $p['id'] !== $productId);
@@ -474,12 +623,15 @@ public function destroyAll()
     }
 }
 
+
 public function show(Product $product)
 {
+    // Eager load relations
     $product->load([
         'primaryImage',
         'images',
         'productVariants.values.variant',
+        'productVariants.images', // Variant images
         'category.parent',
         'owner.roles',
         'brand',
@@ -491,7 +643,7 @@ public function show(Product $product)
         'hashid' => $product->hashid,
         'name' => $product->name,
         'product_code' => $product->product_code,
-        'primary_image_url' => $product->primary_image_url, // use accessor
+        'primary_image_url' => $product->primary_image_url, 
         'stock' => $product->productVariants->sum('stock'),
         'category_hierarchy' => $product->category ? $product->category->getHierarchy() : [],
 
@@ -516,10 +668,11 @@ public function show(Product $product)
         'specifications' => $product->specifications,
         'whats_in_the_box' => $product->whats_in_the_box,
 
-        // ✅ Use accessor for all image URLs
+        // Product-level images
         'images' => $product->image_urls,
         'image_urls' => $product->image_urls,
 
+        // Variant data including variant images
         'variants' => $product->productVariants->map(fn($variant) => [
             'id' => $variant->id,
             'marked_price' => $variant->marked_price,
@@ -530,6 +683,13 @@ public function show(Product $product)
                 'variant_category_id' => $v->variant->variant_category_id,
                 'value' => $v->variant->value,
             ]),
+            'images' => $variant->images->map(fn($img) => [
+                'id' => $img->id,
+                'url' => $img->url,
+                'is_primary' => $img->is_primary,
+                'sort_order' => $img->sort_order,
+                'alt_text' => $img->alt_text,
+            ]),
         ]),
     ];
 
@@ -537,6 +697,7 @@ public function show(Product $product)
         'product' => $productData,
     ]);
 }
+
 
 
 public function destroyImage(Product $product, int $imageId)
