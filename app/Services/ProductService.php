@@ -515,7 +515,7 @@ protected function handleStep5(
 
         foreach ($imagesByVariant as $variantId => $imagesData) {
 
-            $variant = \App\Models\products\ProductVariant::with(['product', 'images'])
+            $variant = \App\Models\Products\ProductVariant::with(['product', 'images'])
                 ->where('product_id', $product->id)
                 ->find($variantId);
 
