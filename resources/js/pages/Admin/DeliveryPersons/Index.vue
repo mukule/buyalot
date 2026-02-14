@@ -13,16 +13,7 @@ interface DeliveryPerson {
     transport_type: string | null;
     transport_registration_number: string | null;
     status: string;
-    created_at: string;
-}
-
-interface PendingApplication {
-    id: number;
-    name: string;
-    email: string;
-    phone: string | null;
-    transport_type: string;
-    transport_registration_number: string | null;
+    suspended?: boolean;
     created_at: string;
 }
 
@@ -36,17 +27,16 @@ const page = usePage<
             last_page: number;
             total: number;
         };
-        pendingApplications: PendingApplication[];
+        pendingCount: number;
         filters: { search?: string; status?: string };
     }>
 >();
 
 const deliveryPersons = computed(() => page.props.deliveryPersons.data);
-const pendingApplications = computed(() => page.props.pendingApplications ?? []);
+const pendingCount = computed(() => page.props.pendingCount ?? 0);
 const search = ref(page.props.filters?.search ?? '');
 const statusFilter = ref(page.props.filters?.status ?? '');
 const dropdownId = ref<number | null>(null);
-const dropdownIsPending = ref(false);
 const dropdownStyle = ref<{ top: string; left: string }>({ top: '0', left: '0' });
 
 const breadcrumbs = [
@@ -58,26 +48,23 @@ function goToShow(applicationId: number) {
     router.get(route('admin.delivery-persons.show', applicationId));
 }
 
-function statusLabel(status: string): string {
+function statusLabel(status: string, suspended?: boolean): string {
+    if (suspended) return 'Suspended';
     const s = (status || '').toLowerCase();
     if (s === 'active') return 'Active';
     if (s === 'inactive') return 'Inactive';
     return status || 'Unknown';
 }
 
-function statusBadgeClass(status: string): string {
+function statusBadgeClass(status: string, suspended?: boolean): string {
+    if (suspended) return 'bg-red-100 text-red-800';
     const s = (status || '').toLowerCase();
     if (s === 'active') return 'bg-green-100 text-green-800';
     if (s === 'inactive') return 'bg-gray-100 text-gray-800';
     return 'bg-gray-100 text-gray-800';
 }
 
-const currentItem = computed(() => {
-    if (dropdownIsPending.value) {
-        return pendingApplications.value.find((a) => a.id === dropdownId.value) ?? null;
-    }
-    return deliveryPersons.value.find((a) => a.id === dropdownId.value) ?? null;
-});
+const currentItem = computed(() => deliveryPersons.value.find((p) => p.id === dropdownId.value) ?? null);
 
 function goToPreviousPage() {
     if (page.props.deliveryPersons.prev_page_url) {
@@ -89,50 +76,6 @@ function goToNextPage() {
     if (page.props.deliveryPersons.next_page_url) {
         router.visit(page.props.deliveryPersons.next_page_url, { preserveState: true, replace: true });
     }
-}
-
-function approveApplication(applicationId: number) {
-    if (confirm('Approve this delivery person? They will be able to log in to the delivery portal.')) {
-        router.put(route('admin.delivery-persons.approve', applicationId), {});
-    }
-}
-
-const showRejectModal = ref(false);
-const rejectReason = ref('');
-const rejectErrors = ref<string | null>(null);
-const rejectTargetId = ref<number | null>(null);
-const submittingReject = ref(false);
-
-function openRejectModal(applicationId: number) {
-    rejectTargetId.value = applicationId;
-    rejectReason.value = '';
-    rejectErrors.value = null;
-    showRejectModal.value = true;
-}
-
-function closeRejectModal() {
-    showRejectModal.value = false;
-    rejectTargetId.value = null;
-    rejectReason.value = '';
-    rejectErrors.value = null;
-}
-
-function submitReject() {
-    if (rejectTargetId.value == null) return;
-    submittingReject.value = true;
-    router.put(
-        route('admin.delivery-persons.reject', rejectTargetId.value),
-        { reason: rejectReason.value },
-        {
-            onSuccess: () => closeRejectModal(),
-            onError: (errors) => {
-                rejectErrors.value = (errors as Record<string, string[]>).reason?.[0] || 'Please provide a valid reason.';
-            },
-            onFinish: () => {
-                submittingReject.value = false;
-            },
-        }
-    );
 }
 
 function applyFilters() {
@@ -147,12 +90,21 @@ watch([search, statusFilter], () => {
 </script>
 
 <template>
-    <Head title="Delivery Persons" />
+    <Head title="Delivery team" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="p-4">
             <div class="card flex flex-col gap-6 rounded-lg bg-white p-4 shadow-sm">
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <h1 class="text-2xl font-semibold">Delivery Persons</h1>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <h1 class="text-2xl font-semibold">Delivery team</h1>
+                        <a
+                            :href="route('admin.delivery-persons.applications.pending')"
+                            class="inline-flex items-center rounded border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100"
+                        >
+                            Pending applications
+                            <span v-if="pendingCount > 0" class="ml-1.5 rounded-full bg-amber-200 px-2 py-0.5 text-xs">{{ pendingCount }}</span>
+                        </a>
+                    </div>
                     <div class="flex flex-wrap items-center gap-2">
                         <input
                             v-model="search"
@@ -171,57 +123,6 @@ watch([search, statusFilter], () => {
                     </div>
                 </div>
 
-                <!-- Pending applications -->
-                <div v-if="pendingApplications.length > 0" class="rounded border border-amber-200 bg-amber-50/50 p-4">
-                    <h2 class="mb-3 text-lg font-medium text-amber-800">Pending applications ({{ pendingApplications.length }})</h2>
-                    <div class="overflow-x-auto">
-                        <table class="w-full table-auto divide-y divide-amber-200 text-sm">
-                            <thead class="bg-amber-100">
-                                <tr>
-                                    <th class="px-4 py-2 text-left">Name</th>
-                                    <th class="px-4 py-2 text-left">Email</th>
-                                    <th class="px-4 py-2 text-left">Phone</th>
-                                    <th class="px-4 py-2 text-left">Transport</th>
-                                    <th class="px-4 py-2 text-left">Applied</th>
-                                    <th class="px-4 py-2 text-left">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="app in pendingApplications" :key="app.id">
-                                    <td
-                                        class="cursor-pointer px-4 py-2 font-medium text-primary hover:underline"
-                                        @click="goToShow(app.id)"
-                                    >
-                                        {{ app.name }}
-                                    </td>
-                                    <td class="px-4 py-2">{{ app.email }}</td>
-                                    <td class="px-4 py-2">{{ app.phone ?? '-' }}</td>
-                                    <td class="px-4 py-2">
-                                        {{ (app.transport_type || '').replace(/_/g, ' ') }}
-                                        <span v-if="app.transport_registration_number" class="text-muted-foreground">({{ app.transport_registration_number }})</span>
-                                    </td>
-                                    <td class="px-4 py-2">{{ app.created_at ? new Date(app.created_at).toLocaleDateString() : '-' }}</td>
-                                    <td class="px-4 py-2">
-                                        <button
-                                            type="button"
-                                            class="inline-flex items-center rounded-md px-2 py-1 text-sm text-gray-700 hover:bg-gray-50"
-                                            @click="(e) => { const el = (e.currentTarget as HTMLElement); const r = el.getBoundingClientRect(); dropdownStyle = { top: `${r.bottom + 4}px`, left: `${r.left}px` }; dropdownId = app.id; dropdownIsPending = true; (e as MouseEvent).stopPropagation(); }"
-                                        >
-                                            Actions
-                                            <svg class="ml-2 h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.58l3.71-4.35a.75.75 0 111.14.98l-4.25 5a.75.75 0 01-1.14 0l-4.25-5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
-                                            </svg>
-                                        </button>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <hr />
-
-                <h2 class="text-lg font-medium">Delivery team</h2>
                 <div class="overflow-x-auto">
                     <table class="w-full table-auto divide-y divide-gray-200 text-sm">
                         <thead class="bg-gray-200">
@@ -255,35 +156,32 @@ watch([search, statusFilter], () => {
                                     <span v-else class="text-muted-foreground">—</span>
                                 </td>
                                 <td class="px-4 py-3">
-                                    <span :class="['rounded px-2 py-0.5 text-xs font-medium', statusBadgeClass(person.status)]">
-                                        {{ statusLabel(person.status) }}
+                                    <span :class="['rounded px-2 py-0.5 text-xs font-medium', statusBadgeClass(person.status, person.suspended)]">
+                                        {{ statusLabel(person.status, person.suspended) }}
                                     </span>
                                 </td>
                                 <td class="px-4 py-3">{{ person.created_at ? new Date(person.created_at).toLocaleDateString() : '-' }}</td>
-                                <td class="px-4 py-3">
-                                    <button
-                                        v-if="person.application_id"
-                                        type="button"
-                                        class="inline-flex items-center rounded-md px-2 py-1 text-sm text-gray-700 hover:bg-gray-50"
-                                        @click="(e) => { const el = (e.currentTarget as HTMLElement); const r = el.getBoundingClientRect(); dropdownStyle = { top: `${r.bottom + 4}px`, left: `${r.left}px` }; dropdownId = person.id; dropdownIsPending = false; (e as MouseEvent).stopPropagation(); }"
-                                    >
-                                        Actions
-                                        <svg class="ml-2 h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.58l3.71-4.35a.75.75 0 111.14.98l-4.25 5a.75.75 0 01-1.14 0l-4.25-5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
-                                        </svg>
-                                    </button>
-                                    <span v-else class="text-muted-foreground">—</span>
-                                </td>
+                                    <td class="px-4 py-3">
+                                        <button
+                                            v-if="person.application_id"
+                                            type="button"
+                                            class="inline-flex items-center rounded-md px-2 py-1 text-sm text-gray-700 hover:bg-gray-50"
+                                            @click="(e) => { const el = (e.currentTarget as HTMLElement); const r = el.getBoundingClientRect(); dropdownStyle = { top: `${r.bottom + 4}px`, left: `${r.left}px` }; dropdownId = person.id; (e as MouseEvent).stopPropagation(); }"
+                                        >
+                                            Actions
+                                            <svg class="ml-2 h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.58l3.71-4.35a.75.75 0 111.14.98l-4.25 5a.75.75 0 01-1.14 0l-4.25-5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+                                            </svg>
+                                        </button>
+                                        <span v-else class="text-muted-foreground">—</span>
+                                    </td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
 
-                <div v-if="deliveryPersons.length === 0 && pendingApplications.length === 0" class="py-8 text-center text-muted-foreground">
-                    No delivery persons found.
-                </div>
-                <div v-else-if="deliveryPersons.length === 0" class="py-4 text-center text-sm text-muted-foreground">
-                    No users with delivery role yet. Approve pending applications to add them.
+                <div v-if="deliveryPersons.length === 0" class="py-8 text-center text-muted-foreground">
+                    No delivery team members found. <a v-if="pendingCount > 0" :href="route('admin.delivery-persons.applications.pending')" class="font-medium underline">Review pending applications</a> to add them.
                 </div>
 
                 <div class="mt-4 flex justify-end gap-4">
@@ -314,66 +212,20 @@ watch([search, statusFilter], () => {
                     @click.outside="dropdownId = null"
                 >
                     <ul class="divide-y divide-gray-200 py-1 text-sm">
-                        <template v-if="currentItem">
+                        <template v-if="currentItem && currentItem.application_id">
                             <li>
                                 <button
                                     type="button"
                                     class="w-full px-4 py-2 text-left hover:bg-gray-50"
-                                    @click="goToShow(dropdownIsPending ? (currentItem as PendingApplication).id : (currentItem as DeliveryPerson).application_id!); dropdownId = null"
+                                    @click="goToShow(currentItem.application_id); dropdownId = null"
                                 >
                                     View details
-                                </button>
-                            </li>
-                            <li v-if="dropdownIsPending">
-                                <button
-                                    type="button"
-                                    class="w-full px-4 py-2 text-left text-green-700 hover:bg-green-50"
-                                    @click="approveApplication((currentItem as PendingApplication).id); dropdownId = null"
-                                >
-                                    Approve
-                                </button>
-                            </li>
-                            <li v-if="dropdownIsPending">
-                                <button
-                                    type="button"
-                                    class="w-full px-4 py-2 text-left text-red-700 hover:bg-red-50"
-                                    @click="openRejectModal((currentItem as PendingApplication).id); dropdownId = null"
-                                >
-                                    Reject
                                 </button>
                             </li>
                         </template>
                     </ul>
                 </div>
             </Teleport>
-
-            <Transition name="fade">
-                <div v-if="showRejectModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                    <div class="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
-                        <h3 class="mb-4 text-lg font-semibold text-gray-900">Reject Application</h3>
-                        <p class="mb-2 text-sm text-gray-600">The applicant will receive an email with this reason.</p>
-                        <textarea
-                            v-model="rejectReason"
-                            rows="4"
-                            maxlength="1000"
-                            placeholder="Enter rejection reason (required)"
-                            class="w-full rounded border border-gray-300 p-2 text-sm"
-                        />
-                        <p v-if="rejectErrors" class="mt-2 text-sm text-red-600">{{ rejectErrors }}</p>
-                        <div class="mt-4 flex justify-end gap-2">
-                            <button type="button" class="rounded border border-gray-300 bg-gray-100 px-4 py-2 text-sm" @click="closeRejectModal">Cancel</button>
-                            <button
-                                type="button"
-                                class="rounded bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700 disabled:opacity-50"
-                                :disabled="submittingReject"
-                                @click="submitReject"
-                            >
-                                Reject
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </Transition>
         </div>
     </AppLayout>
 </template>

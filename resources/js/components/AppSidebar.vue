@@ -232,10 +232,23 @@ const allNavItems: NavItem[] = [
     },
 
     {
-        title: 'Delivery Persons',
-        href: '/admin/delivery-persons',
+        title: 'Delivery team',
         icon: Truck,
         permissions: ['view-delivery-persons'],
+        children: [
+            {
+                title: 'Team members',
+                href: '/admin/delivery-persons',
+                icon: Users,
+                permissions: ['view-delivery-persons'],
+            },
+            {
+                title: 'Pending applications',
+                href: '/admin/delivery-persons/applications/pending',
+                icon: ClipboardList,
+                permissions: ['view-delivery-persons'],
+            },
+        ],
     },
     {
         title: 'Delivery Address',

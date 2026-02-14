@@ -73,6 +73,8 @@ Route::middleware(['auth','role:admin|seller|vendor|super-admin','check_permissi
         ->middleware('check_permission:view-invoices');
     Route::get('/dashboard',[HomeController::class,'dashboard'])->name('dashboard');
     Route::get('/returns', [HomeController::class, 'returnsIndex'])->name('returns.index');
+    Route::get('/returns/{orderReturn}', [HomeController::class, 'returnsShow'])->name('returns.show');
+    Route::post('/returns/{orderReturn}/receive', [HomeController::class, 'receiveReturn'])->name('returns.receive');
 //        function () {
 //        return Inertia::render('Dashboard');
 //    })->name('dashboard');
@@ -265,10 +267,13 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // Delivery persons (requires view-delivery-persons permission)
     Route::middleware(['check_permission:view-delivery-persons'])->prefix('delivery-persons')->name('delivery-persons.')->group(function () {
         Route::get('/', [\App\Http\Controllers\Admin\DeliveryPersonController::class, 'index'])->name('index');
+        Route::get('/applications/pending', [\App\Http\Controllers\Admin\DeliveryPersonController::class, 'pendingApplications'])->name('applications.pending');
         Route::get('/{deliveryPerson}/document/{type}', [\App\Http\Controllers\Admin\DeliveryPersonController::class, 'document'])->name('document');
         Route::get('/{deliveryPerson}', [\App\Http\Controllers\Admin\DeliveryPersonController::class, 'show'])->name('show');
         Route::put('/{deliveryPerson}/approve', [\App\Http\Controllers\Admin\DeliveryPersonController::class, 'approve'])->name('approve');
         Route::put('/{deliveryPerson}/reject', [\App\Http\Controllers\Admin\DeliveryPersonController::class, 'reject'])->name('reject');
+        Route::put('/{deliveryPerson}/suspend', [\App\Http\Controllers\Admin\DeliveryPersonController::class, 'suspend'])->name('suspend');
+        Route::put('/{deliveryPerson}/unsuspend', [\App\Http\Controllers\Admin\DeliveryPersonController::class, 'unsuspend'])->name('unsuspend');
     });
 
     Route::resource('document-types', DocumentTypeController::class);

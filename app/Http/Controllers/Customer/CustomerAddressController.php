@@ -116,19 +116,21 @@ public function index(CartReservationService $cartService)
 
     // Fetch all customer addresses with eager-loaded relations and map to simplified format
     $addresses = $customer->addresses()
-        ->with(['pickupPoint.region'])
-        ->with(['pickupPoint.region', 'pickupWarehouse' => fn($q) => $q->withoutGlobalScopes()->with('region')])
+        ->with(['pickupPoint.region', 'region', 'pickupWarehouse' => fn($q) => $q->withoutGlobalScopes()->with('region')])
         ->orderByDesc('is_default')
         ->get()
         ->map(fn($address) => [
-            'id'           => $address->id,
-            'first_name'   => $address->first_name,
-            'last_name'    => $address->last_name,
-            'phone'        => $address->phone,
-            'address'      => $address->address_line_1,
-            'region'       => $address->pickupWarehouse?->region?->name ?? $address->pickupPoint?->region?->name,
-            'pickup_point' => $address->pickupWarehouse?->name ?? $address->pickupPoint?->name,
-            'is_default'   => $address->is_default,
+            'id'             => $address->id,
+            'first_name'     => $address->first_name,
+            'last_name'      => $address->last_name,
+            'phone'          => $address->phone,
+            'address'        => $address->address_line_1,
+            'region'         => $address->pickupWarehouse?->region?->name ?? $address->pickupPoint?->region?->name ?? $address->region?->name,
+            'pickup_point'   => $address->pickupWarehouse?->name ?? $address->pickupPoint?->name,
+            'delivery_type'  => $address->pickup_warehouse_id ? 'pickup' : 'home_delivery',
+            'latitude'       => $address->latitude,
+            'longitude'      => $address->longitude,
+            'is_default'     => $address->is_default,
         ]);
 
     $cart = $cartService->getCart(request());
@@ -213,6 +215,7 @@ public function form(CustomerAddress $address = null, CartReservationService $ca
     // Prefill region and pickup warehouse when editing
     $selectedRegionId = null;
     $selectedPickupWarehouseId = null;
+    $deliveryMode = 'pickup';
     if ($isEdit) {
         if ($address->pickup_warehouse_id) {
             $warehouse = Warehouse::withoutGlobalScopes()->with(['region', 'regions'])->find($address->pickup_warehouse_id);
@@ -220,9 +223,14 @@ public function form(CustomerAddress $address = null, CartReservationService $ca
                 $selectedPickupWarehouseId = $address->pickup_warehouse_id;
                 $selectedRegionId = $warehouse->region_id ?? $warehouse->regions->first()?->id;
             }
+            $deliveryMode = 'pickup';
         } elseif ($address->pickup_point_id) {
             $pickupPoint = \App\Models\PickupPoint::with('region')->find($address->pickup_point_id);
             $selectedRegionId = $pickupPoint?->region?->id;
+            $deliveryMode = 'pickup';
+        } else {
+            $deliveryMode = 'door';
+            $selectedRegionId = $address->region_id;
         }
     }
 
@@ -234,7 +242,10 @@ public function form(CustomerAddress $address = null, CartReservationService $ca
         'regions'                   => $regions,
         'selected_region_id'        => $selectedRegionId,
         'selected_pickup_warehouse_id' => $selectedPickupWarehouseId,
-        'is_default'                => $address?->is_default ?? false,    // Prefill default checkbox
+        'delivery_mode'             => $deliveryMode,
+        'latitude'                  => $address?->latitude,
+        'longitude'                 => $address?->longitude,
+        'is_default'                => $address?->is_default ?? false,
         'first_name'                => $address?->first_name ?? $firstName,
         'last_name'                 => $address?->last_name ?? $lastName,
         'phone'                     => $address?->phone ?? '',
@@ -254,7 +265,13 @@ public function store(CustomerAddressRequest $request)
 
     $data = $request->validated();
     $data['is_default'] = boolval($request->input('is_default', false));
-    $data['pickup_point_id'] = null; // we use pickup_warehouse_id for warehouse pickup points
+    $data['pickup_point_id'] = null;
+
+    $deliveryMode = $data['delivery_mode'] ?? 'pickup';
+    unset($data['delivery_mode']);
+    if ($deliveryMode === 'door') {
+        $data['pickup_warehouse_id'] = null;
+    }
 
     $address = $customer->addresses()->create($data);
 
@@ -275,8 +292,14 @@ public function update(CustomerAddressRequest $request, CustomerAddress $address
 
     $isDefault = boolval($request->input('is_default', false));
 
-    unset($data['is_default']); // ← prevent conflicting save
-    $data['pickup_point_id'] = null; // we use pickup_warehouse_id for warehouse pickup points
+    unset($data['is_default']);
+    $data['pickup_point_id'] = null;
+
+    $deliveryMode = $data['delivery_mode'] ?? 'pickup';
+    unset($data['delivery_mode']);
+    if ($deliveryMode === 'door') {
+        $data['pickup_warehouse_id'] = null;
+    }
 
     \Log::info('Updating customer address (before update)', [
         'address_id' => $address->id,

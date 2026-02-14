@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 use App\Services\WishlistService;
@@ -258,6 +259,14 @@ public function store(
             $request->session()->invalidate();
             return redirect()->back()->withErrors([
                 'password' => 'Your delivery application was not approved. Please contact admin or reapply.',
+            ]);
+        }
+
+        if ($user->isSuspended()) {
+            Auth::logout();
+            $request->session()->invalidate();
+            return redirect()->back()->withErrors([
+                'password' => 'Your delivery account has been suspended. ' . ($user->suspension_reason ? 'Reason: ' . Str::limit($user->suspension_reason, 100) . '.' : '') . ' Please contact admin.',
             ]);
         }
 

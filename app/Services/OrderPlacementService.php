@@ -22,7 +22,7 @@ class OrderPlacementService
      *
      * @throws \Exception
      */
-    public function placeOrder(int $checkoutSessionId,$paidAmount,$reference,$paymentMethod): Order
+    public function placeOrder(int $checkoutSessionId, $paidAmount, $reference, $paymentMethod, ?int $shippingAddressId = null, ?int $billingAddressId = null): Order
     {
         $checkoutSession = CheckoutSession::with('cart.items.productVariant.product')
             ->findOrFail($checkoutSessionId);
@@ -56,20 +56,17 @@ class OrderPlacementService
         try {
             $customerId = $checkoutSession->customer_id;
 
-            // Determine default addresses
-            $billingAddress = CustomerAddress::where('customer_id', $customerId)
-                ->default()
-                ->first()
-                ?? CustomerAddress::where('customer_id', $customerId)
-                   // ->where('type', 'billing')
-                    ->first();
-
-            $shippingAddress = CustomerAddress::where('customer_id', $customerId)
-                ->default()
-                ->first()
-                ?? CustomerAddress::where('customer_id', $customerId)
-                  //  ->where('type', 'shipping')
-                    ->first();
+            // Use checkout-selected addresses if provided; otherwise fall back to customer default
+            $billingAddress = $billingAddressId
+                ? CustomerAddress::where('customer_id', $customerId)->where('id', $billingAddressId)->first()
+                : null;
+            $shippingAddress = $shippingAddressId
+                ? CustomerAddress::where('customer_id', $customerId)->where('id', $shippingAddressId)->first()
+                : null;
+            $billingAddress = $billingAddress ?? CustomerAddress::where('customer_id', $customerId)->default()->first()
+                ?? CustomerAddress::where('customer_id', $customerId)->first();
+            $shippingAddress = $shippingAddress ?? CustomerAddress::where('customer_id', $customerId)->default()->first()
+                ?? CustomerAddress::where('customer_id', $customerId)->first();
 
             $itemsInput = $cart->items->map(function ($ci) {
                 if (!$ci->product_variant_id) {
@@ -205,22 +202,25 @@ class OrderPlacementService
 
             //TODO: GENERATE INVOICE AND eTIMS INTEGRATION
 
-            // ------------------- Send Emails -------------------
+            // ------------------- Queue Emails (avoid blocking/timeout) -------------------
             try {
                 // Customer confirmation
                 if ($order->customer?->email) {
                     Mail::to($order->customer->email)
-                        ->send(new CustomerOrderConfirmation($order));
+                        ->queue(new CustomerOrderConfirmation($order));
                 }
 
                 // Admin notifications
-                $adminEmails = explode(',', config('mail.admin_address'));
+                $adminEmails = config('mail.admin_address');
                 if (!empty($adminEmails)) {
-                    Mail::to($adminEmails)
-                        ->send(new AdminOrderNotification($order));
+                    $addresses = is_string($adminEmails) ? array_map('trim', explode(',', $adminEmails)) : (array) $adminEmails;
+                    if (!empty($addresses)) {
+                        Mail::to($addresses)
+                            ->queue(new AdminOrderNotification($order));
+                    }
                 }
             } catch (\Throwable $e) {
-                Log::error('Failed to send order emails', [
+                Log::error('Failed to queue order emails', [
                     'order_id' => $order->id,
                     'error' => $e->getMessage(),
                     'stack' => $e->getTraceAsString(),

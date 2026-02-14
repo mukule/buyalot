@@ -22,6 +22,8 @@ interface DeliveryApplicationShow {
     reviewed_by: { id: number; name: string } | null;
     id_copy_url: string | null;
     kra_copy_url: string | null;
+    suspended_at: string | null;
+    suspension_reason: string | null;
 }
 
 const page = usePage<
@@ -54,10 +56,23 @@ function statusBadgeClass(status: string): string {
     return 'bg-gray-100 text-gray-800';
 }
 
-function approve() {
-    if (confirm('Approve this delivery person? They will be able to log in to the delivery portal.')) {
-        router.put(route('admin.delivery-persons.approve', app.value.id), {});
-    }
+const showApproveModal = ref(false);
+const submittingApprove = ref(false);
+
+function openApproveModal() {
+    showApproveModal.value = true;
+}
+
+function closeApproveModal() {
+    showApproveModal.value = false;
+}
+
+function submitApprove() {
+    submittingApprove.value = true;
+    router.put(route('admin.delivery-persons.approve', app.value.id), {}, {
+        onSuccess: () => closeApproveModal(),
+        onFinish: () => { submittingApprove.value = false; },
+    });
 }
 
 const showRejectModal = ref(false);
@@ -93,6 +108,60 @@ const transportDetailsNotes = computed(() => {
     if (!d || typeof d !== 'object') return null;
     return (d as { notes?: string }).notes ?? null;
 });
+
+const isSuspended = computed(() => !!app.value.suspended_at);
+
+const showSuspendModal = ref(false);
+const suspendReason = ref('');
+const suspendNotify = ref(true);
+const suspendErrors = ref<string | null>(null);
+const submittingSuspend = ref(false);
+
+function openSuspendModal() {
+    suspendReason.value = '';
+    suspendNotify.value = true;
+    suspendErrors.value = null;
+    showSuspendModal.value = true;
+}
+
+function closeSuspendModal() {
+    showSuspendModal.value = false;
+    suspendReason.value = '';
+    suspendErrors.value = null;
+}
+
+function submitSuspend() {
+    submittingSuspend.value = true;
+    router.put(route('admin.delivery-persons.suspend', app.value.id), {
+        reason: suspendReason.value,
+        notify: suspendNotify.value,
+    }, {
+        onSuccess: () => closeSuspendModal(),
+        onError: (errors) => {
+            suspendErrors.value = (errors as Record<string, string[]>).reason?.[0] || 'Please provide a reason.';
+        },
+        onFinish: () => { submittingSuspend.value = false; },
+    });
+}
+
+const showUnsuspendModal = ref(false);
+const submittingUnsuspend = ref(false);
+
+function openUnsuspendModal() {
+    showUnsuspendModal.value = true;
+}
+
+function closeUnsuspendModal() {
+    showUnsuspendModal.value = false;
+}
+
+function submitUnsuspend() {
+    submittingUnsuspend.value = true;
+    router.put(route('admin.delivery-persons.unsuspend', app.value.id), {}, {
+        onSuccess: () => closeUnsuspendModal(),
+        onFinish: () => { submittingUnsuspend.value = false; },
+    });
+}
 </script>
 
 <template>
@@ -102,11 +171,20 @@ const transportDetailsNotes = computed(() => {
             <div class="rounded-lg bg-white p-4 shadow-sm">
                 <div class="mb-4 flex flex-wrap items-center justify-between gap-4">
                     <h1 class="text-2xl font-bold">Delivery Person Details</h1>
-                    <span :class="['rounded px-3 py-1 text-sm font-medium', statusBadgeClass(app.status)]">
-                        {{ statusLabel(app.status) }}
-                    </span>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span :class="['rounded px-3 py-1 text-sm font-medium', statusBadgeClass(app.status)]">
+                            {{ statusLabel(app.status) }}
+                        </span>
+                        <span v-if="isSuspended" class="rounded px-3 py-1 text-sm font-medium bg-red-100 text-red-800">Suspended</span>
+                    </div>
                 </div>
                 <hr />
+
+                <div v-if="isSuspended" class="mb-4 rounded border border-red-200 bg-red-50 p-4">
+                    <h2 class="mb-2 text-lg font-semibold text-red-800">Account suspended</h2>
+                    <p v-if="app.suspended_at" class="text-sm text-red-700">Suspended on {{ new Date(app.suspended_at).toLocaleString() }}.</p>
+                    <p v-if="app.suspension_reason" class="mt-2 text-sm text-red-800">{{ app.suspension_reason }}</p>
+                </div>
 
                 <h2 class="mb-2 text-lg font-semibold text-gray-700">Contact</h2>
                 <div class="grid gap-2 text-sm sm:grid-cols-2">
@@ -166,7 +244,7 @@ const transportDetailsNotes = computed(() => {
                     <button
                         type="button"
                         class="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
-                        @click="approve"
+                        @click="openApproveModal"
                     >
                         Approve
                     </button>
@@ -178,9 +256,95 @@ const transportDetailsNotes = computed(() => {
                         Reject
                     </button>
                 </div>
+                <div v-else-if="app.status === 'approved' && !isSuspended" class="flex flex-wrap gap-2">
+                    <button
+                        type="button"
+                        class="rounded border border-amber-600 px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50"
+                        @click="openSuspendModal"
+                    >
+                        Suspend account
+                    </button>
+                </div>
+                <div v-else-if="isSuspended" class="flex flex-wrap gap-2">
+                    <button
+                        type="button"
+                        class="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+                        @click="openUnsuspendModal"
+                    >
+                        Unsuspend account
+                    </button>
+                </div>
             </div>
         </div>
 
+        <Transition name="fade">
+            <div v-if="showApproveModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                <div class="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+                    <h3 class="mb-4 text-lg font-semibold text-gray-900">Approve delivery person</h3>
+                    <p class="mb-4 text-sm text-gray-600">Approve this delivery person? They will be able to log in to the delivery portal.</p>
+                    <div class="flex justify-end gap-2">
+                        <button type="button" class="rounded border border-gray-300 bg-gray-100 px-4 py-2 text-sm" @click="closeApproveModal">Cancel</button>
+                        <button
+                            type="button"
+                            class="rounded bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50"
+                            :disabled="submittingApprove"
+                            @click="submitApprove"
+                        >
+                            Approve
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Transition>
+        <Transition name="fade">
+            <div v-if="showSuspendModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                <div class="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+                    <h3 class="mb-4 text-lg font-semibold text-gray-900">Suspend delivery person</h3>
+                    <textarea
+                        v-model="suspendReason"
+                        rows="4"
+                        maxlength="1000"
+                        placeholder="Enter reason for suspension (required)"
+                        class="w-full rounded border border-gray-300 p-2 text-sm"
+                    />
+                    <p v-if="suspendErrors" class="mt-2 text-sm text-red-600">{{ suspendErrors }}</p>
+                    <label class="mt-3 flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+                        <input v-model="suspendNotify" type="checkbox" class="rounded border-gray-300" />
+                        Notify delivery person by email about suspension
+                    </label>
+                    <div class="mt-4 flex justify-end gap-2">
+                        <button type="button" class="rounded border border-gray-300 bg-gray-100 px-4 py-2 text-sm" @click="closeSuspendModal">Cancel</button>
+                        <button
+                            type="button"
+                            class="rounded bg-amber-600 px-4 py-2 text-sm text-white hover:bg-amber-700 disabled:opacity-50"
+                            :disabled="submittingSuspend"
+                            @click="submitSuspend"
+                        >
+                            Suspend
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Transition>
+        <Transition name="fade">
+            <div v-if="showUnsuspendModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                <div class="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+                    <h3 class="mb-4 text-lg font-semibold text-gray-900">Unsuspend delivery person</h3>
+                    <p class="mb-4 text-sm text-gray-600">Restore this account? They will be able to log in and receive delivery assignments again.</p>
+                    <div class="flex justify-end gap-2">
+                        <button type="button" class="rounded border border-gray-300 bg-gray-100 px-4 py-2 text-sm" @click="closeUnsuspendModal">Cancel</button>
+                        <button
+                            type="button"
+                            class="rounded bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50"
+                            :disabled="submittingUnsuspend"
+                            @click="submitUnsuspend"
+                        >
+                            Unsuspend
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Transition>
         <Transition name="fade">
             <div v-if="showRejectModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
                 <div class="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">

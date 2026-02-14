@@ -40,21 +40,17 @@ class OrderProcessingService
             }
             // Create order from completed checkout session
             if ($checkoutSession) {
-                try {
-                    $order = app(\App\Services\OrderPlacementService::class)
-                        ->placeOrder($checkoutSession->id,$amounts['total'],'cod','CASH ON DELIVERY');
-
-                    // Log::info('Order successfully created from checkout session', [
-                    //     'checkout_session_id' => $checkoutSession->id,
-                    //     'order_id' => $order->id,
-                    // ]);
-                } catch (\Throwable $e) {
-                    // Log::error('Order creation failed after payment', [
-                    //     'checkout_session_id' => $checkoutSession->id,
-                    //     'error' => $e->getMessage(),
-                    //     'trace' => $e->getTraceAsString(),
-                    // ]);
-                }
+                $shippingAddressId = $data['shipping_address_id'] ?? null;
+                $billingAddressId = $data['billing_address_id'] ?? null;
+                $order = app(\App\Services\OrderPlacementService::class)
+                    ->placeOrder(
+                        $checkoutSession->id,
+                        $amounts['total'],
+                        'cod',
+                        'CASH ON DELIVERY',
+                        $shippingAddressId ? (int) $shippingAddressId : null,
+                        $billingAddressId ? (int) $billingAddressId : null
+                    );
             }
         }
 
@@ -87,8 +83,7 @@ class OrderProcessingService
             $paymentRequest = new PaymentRequest(
                 provider: 'mpesa',
                 method: 'stk_push',
-                //amount: $total,
-                amount:1,
+                amount: $total,
                 currency: $session->currency,
                 phone: $phone,
                 metadata: ['checkout_session_ref' => $session->ref_num],

@@ -21,6 +21,7 @@ const props = defineProps<{
 }>();
 
 const perPage = ref(props.filters.per_page);
+const receivingId = ref<number | null>(null);
 const breadcrumbs = [
   { title: 'Dashboard', href: '/admin/dashboard' },
   { title: 'Returns', href: '#' },
@@ -28,6 +29,16 @@ const breadcrumbs = [
 
 function applyPerPage() {
   router.get(route('admin.returns.index'), { per_page: perPage.value }, { preserveState: true, replace: true });
+}
+
+function receiveReturn(id: number) {
+  if (receivingId.value) return;
+  receivingId.value = id;
+  router.post(route('admin.returns.receive', id), {}, {
+    preserveState: true,
+    onFinish: () => { receivingId.value = null; },
+    onSuccess: () => router.reload(),
+  });
 }
 </script>
 
@@ -68,14 +79,29 @@ function applyPerPage() {
               <td class="px-4 py-2">{{ r.is_full_return ? 'Full' : 'Partial' }}</td>
               <td class="px-4 py-2 text-gray-600">{{ r.created_at || '—' }}</td>
               <td class="px-4 py-2 text-right">
-                <Link
-                  v-if="r.order_ulid"
-                  :href="route('admin.orders.show', r.order_ulid)"
-                  class="text-green-600 hover:underline"
-                >
-                  View order
-                </Link>
-                <span v-else class="text-gray-400">—</span>
+                <div class="flex items-center justify-end gap-3">
+                  <Link
+                    :href="route('admin.returns.show', r.id)"
+                    class="text-primary hover:underline"
+                  >
+                    View
+                  </Link>
+                  <button
+                    v-if="r.status === 'pending_receive'"
+                    @click="receiveReturn(r.id)"
+                    :disabled="receivingId === r.id"
+                    class="text-green-600 hover:underline disabled:opacity-50"
+                  >
+                    {{ receivingId === r.id ? 'Receiving...' : 'Receive' }}
+                  </button>
+                  <Link
+                    v-if="r.order_ulid"
+                    :href="route('admin.orders.show', r.order_ulid)"
+                    class="text-green-600 hover:underline"
+                  >
+                    View order
+                  </Link>
+                </div>
               </td>
             </tr>
             <tr v-if="!props.returns?.length">

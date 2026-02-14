@@ -17,6 +17,9 @@ interface Address {
     address: string;
     region?: string;
     pickup_point?: { id: number; name: string; region?: { name: string } };
+    pickup_warehouse?: { name: string; region?: { name: string } };
+    latitude?: number | null;
+    longitude?: number | null;
     is_default: boolean;
 }
 
@@ -106,6 +109,16 @@ const addressLinkIcon = computed(() => (addresses.length > 0 ? Edit : PlusCircle
 
 const addressLinkUrl = computed(() => route('checkout.addresses.index'));
 
+const deliveryMapUrl = computed(() => {
+    const addr = defaultAddress.value;
+    if (!addr || addr.latitude == null || addr.longitude == null) return '';
+    const lat = addr.latitude;
+    const lng = addr.longitude;
+    const delta = 0.008;
+    const bbox = `${lng - delta},${lat - delta},${lng + delta},${lat + delta}`;
+    return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat},${lng}`;
+});
+
 const formatPrice = (amount?: number | null) =>
     `KSh ${(amount ?? 0).toLocaleString(undefined, {
         maximumFractionDigits: 2,
@@ -159,7 +172,7 @@ const proceedToPayment = () => {
 
                         <!-- Shipping Display -->
                         <div v-if="selectedShipping" class="mt-2 text-sm text-gray-700">
-                            <span class="font-medium"> {{ selectedShipping.method === 'pickup' ? 'Pickup' : 'Door Delivery' }}: </span>
+                            <span class="font-medium"> {{ selectedShipping.method === 'pickup' ? 'Pickup' : 'Home delivery' }}: </span>
 
                             {{ formatPrice(selectedShipping.cost) }}
 
@@ -169,6 +182,17 @@ const proceedToPayment = () => {
                             </template>
 
                             <template v-if="selectedShipping.region"> | Region: {{ selectedShipping.region }} </template>
+                        </div>
+
+                        <!-- Map for home delivery when coordinates exist -->
+                        <div v-if="selectedShipping?.method === 'door' && deliveryMapUrl" class="mt-2 h-[180px] w-full overflow-hidden rounded border bg-gray-100">
+                            <iframe
+                                :src="deliveryMapUrl"
+                                title="Delivery location map"
+                                class="h-full w-full border-0"
+                                loading="lazy"
+                                referrerpolicy="no-referrer-when-downgrade"
+                            />
                         </div>
                     </div>
 

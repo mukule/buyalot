@@ -41,6 +41,8 @@ class User extends Authenticatable
         'secondary_role',
         'additional_roles',
         'delivery_application_id',
+        'suspended_at',
+        'suspension_reason',
     ];
 
     protected $hidden = [
@@ -57,7 +59,8 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'provider_verified_at'=>'datetime',
-            'last_login_at'=>'datetime',
+            'last_login_at' => 'datetime',
+            'suspended_at' => 'datetime',
             'google_id'=>'string',
             'provider'=>'string',
             'provider_id'=>'string',
@@ -102,6 +105,14 @@ class User extends Authenticatable
     {
         $role = $role === 'vendor' ? 'seller' : $role;
         return in_array($role, $this->getPortalRoles(), true);
+    }
+
+    /**
+     * Whether this user's account is suspended (e.g. delivery person suspension).
+     */
+    public function isSuspended(): bool
+    {
+        return $this->suspended_at !== null;
     }
 
     protected static function booted(): void

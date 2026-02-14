@@ -39,8 +39,6 @@ class PaymentService
             'metadata' => $request->metadata,
             'expires_at' => now()->addMinutes(config('payment.expiry_minutes', 15)),
         ]);
-        \Illuminate\Log\log($payment);
-
         return $payment;
     }
 

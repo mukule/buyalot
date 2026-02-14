@@ -140,6 +140,7 @@ class OrderController extends Controller
         ];
 
         $deliveryUsers = User::whereHas('roles', fn ($q) => $q->where('name', 'delivery'))
+            ->whereNull('suspended_at')
             ->where(function ($q) {
                 $q->where('status', 'active')->orWhere('status', 1);
             })
@@ -179,6 +180,7 @@ class OrderController extends Controller
         ]);
 
         $deliveryUser = User::whereHas('roles', fn ($q) => $q->where('name', 'delivery'))
+            ->whereNull('suspended_at')
             ->where(function ($q) {
                 $q->where('status', 'active')->orWhere('status', 1);
             })
@@ -234,6 +236,7 @@ class OrderController extends Controller
         ]);
 
         $deliveryUser = User::whereHas('roles', fn ($q) => $q->where('name', 'delivery'))
+            ->whereNull('suspended_at')
             ->where(function ($q) {
                 $q->where('status', 'active')->orWhere('status', 1);
             })

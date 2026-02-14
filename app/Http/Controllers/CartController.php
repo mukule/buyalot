@@ -153,18 +153,20 @@ class CartController extends Controller
 
     if ($customer) {
         $defaultAddress = $customer->addresses()
-            ->with(['pickupPoint.region', 'pickupWarehouse' => fn($q) => $q->withoutGlobalScopes()->with('region')])
+            ->with(['pickupPoint.region', 'region', 'pickupWarehouse' => fn($q) => $q->withoutGlobalScopes()->with('region')])
             ->orderByDesc('is_default')
             ->first();
 
         if ($defaultAddress) {
-            $regionId = $defaultAddress->pickupWarehouse?->region_id ?? $defaultAddress->pickupWarehouse?->region?->id ?? data_get($defaultAddress, 'pickupPoint.region.id');
-            $regionName = $defaultAddress->pickupWarehouse?->region?->name ?? data_get($defaultAddress, 'pickupPoint.region.name');
+            $regionId = $defaultAddress->pickup_warehouse_id
+                ? ($defaultAddress->pickupWarehouse?->region_id ?? $defaultAddress->pickupWarehouse?->region?->id ?? data_get($defaultAddress, 'pickupPoint.region.id'))
+                : $defaultAddress->region_id;
+            $regionName = $defaultAddress->pickupWarehouse?->region?->name ?? data_get($defaultAddress, 'pickupPoint.region.name') ?? $defaultAddress->region?->name ?? '';
             $pickupPointName = $defaultAddress->pickupWarehouse?->name ?? $defaultAddress->pickupPoint?->name ?? '';
 
             $shippingOptions = $regionId ? $shippingService->getOptionsByRegion($regionId) : [];
 
-            if (isset($shippingOptions['pickup'])) {
+            if ($defaultAddress->pickup_warehouse_id && isset($shippingOptions['pickup'])) {
                 $selectedShipping = [
                     'method'        => 'pickup',
                     'cost'          => $shippingOptions['pickup']['cost'],
@@ -173,6 +175,16 @@ class CartController extends Controller
                     'pickup_point'  => $pickupPointName,
                 ];
                 $shippingCost = $shippingOptions['pickup']['cost'];
+            } elseif ($regionId && isset($shippingOptions['door'])) {
+                $doorCost = $shippingOptions['door']['cost'] + 250; // KSh 250 home delivery surcharge
+                $selectedShipping = [
+                    'method'       => 'door',
+                    'cost'         => $doorCost,
+                    'days'         => $shippingOptions['door']['days'],
+                    'region'       => $regionName ?? '',
+                    'pickup_point' => null,
+                ];
+                $shippingCost = $doorCost;
             }
         }
     }
@@ -466,19 +478,20 @@ public function store(Request $request, CartReservationService $cartService)
 
     if ($customer) {
         $defaultAddress = $customer->addresses()
-            ->with(['pickupPoint.region', 'pickupWarehouse' => fn($q) => $q->withoutGlobalScopes()->with('region')])
+            ->with(['pickupPoint.region', 'region', 'pickupWarehouse' => fn($q) => $q->withoutGlobalScopes()->with('region')])
             ->orderByDesc('is_default')
             ->first();
 
-        $hasPickup = $defaultAddress && ($defaultAddress->pickup_warehouse_id || $defaultAddress->pickup_point_id);
-        if ($defaultAddress && $hasPickup) {
-            $regionId = $defaultAddress->pickupWarehouse?->region_id ?? $defaultAddress->pickupWarehouse?->region?->id ?? $defaultAddress->pickupPoint?->region?->id;
-            $regionName = $defaultAddress->pickupWarehouse?->region?->name ?? $defaultAddress->pickupPoint?->region?->name ?? '';
+        if ($defaultAddress) {
+            $regionId = $defaultAddress->pickup_warehouse_id
+                ? ($defaultAddress->pickupWarehouse?->region_id ?? $defaultAddress->pickupWarehouse?->region?->id ?? $defaultAddress->pickupPoint?->region?->id)
+                : $defaultAddress->region_id;
+            $regionName = $defaultAddress->pickupWarehouse?->region?->name ?? $defaultAddress->pickupPoint?->region?->name ?? $defaultAddress->region?->name ?? '';
             $pickupPointName = $defaultAddress->pickupWarehouse?->name ?? $defaultAddress->pickupPoint?->name ?? '';
 
             $shippingOptions = $regionId ? $shippingService->getOptionsByRegion($regionId) : [];
 
-            if (isset($shippingOptions['pickup'])) {
+            if ($defaultAddress->pickup_warehouse_id && isset($shippingOptions['pickup'])) {
                 $selectedShipping = [
                     'method'       => 'pickup',
                     'cost'         => $shippingOptions['pickup']['cost'],
@@ -487,6 +500,16 @@ public function store(Request $request, CartReservationService $cartService)
                     'pickup_point' => $pickupPointName,
                 ];
                 $shippingCost = $shippingOptions['pickup']['cost'];
+            } elseif ($regionId && isset($shippingOptions['door'])) {
+                $doorCost = $shippingOptions['door']['cost'] + 250;
+                $selectedShipping = [
+                    'method'       => 'door',
+                    'cost'         => $doorCost,
+                    'days'         => $shippingOptions['door']['days'],
+                    'region'       => $regionName,
+                    'pickup_point' => null,
+                ];
+                $shippingCost = $doorCost;
             }
         }
     }

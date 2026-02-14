@@ -103,6 +103,8 @@ class HandleInertiaRequests extends Middleware
                 'location' => $request->url(),
             ],
 
+            'googleMapsApiKey' => config('services.google.maps_api_key', ''),
+
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
     }

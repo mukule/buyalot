@@ -91,23 +91,14 @@ const deliveryMapUrl = computed(() => {
     if (!addr || addr.latitude == null || addr.longitude == null) return '';
     const lat = addr.latitude;
     const lng = addr.longitude;
-    return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=15&size=600x300&markers=${lat},${lng},red-pushpin`;
+    const delta = 0.008;
+    const bbox = `${lng - delta},${lat - delta},${lng + delta},${lat + delta}`;
+    return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat},${lng}`;
 });
 
-// --- Shipping fees in checkout ---
-const baseShipping = computed(() => Number(cart.totals.shipping ?? 0));
-
-// Pickup: base shipping. Home delivery: base + KSh 250 (surcharge applied here and saved on the order).
-const effectiveShipping = computed(() =>
-    deliveryMode.value === 'door' ? baseShipping.value + 250 : baseShipping.value,
-);
-
-// Adjust grand total to reflect the effective shipping used at order placement.
-const effectiveGrandTotal = computed(() => {
-    const baseGrand = Number(cart.totals.grand_total ?? 0);
-    const diff = effectiveShipping.value - baseShipping.value;
-    return baseGrand + diff;
-});
+// --- Shipping: backend already sends correct amount (pickup base or door base + KSh 250) ---
+const effectiveShipping = computed(() => Number(cart.totals.shipping ?? 0));
+const effectiveGrandTotal = computed(() => Number(cart.totals.grand_total ?? 0));
 
 const formatPrice = (amount?: number | null) => {
     if (amount == null || isNaN(amount)) return 'KSh 0.00';
@@ -259,7 +250,11 @@ async function startPayment() {
         const paymentInit = resp.data?.payment_init;
 
         if (!checkoutSession?.id || !paymentInit?.data?.checkout_request_id) {
-            throw new Error('Payment initiation failed.');
+            const msg =
+                paymentInit?.message ||
+                resp.data?.message ||
+                'Payment initiation failed. Please check your M-Pesa number and try again.';
+            throw new Error(msg);
         }
 
         currentOrder.value = {
@@ -277,7 +272,9 @@ async function startPayment() {
         initiating.value = false;
         polling.value = false;
         stopDotsAnimation();
-        message.value = e?.response?.data?.message || e?.message || 'Failed to start payment.';
+        const errMsg =
+            e?.response?.data?.message || e?.message || 'Failed to start payment.';
+        message.value = errMsg;
         console.error(e);
     }
 }
@@ -561,7 +558,13 @@ const paymentMethod = ref<'mpesa' | 'cod'>('mpesa');
 
                                 <!-- Map preview for delivery coordinates (home delivery or precise address) -->
                                 <div v-if="deliveryMapUrl" class="mt-2 h-[220px] w-full overflow-hidden rounded border bg-gray-100">
-                                    <img :src="deliveryMapUrl" alt="Delivery location map" class="h-full w-full object-cover" />
+                                    <iframe
+                                        :src="deliveryMapUrl"
+                                        title="Delivery location map"
+                                        class="h-full w-full border-0"
+                                        loading="lazy"
+                                        referrerpolicy="no-referrer-when-downgrade"
+                                    />
                                 </div>
                                 <p v-else class="mt-1 text-xs text-gray-500">
                                     To see a map here, edit your address and allow us to use your location so we can store coordinates.

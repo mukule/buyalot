@@ -199,10 +199,15 @@ class OrderController extends Controller
     public function store(Request $request, OrderProcessingService $service)
     {
         $validated = $request->validate([
-            'cart_id'          => 'required|exists:carts,id',
-            'payment_provider' => 'required|string|in:mpesa,cod',
-            'phone'            => 'required_if:payment_provider,mpesa|string',
-            'shipping_amount'  => 'nullable|numeric'
+            'cart_id'             => 'required|exists:carts,id',
+            'payment_provider'    => 'required|string|in:mpesa,cod',
+            'phone'               => 'required_if:payment_provider,mpesa|string',
+            'shipping_amount'    => 'nullable|numeric',
+            'billing_address_id'  => 'nullable|exists:customer_addresses,id',
+            'shipping_address_id' => 'nullable|exists:customer_addresses,id',
+            'customer_id'         => 'nullable|exists:customers,id',
+            'notes'               => 'nullable|string|max:1000',
+            'coupon_code'         => 'nullable|string',
         ]);
 
         try {
@@ -210,9 +215,12 @@ class OrderController extends Controller
             if ($request->expectsJson()) {
                 return response()->json(['checkout_session' => $session, 'payment_init' => $paymentInit]);
             }
-             $cart= Cart::with(['items.productVariant.product'])->findOrFail( $request->cart_id);
-             return redirect()->route('checkout.payment', $cart)->with('success', 'Order processing initiated. Please scan the QR code to complete payment.');
+            $cart = Cart::with(['items.productVariant.product'])->findOrFail($request->cart_id);
+            return redirect()->route('checkout.payment', $cart)->with('success', 'Order processing initiated. Please scan the QR code to complete payment.');
         } catch (\Exception $e) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $e->getMessage()], 500);
+            }
             return back()->with('error', $e->getMessage())->withInput();
         }
     }

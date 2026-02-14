@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\DeliveryAccountSuspended;
 use App\Mail\DeliveryApplicationApproved;
 use App\Mail\DeliveryApplicationRejected;
 use App\Models\DeliveryPersonApplication;
@@ -49,10 +50,24 @@ class DeliveryPersonController extends Controller
                 'transport_type' => $app?->transport_type,
                 'transport_registration_number' => $app?->transport_registration_number,
                 'status' => $user->status ? 'active' : 'inactive',
+                'suspended' => $user->isSuspended(),
                 'created_at' => $user->created_at->toIso8601String(),
             ];
         });
 
+        $pendingCount = DeliveryPersonApplication::query()
+            ->where('status', DeliveryPersonApplication::STATUS_PENDING)
+            ->count();
+
+        return Inertia::render('Admin/DeliveryPersons/Index', [
+            'deliveryPersons' => $deliveryPersons,
+            'pendingCount' => $pendingCount,
+            'filters' => $request->only('search', 'status'),
+        ]);
+    }
+
+    public function pendingApplications(): Response
+    {
         $pendingApplications = DeliveryPersonApplication::query()
             ->where('status', DeliveryPersonApplication::STATUS_PENDING)
             ->with(['user'])
@@ -68,10 +83,8 @@ class DeliveryPersonController extends Controller
                 'created_at' => $app->created_at->toIso8601String(),
             ]);
 
-        return Inertia::render('Admin/DeliveryPersons/Index', [
-            'deliveryPersons' => $deliveryPersons,
+        return Inertia::render('Admin/DeliveryPersons/PendingApplications', [
             'pendingApplications' => $pendingApplications,
-            'filters' => $request->only('search', 'status'),
         ]);
     }
 
@@ -116,8 +129,64 @@ class DeliveryPersonController extends Controller
                 ] : null,
                 'id_copy_url' => $idCopyUrl,
                 'kra_copy_url' => $kraCopyUrl,
+                'suspended_at' => $deliveryPerson->user?->suspended_at?->toIso8601String(),
+                'suspension_reason' => $deliveryPerson->user?->suspension_reason,
             ],
         ]);
+    }
+
+    public function suspend(Request $request, DeliveryPersonApplication $deliveryPerson): RedirectResponse
+    {
+        $request->validate([
+            'reason' => ['required', 'string', 'max:1000'],
+            'notify' => ['nullable', 'boolean'],
+        ]);
+
+        $user = $deliveryPerson->user;
+        if (! $user) {
+            return redirect()->back()->with('error', 'No user linked to this application.');
+        }
+        if ($deliveryPerson->status !== DeliveryPersonApplication::STATUS_APPROVED) {
+            return redirect()->back()->with('error', 'Only approved delivery persons can be suspended.');
+        }
+        if ($user->isSuspended()) {
+            return redirect()->back()->with('error', 'This account is already suspended.');
+        }
+
+        $user->update([
+            'status' => false,
+            'suspended_at' => now(),
+            'suspension_reason' => $request->reason,
+        ]);
+
+        if ($request->boolean('notify')) {
+            try {
+                Mail::to($user->email)->send(new DeliveryAccountSuspended($user, $request->reason));
+            } catch (\Throwable $e) {
+                Log::error('Delivery suspension email failed: ' . $e->getMessage());
+            }
+        }
+
+        return redirect()->back()->with('success', 'Delivery person suspended.' . ($request->boolean('notify') ? ' They have been notified by email.' : ''));
+    }
+
+    public function unsuspend(DeliveryPersonApplication $deliveryPerson): RedirectResponse
+    {
+        $user = $deliveryPerson->user;
+        if (! $user) {
+            return redirect()->back()->with('error', 'No user linked to this application.');
+        }
+        if (! $user->isSuspended()) {
+            return redirect()->back()->with('error', 'This account is not suspended.');
+        }
+
+        $user->update([
+            'status' => true,
+            'suspended_at' => null,
+            'suspension_reason' => null,
+        ]);
+
+        return redirect()->back()->with('success', 'Delivery person unsuspended. They can log in and be assigned again.');
     }
 
     public function document(Request $request, DeliveryPersonApplication $deliveryPerson, string $type): mixed
