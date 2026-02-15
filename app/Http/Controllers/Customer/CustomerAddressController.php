@@ -252,6 +252,7 @@ public function form(CustomerAddress $address = null, CartReservationService $ca
         'address_line_1'            => $address?->address_line_1 ?? '',
         'action'                    => $action,
         'method'                    => $method,
+        'googleMapsApiKey'          => config('services.google.maps_api_key', ''),
     ]);
 }
 
@@ -342,6 +343,79 @@ public function update(CustomerAddressRequest $request, CustomerAddress $address
 
         return redirect()->route('customer.addresses.index')
             ->with('success', 'Address deleted successfully.');
+    }
+
+        /**
+     * Create a minimal address from map-selected location (home delivery).
+     * Uses customer default address or user for name/phone.
+     */
+    public function createFromMapLocation(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $request->validate([
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
+            'region_id' => 'required|exists:regions,id',
+        ]);
+
+        $customer = auth()->user()?->customer;
+        if (! $customer) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $defaultAddr = $customer->addresses()->orderByDesc('is_default')->first();
+        $user = auth()->user();
+
+        $address = $customer->addresses()->create([
+            'first_name' => $defaultAddr?->first_name ?? explode(' ', $user->name ?? 'Customer', 2)[0] ?? 'Customer',
+            'last_name' => $defaultAddr?->last_name ?? explode(' ', $user->name ?? 'Customer', 2)[1] ?? '',
+            'phone' => $defaultAddr?->phone ?? $user->phone,
+            'address_line_1' => 'Delivery location',
+            'region_id' => $request->region_id,
+            'latitude' => (float) $request->latitude,
+            'longitude' => (float) $request->longitude,
+            'country_code' => 'KE',
+            'country_name' => 'Kenya',
+            'pickup_warehouse_id' => null,
+            'pickup_point_id' => null,
+            'is_default' => false,
+        ]);
+
+        return response()->json(['success' => true, 'address_id' => $address->id], 201);
+    }
+
+    /**
+     * Create a minimal address from pickup point selection.
+     */
+    public function createFromPickupSelection(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $request->validate([
+            'region_id' => 'required|exists:regions,id',
+            'pickup_warehouse_id' => 'required|exists:warehouses,id',
+        ]);
+
+        $customer = auth()->user()?->customer;
+        if (! $customer) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $defaultAddr = $customer->addresses()->orderByDesc('is_default')->first();
+        $user = auth()->user();
+        $warehouse = \App\Models\Warehouse\Warehouse::withoutGlobalScopes()->findOrFail($request->pickup_warehouse_id);
+
+        $address = $customer->addresses()->create([
+            'first_name' => $defaultAddr?->first_name ?? explode(' ', $user->name ?? 'Customer', 2)[0] ?? 'Customer',
+            'last_name' => $defaultAddr?->last_name ?? explode(' ', $user->name ?? 'Customer', 2)[1] ?? '',
+            'phone' => $defaultAddr?->phone ?? $user->phone,
+            'address_line_1' => $warehouse->address ?? $warehouse->name ?? 'Pickup point',
+            'region_id' => $request->region_id,
+            'pickup_warehouse_id' => $warehouse->id,
+            'pickup_point_id' => null,
+            'country_code' => 'KE',
+            'country_name' => 'Kenya',
+            'is_default' => false,
+        ]);
+
+        return response()->json(['success' => true, 'address_id' => $address->id], 201);
     }
 
     public function makeDefault(CustomerAddress $address)

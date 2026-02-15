@@ -280,6 +280,10 @@ class WarehouseController extends Controller
             }
         }
 
+        $request->merge([
+            'region_id' => $request->input('region_id') ?: null,
+            'parent_warehouse_id' => $request->input('parent_warehouse_id') ?: null,
+        ]);
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:warehouses,name',
             'code' => 'nullable|string|max:50|unique:warehouses,code',
@@ -292,6 +296,7 @@ class WarehouseController extends Controller
             'longitude' => 'nullable|numeric|between:-180,180',
             'capacity' => 'nullable|integer|min:0',
             'is_default' => 'sometimes|boolean',
+            'is_main_warehouse' => 'sometimes|boolean',
             'active' => 'sometimes|boolean',
             'supports_pos' => 'sometimes|boolean',
             'supports_pickup' => 'sometimes|boolean',
@@ -316,6 +321,11 @@ class WarehouseController extends Controller
             // Generate unique code if not provided
             $code = $validated['code'] ?? strtoupper(Str::random(10));
 
+            // If setting as main warehouse, unset other main warehouses
+            if (!empty($validated['is_main_warehouse'])) {
+                Warehouse::withoutGlobalScopes()->where('is_main_warehouse', true)->update(['is_main_warehouse' => false]);
+            }
+
             $warehouse = Warehouse::create([
                 'code' => "WH".$code,
                 'name' => $validated['name'],
@@ -329,6 +339,7 @@ class WarehouseController extends Controller
                 'location' => $validated['location'] ?? null,
                 'capacity' => $validated['capacity'] ?? null,
                 'is_default' => $validated['is_default'] ?? false,
+                'is_main_warehouse' => $validated['is_main_warehouse'] ?? false,
                 'active' => $validated['active'] ?? true,
                 'supports_pos' => $validated['supports_pos'] ?? false,
                 'supports_pickup' => $validated['supports_pickup'] ?? false,
@@ -376,7 +387,8 @@ class WarehouseController extends Controller
         return Inertia::render('Admin/Warehouses/Edit', [
             'warehouse' => $warehouse,
             'regions' => Region::select('id', 'name')->get(),
-            'types' => ['warehouse', 'store', 'pickup_point', 'dispatch_center'],
+            'parentWarehouses' => Warehouse::select('id', 'name')->where('id', '!=', $warehouse->id)->get(),
+            'types' => ['warehouse', 'store', 'pickup_point', 'dispatch_center', 'general'],
         ]);
     }
 
@@ -392,10 +404,14 @@ class WarehouseController extends Controller
             }
         }
 
+        $request->merge([
+            'region_id' => $request->input('region_id') ?: null,
+            'parent_warehouse_id' => $request->input('parent_warehouse_id') ?: null,
+        ]);
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:warehouses,name,' . $warehouse->id,
             'code' => 'nullable|string|max:50|unique:warehouses,code,' . $warehouse->id,
-            'type' => 'required|in:warehouse,store,pickup_point,dispatch_center',
+            'type' => 'required|in:warehouse,store,pickup_point,dispatch_center,general',
             'region_id' => 'nullable|exists:regions,id',
             'parent_warehouse_id' => 'nullable|exists:warehouses,id',
             'address' => 'nullable|string|max:255',
@@ -404,6 +420,7 @@ class WarehouseController extends Controller
             'longitude' => 'nullable|numeric|between:-180,180',
             'capacity' => 'nullable|integer|min:0',
             'is_default' => 'sometimes|boolean',
+            'is_main_warehouse' => 'sometimes|boolean',
             'active' => 'sometimes|boolean',
             'supports_pos' => 'sometimes|boolean',
             'supports_pickup' => 'sometimes|boolean',
@@ -419,6 +436,14 @@ class WarehouseController extends Controller
         ]);
 
         DB::transaction(function () use ($warehouse, $validated) {
+            // If setting as main warehouse, unset other main warehouses
+            if (!empty($validated['is_main_warehouse'])) {
+                Warehouse::withoutGlobalScopes()
+                    ->where('is_main_warehouse', true)
+                    ->where('id', '!=', $warehouse->id)
+                    ->update(['is_main_warehouse' => false]);
+            }
+
             // Update slug if name changed
             if ($warehouse->name !== $validated['name']) {
                 $slug = Str::slug($validated['name']);
@@ -443,6 +468,7 @@ class WarehouseController extends Controller
                 'longitude' => $validated['longitude'] ?? null,
                 'capacity' => $validated['capacity'] ?? null,
                 'is_default' => $validated['is_default'] ?? false,
+                'is_main_warehouse' => $validated['is_main_warehouse'] ?? false,
                 'active' => $validated['active'] ?? true,
                 'supports_pos' => $validated['supports_pos'] ?? false,
                 'supports_pickup' => $validated['supports_pickup'] ?? false,
@@ -1618,6 +1644,7 @@ class WarehouseController extends Controller
             $delivery->update(['delivered_at' => now()]);
             $order->update([
                 'status' => 'delivered',
+                'fulfillment_status' => 'fulfilled',
                 'delivered_at' => $order->delivered_at ?? now(),
             ]);
         });

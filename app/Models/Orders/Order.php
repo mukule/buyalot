@@ -112,6 +112,11 @@ class Order extends Model
         return $this->hasMany(OrderReturn::class);
     }
 
+    public function codReconciliation(): HasOne
+    {
+        return $this->hasOne(CodReconciliation::class);
+    }
+
     public function payments(): MorphMany
     {
         return $this->morphMany(Payment::class, 'payable');

@@ -5,11 +5,14 @@ namespace App\Http\Controllers\Delivery;
 use App\Http\Controllers\Controller;
 use App\Mail\OrderReadyForPickup;
 use App\Mail\OrderReturnRaisedNotifyDispatch;
+use App\Http\DTOs\PaymentRequest;
+use App\Models\Orders\CodReconciliation;
 use App\Models\Orders\Order;
 use App\Models\Orders\OrderReturn;
 use App\Models\Orders\OrderReturnItem;
 use App\Models\Payment\Payment;
 use App\Models\Payment\PaymentStatus;
+use App\Services\PaymentService;
 use App\Models\User;
 use App\Models\Warehouse\WarehouseInventoryMovement;
 use App\Models\Warehouse\WarehouseManager;
@@ -56,6 +59,8 @@ class DeliveryController extends Controller
             'customer:id,first_name,last_name',
             'shippingAddress',
             'delivery.pickupWarehouse',
+            'delivery.dispatchingWarehouse',
+            'codReconciliation',
             'orderItems.productVariant.product:id,name',
         ])
             ->assignedToDelivery($userId)
@@ -80,7 +85,10 @@ class DeliveryController extends Controller
         $attended = Order::with([
             'customer:id,first_name,last_name',
             'shippingAddress',
-            'delivery',
+            'delivery.pickupWarehouse',
+            'delivery.dispatchingWarehouse',
+            'codReconciliation',
+            'orderItems.productVariant.product:id,name',
         ])
             ->assignedToDelivery($userId)
             ->whereIn('status', ['delivered', 'cancelled'])
@@ -269,8 +277,141 @@ class DeliveryController extends Controller
     }
 
     /**
+     * Confirm cash payment received at delivery (COD). Records payment and marks order as paid.
+     * After this, delivery person can mark as delivered.
+     */
+    public function confirmCashPayment(Request $request, Order $order)
+    {
+        $delivery = $order->delivery;
+        if (! $delivery || (int) $delivery->delivery_id !== (int) $request->user()->id) {
+            abort(403, 'This delivery is not assigned to you.');
+        }
+        if ($order->payment_status === 'paid') {
+            return back()->with('info', 'Order is already paid.');
+        }
+        if (! $this->isPaymentMethodCod($order->payment_method)) {
+            return back()->with('error', 'This order is not cash on delivery.');
+        }
+        if (! in_array($order->status, ['out_for_delivery', 'shipped'], true)) {
+            return back()->with('error', 'Order status does not allow collecting payment.');
+        }
+
+        $reference = 'COD-CASH-' . $order->order_code . '-' . now()->format('YmdHisu');
+        Payment::create([
+            'payable_type' => Order::class,
+            'payable_id' => $order->id,
+            'amount' => $order->total_amount,
+            'amount_paid' => $order->total_amount,
+            'currency' => $order->currency ?? 'KES',
+            'provider' => 'cod',
+            'method' => 'cash',
+            'status' => PaymentStatus::COMPLETED,
+            'reference' => $reference,
+            'provider_reference' => null,
+            'completed_at' => now(),
+        ]);
+        $order->update(['payment_status' => 'paid']);
+
+        return back()->with('success', 'Cash payment recorded. You can now mark the order as delivered.');
+    }
+
+    /**
+     * Delivery person marks they have handed over the COD cash to the pickup/dispatch warehouse.
+     * Creates a reconciliation record for admin/seller to confirm receipt.
+     */
+    public function reconcileCashToWarehouse(Request $request, Order $order)
+    {
+        $delivery = $order->delivery;
+        if (! $delivery || (int) $delivery->delivery_id !== (int) $request->user()->id) {
+            abort(403, 'This delivery is not assigned to you.');
+        }
+        if ($order->status !== 'delivered') {
+            return back()->with('error', 'Order must be delivered first.');
+        }
+        if ($order->payment_status !== 'paid') {
+            return back()->with('error', 'Order is not paid.');
+        }
+        if (! $this->isPaymentMethodCod($order->payment_method)) {
+            return back()->with('error', 'This order is not cash on delivery.');
+        }
+        // Only reconcile CASH payments (M-Pesa goes to business directly)
+        $cashPayment = $order->payments()
+            ->where('provider', 'cod')
+            ->where('method', 'cash')
+            ->where('status', PaymentStatus::COMPLETED)
+            ->latest()
+            ->first();
+        if (! $cashPayment) {
+            return back()->with('error', 'No cash COD payment found for this order. M-Pesa payments do not need reconciliation.');
+        }
+        if ($order->codReconciliation) {
+            return back()->with('info', 'Cash already reconciled for this order.');
+        }
+        $warehouseId = $delivery->dispatching_warehouse_id ?? $delivery->pickup_warehouse_id;
+        if (! $warehouseId) {
+            return back()->with('error', 'No pickup warehouse is set for this delivery. Contact admin.');
+        }
+
+        CodReconciliation::create([
+            'order_id' => $order->id,
+            'delivery_id' => $request->user()->id,
+            'warehouse_id' => $warehouseId,
+            'amount' => $order->total_amount,
+            'currency' => $order->currency ?? 'KES',
+            'reconciled_at' => now(),
+        ]);
+
+        return back()->with('success', 'Cash reconciliation recorded. The warehouse/admin will confirm receipt.');
+    }
+
+    /**
+     * Initiate M-Pesa STK push for COD order at delivery. Customer receives prompt on their phone.
+     */
+    public function initiateMpesaForCod(Request $request, Order $order)
+    {
+        $delivery = $order->delivery;
+        if (! $delivery || (int) $delivery->delivery_id !== (int) $request->user()->id) {
+            abort(403, 'This delivery is not assigned to you.');
+        }
+        if ($order->payment_status === 'paid') {
+            return response()->json(['success' => true, 'message' => 'Order is already paid.', 'already_paid' => true]);
+        }
+        if (! $this->isPaymentMethodCod($order->payment_method)) {
+            return response()->json(['success' => false, 'message' => 'This order is not cash on delivery.'], 422);
+        }
+        if (! in_array($order->status, ['out_for_delivery', 'shipped'], true)) {
+            return response()->json(['success' => false, 'message' => 'Order status does not allow collecting payment.'], 422);
+        }
+
+        $request->validate(['phone' => 'required|string|max:20']);
+
+        $paymentService = app(PaymentService::class);
+        $paymentRequest = new PaymentRequest(
+            provider: 'mpesa',
+            method: 'stk_push',
+            amount: (float) $order->total_amount,
+            currency: $order->currency ?? 'KES',
+            phone: $request->phone,
+            metadata: ['order_ulid' => $order->ulid, 'order_code' => $order->order_code],
+        );
+
+        $mpesaLog = $paymentService->getOrCreateMpesaRequest($order, $paymentRequest);
+        $init = $paymentService->initializePayment($mpesaLog, $paymentRequest);
+
+        if (! $init->success) {
+            return response()->json(['success' => false, 'message' => $init->message], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'M-Pesa prompt sent to customer. Ask them to enter PIN on their phone.',
+            'checkout_request_id' => $mpesaLog->checkout_request_id,
+        ]);
+    }
+
+    /**
      * Mark order as delivered: customer picked up (pickup_point) or delivered to address (customer_address).
-     * If order is COD and not yet paid, record payment (cash or M-Pesa) and link to order.
+     * For COD orders, payment must already be confirmed (cash or M-Pesa) before this is allowed.
      */
     public function markDelivered(Request $request, Order $order)
     {
@@ -290,47 +431,42 @@ class DeliveryController extends Controller
             return back()->with('error', 'Order status does not allow marking as delivered.');
         }
 
-        $isCod = strtolower($order->payment_method ?? '') === 'cash_on_delivery' && $order->payment_status !== 'paid';
-        $paymentMethodCollected = null;
-        $mpesaReceiptNumber = null;
-
-        if ($isCod) {
-            $request->validate([
-                'payment_method_collected' => 'required|string|in:cash,mpesa',
-                'mpesa_receipt_number' => 'required_if:payment_method_collected,mpesa|nullable|string|max:50',
-            ]);
-            $paymentMethodCollected = $request->payment_method_collected;
-            $mpesaReceiptNumber = $request->mpesa_receipt_number;
+        $isCod = $this->isPaymentMethodCod($order->payment_method);
+        if ($isCod && $order->payment_status !== 'paid') {
+            return back()->with('error', 'Please collect and confirm payment (cash or M-Pesa) before marking as delivered.');
         }
 
-        DB::transaction(function () use ($order, $delivery, $isCod, $paymentMethodCollected, $mpesaReceiptNumber) {
-            if ($isCod && $paymentMethodCollected) {
-                $reference = 'COD-' . $order->order_code . '-' . now()->format('YmdHisu');
-                Payment::create([
-                    'payable_type' => Order::class,
-                    'payable_id' => $order->id,
-                    'amount' => $order->total_amount,
-                    'amount_paid' => $order->total_amount,
-                    'currency' => $order->currency ?? 'KES',
-                    'provider' => 'cod',
-                    'method' => $paymentMethodCollected,
-                    'status' => PaymentStatus::COMPLETED,
-                    'reference' => $reference,
-                    'provider_reference' => $mpesaReceiptNumber,
-                    'mpesa_receipt_number' => $mpesaReceiptNumber,
-                    'completed_at' => now(),
-                ]);
-                $order->update(['payment_status' => 'paid']);
-            }
-
+        DB::transaction(function () use ($order, $delivery, $request) {
             $delivery->update(['delivered_at' => now()]);
             $order->update([
                 'status' => 'delivered',
+                'fulfillment_status' => 'fulfilled',
                 'delivered_at' => $order->delivered_at ?? now(),
             ]);
+
+            // Auto-create COD cash reconciliation when marking delivered (cash must be handed over to warehouse)
+            if ($isCod && $order->payment_status === 'paid' && ! $order->codReconciliation) {
+                $cashPayment = $order->payments()
+                    ->where('provider', 'cod')
+                    ->where('method', 'cash')
+                    ->where('status', PaymentStatus::COMPLETED)
+                    ->latest()
+                    ->first();
+                $warehouseId = $delivery->dispatching_warehouse_id ?? $delivery->pickup_warehouse_id;
+                if ($cashPayment && $warehouseId) {
+                    CodReconciliation::create([
+                        'order_id' => $order->id,
+                        'delivery_id' => $request->user()->id,
+                        'warehouse_id' => $warehouseId,
+                        'amount' => $order->total_amount,
+                        'currency' => $order->currency ?? 'KES',
+                        'reconciled_at' => now(),
+                    ]);
+                }
+            }
         });
 
-        return back()->with('success', 'Order marked as delivered.' . ($isCod ? ' Payment recorded.' : ''));
+        return back()->with('success', 'Order marked as delivered.');
     }
 
     /**
@@ -464,6 +600,12 @@ class DeliveryController extends Controller
         }
     }
 
+    private function isPaymentMethodCod(?string $method): bool
+    {
+        $m = strtolower(str_replace(' ', '_', $method ?? ''));
+        return $m === 'cash_on_delivery';
+    }
+
     private function formatOrderForDelivery(Order $order): array
     {
         $shipping = $order->shippingAddress;
@@ -498,8 +640,22 @@ class DeliveryController extends Controller
                 'name' => $delivery->pickupWarehouse->name,
                 'address' => $delivery->pickupWarehouse->address,
                 'location' => $delivery->pickupWarehouse->location,
+                'latitude' => $delivery->pickupWarehouse->latitude ? (float) $delivery->pickupWarehouse->latitude : null,
+                'longitude' => $delivery->pickupWarehouse->longitude ? (float) $delivery->pickupWarehouse->longitude : null,
+            ] : null,
+            'dispatching_warehouse' => $delivery?->dispatchingWarehouse ? [
+                'id' => $delivery->dispatchingWarehouse->id,
+                'name' => $delivery->dispatchingWarehouse->name,
+                'address' => $delivery->dispatchingWarehouse->address,
+                'location' => $delivery->dispatchingWarehouse->location,
             ] : null,
             'pickup_receivables_status' => $pickupReceivablesStatus,
+            'cod_reconciliation' => $order->codReconciliation ? [
+                'id' => $order->codReconciliation->id,
+                'status' => $order->codReconciliation->confirmed_at ? 'confirmed' : 'pending_confirmation',
+                'reconciled_at' => $order->codReconciliation->reconciled_at?->toDateTimeString(),
+                'confirmed_at' => $order->codReconciliation->confirmed_at?->toDateTimeString(),
+            ] : null,
             'delivery_assignment_status' => $delivery?->assignment_status,
             'delivery_rejection_reason' => $delivery?->rejection_reason,
             'allocated_for_pickup_at' => $delivery?->allocated_for_pickup_at?->toDateTimeString(),
@@ -513,10 +669,14 @@ class DeliveryController extends Controller
             ] : null,
             'shipping_address' => $shipping ? [
                 'address_line_1' => $shipping->address_line_1,
+                'address_line_2' => $shipping->address_line_2,
                 'city' => $shipping->city,
+                'state_province' => $shipping->state_province,
                 'postal_code' => $shipping->postal_code,
                 'country' => $shipping->country_name ?? $shipping->country_code,
                 'phone' => $shipping->phone,
+                'latitude' => $shipping->latitude ? (float) $shipping->latitude : null,
+                'longitude' => $shipping->longitude ? (float) $shipping->longitude : null,
             ] : null,
             'delivery_note_summary' => $order->getDeliveryNoteSummary(),
             'order_items' => $order->orderItems->map(function ($item) {

@@ -15,7 +15,9 @@ use Inertia\Inertia;
 use App\Services\ProductService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use App\Models\Products\ProductRestock;
 use App\Models\Products\ProductStatus;
+use App\Models\Products\ProductVariant;
 
 
 class ProductController extends Controller
@@ -27,10 +29,10 @@ public function index(Request $request)
     $user = auth()->user();
 
     $query = Product::with([
-        'primaryImage', 
-        'productVariants', 
-        'category', 
-        'owner.roles', 
+        'primaryImage',
+        'productVariants.values.variant',
+        'category',
+        'owner.roles',
         'owner.sellerApplication', // <-- make sure this is loaded
         'warranties'
     ])->orderBy('created_at', 'desc');
@@ -82,6 +84,11 @@ public function index(Request $request)
                     'active' => $warranty->active,
                 ]),
                 'active_warranty' => $product->activeWarranty()?->only(['id','duration','description','active']) ?? null,
+                'product_variants' => $product->productVariants->map(fn($v) => [
+                    'id' => $v->id,
+                    'display_name' => $v->display_name,
+                    'stock' => $v->stock,
+                ]),
             ];
         });
 
@@ -594,4 +601,83 @@ public function updateStatus(Request $request, Product $product)
 }
 
 
+    public function restockVariants(Request $request, Product $product)
+    {
+        $request->validate([
+            'variants' => ['required', 'array'],
+            'variants.*.id' => ['required', 'integer', 'exists:product_variants,id'],
+            'variants.*.quantity' => ['required', 'integer', 'min:0'],
+            'note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $variantIds = $product->productVariants->pluck('id')->toArray();
+        $restocked = 0;
+
+        foreach ($request->variants as $item) {
+            $variantId = (int) $item['id'];
+            $quantity = (int) ($item['quantity'] ?? 0);
+
+            if ($quantity <= 0 || !in_array($variantId, $variantIds, true)) {
+                continue;
+            }
+
+            $variant = ProductVariant::where('id', $variantId)
+                ->where('product_id', $product->id)
+                ->first();
+
+            if (!$variant) {
+                continue;
+            }
+
+            $variant->increment('stock', $quantity);
+
+            ProductRestock::create([
+                'product_id' => $product->id,
+                'product_variant_id' => $variant->id,
+                'quantity' => $quantity,
+                'note' => $request->note,
+                'restocked_by' => auth()->id(),
+            ]);
+
+            $restocked += $quantity;
+        }
+
+        if ($restocked === 0) {
+            return back()->withErrors([
+                'variants' => ['Please enter at least one quantity to restock.'],
+            ]);
+        }
+
+        return back()->with('success', "Restocked {$restocked} unit(s) successfully.");
+    }
+
+    public function restockHistory(Product $product)
+    {
+        $product->load(['primaryImage', 'productVariants.values.variant']);
+
+        $restocks = ProductRestock::where('product_id', $product->id)
+            ->with(['user', 'productVariant.values.variant'])
+            ->orderByDesc('created_at')
+            ->limit(100)
+            ->get()
+            ->map(fn($r) => [
+                'id' => $r->id,
+                'variant_display_name' => $r->productVariant?->display_name ?? 'Unknown',
+                'quantity' => $r->quantity,
+                'note' => $r->note,
+                'restocked_by' => $r->user?->name ?? 'Unknown',
+                'restocked_at' => $r->created_at->toIso8601String(),
+            ]);
+
+        return Inertia::render('Admin/Products/RestockHistory', [
+            'product' => [
+                'id' => $product->id,
+                'hashid' => $product->hashid,
+                'name' => $product->name,
+                'product_code' => $product->product_code,
+                'primary_image_url' => $product->primary_image_url,
+            ],
+            'restocks' => $restocks,
+        ]);
+    }
 }

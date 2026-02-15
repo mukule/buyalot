@@ -65,8 +65,6 @@ type Address = {
 const addresses = ref<Address[]>(Array.isArray(props.customer_addresses) ? props.customer_addresses : []);
 const selectedAddressId = ref<number | null>((props.shipping_address_id as number | null) ?? null);
 
-const showAddressForm = ref(false);
-
 const selected_shipping = ref<{
     method: string;
     cost: number;
@@ -86,23 +84,31 @@ const selectedAddress = computed(() => {
     return addresses.value.find((a) => a.id === selectedAddressId.value) ?? null;
 });
 
-const deliveryMapUrl = computed(() => {
+const googleMapsApiKey = (page.props as any).googleMapsApiKey ?? '';
+
+const deliveryMapEmbedUrl = computed(() => {
     const addr = selectedAddress.value;
     if (!addr || addr.latitude == null || addr.longitude == null) return '';
     const lat = addr.latitude;
     const lng = addr.longitude;
-    const delta = 0.008;
-    const bbox = `${lng - delta},${lat - delta},${lng + delta},${lat + delta}`;
-    return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat},${lng}`;
+    if (googleMapsApiKey) {
+        return `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(googleMapsApiKey)}&q=${lat},${lng}&zoom=15`;
+    }
+    return `https://www.google.com/maps?q=${lat},${lng}`;
 });
 
-// --- Shipping: backend already sends correct amount (pickup base or door base + KSh 250) ---
+const hasDeliveryCoordinates = computed(() => {
+    const addr = selectedAddress.value;
+    return addr && addr.latitude != null && addr.longitude != null;
+});
+
+// --- Shipping: backend already sends correct amount
 const effectiveShipping = computed(() => Number(cart.totals.shipping ?? 0));
 const effectiveGrandTotal = computed(() => Number(cart.totals.grand_total ?? 0));
 
 const formatPrice = (amount?: number | null) => {
-    if (amount == null || isNaN(amount)) return 'KSh 0.00';
-    return `KSh ${amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+    if (amount == null || isNaN(amount)) return 'KSh 0';
+    return `KSh ${Math.round(amount).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 };
 
 // Phone handling
@@ -115,11 +121,6 @@ const progress = ref(0);
 const animatedDots = ref('.');
 const status = ref<'idle' | 'initiating' | 'polling' | 'success' | 'failed'>('idle');
 const message = ref<string>('');
-const insufficientItems = ref<Array<{ product_variant_id: number; requested: number; available: number; product_name: string }>>([]);
-
-// Payment refs
-const paymentId = ref<string | null>(null);
-const paymentReference = ref<string | null>(null);
 const currentOrder = ref<null | { id: number; ulid?: string; total_amount: number; currency?: string; paymentInit: any }>(null);
 
 const canPay = computed(() => {
@@ -290,9 +291,9 @@ async function pollPayment(order: { paymentInit: any }) {
         message.value = 'Awaiting your M-Pesa approval. Check your phone and enter your PIN.';
         startProgressBar();
 
-        await pollVerifyUntilComplete(checkoutRequestId);
+        const result = await pollVerifyUntilComplete(checkoutRequestId);
 
-        if (status.value === 'success') {
+        if (result === 'success') {
             const customerId = (page.props as any)?.auth?.customer_id;
             setTimeout(() => {
                 router.visit(route('customers.dashboard', { customer: customerId }), {
@@ -320,13 +321,13 @@ function startProgressBar() {
     }, 800);
 }
 
-async function pollVerifyUntilComplete(checkoutRequestId: string) {
+async function pollVerifyUntilComplete(checkoutRequestId: string): Promise<'success' | 'failed'> {
     const maxSeconds = 30;
     const intervalMs = 4000;
     let elapsed = 0;
     let stopped = false;
 
-    return new Promise<void>((resolve) => {
+    return new Promise<'success' | 'failed'>((resolve) => {
         const iv = setInterval(async () => {
             if (stopped) return;
 
@@ -350,9 +351,10 @@ async function pollVerifyUntilComplete(checkoutRequestId: string) {
                     if (pollTimer) clearInterval(pollTimer);
                     stopDotsAnimation();
                     polling.value = false;
-                    status.value = success === true ? 'success' : 'failed';
+                    const result: 'success' | 'failed' = success === true ? 'success' : 'failed';
+                    status.value = result;
                     message.value = msg || (success === true ? 'Payment completed successfully.' : 'Payment failed. Please try again.');
-                    resolve();
+                    resolve(result);
                     return;
                 }
 
@@ -364,7 +366,7 @@ async function pollVerifyUntilComplete(checkoutRequestId: string) {
                     polling.value = false;
                     status.value = 'failed';
                     message.value = 'Payment Failed, Please try again';
-                    resolve();
+                    resolve('failed');
                 }
             } catch {
                 stopped = true;
@@ -374,7 +376,7 @@ async function pollVerifyUntilComplete(checkoutRequestId: string) {
                 polling.value = false;
                 status.value = 'failed';
                 message.value = 'Could not verify payment. Please try again.';
-                resolve();
+                resolve('failed');
             }
         }, intervalMs);
     });
@@ -557,14 +559,25 @@ const paymentMethod = ref<'mpesa' | 'cod'>('mpesa');
                                 </p>
 
                                 <!-- Map preview for delivery coordinates (home delivery or precise address) -->
-                                <div v-if="deliveryMapUrl" class="mt-2 h-[220px] w-full overflow-hidden rounded border bg-gray-100">
+                                <div v-if="hasDeliveryCoordinates" class="mt-2 h-[220px] w-full overflow-hidden rounded border bg-gray-100">
                                     <iframe
-                                        :src="deliveryMapUrl"
-                                        title="Delivery location map"
+                                        v-if="googleMapsApiKey"
+                                        :src="deliveryMapEmbedUrl"
+                                        title="Delivery location - Google Maps"
                                         class="h-full w-full border-0"
                                         loading="lazy"
+                                        allowfullscreen
                                         referrerpolicy="no-referrer-when-downgrade"
                                     />
+                                    <a
+                                        v-else
+                                        :href="deliveryMapEmbedUrl"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="flex h-full items-center justify-center text-sm text-primary underline"
+                                    >
+                                        View delivery location on Google Maps
+                                    </a>
                                 </div>
                                 <p v-else class="mt-1 text-xs text-gray-500">
                                     To see a map here, edit your address and allow us to use your location so we can store coordinates.

@@ -34,10 +34,11 @@ class ShippingRateController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'package_size'   => ['required', 'in:small,medium,large'],
-            'base_price'     => ['required', 'numeric', 'min:0'],
-            'door_price'     => ['required', 'numeric', 'min:0'],
-            
+            'package_size'        => ['required', 'in:small,medium,large'],
+            'base_price'          => ['required', 'numeric', 'min:0'],
+            'door_fallback_price' => ['required', 'numeric', 'min:0'],
+            'door_fallback_min_km' => ['required', 'numeric', 'min:0'],
+            'door_extra_km_cost'  => ['required', 'numeric', 'min:0'],
         ]);
 
         if (ShippingRate::where('package_size', $request->package_size)->exists()) {
@@ -45,10 +46,12 @@ class ShippingRateController extends Controller
         }
 
         ShippingRate::create([
-            'package_size'   => $request->package_size,
-            'base_price'     => $request->base_price,
-            'door_price'     => $request->door_price,
-            
+            'package_size'        => $request->package_size,
+            'base_price'          => $request->base_price,
+            'door_price'          => $request->door_fallback_price,
+            'door_fallback_price' => $request->door_fallback_price,
+            'door_fallback_min_km' => $request->door_fallback_min_km,
+            'door_extra_km_cost'  => $request->door_extra_km_cost,
         ]);
 
         return redirect()->route('admin.shipping-rates.index')
@@ -75,13 +78,13 @@ class ShippingRateController extends Controller
     public function update(Request $request, ShippingRate $shippingRate)
     {
         $request->validate([
-            'package_size'   => ['required', 'in:small,medium,large'],
-            'base_price'     => ['required', 'numeric', 'min:0'],
-            'door_price'     => ['required', 'numeric', 'min:0'],
-            
+            'package_size'        => ['required', 'in:small,medium,large'],
+            'base_price'          => ['required', 'numeric', 'min:0'],
+            'door_fallback_price' => ['required', 'numeric', 'min:0'],
+            'door_fallback_min_km' => ['required', 'numeric', 'min:0'],
+            'door_extra_km_cost'  => ['required', 'numeric', 'min:0'],
         ]);
 
-        
         $exists = ShippingRate::where('package_size', $request->package_size)
             ->where('id', '!=', $shippingRate->id)
             ->exists();
@@ -91,10 +94,12 @@ class ShippingRateController extends Controller
         }
 
         $shippingRate->update([
-            'package_size'   => $request->package_size,
-            'base_price'     => $request->base_price,
-            'door_price'     => $request->door_price,
-            
+            'package_size'        => $request->package_size,
+            'base_price'          => $request->base_price,
+            'door_price'          => $request->door_fallback_price,
+            'door_fallback_price' => $request->door_fallback_price,
+            'door_fallback_min_km' => $request->door_fallback_min_km,
+            'door_extra_km_cost'  => $request->door_extra_km_cost,
         ]);
 
         return redirect()->route('admin.shipping-rates.index')

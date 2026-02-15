@@ -1,10 +1,10 @@
 // async function reverseGeocode(lat: number, lng: number): Promise<Partial<Address>> {
 //     try {
-//         const endpoint = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&addressdetails=1`;
+//         // Use Google Geocoding API or shipping.calculate-home-delivery endpoint
 //         const res = await fetch(endpoint, {
 //             headers: {
 //                 Accept: 'application/json',
-//                 // Nominatim requires an identifying User-Agent
+//                 // User-Agent for geocoding API requests
 //                 'User-Agent': 'buyalot-checkout/1.0 (reverse-geocode)',
 //             },
 //         });

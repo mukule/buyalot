@@ -61,9 +61,10 @@ class OrderProcessingService
     {
         $cartAmount = $cart->items->sum(fn($i) => ($i->marked_price ?? 0) * $i->quantity);
         $discount = $cart->items->sum(fn($i) => ($i->discount_amount ?? 0) * $i->quantity);
-        $total = round($cartAmount + $shipping - $discount, 2);
+        $shippingRounded = max(250, (int) round((float) $shipping));
+        $total = (int) round($cartAmount + $shippingRounded - $discount);
 
-        return ['cart' => $cartAmount, 'discount' => $discount, 'shipping' => $shipping, 'total' => $total];
+        return ['cart' => (int) round($cartAmount), 'discount' => (int) round($discount), 'shipping' => $shippingRounded, 'total' => $total];
     }
 
     protected function reserveStock($cart)

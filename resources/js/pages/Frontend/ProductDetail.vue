@@ -190,15 +190,17 @@ const selectedPickupPoint = computed(() => {
 
 const showMapModal = ref(false);
 
-/** OSM embed URL (staticmap.openstreetmap.de is deprecated) */
+/** Google Maps embed URL for pickup point */
+const mapApiKey = (props as any).googleMapsApiKey ?? (page?.props as any)?.googleMapsApiKey ?? '';
 const pickupMapEmbedUrl = computed(() => {
     const p = selectedPickupPoint.value;
     if (!p || p.latitude == null || p.longitude == null) return '';
     const lat = p.latitude;
     const lng = p.longitude;
-    const delta = 0.008;
-    const bbox = `${lng - delta},${lat - delta},${lng + delta},${lat + delta}`;
-    return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat},${lng}`;
+    if (mapApiKey) {
+        return `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(mapApiKey)}&q=${lat},${lng}&zoom=15`;
+    }
+    return `https://www.google.com/maps?q=${lat},${lng}`;
 });
 
 function openMapModal() {
@@ -231,13 +233,14 @@ function onDeliveryLocationConfirm(payload: { lat: number; lng: number }) {
     homeDeliveryLng.value = payload.lng;
 }
 
-const homeDeliveryMapUrl = computed(() => {
+const homeDeliveryMapEmbedUrl = computed(() => {
     const lat = homeDeliveryLat.value;
     const lng = homeDeliveryLng.value;
     if (lat == null || lng == null) return '';
-    const delta = 0.008;
-    const bbox = `${lng - delta},${lat - delta},${lng + delta},${lat + delta}`;
-    return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat},${lng}`;
+    if (mapApiKey) {
+        return `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(mapApiKey)}&q=${lat},${lng}&zoom=15`;
+    }
+    return `https://www.google.com/maps?q=${lat},${lng}`;
 });
 
 // --- VIDEO PREVIEW ---
@@ -486,14 +489,25 @@ const videoEmbedUrl = computed<string | null>(() => {
                                 >
                                     Use current location
                                 </button>
-                                <div v-if="homeDeliveryMapUrl" class="mt-2 h-[200px] w-full overflow-hidden rounded border bg-gray-100">
+                                <div v-if="homeDeliveryMapEmbedUrl" class="mt-2 h-[200px] w-full overflow-hidden rounded border bg-gray-100">
                                     <iframe
-                                        :src="homeDeliveryMapUrl"
-                                        title="Delivery location map"
+                                        v-if="mapApiKey"
+                                        :src="homeDeliveryMapEmbedUrl"
+                                        title="Delivery location - Google Maps"
                                         class="h-full w-full border-0"
                                         loading="lazy"
+                                        allowfullscreen
                                         referrerpolicy="no-referrer-when-downgrade"
                                     />
+                                    <a
+                                        v-else
+                                        :href="homeDeliveryMapEmbedUrl"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="flex h-full items-center justify-center text-sm text-primary underline"
+                                    >
+                                        View delivery location on Google Maps
+                                    </a>
                                 </div>
                             </template>
 
@@ -514,8 +528,7 @@ const videoEmbedUrl = computed<string | null>(() => {
                                     <ul class="mt-1 list-none space-y-1 pl-0 text-[11px] text-gray-500">
                                         <li>
                                             Delivery Cost KSh
-                                            {{ (selectedShippingOptions.door.cost + HOME_DELIVERY_SURCHARGE).toLocaleString() }}
-                                            <span class="text-gray-400">(includes KSh {{ HOME_DELIVERY_SURCHARGE }} surcharge)</span>
+                                            {{ (selectedShippingOptions.door.cost).toLocaleString() }}
                                         </li>
                                         <li>
                                             Your order will be delivered in
@@ -574,7 +587,7 @@ const videoEmbedUrl = computed<string | null>(() => {
                 </div>
             </div>
 
-            <!-- Pickup point map modal (uses OpenStreetMap static map – no API key required) -->
+            <!-- Pickup point map modal (Google Maps) -->
             <div v-if="showMapModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" @click.self="closeMapModal">
                 <div class="relative max-h-[90vh] w-full max-w-2xl rounded-lg bg-white shadow-xl" @click.stop>
                     <div class="flex items-center justify-between border-b px-4 py-2">
@@ -584,12 +597,23 @@ const videoEmbedUrl = computed<string | null>(() => {
                     <div class="p-2">
                         <div v-if="pickupMapEmbedUrl" class="h-[400px] w-full overflow-hidden rounded border bg-gray-100">
                             <iframe
+                                v-if="mapApiKey"
                                 :src="pickupMapEmbedUrl"
-                                title="Pickup point map"
+                                title="Pickup point - Google Maps"
                                 class="h-full w-full border-0"
                                 loading="lazy"
+                                allowfullscreen
                                 referrerpolicy="no-referrer-when-downgrade"
                             />
+                            <a
+                                v-else
+                                :href="pickupMapEmbedUrl"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="flex h-full items-center justify-center text-sm text-primary underline"
+                            >
+                                View pickup point on Google Maps
+                            </a>
                         </div>
                         <p v-else-if="selectedPickupPoint && (selectedPickupPoint.latitude == null || selectedPickupPoint.longitude == null) && (selectedPickupPoint.address || selectedPickupPoint.location)" class="mt-2 text-center text-sm text-gray-500">
                             No coordinates for this pickup point. You can open the address in Google Maps.

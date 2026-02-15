@@ -58,7 +58,10 @@ Route::middleware(['auth', 'role:delivery'])->prefix('admin')->name('delivery.')
     Route::post('/delivery/orders/{order}/reject', [\App\Http\Controllers\Delivery\DeliveryController::class, 'reject'])->name('orders.reject');
     Route::post('/delivery/orders/{order}/confirm-picked', [\App\Http\Controllers\Delivery\DeliveryController::class, 'confirmPickedForDelivery'])->name('orders.confirm-picked');
     Route::post('/delivery/orders/{order}/mark-delivered', [\App\Http\Controllers\Delivery\DeliveryController::class, 'markDelivered'])->name('orders.mark-delivered');
+    Route::post('/delivery/orders/{order}/confirm-cash-payment', [\App\Http\Controllers\Delivery\DeliveryController::class, 'confirmCashPayment'])->name('orders.confirm-cash-payment');
+    Route::post('/delivery/orders/{order}/initiate-mpesa', [\App\Http\Controllers\Delivery\DeliveryController::class, 'initiateMpesaForCod'])->name('orders.initiate-mpesa');
     Route::post('/delivery/orders/{order}/raise-return', [\App\Http\Controllers\Delivery\DeliveryController::class, 'raiseReturn'])->name('orders.raise-return');
+    Route::post('/delivery/orders/{order}/reconcile-cash', [\App\Http\Controllers\Delivery\DeliveryController::class, 'reconcileCashToWarehouse'])->name('orders.reconcile-cash');
 });
 
 // Product search
@@ -75,6 +78,8 @@ Route::middleware(['auth','role:admin|seller|vendor|super-admin','check_permissi
     Route::get('/returns', [HomeController::class, 'returnsIndex'])->name('returns.index');
     Route::get('/returns/{orderReturn}', [HomeController::class, 'returnsShow'])->name('returns.show');
     Route::post('/returns/{orderReturn}/receive', [HomeController::class, 'receiveReturn'])->name('returns.receive');
+    Route::get('/cod-reconciliations', [\App\Http\Controllers\Admin\CodReconciliationController::class, 'index'])->name('cod-reconciliations.index');
+    Route::post('/cod-reconciliations/{reconciliation}/confirm', [\App\Http\Controllers\Admin\CodReconciliationController::class, 'confirm'])->name('cod-reconciliations.confirm');
 //        function () {
 //        return Inertia::render('Dashboard');
 //    })->name('dashboard');
@@ -90,7 +95,11 @@ Route::middleware(['auth','role:admin|seller|vendor|super-admin','check_permissi
 
     Route::resource('products', ProductController::class);
     Route::post('/products/{product}/restock-variants', [ProductController::class, 'restockVariants'])
+        ->middleware('check_permission:restock-product-items')
         ->name('products.restock.variants');
+    Route::get('/products/{product}/restock-history', [ProductController::class, 'restockHistory'])
+        ->middleware('check_permission:restock-product-history')
+        ->name('products.restock.history');
 
 
     // Delete a single product image
@@ -395,6 +404,11 @@ Route::get('/terms', function () {
 // Shipping estimate endpoint
 Route::post('/shipping/estimate', [CartController::class, 'estimateShipping'])
     ->name('shipping.estimate');
+
+// Home delivery: validate region + calculate cost from coordinates
+Route::post('/shipping/calculate-home-delivery', [CartController::class, 'calculateHomeDelivery'])
+    ->middleware('auth')
+    ->name('shipping.calculate-home-delivery');
 
 // Coupon validation endpoint
 Route::post('/coupons/validate', [CouponController::class, 'validateCode'])
