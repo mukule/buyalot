@@ -27,9 +27,9 @@ protected $appends = ['hashid'];
         parent::boot();
 
         static::creating(function ($model) {
-//            if (empty($model->uuid)) {
-//                $model->uuid = (string) Str::uuid();
-//            }
+            if (empty($model->uuid)) {
+                $model->uuid = (string) Str::uuid();
+            }
 
             if (empty($model->code) && !empty($model->name)) {
                 $model->code = strtoupper(substr(Str::slug($model->name, ''), 0, 5));
