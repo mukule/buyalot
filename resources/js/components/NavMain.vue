@@ -3,16 +3,33 @@ import { SidebarGroup, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
 import { ChevronDown, ChevronRight } from 'lucide-vue-next';
-import { ref } from 'vue';
-defineProps<{
+import { onMounted, ref, watch } from 'vue';
+const props = defineProps<{
     items: NavItem[];
 }>();
 
 const page = usePage();
 const openMenus = ref<Record<string, boolean>>({});
 
+// Auto-expand parent when a child is active
+function syncOpenMenus() {
+    const url = String(page.url);
+    props.items.forEach((item) => {
+        if (item.children?.some((c) => c.href && url.includes(c.href))) {
+            openMenus.value[item.title] = true;
+        }
+    });
+}
+onMounted(syncOpenMenus);
+watch(() => page.url, syncOpenMenus);
+
 function toggleMenu(title: string) {
     openMenus.value[title] = !openMenus.value[title];
+}
+
+function isChildActive(href: string) {
+    if (!href || href === '#') return false;
+    return String(page.url).includes(href);
 }
 </script>
 
@@ -35,7 +52,7 @@ function toggleMenu(title: string) {
                     <transition name="fade">
                         <div v-if="openMenus[item.title]" class="mt-1 ml-6 space-y-1">
                             <SidebarMenuItem v-for="child in item.children" :key="child.title">
-                                <SidebarMenuButton as-child :tooltip="child.title" :is-active="child.href === page.url">
+                                <SidebarMenuButton as-child :tooltip="child.title" :is-active="isChildActive(child.href || '')">
                                     <Link :href="child.href">
                                         <component :is="child.icon" />
                                         <span>{{ child.title }}</span>

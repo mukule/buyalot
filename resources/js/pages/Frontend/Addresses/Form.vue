@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import MapLocationModal from '@/components/MapLocationModal.vue';
 import MainLayout from '@/layouts/MainLayout.vue';
 import { useForm, usePage } from '@inertiajs/vue3';
 import { ArrowRight } from 'lucide-vue-next';
@@ -29,6 +30,7 @@ interface Region {
     pickup_points?: PickupPoint[];
     shipping_options?: {
         pickup?: ShippingOption;
+        door?: ShippingOption;
     };
 }
 
@@ -43,6 +45,9 @@ const defaultAddressLine = (page.props as any).address_line_1 || '';
 const defaultRegionId = (page.props as any).selected_region_id || '';
 const defaultPickupWarehouseId = (page.props as any).selected_pickup_warehouse_id || '';
 const defaultIsDefault = Boolean((page.props as any).is_default);
+const defaultDeliveryMode = ((page.props as any).delivery_mode as 'pickup' | 'door') || 'pickup';
+const defaultLatitude = (page.props as any).latitude ?? null;
+const defaultLongitude = (page.props as any).longitude ?? null;
 
 // --- Form ---
 interface AddressForm {
@@ -51,7 +56,10 @@ interface AddressForm {
     phone: string;
     address_line_1: string;
     region_id: string | number;
+    delivery_mode: 'pickup' | 'door';
     pickup_warehouse_id: string | number;
+    latitude: number | null;
+    longitude: number | null;
     is_default: boolean;
 }
 
@@ -61,7 +69,10 @@ const form = useForm<AddressForm>({
     phone: defaultPhone,
     address_line_1: defaultAddressLine,
     region_id: defaultRegionId,
-    pickup_warehouse_id: '', // set after nextTick to ensure select options exist
+    delivery_mode: defaultDeliveryMode,
+    pickup_warehouse_id: '',
+    latitude: defaultLatitude,
+    longitude: defaultLongitude,
     is_default: defaultIsDefault,
 });
 
@@ -77,14 +88,17 @@ const selectedPickupPoint = computed<PickupPoint | null>(() => {
     return availablePickupPoints.value.find((p) => p.id == form.pickup_warehouse_id) ?? null;
 });
 
-// --- Map modal (static map like ProductDetail – no Google API key needed) ---
+// --- Map modal: Google Maps embed for pickup point ---
 const showMapModal = ref(false);
-const pickupMapImageUrl = computed(() => {
+const pickupMapEmbedUrl = computed(() => {
     const p = selectedPickupPoint.value;
     if (!p || p.latitude == null || p.longitude == null) return '';
     const lat = p.latitude;
     const lng = p.longitude;
-    return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=15&size=600x300&markers=${lat},${lng},red-pushpin`;
+    if (googleMapsApiKey) {
+        return `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(googleMapsApiKey)}&q=${lat},${lng}&zoom=15`;
+    }
+    return `https://www.google.com/maps?q=${lat},${lng}`;
 });
 function openMapModal() {
     if (!selectedPickupPoint.value) return;
@@ -112,25 +126,81 @@ if (defaultPickupWarehouseId) {
     });
 }
 
+// --- Home delivery map: Google Maps embed to show selected location ---
+const pageProps = (page.props as any);
+const googleMapsApiKey = pageProps.googleMapsApiKey ?? '';
+
+const deliveryMapEmbedUrl = computed(() => {
+    const lat = form.latitude;
+    const lng = form.longitude;
+    if (lat == null || lng == null) return '';
+    if (!googleMapsApiKey) return `https://www.google.com/maps?q=${lat},${lng}`;
+    return `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(googleMapsApiKey)}&q=${lat},${lng}&zoom=15`;
+});
+
+const showDeliveryMapModal = ref(false);
+function useCurrentLocation() {
+    showDeliveryMapModal.value = true;
+}
+async function onDeliveryLocationConfirm(payload: { lat: number; lng: number }) {
+    form.latitude = payload.lat;
+    form.longitude = payload.lng;
+    try {
+        const axios = (window as any).axios || (await import('axios')).default;
+        const { data } = await axios.post(
+            route('shipping.calculate-home-delivery'),
+            { lat: payload.lat, lng: payload.lng },
+            { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, withCredentials: true },
+        );
+        if (data.success && data.region) {
+            form.region_id = data.region.id;
+        }
+    } catch {
+        // Region will stay unset; user may need to retry
+    }
+}
+
 // --- Shipping Fee ---
 const shippingFee = ref(0);
-const selectedShippingOption = computed(() => {
+const pickupShippingOption = computed(() => {
     const selectedRegion = regions.find((r) => r.id == form.region_id);
     return selectedRegion?.shipping_options?.pickup || null;
 });
+const doorShippingOption = computed(() => {
+    const selectedRegion = regions.find((r) => r.id == form.region_id);
+    return selectedRegion?.shipping_options?.door || null;
+});
 
 watch(
-    () => form.region_id,
+    () => [form.region_id, form.delivery_mode],
     () => {
-        shippingFee.value = selectedShippingOption.value?.cost ?? 0;
-        // Reset pickup warehouse if region changes
-        form.pickup_warehouse_id = '';
+        if (form.delivery_mode === 'pickup') {
+            shippingFee.value = pickupShippingOption.value?.cost ?? 0;
+        } else {
+            shippingFee.value = doorShippingOption.value?.cost ?? 0;
+        }
+        if (form.delivery_mode === 'door') {
+            form.pickup_warehouse_id = '';
+        }
+        if (form.delivery_mode === 'pickup') {
+            form.latitude = null;
+            form.longitude = null;
+        }
     },
     { immediate: true },
 );
 
-// --- Grand Total ---
-const grandTotal = computed(() => cartSubtotal + shippingFee.value);
+watch(
+    () => form.delivery_mode,
+    () => {
+        if (form.delivery_mode === 'pickup') {
+            form.pickup_warehouse_id = '';
+        }
+    },
+);
+
+// --- Grand Total (whole numbers) ---
+const grandTotal = computed(() => Math.round(cartSubtotal + shippingFee.value));
 
 // --- Submit ---
 const submit = () => {
@@ -141,8 +211,8 @@ const submit = () => {
     }
 };
 
-// --- Price formatter ---
-const formatPrice = (amount?: number | null) => `KSh ${(amount ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+// --- Price formatter (whole numbers) ---
+const formatPrice = (amount?: number | null) => `KSh ${Math.round(amount ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 </script>
 
 <template>
@@ -208,24 +278,38 @@ const formatPrice = (amount?: number | null) => `KSh ${(amount ?? 0).toLocaleStr
                     <fieldset class="grid grid-cols-1 gap-4 rounded-md border border-gray-200 p-4 md:grid-cols-2">
                         <legend class="px-2 text-sm font-medium text-gray-700">Delivery Details</legend>
 
-                        <div>
-                            <label class="mb-1 block text-sm font-medium text-gray-700">Region</label>
-                            <select
-                                v-model="form.region_id"
-                                required
-                                class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:ring focus:ring-primary/30"
-                            >
-                                <option value="">Select region</option>
-                                <option v-for="r in regions" :key="r.id" :value="r.id">{{ r.name }}</option>
-                            </select>
-                            <p v-if="form.errors.region_id" class="mt-1 text-xs text-red-600">{{ form.errors.region_id }}</p>
+                        <div class="md:col-span-2">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">Delivery type</label>
+                            <div class="flex flex-wrap gap-4">
+                                <label class="flex cursor-pointer items-center gap-2">
+                                    <input v-model="form.delivery_mode" type="radio" value="pickup" class="h-4 w-4 text-primary" />
+                                    <span>Pickup point</span>
+                                </label>
+                                <label class="flex cursor-pointer items-center gap-2">
+                                    <input v-model="form.delivery_mode" type="radio" value="door" class="h-4 w-4 text-primary" />
+                                    <span>Home delivery</span>
+                                </label>
+                            </div>
                         </div>
 
-                        <div class="md:col-span-2">
+                        <!-- Region + Pickup point (only when pickup selected) -->
+                        <div v-if="form.delivery_mode === 'pickup'" class="space-y-4 md:col-span-2">
+                            <div>
+                                <label class="mb-1 block text-sm font-medium text-gray-700">Select region</label>
+                                <select
+                                    v-model="form.region_id"
+                                    required
+                                    class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:ring focus:ring-primary/30"
+                                >
+                                    <option value="">Select region</option>
+                                    <option v-for="r in regions" :key="r.id" :value="r.id">{{ r.name }}</option>
+                                </select>
+                                <p v-if="form.errors.region_id" class="mt-1 text-xs text-red-600">{{ form.errors.region_id }}</p>
+                            </div>
                             <label class="mb-1 block text-sm font-medium text-gray-700">Pickup Point</label>
                             <select
                                 v-model="form.pickup_warehouse_id"
-                                required
+                                :required="form.delivery_mode === 'pickup'"
                                 class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:ring focus:ring-primary/30"
                             >
                                 <option value="">Select pickup point</option>
@@ -243,6 +327,40 @@ const formatPrice = (amount?: number | null) => `KSh ${(amount ?? 0).toLocaleStr
                                 View on map
                             </button>
                             <p v-if="form.errors.pickup_warehouse_id" class="mt-1 text-xs text-red-600">{{ form.errors.pickup_warehouse_id }}</p>
+                        </div>
+
+                        <!-- Home delivery: map + Use current location -->
+                        <div v-else class="md:col-span-2">
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Delivery location</label>
+                            <p class="mb-2 text-xs text-gray-500">We’ll deliver to this location. Use your current location or confirm the pin on the map.</p>
+                            <button
+                                type="button"
+                                class="mb-2 rounded-md border border-primary bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/20"
+                                @click="useCurrentLocation"
+                            >
+                                Use current location
+                            </button>
+                            <div v-if="deliveryMapEmbedUrl" class="mt-2 h-[220px] w-full overflow-hidden rounded border bg-gray-100">
+                                <iframe
+                                    v-if="googleMapsApiKey"
+                                    :src="deliveryMapEmbedUrl"
+                                    title="Delivery location - Google Maps"
+                                    class="h-full w-full border-0"
+                                    loading="lazy"
+                                    allowfullscreen
+                                    referrerpolicy="no-referrer-when-downgrade"
+                                />
+                                <a
+                                    v-else
+                                    :href="deliveryMapEmbedUrl"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="flex h-full items-center justify-center text-sm text-primary underline"
+                                >
+                                    View selected location on Google Maps
+                                </a>
+                            </div>
+                            <p v-else class="mt-1 text-xs text-gray-500">Click “Use current location” to set your delivery pin on the map.</p>
                         </div>
                     </fieldset>
 
@@ -319,8 +437,25 @@ const formatPrice = (amount?: number | null) => `KSh ${(amount ?? 0).toLocaleStr
                     <button type="button" class="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700" @click="closeMapModal" aria-label="Close">×</button>
                 </div>
                 <div class="p-4">
-                    <div v-if="pickupMapImageUrl" class="h-[400px] w-full overflow-hidden rounded border bg-gray-100">
-                        <img :src="pickupMapImageUrl" alt="Pickup point map" class="h-full w-full object-cover" @error="($event.target as HTMLImageElement).style.display = 'none'" />
+                    <div v-if="pickupMapEmbedUrl" class="h-[400px] w-full overflow-hidden rounded border bg-gray-100">
+                        <iframe
+                            v-if="googleMapsApiKey"
+                            :src="pickupMapEmbedUrl"
+                            title="Pickup point - Google Maps"
+                            class="h-full w-full border-0"
+                            loading="lazy"
+                            allowfullscreen
+                            referrerpolicy="no-referrer-when-downgrade"
+                        />
+                        <a
+                            v-else
+                            :href="pickupMapEmbedUrl"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="flex h-full items-center justify-center text-sm text-primary underline"
+                        >
+                            View pickup point on Google Maps
+                        </a>
                     </div>
                     <div v-else class="flex min-h-[200px] flex-col items-center justify-center rounded border border-gray-200 bg-gray-50 py-8 text-center">
                         <p class="text-sm text-gray-600">
@@ -339,5 +474,15 @@ const formatPrice = (amount?: number | null) => `KSh ${(amount ?? 0).toLocaleStr
                 </div>
             </div>
         </div>
+
+        <!-- Home delivery: map modal to select location (Google Maps) -->
+        <MapLocationModal
+            v-model="showDeliveryMapModal"
+            :api-key="(page.props as any).googleMapsApiKey ?? ''"
+            :initial-lat="form.latitude"
+            :initial-lng="form.longitude"
+            :use-geolocation-on-open="true"
+            @confirm="onDeliveryLocationConfirm"
+        />
     </MainLayout>
 </template>

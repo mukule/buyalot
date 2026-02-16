@@ -14,13 +14,16 @@ class CustomerAddressRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'first_name'       => 'required|string|max:255',
-            'last_name'        => 'required|string|max:255',
-            'phone'            => 'nullable|string|max:20',
-            'address_line_1'   => 'required|string|max:255',
-            'region_id'           => 'required|exists:regions,id',
-            'pickup_warehouse_id' => 'required|exists:warehouses,id',
-            'is_default'       => 'sometimes|boolean',
+            'first_name'         => 'required|string|max:255',
+            'last_name'          => 'required|string|max:255',
+            'phone'              => 'nullable|string|max:20',
+            'address_line_1'     => 'required|string|max:255',
+            'region_id'          => 'required|exists:regions,id',
+            'delivery_mode'      => 'required|string|in:pickup,door',
+            'pickup_warehouse_id'=> 'required_if:delivery_mode,pickup|nullable|exists:warehouses,id',
+            'latitude'           => 'nullable|numeric',
+            'longitude'          => 'nullable|numeric',
+            'is_default'         => 'sometimes|boolean',
         ];
     }
 

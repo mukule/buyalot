@@ -3,9 +3,15 @@
 namespace App\Models\Payment;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class MpesaRequest extends Model
 {
+    public function payable(): MorphTo
+    {
+        return $this->morphTo();
+    }
+
     protected $fillable = [
         'request_type',
         'phone',

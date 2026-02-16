@@ -55,6 +55,14 @@ Route::delete('checkout/addresses/{address}', [CustomerAddressController::class,
 Route::post('checkout/addresses/{address}/make-default', [CustomerAddressController::class, 'makeDefault'])
     ->name('checkout.addresses.make-default');
 
+// Quick-create address from map location (home delivery)
+Route::post('checkout/addresses/from-map', [CustomerAddressController::class, 'createFromMapLocation'])
+    ->name('checkout.addresses.from-map');
+
+// Quick-create address from pickup selection
+Route::post('checkout/addresses/from-pickup', [CustomerAddressController::class, 'createFromPickupSelection'])
+    ->name('checkout.addresses.from-pickup');
+
 
     // JSON API endpoints for addresses (optional)
     Route::get('me/addresses', [CustomerAddressController::class, 'apiList'])->name('me.addresses.index');

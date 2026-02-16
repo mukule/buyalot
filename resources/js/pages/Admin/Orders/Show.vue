@@ -193,8 +193,8 @@ function allocateForPickup() {
         </div>
       </div>
 
-      <!-- Delivery assignment -->
-      <div class="mb-6 rounded bg-white p-4 shadow">
+      <!-- Delivery assignment (hidden when order is already delivered) -->
+      <div v-if="(props.order.status || '').toLowerCase() !== 'delivered'" class="mb-6 rounded bg-white p-4 shadow">
         <h2 class="mb-3 font-semibold">Delivery</h2>
 <!--        <p v-if="props.order.customer_selected_pickup_warehouse" class="mb-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm font-medium text-primary">-->
 <!--          Customer selected pickup point: <strong>{{ props.order.customer_selected_pickup_warehouse.name }}</strong>-->

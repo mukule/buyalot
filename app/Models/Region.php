@@ -8,6 +8,8 @@ use App\Models\Traits\HasHashid;
 
 class Region extends Model
 {
+    use HasHashid;
+
     protected $fillable = [
         'name',
         'code',
@@ -17,7 +19,7 @@ class Region extends Model
         'zone_id',
     ];
 
-//    protected $appends = ['hashid'];
+protected $appends = ['hashid'];
 
 
     protected static function boot()
@@ -25,9 +27,9 @@ class Region extends Model
         parent::boot();
 
         static::creating(function ($model) {
-//            if (empty($model->uuid)) {
-//                $model->uuid = (string) Str::uuid();
-//            }
+            if (empty($model->uuid)) {
+                $model->uuid = (string) Str::uuid();
+            }
 
             if (empty($model->code) && !empty($model->name)) {
                 $model->code = strtoupper(substr(Str::slug($model->name, ''), 0, 5));

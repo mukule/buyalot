@@ -19,4 +19,9 @@ class ProductRestock extends Model
     {
         return $this->belongsTo(User::class, 'restocked_by');
     }
+
+    public function productVariant()
+    {
+        return $this->belongsTo(ProductVariant::class);
+    }
 }

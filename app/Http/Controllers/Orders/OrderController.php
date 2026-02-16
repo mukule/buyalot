@@ -27,6 +27,7 @@ class OrderController extends Controller
     public function index(Request $request)
     {
         $validator = Validator::make($request->all(), [
+            'section' => 'sometimes|string|in:in_progress,delivered',
             'status' => 'sometimes|string|in:pending,confirmed,processing,on_hold,out_for_delivery,shipped,delivered,returned,partially_returned,refunded,partially_refunded,cancelled,failed',
             'payment_status' => 'sometimes|string|in:pending,paid,partially_paid,failed,refunded,partially_refunded',
             'fulfillment_status' => 'sometimes|string|in:unfulfilled,processing,partially_fulfilled,fulfilled,cancelled',
@@ -43,7 +44,13 @@ class OrderController extends Controller
             return back()->withErrors($validator)->withInput();
         }
 
+        $inProgressStatuses = ['pending', 'confirmed', 'processing', 'on_hold', 'out_for_delivery', 'shipped'];
+        $deliveredStatuses = ['delivered', 'returned', 'partially_returned', 'refunded', 'partially_refunded', 'cancelled', 'failed'];
+        $section = $request->get('section', 'in_progress');
+
         $query = Order::with(['customer:id,first_name,last_name', 'orderItems.productVariant.product:id,name', 'orderItems.seller:id,name', 'shippingAddress', 'billingAddress', 'delivery.deliveryUser:id,name,email'])
+            ->when($section === 'in_progress', fn($q) => $q->whereIn('status', $inProgressStatuses))
+            ->when($section === 'delivered', fn($q) => $q->whereIn('status', $deliveredStatuses))
             ->when($request->status, fn($q) => $q->where('status', $request->status))
             ->when($request->payment_status, fn($q) => $q->where('payment_status', $request->payment_status))
             ->when($request->fulfillment_status, fn($q) => $q->where('fulfillment_status', $request->fulfillment_status))
@@ -67,7 +74,7 @@ class OrderController extends Controller
 
         return Inertia::render('Orders/Index', [
             'orders' => $orders,
-            'filters' => $request->only(['status', 'payment_status', 'fulfillment_status', 'customer_id', 'order_code', 'date_from', 'date_to']),
+            'filters' => array_merge(['section' => $section], $request->only(['status', 'payment_status', 'fulfillment_status', 'customer_id', 'order_code', 'date_from', 'date_to'])),
             'statusOptions' => [
                 'pending', 'confirmed', 'processing', 'on_hold', 'out_for_delivery', 'shipped',
                 'delivered', 'returned', 'partially_returned', 'refunded', 'partially_refunded', 'cancelled', 'failed'
@@ -199,10 +206,15 @@ class OrderController extends Controller
     public function store(Request $request, OrderProcessingService $service)
     {
         $validated = $request->validate([
-            'cart_id'          => 'required|exists:carts,id',
-            'payment_provider' => 'required|string|in:mpesa,cod',
-            'phone'            => 'required_if:payment_provider,mpesa|string',
-            'shipping_amount'  => 'nullable|numeric'
+            'cart_id'             => 'required|exists:carts,id',
+            'payment_provider'    => 'required|string|in:mpesa,cod',
+            'phone'               => 'required_if:payment_provider,mpesa|string',
+            'shipping_amount'    => 'nullable|numeric',
+            'billing_address_id'  => 'nullable|exists:customer_addresses,id',
+            'shipping_address_id' => 'nullable|exists:customer_addresses,id',
+            'customer_id'         => 'nullable|exists:customers,id',
+            'notes'               => 'nullable|string|max:1000',
+            'coupon_code'         => 'nullable|string',
         ]);
 
         try {
@@ -210,9 +222,12 @@ class OrderController extends Controller
             if ($request->expectsJson()) {
                 return response()->json(['checkout_session' => $session, 'payment_init' => $paymentInit]);
             }
-             $cart= Cart::with(['items.productVariant.product'])->findOrFail( $request->cart_id);
-             return redirect()->route('checkout.payment', $cart)->with('success', 'Order processing initiated. Please scan the QR code to complete payment.');
+            $cart = Cart::with(['items.productVariant.product'])->findOrFail($request->cart_id);
+            return redirect()->route('checkout.payment', $cart)->with('success', 'Order processing initiated. Please scan the QR code to complete payment.');
         } catch (\Exception $e) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $e->getMessage()], 500);
+            }
             return back()->with('error', $e->getMessage())->withInput();
         }
     }
@@ -342,6 +357,9 @@ class OrderController extends Controller
                         break;
                     case 'delivered':
                         $updateData['delivered_at'] = now();
+                        if (! array_key_exists('fulfillment_status', $updateData)) {
+                            $updateData['fulfillment_status'] = 'fulfilled';
+                        }
                         break;
                     case 'cancelled':
                         $updateData['cancelled_at'] = now();

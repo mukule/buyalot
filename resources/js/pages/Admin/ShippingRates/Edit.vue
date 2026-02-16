@@ -11,8 +11,11 @@ const page = usePage<
             hashid?: string;
             package_size: 'small' | 'medium' | 'large';
             base_price: number;
-            door_price: number;
-            express_price: number;
+            door_price?: number;
+            door_fallback_price?: number;
+            door_fallback_min_km?: number;
+            door_extra_km_cost?: number;
+            express_price?: number;
         };
     }
 >();
@@ -27,11 +30,13 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title, href: '' },
 ];
 
-// Shipping rate form
+// Shipping rate form (use new door/km fields, fallback to door_price for older records)
 const form = useForm({
     package_size: rate.package_size,
     base_price: rate.base_price,
-    door_price: rate.door_price,
+    door_fallback_price: rate.door_fallback_price ?? rate.door_price ?? 250,
+    door_fallback_min_km: rate.door_fallback_min_km ?? 10,
+    door_extra_km_cost: rate.door_extra_km_cost ?? 20,
 });
 
 function updateRate() {
@@ -93,20 +98,56 @@ function updateRate() {
                         </div>
                     </div>
 
-                    <!-- Door Delivery Price -->
-                    <div>
-                        <label for="door_price" class="mb-1 block text-sm font-medium text-gray-700"> Door Delivery Price (Ksh) </label>
-                        <input
-                            v-model.number="form.door_price"
-                            id="door_price"
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            required
-                            placeholder="e.g. 70.00"
-                            class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:ring-2 focus:ring-[color:var(--primary)] focus:outline-none"
-                        />
-                        <div v-if="form.errors.door_price" class="mt-1 text-sm text-red-600">{{ form.errors.door_price }}</div>
+                    <!-- Door Delivery/KM -->
+                    <div class="rounded border border-gray-200 bg-gray-50 p-3">
+                        <h4 class="mb-3 text-sm font-semibold text-gray-700">Door Delivery/KM</h4>
+                        <div class="space-y-3">
+                            <div>
+                                <label for="door_fallback_price" class="mb-1 block text-sm font-medium text-gray-700">Standard Fallback Price (Ksh)</label>
+                                <input
+                                    v-model.number="form.door_fallback_price"
+                                    id="door_fallback_price"
+                                    type="number"
+                                    step="1"
+                                    min="0"
+                                    required
+                                    placeholder="e.g. 250"
+                                    class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:ring-2 focus:ring-[color:var(--primary)] focus:outline-none"
+                                />
+                                <p class="mt-1 text-xs text-gray-500">Flat price for first X km</p>
+                                <div v-if="form.errors.door_fallback_price" class="mt-1 text-sm text-red-600">{{ form.errors.door_fallback_price }}</div>
+                            </div>
+                            <div>
+                                <label for="door_fallback_min_km" class="mb-1 block text-sm font-medium text-gray-700">Min KM for Fallback Price</label>
+                                <input
+                                    v-model.number="form.door_fallback_min_km"
+                                    id="door_fallback_min_km"
+                                    type="number"
+                                    step="0.1"
+                                    min="0"
+                                    required
+                                    placeholder="e.g. 10"
+                                    class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:ring-2 focus:ring-[color:var(--primary)] focus:outline-none"
+                                />
+                                <p class="mt-1 text-xs text-gray-500">First X km charged at fallback price</p>
+                                <div v-if="form.errors.door_fallback_min_km" class="mt-1 text-sm text-red-600">{{ form.errors.door_fallback_min_km }}</div>
+                            </div>
+                            <div>
+                                <label for="door_extra_km_cost" class="mb-1 block text-sm font-medium text-gray-700">Extra KM Cost (Ksh/km)</label>
+                                <input
+                                    v-model.number="form.door_extra_km_cost"
+                                    id="door_extra_km_cost"
+                                    type="number"
+                                    step="1"
+                                    min="0"
+                                    required
+                                    placeholder="e.g. 20"
+                                    class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:ring-2 focus:ring-[color:var(--primary)] focus:outline-none"
+                                />
+                                <p class="mt-1 text-xs text-gray-500">Cost per km beyond fallback threshold</p>
+                                <div v-if="form.errors.door_extra_km_cost" class="mt-1 text-sm text-red-600">{{ form.errors.door_extra_km_cost }}</div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Submit -->

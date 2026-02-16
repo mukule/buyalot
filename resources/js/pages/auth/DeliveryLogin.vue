@@ -97,6 +97,11 @@ const submit = () => {
                         <TextLink v-if="canResetPassword" :href="route('password.request')" class="text-sm">Forgot password?</TextLink>
                     </div>
 
+                    <p class="text-sm text-muted-foreground">
+                        Not yet a delivery partner?
+                        <TextLink :href="route('delivery.register')">Register here</TextLink>
+                    </p>
+
                     <Button type="submit" class="h-11 w-full text-white" :disabled="form.processing">
                         <LoaderCircle v-if="form.processing" class="mr-2 h-4 w-4 animate-spin" />
                         Sign in

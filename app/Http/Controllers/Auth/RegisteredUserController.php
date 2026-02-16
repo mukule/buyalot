@@ -210,7 +210,7 @@ class RegisteredUserController extends Controller
         }
 
         $user = $customer->user;
-        if (! $user || ! in_array($user->user_type, ['seller', 'vendor'])) {
+        if (! $user || ! $user->hasPortalRole('seller')) {
             abort(403);
         }
 
@@ -219,8 +219,15 @@ class RegisteredUserController extends Controller
                 ->with('info', 'Your customer account is already active.');
         }
 
-        //add the secondary role
-        if (!$user->secondary_role) {
+        // Add customer to portal roles (additional_roles and/or secondary_role for backward compat)
+        $extra = $user->additional_roles ?? [];
+        if (! in_array('customer', $extra, true)) {
+            $extra[] = 'customer';
+            $user->update([
+                'additional_roles' => $extra,
+                'secondary_role'   => $user->secondary_role ?? 'customer',
+            ]);
+        } elseif (! $user->secondary_role) {
             $user->update(['secondary_role' => 'customer']);
         }
 

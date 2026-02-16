@@ -10,7 +10,9 @@ interface ShippingRate {
     id: number;
     package_size: 'small' | 'medium' | 'large';
     base_price: number;
-    door_price?: number;
+    door_fallback_price?: number;
+    door_fallback_min_km?: number;
+    door_extra_km_cost?: number;
     created_at?: string;
 }
 
@@ -93,7 +95,7 @@ function deleteRate(id: number) {
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Package Size</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Base Price</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Door Delivery</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Door Delivery/KM</th>
 
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -104,7 +106,14 @@ function deleteRate(id: number) {
                                 <td class="px-4 py-4 text-sm text-gray-500">{{ index + 1 }}</td>
                                 <td class="px-4 py-4 text-sm font-medium text-gray-900 capitalize">{{ rate.package_size }}</td>
                                 <td class="px-4 py-4 text-sm text-gray-700">Ksh. {{ rate.base_price.toFixed(2) }}</td>
-                                <td class="px-4 py-4 text-sm text-gray-700">Ksh. {{ rate.door_price?.toFixed(2) ?? '-' }}</td>
+                                <td class="px-4 py-4 text-sm text-gray-700">
+                                    <span v-if="rate.door_fallback_price != null">
+                                        Fallback: Ksh. {{ rate.door_fallback_price?.toFixed(0) ?? '-' }}
+                                        · First {{ rate.door_fallback_min_km ?? '-' }} km
+                                        · +Ksh. {{ rate.door_extra_km_cost?.toFixed(0) ?? '-' }}/km
+                                    </span>
+                                    <span v-else>-</span>
+                                </td>
 
                                 <td class="px-4 py-4 text-sm text-gray-500">
                                     {{ rate.created_at ? new Date(rate.created_at).toLocaleDateString() : '-' }}

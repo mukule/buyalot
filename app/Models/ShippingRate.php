@@ -13,14 +13,25 @@ class ShippingRate extends Model
 
     protected $fillable = [
         'package_size',
-        'base_price',   // Standard / Pickup
-        'door_price',   // Door Delivery
+        'base_price',
+        'door_price',
+        'door_fallback_price',
+        'door_fallback_min_km',
+        'door_extra_km_cost',
     ];
 
     protected $casts = [
         'base_price' => 'float',
         'door_price' => 'float',
+        'door_fallback_price' => 'float',
+        'door_fallback_min_km' => 'float',
+        'door_extra_km_cost' => 'float',
     ];
+
+    /** Defaults when DB values are null */
+    private const DEFAULT_FALLBACK_PRICE = 250;
+    private const DEFAULT_FALLBACK_MIN_KM = 10;
+    private const DEFAULT_EXTRA_KM_COST = 20;
 
     // --- Scopes ---
     public function scopePackageSize($query, string $size)
@@ -42,11 +53,39 @@ class ShippingRate extends Model
         return $baseDays + (($tier - 1) * $increment);
     }
 
-    // --- Door Delivery ---
+    /**
+     * Door Delivery/KM: calculate cost by distance.
+     * - Distance <= min_km: cost = fallback (flat)
+     * - Distance > min_km: cost = fallback + (distance - min_km) * extra_km_cost
+     * Fallback only applies when calculated < fallback (floor).
+     */
+    public function calculateDoorCostByDistance(float $distanceKm): float
+    {
+        $fallback = (float) ($this->door_fallback_price ?? self::DEFAULT_FALLBACK_PRICE);
+        $minKm = (float) ($this->door_fallback_min_km ?? self::DEFAULT_FALLBACK_MIN_KM);
+        $extraPerKm = (float) ($this->door_extra_km_cost ?? self::DEFAULT_EXTRA_KM_COST);
+
+        if ($distanceKm <= 0) {
+            return $fallback;
+        }
+
+        $calculated = $distanceKm <= $minKm
+            ? $fallback
+            : $fallback + ($distanceKm - $minKm) * $extraPerKm;
+
+        return max($fallback, $calculated);
+    }
+
+    /** Minimum door delivery cost (fallback price) - used when distance unknown */
+    public function doorMinimumCost(): float
+    {
+        return (float) ($this->door_fallback_price ?? self::DEFAULT_FALLBACK_PRICE);
+    }
+
+    /** @deprecated Use calculateDoorCostByDistance or doorMinimumCost */
     public function doorCostForTier(int $tier): float
     {
-        $increment = (float) env('DOOR_DELIVERY_INCREMENT_PER_TIER', 70);
-        return $this->door_price + (($tier - 1) * $increment);
+        return $this->doorMinimumCost();
     }
 
     public function doorDaysForTier(int $tier): int

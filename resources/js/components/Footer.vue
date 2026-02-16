@@ -62,8 +62,8 @@ const appName = page.props.appName || 'Buyalot';
                 <ul class="space-y-1 text-sm">
                     <li><a href="#" class="text-white hover:underline">About Us</a></li>
                     <li><a href="#" class="text-white hover:underline">Careers</a></li>
-                    <li><a href="#" class="text-white hover:underline">Sell on Buyalot</a></li>
-                    <li><a href="delivery/login" class="text-white hover:underline">Deliver for Buyalot</a></li>
+                    <li><a href="/sell" class="text-white hover:underline">Sell on Buyalot</a></li>
+                    <li><a href="/delivery/register" class="text-white hover:underline">Deliver for Buyalot</a></li>
                     <li><a href="#" class="text-white hover:underline">Press & News</a></li>
                     <li><a href="#" class="text-white hover:underline">Competitions</a></li>
                     <li><a href="#" class="text-white hover:underline">B2B</a></li>

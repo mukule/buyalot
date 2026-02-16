@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import DeliveryLayout from '@/layouts/DeliveryLayout.vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { ref, onBeforeUnmount, watch } from 'vue';
+import { route } from 'ziggy-js';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
@@ -12,7 +13,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Clock, CheckCircle, XCircle, PackageCheck, LayoutGrid } from 'lucide-vue-next';
+import { Clock, CheckCircle, XCircle, PackageCheck, LayoutGrid, Navigation } from 'lucide-vue-next';
 
 interface OrderItemPayload {
     id: number;
@@ -30,8 +31,17 @@ interface DeliveryOrder {
     payment_method?: string | null;
     delivery_type?: string | null;
     pickup_warehouse_id?: number | null;
-    pickup_warehouse?: { id: number; name: string; address?: string | null; location?: string | null } | null;
+    pickup_warehouse?: {
+        id: number;
+        name: string;
+        address?: string | null;
+        location?: string | null;
+        latitude?: number | null;
+        longitude?: number | null;
+    } | null;
     pickup_receivables_status?: 'pending' | 'received' | 'rejected' | null;
+    dispatching_warehouse?: { id: number; name: string; address?: string | null; location?: string | null } | null;
+    cod_reconciliation?: { id: number; status: 'pending_confirmation' | 'confirmed'; reconciled_at?: string | null; confirmed_at?: string | null } | null;
     delivery_assignment_status: string;
     delivery_rejection_reason?: string | null;
     allocated_for_pickup_at?: string | null;
@@ -42,10 +52,14 @@ interface DeliveryOrder {
     customer?: { first_name: string; last_name: string } | null;
     shipping_address?: {
         address_line_1: string;
+        address_line_2?: string | null;
         city: string;
-        postal_code?: string;
+        state_province?: string | null;
+        postal_code?: string | null;
         country: string;
-        phone?: string;
+        phone?: string | null;
+        latitude?: number | null;
+        longitude?: number | null;
     } | null;
     delivery_note_summary: string;
     order_items: OrderItemPayload[];
@@ -74,6 +88,38 @@ function money(amount: number, currency: string) {
     } catch {
         return `${currency} ${amount.toFixed(2)}`;
     }
+}
+
+/** Build Google Maps URL for directions to delivery location */
+function getDirectionsUrl(order: DeliveryOrder): string | null {
+    // Home delivery: use shipping address
+    if (order.delivery_type === 'customer_address' && order.shipping_address) {
+        const addr = order.shipping_address;
+        if (addr.latitude != null && addr.longitude != null) {
+            return `https://www.google.com/maps/dir/?api=1&destination=${addr.latitude},${addr.longitude}`;
+        }
+        const parts = [addr.address_line_1, addr.address_line_2, addr.city, addr.state_province, addr.postal_code, addr.country].filter(Boolean);
+        if (parts.length > 0) {
+            return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(parts.join(', '))}`;
+        }
+    }
+    // Pickup point: use warehouse location
+    if (order.pickup_warehouse) {
+        const wh = order.pickup_warehouse;
+        if (wh.latitude != null && wh.longitude != null) {
+            return `https://www.google.com/maps/dir/?api=1&destination=${wh.latitude},${wh.longitude}`;
+        }
+        const loc = wh.address || wh.location || wh.name;
+        if (loc) {
+            return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(loc)}`;
+        }
+    }
+    return null;
+}
+
+function openDirections(order: DeliveryOrder) {
+    const url = getDirectionsUrl(order);
+    if (url) window.open(url, '_blank', 'noopener,noreferrer');
 }
 
 function acceptOrder(order: DeliveryOrder) {
@@ -132,6 +178,8 @@ const returnForm = useForm({
     items: [] as { order_item_id: number; quantity_returned: number }[],
 });
 
+const markDeliveredOrder = ref<DeliveryOrder | null>(null);
+
 function openRaiseReturn(order: DeliveryOrder) {
     returnOrder.value = order;
     returnForm.reason = '';
@@ -178,6 +226,274 @@ function confirmPickedForDelivery() {
         onSuccess: () => closeConfirmPick(),
     });
 }
+
+/** Normalize payment method for comparison (handles "CASH ON DELIVERY" vs "cash_on_delivery") */
+function isPaymentMethodCod(method: string | null | undefined): boolean {
+    const m = (method || '').toLowerCase().replace(/\s+/g, '_');
+    return m === 'cash_on_delivery';
+}
+
+/** COD order that is not yet paid */
+function isCodUnpaid(order: DeliveryOrder): boolean {
+    return isPaymentMethodCod(order.payment_method) && order.payment_status !== 'paid';
+}
+
+function isOrderDelivered(status: string | null | undefined): boolean {
+    return (status || '').toLowerCase() === 'delivered';
+}
+
+function orderStatusAllowsDelivery(status: string | null | undefined): boolean {
+    const s = (status || '').toLowerCase();
+    return s === 'out_for_delivery' || s === 'shipped';
+}
+
+/** Can show Mark as delivered: for COD must be paid first; never for already delivered */
+function canMarkDelivered(order: DeliveryOrder): boolean {
+    if (isOrderDelivered(order.status)) return false;
+    if (order.delivery_type !== 'customer_address' || !order.picked_at) return false;
+    if (!orderStatusAllowsDelivery(order.status)) return false;
+    if (isCodUnpaid(order)) return false;
+    return true;
+}
+
+/** Can show Collect payment: only for COD unpaid, never for delivered */
+function canShowCollectPayment(order: DeliveryOrder): boolean {
+    if (isOrderDelivered(order.status)) return false;
+    return order.delivery_type === 'customer_address' && !!order.picked_at && orderStatusAllowsDelivery(order.status) && isCodUnpaid(order);
+}
+
+/** Delivery point has coordinates for proximity check */
+function hasDeliveryCoordinates(order: DeliveryOrder): boolean {
+    const addr = order.shipping_address;
+    return !!(addr && addr.latitude != null && addr.longitude != null);
+}
+
+/** Haversine distance in km between two lat/lng points */
+function haversineDistanceKm(
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number
+): number {
+    const R = 6371; // Earth radius km
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLng = ((lng2 - lng1) * Math.PI) / 180;
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((lat1 * Math.PI) / 180) *
+            Math.cos((lat2 * Math.PI) / 180) *
+            Math.sin(dLng / 2) *
+            Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+const PROXIMITY_METERS = 500;
+const deliveryPersonLocation = ref<{ lat: number; lng: number } | null>(null);
+const locationError = ref<string | null>(null);
+const locationWatchId = ref<number | null>(null);
+
+function startLocationWatch() {
+    if (!navigator.geolocation || locationWatchId.value != null) return;
+    locationError.value = null;
+    locationWatchId.value = navigator.geolocation.watchPosition(
+        (pos) => {
+            deliveryPersonLocation.value = {
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+            };
+            locationError.value = null;
+        },
+        (err) => {
+            locationError.value =
+                err.code === 1
+                    ? 'Allow location access to collect payment'
+                    : 'Location unavailable';
+            deliveryPersonLocation.value = null;
+        },
+        { enableHighAccuracy: true, maximumAge: 30000, timeout: 10000 }
+    );
+}
+
+function stopLocationWatch() {
+    if (locationWatchId.value != null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(locationWatchId.value);
+        locationWatchId.value = null;
+    }
+    deliveryPersonLocation.value = null;
+    locationError.value = null;
+}
+
+function distanceToDeliveryMeters(order: DeliveryOrder): number | null {
+    const addr = order.shipping_address;
+    if (!addr || addr.latitude == null || addr.longitude == null) return null;
+    const loc = deliveryPersonLocation.value;
+    if (!loc) return null;
+    return haversineDistanceKm(loc.lat, loc.lng, addr.latitude, addr.longitude) * 1000;
+}
+
+/** Collect payment button is active only when within 500m of delivery point */
+/** Can show Reconcile cash: delivered COD cash order, not yet reconciled, has warehouse to reconcile to */
+function canShowReconcileCash(order: DeliveryOrder): boolean {
+    if (order.status !== 'delivered') return false;
+    if (!isPaymentMethodCod(order.payment_method)) return false;
+    if (order.payment_status !== 'paid') return false;
+    if (order.cod_reconciliation) return false; // already reconciled
+    return !!(order.dispatching_warehouse || order.pickup_warehouse);
+}
+
+function reconcileCash(order: DeliveryOrder) {
+    router.post(route('delivery.orders.reconcile-cash', order.ulid), {}, {
+        onSuccess: () => router.reload(),
+    });
+}
+
+function canCollectPaymentActive(order: DeliveryOrder): boolean {
+    if (!canShowCollectPayment(order)) return false;
+    if (!hasDeliveryCoordinates(order)) return false;
+    const distM = distanceToDeliveryMeters(order);
+    if (distM == null) return false;
+    return distM <= PROXIMITY_METERS;
+}
+
+function collectPaymentDisabledReason(order: DeliveryOrder): string {
+    if (!canShowCollectPayment(order)) return '';
+    if (!hasDeliveryCoordinates(order)) return 'Delivery address has no coordinates – cannot verify proximity';
+    if (locationError.value) return locationError.value;
+    const distM = distanceToDeliveryMeters(order);
+    if (distM == null) return 'Allow location access to collect payment';
+    if (distM > PROXIMITY_METERS) return `You are still ~${Math.round(distM)}m away from the delivery point.`;
+    return '';
+}
+
+const collectPaymentOrder = ref<DeliveryOrder | null>(null);
+const collectPhone = ref('');
+const collectMpesaStatus = ref<'idle' | 'sending' | 'polling' | 'success' | 'failed'>('idle');
+const collectMpesaMessage = ref('');
+
+function openCollectPayment(order: DeliveryOrder) {
+    collectPaymentOrder.value = order;
+    collectPhone.value = order.shipping_address?.phone?.replace(/\D/g, '').slice(-9) ? `254${order.shipping_address!.phone!.replace(/\D/g, '').slice(-9)}` : '';
+    collectMpesaStatus.value = 'idle';
+    collectMpesaMessage.value = '';
+}
+
+function closeCollectPayment() {
+    collectPaymentOrder.value = null;
+    collectPhone.value = '';
+    collectMpesaStatus.value = 'idle';
+    collectMpesaMessage.value = '';
+}
+
+function confirmCashReceived() {
+    if (!collectPaymentOrder.value) return;
+    router.post(route('delivery.orders.confirm-cash-payment', collectPaymentOrder.value.ulid), {}, {
+        onSuccess: () => {
+            closeCollectPayment();
+            router.reload();
+        },
+    });
+}
+
+async function initiateMpesaStk() {
+    if (!collectPaymentOrder.value) return;
+    const phone = collectPhone.value.trim().replace(/\D/g, '');
+    if (phone.length < 9) {
+        collectMpesaMessage.value = 'Enter a valid phone number (e.g. 0712345678 or 254712345678)';
+        return;
+    }
+    const normalized = phone.startsWith('254') ? phone : `254${phone.slice(-9)}`;
+    collectMpesaStatus.value = 'sending';
+    collectMpesaMessage.value = '';
+    try {
+        const axios = (window as any).axios || (await import('axios')).default;
+        const { data } = await axios.post(
+            route('delivery.orders.initiate-mpesa', collectPaymentOrder.value.ulid),
+            { phone: normalized },
+            { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, withCredentials: true },
+        );
+        if (data.success && data.checkout_request_id) {
+            collectMpesaStatus.value = 'polling';
+            collectMpesaMessage.value = 'M-Pesa prompt sent. Ask customer to enter PIN on their phone.';
+            await pollMpesaStatus(data.checkout_request_id);
+        } else {
+            collectMpesaStatus.value = 'failed';
+            collectMpesaMessage.value = data.message || 'Failed to send M-Pesa prompt.';
+        }
+    } catch (e: any) {
+        collectMpesaStatus.value = 'failed';
+        collectMpesaMessage.value = e?.response?.data?.message || e?.message || 'Failed to send M-Pesa prompt.';
+    }
+}
+
+async function pollMpesaStatus(checkoutRequestId: string): Promise<'success' | 'failed'> {
+    const maxSeconds = 45;
+    const intervalMs = 4000;
+    let elapsed = 0;
+    const axios = (window as any).axios || (await import('axios')).default;
+    while (elapsed < maxSeconds) {
+        await new Promise((r) => setTimeout(r, intervalMs));
+        elapsed += intervalMs / 1000;
+        try {
+            const { data } = await axios.get(route('payments.status', checkoutRequestId), {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                withCredentials: true,
+            });
+            const ver = data?.verification ?? data?.log;
+            const success = ver?.success ?? (ver?.status === 'COMPLETED' || ver?.status === 'SUCCESS');
+            if (success === true) {
+                collectMpesaStatus.value = 'success';
+                collectMpesaMessage.value = 'Payment received. You can now mark as delivered.';
+                closeCollectPayment();
+                router.reload();
+                return 'success';
+            }
+            if (ver && ['FAILED', 'CANCELED', 'EXPIRED'].includes(ver.status || ver.state)) {
+                collectMpesaStatus.value = 'failed';
+                collectMpesaMessage.value = ver.result_desc || ver.message || 'Payment failed or was cancelled.';
+                return 'failed';
+            }
+        } catch {
+            /* continue polling */
+        }
+    }
+    collectMpesaStatus.value = 'failed';
+    collectMpesaMessage.value = 'Payment timed out. Customer can try again.';
+    return 'failed';
+}
+
+function openMarkDelivered(order: DeliveryOrder) {
+    markDeliveredOrder.value = order;
+}
+
+function closeMarkDelivered() {
+    markDeliveredOrder.value = null;
+}
+
+function submitMarkDelivered() {
+    if (!markDeliveredOrder.value) return;
+    router.post(route('delivery.orders.mark-delivered', markDeliveredOrder.value!.ulid), {}, {
+        onSuccess: () => {
+            closeMarkDelivered();
+            router.reload();
+        },
+    });
+}
+
+/** Start location watch when on accepted section with COD orders; stop when leaving */
+watch(
+    () => props.section,
+    (section) => {
+        if (section === 'accepted') {
+            const hasCodUnpaid = props.accepted.some(canShowCollectPayment);
+            if (hasCodUnpaid) startLocationWatch();
+        } else {
+            stopLocationWatch();
+        }
+    },
+    { immediate: true }
+);
+onBeforeUnmount(() => stopLocationWatch());
 </script>
 
 <template>
@@ -236,8 +552,12 @@ function confirmPickedForDelivery() {
                             {{ order.shipping_address.address_line_1 }}, {{ order.shipping_address.city }}
                             <span v-if="order.shipping_address.phone"> · {{ order.shipping_address.phone }}</span>
                         </p>
+                        <p v-else-if="order.pickup_warehouse" class="mb-2 text-sm">
+                            {{ order.pickup_warehouse.name }}
+                            <span v-if="order.pickup_warehouse.address"> · {{ order.pickup_warehouse.address }}</span>
+                        </p>
                         <p class="mb-3 text-sm font-medium">{{ money(order.total_amount, order.currency) }}</p>
-                        <div class="flex gap-2">
+                        <div class="flex flex-wrap gap-2">
                             <Button size="sm" @click="acceptOrder(order)">Accept</Button>
                             <Button size="sm" variant="destructive" @click="openReject(order)">Reject</Button>
                         </div>
@@ -276,17 +596,55 @@ function confirmPickedForDelivery() {
                             {{ order.shipping_address.address_line_1 }}, {{ order.shipping_address.city }}
                             <span v-if="order.shipping_address.phone"> · {{ order.shipping_address.phone }}</span>
                         </p>
+                        <p v-else-if="order.pickup_warehouse" class="mt-2 text-sm">
+                            {{ order.pickup_warehouse.name }}
+                            <span v-if="order.pickup_warehouse.address"> · {{ order.pickup_warehouse.address }}</span>
+                        </p>
                         <p class="mt-1 text-sm font-medium">{{ money(order.total_amount, order.currency) }}</p>
                         <div v-if="order.allocated_for_pickup_at" class="mt-3 flex flex-wrap items-center gap-2">
+                            <Button
+                                v-if="getDirectionsUrl(order)"
+                                size="sm"
+                                variant="outline"
+                                @click="openDirections(order)"
+                            >
+                                <Navigation class="mr-1.5 h-4 w-4" />
+                                View on map / Get directions
+                            </Button>
                             <p v-if="order.picked_at" class="text-sm text-green-600">
                                 Out for delivery (picked at {{ order.picked_at }})
                             </p>
                             <Button
-                                v-else
+                                v-if="!order.picked_at"
                                 size="sm"
                                 @click="openConfirmPick(order)"
                             >
                                 Confirm items & mark as picked for delivery
+                            </Button>
+                            <span v-if="canShowCollectPayment(order)" class="inline-flex flex-col items-start gap-0.5">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    :disabled="!canCollectPaymentActive(order)"
+                                    :title="collectPaymentDisabledReason(order)"
+                                    @click="openCollectPayment(order)"
+                                >
+                                    Collect payment
+                                </Button>
+                                <span
+                                    v-if="!canCollectPaymentActive(order) && collectPaymentDisabledReason(order)"
+                                    class="text-xs text-amber-600 dark:text-amber-400"
+                                >
+                                    {{ collectPaymentDisabledReason(order) }}
+                                </span>
+                            </span>
+                            <Button
+                                v-else-if="canMarkDelivered(order)"
+                                size="sm"
+                                variant="outline"
+                                @click="openMarkDelivered(order)"
+                            >
+                                Mark as delivered
                             </Button>
                         </div>
                         <template v-if="order.delivery_type === 'pickup_point'">
@@ -346,7 +704,10 @@ function confirmPickedForDelivery() {
             <!-- Attended (history) list -->
             <template v-else-if="props.section === 'attended'">
                 <h1 class="mb-6 text-2xl font-bold">Attended deliveries</h1>
-                <p class="mb-4 text-sm text-muted-foreground">History of previous assigned orders (delivered or cancelled).</p>
+                <p class="mb-4 text-sm text-muted-foreground">
+                    History of previous assigned orders (delivered or cancelled).
+                    For COD cash orders, hand over the cash to the pickup warehouse and mark reconciled.
+                </p>
                 <div v-if="attended.length === 0" class="rounded-lg border border-dashed p-6 text-center text-muted-foreground">
                     No attended deliveries yet.
                 </div>
@@ -361,10 +722,103 @@ function confirmPickedForDelivery() {
                             <span class="text-sm capitalize">{{ order.status }}</span>
                         </div>
                         <p class="mt-1 text-sm text-muted-foreground">{{ order.created_at }}</p>
+                        <p v-if="order.total_amount" class="mt-1 text-sm font-medium">{{ money(order.total_amount, order.currency) }}</p>
+                        <div v-if="canShowReconcileCash(order)" class="mt-3">
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                @click="reconcileCash(order)"
+                            >
+                                Reconcile cash to {{ (order.dispatching_warehouse || order.pickup_warehouse)?.name ?? 'warehouse' }}
+                            </Button>
+                            <p class="mt-1 text-xs text-muted-foreground">Hand over {{ money(order.total_amount, order.currency) }} to the warehouse where you picked up the order.</p>
+                        </div>
+                        <div v-else-if="order.cod_reconciliation" class="mt-2">
+                            <span
+                                class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium"
+                                :class="order.cod_reconciliation.status === 'confirmed'
+                                    ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200'
+                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'"
+                            >
+                                {{ order.cod_reconciliation.status === 'confirmed' ? 'Cash reconciled & confirmed' : 'Reconciled – awaiting warehouse confirmation' }}
+                            </span>
+                        </div>
                     </div>
                 </div>
             </template>
         </div>
+
+        <!-- Collect payment (COD) dialog -->
+        <Dialog :open="!!collectPaymentOrder" @update:open="(v: boolean) => !v && closeCollectPayment()">
+            <DialogContent class="max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>Collect payment – Order #{{ collectPaymentOrder?.order_code }}</DialogTitle>
+                    <DialogDescription>
+                        Confirm payment received for this COD order ({{ money(collectPaymentOrder?.total_amount ?? 0, collectPaymentOrder?.currency ?? 'KES') }}).
+                        Only after payment is confirmed can you mark as delivered.
+                    </DialogDescription>
+                </DialogHeader>
+                <div v-if="collectPaymentOrder" class="space-y-4">
+                    <div class="flex flex-col gap-3">
+                        <div class="rounded border border-green-200 bg-green-50 p-3">
+                            <p class="mb-2 text-sm font-medium text-green-800">Customer paid cash?</p>
+                            <Button size="sm" @click="confirmCashReceived" :disabled="collectMpesaStatus === 'sending' || collectMpesaStatus === 'polling'">
+                                Confirm cash received
+                            </Button>
+                        </div>
+                        <div class="rounded border border-blue-200 bg-blue-50 p-3">
+                            <p class="mb-2 text-sm font-medium text-blue-800">Customer paying via M-Pesa?</p>
+                            <p class="mb-2 text-xs text-blue-700">Enter customer's phone to send M-Pesa prompt to their phone.</p>
+                            <div class="flex gap-2">
+                                <input
+                                    v-model="collectPhone"
+                                    type="tel"
+                                    placeholder="0712345678 or 254712345678"
+                                    class="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                />
+                                <Button
+                                    size="sm"
+                                    @click="initiateMpesaStk"
+                                    :disabled="!collectPhone.trim() || collectMpesaStatus === 'sending' || collectMpesaStatus === 'polling'"
+                                >
+                                    {{ collectMpesaStatus === 'sending' ? 'Sending…' : collectMpesaStatus === 'polling' ? 'Waiting…' : 'Send M-Pesa prompt' }}
+                                </Button>
+                            </div>
+                            <p v-if="collectMpesaMessage" class="mt-2 text-sm" :class="collectMpesaStatus === 'failed' ? 'text-red-600' : 'text-blue-700'">
+                                {{ collectMpesaMessage }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button type="button" variant="outline" @click="closeCollectPayment">Close</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+        <!-- Mark delivered dialog -->
+        <Dialog :open="!!markDeliveredOrder" @update:open="(v: boolean) => !v && closeMarkDelivered()">
+            <DialogContent class="max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>Mark order as delivered – Order #{{ markDeliveredOrder?.order_code }}</DialogTitle>
+                    <DialogDescription>
+                        Confirm that the customer has received the order.
+                    </DialogDescription>
+                </DialogHeader>
+                <div v-if="markDeliveredOrder" class="space-y-4">
+                    <div>
+                        <p class="mb-1 text-sm font-medium">Summary</p>
+                        <pre class="whitespace-pre-wrap rounded bg-muted p-2 text-xs">{{ markDeliveredOrder.delivery_note_summary }}</pre>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button type="button" variant="outline" @click="closeMarkDelivered">Cancel</Button>
+                    <Button @click="submitMarkDelivered">
+                        Confirm delivered
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
 
         <!-- Confirm items & mark as picked dialog -->
         <Dialog :open="!!confirmPickOrder" @update:open="(v: boolean) => !v && closeConfirmPick()">

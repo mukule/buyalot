@@ -2,12 +2,18 @@
 import RestockModal from '@/components/RestockModal.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { AppPageProps, ProductStatus } from '@/types';
-import { Head, router, useForm, usePage } from '@inertiajs/vue3';
+import { usePermissions } from '@/composables/usePermissions';
+import { Head, router, usePage } from '@inertiajs/vue3';
 import { debounce } from 'lodash';
 import { ArrowLeft, FilterIcon, PlusIcon, SearchIcon } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
 // Product type
+interface ProductVariantForRestock {
+    id: number;
+    display_name: string;
+    stock: number;
+}
 interface ProductWithRelations {
     id: number;
     name: string;
@@ -19,6 +25,7 @@ interface ProductWithRelations {
     status_id?: number | null;
     owner?: { id: number; name: string } | null;
     warranties?: { id: number; hashid: string; product_hashid: string; duration: number; description?: string; active: boolean }[];
+    product_variants?: ProductVariantForRestock[];
 }
 
 // Product status type
@@ -143,12 +150,20 @@ function editWarranty(warranty: { hashid: string; product_hashid: string }) {
 }
 
 // Restock modal
+const { hasPermission } = usePermissions();
+const canRestock = computed(() => hasPermission('restock-product-items'));
+const canViewRestockHistory = computed(() => hasPermission('restock-product-history'));
 const showRestockModal = ref(false);
-const restockForm = useForm({ variants: [], note: '' });
-const openRestock = (product: any) => {
-    selectedProduct.value = product;
+const openRestock = (product: ProductWithRelations) => {
+    selectedProduct.value = {
+        ...product,
+        product_variants: product.product_variants ?? [],
+    };
     showRestockModal.value = true;
 };
+function openRestockHistory(product: ProductWithRelations) {
+    router.get(route('admin.products.restock.history', { product: product.hashid }));
+}
 </script>
 
 <template>
@@ -243,6 +258,21 @@ const openRestock = (product: any) => {
                                 </td>
                                 <td class="flex gap-2 border px-4 py-2">
                                     <button @click="editProduct(product.hashid)" class="text-sm text-blue-600 hover:underline">Edit</button>
+                                    <button
+                                        v-if="canRestock"
+                                        @click="openRestock(product)"
+                                        class="text-sm text-green-600 hover:underline"
+                                        :disabled="!product.product_variants?.length"
+                                    >
+                                        Restock
+                                    </button>
+                                    <button
+                                        v-if="canViewRestockHistory"
+                                        @click="openRestockHistory(product)"
+                                        class="text-sm text-gray-600 hover:underline"
+                                    >
+                                        History
+                                    </button>
                                 </td>
                             </tr>
                         </tbody>

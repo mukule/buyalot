@@ -11,7 +11,7 @@ class CustomerAddress extends Model
     use HasFactory;
 
     protected $fillable = [
-        'customer_id', 'pickup_point_id', 'pickup_warehouse_id', 'type', 'label', 'first_name', 'last_name',
+        'customer_id', 'region_id', 'pickup_point_id', 'pickup_warehouse_id', 'type', 'label', 'first_name', 'last_name',
         'company', 'address_line_1', 'address_line_2', 'city',
         'state_province', 'postal_code', 'country_code', 'country_name', 'phone', 'is_default',
         'latitude', 'longitude', 'delivery_instructions', 'is_validated', 'validation_data',
@@ -67,6 +67,11 @@ class CustomerAddress extends Model
     public function pickupWarehouse(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(\App\Models\Warehouse\Warehouse::class, 'pickup_warehouse_id');
+    }
+
+    public function region(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Region::class);
     }
 
     /*

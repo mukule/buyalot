@@ -8,6 +8,7 @@ import { computed, ref, watch } from 'vue'
 const page = usePage<AppPageProps<{
     orders: Order[]
     filters?: {
+        section?: string
         order_code?: string
         status?: string
         payment_status?: string
@@ -19,12 +20,13 @@ const page = usePage<AppPageProps<{
 }>>()
 
 // Orders and filters
-const orders = computed(() => page.props.orders.data || [])
+const orders = computed(() => page.props.orders?.data || [])
 const filters = computed(() => page.props.filters || {})
-// const pagination = computed(() => page.props.orders.meta)
+const currentSection = computed(() => filters.value.section || 'in_progress')
 
 // Form for filters
 const searchForm = useForm({
+    section: filters.value.section || 'in_progress',
     order_code: filters.value.order_code || '',
     status: filters.value.status || '',
     payment_status: filters.value.payment_status || '',
@@ -36,16 +38,18 @@ const selectedOrders = ref<string[]>([])
 const showBulkActions = computed(() => selectedOrders.value.length > 0)
 
 // Breadcrumbs
-const breadcrumbs = [
+const breadcrumbs = computed(() => [
     { title: 'Dashboard', href: '/admin/dashboard' },
-    { title: 'Orders', href: '/admin/orders' },
-]
+    { title: 'Orders', href: '/admin/orders?section=in_progress' },
+    { title: currentSection.value === 'delivered' ? 'Delivered' : 'In progress', href: '#' },
+])
 
 // Filter search
 function search() {
     router.get(
         route('admin.orders.index'),
         {
+            section: searchForm.section,
             order_code: searchForm.order_code,
             status: searchForm.status,
             payment_status: searchForm.payment_status,
@@ -53,6 +57,11 @@ function search() {
         },
         { preserveState: true, replace: true }
     )
+}
+
+function setSection(section: 'in_progress' | 'delivered') {
+    searchForm.section = section
+    search()
 }
 
 // Clear filters
@@ -93,10 +102,33 @@ watch(
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="p-4">
             <div class="card flex flex-col gap-6 rounded-lg bg-white p-4 shadow-sm">
-                <!-- Header -->
-                <div class="flex items-center justify-between">
-                    <h1 class="text-2xl font-semibold">Orders</h1>
-                </div>
+                <!-- Header and Section Tabs -->
+                <div class="flex flex-col gap-4">
+                    <div class="flex flex-wrap items-center justify-between gap-4">
+                        <h1 class="text-2xl font-semibold">Orders</h1>
+                        <div class="flex rounded-lg border border-gray-200 p-1">
+                            <button
+                                type="button"
+                                @click="setSection('in_progress')"
+                                class="rounded-md px-4 py-2 text-sm font-medium transition-colors"
+                                :class="currentSection === 'in_progress'
+                                    ? 'bg-primary text-white'
+                                    : 'text-gray-600 hover:bg-gray-100'"
+                            >
+                                In progress
+                            </button>
+                            <button
+                                type="button"
+                                @click="setSection('delivered')"
+                                class="rounded-md px-4 py-2 text-sm font-medium transition-colors"
+                                :class="currentSection === 'delivered'
+                                    ? 'bg-primary text-white'
+                                    : 'text-gray-600 hover:bg-gray-100'"
+                            >
+                                Delivered
+                            </button>
+                        </div>
+                    </div>
 
                 <!-- Filters -->
                 <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -125,9 +157,10 @@ watch(
                             @click="clearFilters"
                             class="text-sm text-gray-600 hover:text-gray-800"
                         >
-                            Clear Filters
+                            Clear filters
                         </button>
                     </div>
+                </div>
                 </div>
 
                 <!-- Bulk Actions -->

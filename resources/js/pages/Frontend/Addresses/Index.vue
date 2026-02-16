@@ -19,6 +19,9 @@ interface Address {
     phone?: string;
     region?: string;
     pickup_point?: string;
+    delivery_type?: 'pickup' | 'home_delivery';
+    latitude?: number | null;
+    longitude?: number | null;
     is_default: boolean;
 }
 
@@ -116,7 +119,8 @@ const onSelectAddress = (addressId: number) => {
                                             {{ address.address_line_1 }}
                                             <template v-if="address.address_line_2"> | {{ address.address_line_2 }}</template>
                                             <template v-if="address.region"> | Region: {{ address.region }}</template>
-                                            <template v-if="address.pickup_point"> | Pickup: {{ address.pickup_point }}</template>
+                                            <template v-if="address.delivery_type === 'pickup' && address.pickup_point"> | <strong>Pickup:</strong> {{ address.pickup_point }}</template>
+                                            <template v-else-if="address.delivery_type === 'home_delivery'"> | <strong>Home delivery</strong></template>
                                             <template v-if="address.phone"> | Phone: {{ address.phone }}</template>
                                             <template v-if="address.is_default"> | <strong>Default</strong></template>
                                         </span>

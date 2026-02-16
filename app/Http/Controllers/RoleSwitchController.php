@@ -2,36 +2,71 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Customer\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class RoleSwitchController extends Controller
 {
+    /**
+     * Switch the current session to another portal role (customer, seller, or distributor).
+     * Supports multiple roles: user can switch to any of their portal roles.
+     */
     public function switchRole(Request $request)
     {
         $user = Auth::user();
+        $portalRoles = $user->getPortalRoles();
 
-        // Safety check: Does the user even have a secondary role?
-        if (!$user->secondary_role) {
+        if (count($portalRoles) < 2) {
             return back()->with('error', 'You do not have an alternative account to switch to.');
         }
-        // Determine the new active role
-        // If current session is 'seller', switch to 'customer', and vice versa.
-        $currentActive = session('active_role', $user->user_type);
 
-        $newRole = ($currentActive === $user->user_type) ? $user->secondary_role : $user->user_type;
+        $currentActive = session('active_role', $user->getRawOriginal('user_type') ?? $user->user_type);
+        $currentActive = $currentActive === 'vendor' ? 'seller' : $currentActive;
 
-        // Update the session
+        // Optional: switch to a specific role from request (for dropdown with 3+ roles)
+        $targetRole = $request->input('role');
+        if ($targetRole !== null && $targetRole !== '') {
+            $targetRole = $targetRole === 'vendor' ? 'seller' : $targetRole;
+            if (! in_array($targetRole, $portalRoles, true)) {
+                return back()->with('error', 'You do not have access to that account.');
+            }
+            $newRole = $targetRole;
+        } else {
+            // Legacy: cycle between two roles (current vs first other)
+            $newRole = ($currentActive === $portalRoles[0])
+                ? ($portalRoles[1] ?? $portalRoles[0])
+                : $portalRoles[0];
+        }
+
         session(['active_role' => $newRole]);
 
-        // Redirect to the appropriate dashboard based on the NEW role
-//        return $newRole === 'seller'
-//            ? redirect()->route('admin.dashboard')
-//            : redirect()->route('customers.dashboard');
+        if ($newRole === 'customer') {
+            $customer = Customer::where('user_id', $user->id)->first();
+            if ($customer) {
+                session(['customer_id' => $customer->id]);
+            }
+        }
 
-        return match($newRole) {
+        return $this->redirectForRole($newRole, $user);
+    }
+
+    private function redirectForRole(string $role, $user): \Illuminate\Http\RedirectResponse
+    {
+        return match ($role) {
             'admin', 'seller' => redirect()->route('admin.dashboard'),
-            default  => redirect()->route('customers.dashboard'),
+            'distributor' => redirect()->route('distributor.dashboard'),
+            'customer' => $this->redirectToCustomerDashboard($user),
+            default => redirect()->route('customers.dashboard'),
         };
+    }
+
+    private function redirectToCustomerDashboard($user): \Illuminate\Http\RedirectResponse
+    {
+        $customer = Customer::where('user_id', $user->id)->first();
+        if ($customer) {
+            return redirect()->route('customers.dashboard', ['customer' => $customer->id]);
+        }
+        return redirect()->route('customers.dashboard');
     }
 }

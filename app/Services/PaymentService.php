@@ -39,8 +39,6 @@ class PaymentService
             'metadata' => $request->metadata,
             'expires_at' => now()->addMinutes(config('payment.expiry_minutes', 15)),
         ]);
-        \Illuminate\Log\log($payment);
-
         return $payment;
     }
 
@@ -106,7 +104,7 @@ public function getOrCreateMpesaRequest($payable, PaymentRequest $request)
     }
 
     // No updatable record found — create a new one
-    $reference = $payable->ref_num;
+    $reference = $payable->ref_num ?? $payable->ulid ?? $payable->order_code ?? 'REF_' . $payable->id;
 
     return MpesaRequest::create([
         'payable_type'      => get_class($payable),

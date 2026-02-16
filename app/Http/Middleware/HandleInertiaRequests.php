@@ -52,10 +52,12 @@ class HandleInertiaRequests extends Middleware
                     'user_type'      => $user->user_type,
                 ] : null,
                 'active_role' => session('active_role', $user?->user_type),
+                'switchable_roles' => $user ? $user->getPortalRoles() : [],
                 'customer_id' => function () use ($user) {
-                    if ($user && $user->user_type === 'customer') {
+                    $activeRole = session('active_role', $user?->user_type);
+                    if ($user && $activeRole === 'customer') {
                         $customerId = session('customer_id');
-                        if (!$customerId) {
+                        if (! $customerId) {
                             $customer = Customer::where('user_id', $user->id)->first();
                             if ($customer) {
                                 session(['customer_id' => $customer->id]);
@@ -100,6 +102,8 @@ class HandleInertiaRequests extends Middleware
                 ...(new Ziggy)->toArray(),
                 'location' => $request->url(),
             ],
+
+            'googleMapsApiKey' => config('services.google.maps_api_key', ''),
 
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];

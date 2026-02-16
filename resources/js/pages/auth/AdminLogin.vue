@@ -63,7 +63,7 @@ const handleGoogleLogin = () => {
             <form @submit.prevent="submit" class="flex flex-col gap-4">
                 <div class="grid gap-4">
                     <div class="grid gap-2">
-                        <Label for="email">Store Email Address</Label>
+                        <Label for="email">Email Address</Label>
                         <Input
                             id="email"
                             type="email"
@@ -71,7 +71,7 @@ const handleGoogleLogin = () => {
                             autofocus
                             v-model="form.email"
                             @input="onEmailInput"
-                            placeholder="vendor@example.com"
+                            placeholder="user@example.com"
                             class="h-11"
                         />
                         <InputError :message="form.errors.email" />
