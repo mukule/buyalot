@@ -71,3 +71,17 @@ chmod -R 775 storage bootstrap/cache
 ---
 
 Optional: For repeated deployments, you can wrap all these commands into a shell script to automate the process.
+
+[//]: # (php artisan cache:clear)
+
+[//]: # (php artisan config:clear)
+
+[//]: # (php artisan route:clear)
+
+[//]: # (php artisan view:clear)
+
+[//]: # (chown -R smaina:smaina /home/public_html/build)
+
+[//]: # (chown -R smaina:smaina storage/images)
+
+[//]: # (chmod -R 775 storage bootstrap/cache)
