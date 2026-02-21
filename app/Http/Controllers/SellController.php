@@ -16,7 +16,7 @@ use App\Mail\NewSellerApplicationAdminAlert;
 
 class SellController extends Controller
 {
-    
+
     public function index()
     {
         return Inertia::render('Sell/Index', [
@@ -24,24 +24,24 @@ class SellController extends Controller
         ]);
     }
 
-    
+
 public function applyForm()
 {
-    $categories = Category::whereNull('parent_id') 
-        ->active() 
+    $categories = Category::whereNull('parent_id')
+        ->active()
         ->orderBy('name')
-        ->get(['id', 'name']); 
+        ->get(['id', 'name']);
 
     return Inertia::render('Sell/Apply', [
-        'title' => 'Buyalot Marketplace Application Form',
+        'title' => config('app.name') . ' Marketplace Application Form',
         'prefilled' => session('seller_application', []),
         'savedStep' => session('seller_application_step', 1),
-        'categories' => $categories, 
+        'categories' => $categories,
     ]);
 }
 
 
-    
+
 public function saveProgress(Request $request)
 {
     $data = array_filter(
@@ -59,7 +59,7 @@ public function saveProgress(Request $request)
 
 
 
-  
+
 public function clearProgress(Request $request)
 {
     Log::info('Clearing session progress', $request->all());
@@ -82,8 +82,8 @@ public function clearProgress(Request $request)
         return response()->json(['path' => Storage::url($path)]);
     }
 
-   
-   
+
+
 public function submit(Request $request)
 {
     Log::info('SellController@submit called');

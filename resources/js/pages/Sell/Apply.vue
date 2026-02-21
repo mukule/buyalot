@@ -3,7 +3,7 @@ import MainLayout from '@/layouts/MainLayout.vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import allCountries from 'country-calling-code';
-import { nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 
 import type { Ref } from 'vue';
 
@@ -12,6 +12,7 @@ import type { Ref } from 'vue';
 -------------------------------------------------- */
 
 const page = usePage();
+const appName = computed(() => (page.props as any).appName || 'Buyalot');
 const stepError = ref<string | null>(null);
 
 const currentStep: Ref<number> = ref(Number(page.props.savedStep) || 1);
@@ -341,7 +342,7 @@ const resetApplication = async () => {
         <section class="container mx-auto px-4 py-12">
             <div class="mx-auto max-w-2xl">
                 <div class="mb-8 text-center">
-                    <h1 class="mb-2 text-3xl font-bold md:text-4xl">Apply to Sell on Buyalot</h1>
+                    <h1 class="mb-2 text-3xl font-bold md:text-4xl">Apply to Sell on {{ appName }}</h1>
                     <p class="text-lg text-gray-600">4.4+ million customers are looking for new brands and unique products!</p>
                 </div>
 
@@ -522,7 +523,7 @@ const resetApplication = async () => {
                         <div class="space-y-4">
                             <h2 class="border-b border-gray-100 pb-2 text-xl font-semibold text-gray-600">Director's Details</h2>
                             <p class="mb-2 text-sm text-gray-500">
-                                These details will be used to create your Buyalot Seller Account if your application is successful.
+                                These details will be used to create your {{ appName }} Seller Account if your application is successful.
                             </p>
 
                             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -596,7 +597,7 @@ const resetApplication = async () => {
                                     id="company_legal_name"
                                     v-model="form.company_legal_name"
                                     name="company_legal_name"
-                                    placeholder="e.g., Buyalot Ltd"
+                                    placeholder="e.g., Business Ltd"
                                     type="text"
                                     class="w-full rounded-lg border border-gray-300 px-4 py-1 transition focus:border-primary focus:ring-2 focus:ring-primary focus:outline-none"
                                 />
@@ -958,7 +959,7 @@ const resetApplication = async () => {
                             <div>
                                 <label class="mb-2 block text-sm font-medium text-gray-700">Our finished products are best described as:</label>
                                 <p class="mb-3 text-sm text-gray-500">
-                                    This info helps Buyalot provide services that support manufacturers, resellers, and importers.
+                                    This info helps {{ appName }} provide services that support manufacturers, resellers, and importers.
                                 </p>
                                 <div class="space-y-2">
                                     <label class="flex items-center gap-3">
@@ -1097,7 +1098,7 @@ const resetApplication = async () => {
                         <!-- Product Preview Upload -->
                         <div>
                             <label for="product_images" class="mb-2 block text-sm font-medium text-gray-700">
-                                Upload a preview of your product range you wish to market on Buyalot
+                                Upload a preview of your product range you wish to market on {{ appName }}
                             </label>
                             <p class="mb-3 text-sm text-gray-500">
                                 If no website URL is provided, kindly upload images of your physical products or stock.
@@ -1153,7 +1154,7 @@ const resetApplication = async () => {
 
                             <ul class="mb-2 list-inside list-disc space-y-1 text-sm text-gray-500">
                                 <li>What makes your business or products unique?</li>
-                                <li>What products did you have in mind to market on the Buyalot platform?</li>
+                                <li>What products did you have in mind to market on the {{ appName }} platform?</li>
                                 <li>Do you have any feature requirements?</li>
                                 <li>Does your business or products have any certifications? (e.g. ISO, Proudly SA, ICASA, NRCS)</li>
                             </ul>
@@ -1176,7 +1177,7 @@ const resetApplication = async () => {
                             <h2 class="border-b border-gray-100 pb-2 text-xl font-semibold text-gray-800">How did you find us</h2>
 
                             <label for="discovery_source" class="mb-2 block text-sm font-medium text-gray-700">
-                                Where did you hear about Buyalot Marketplace?
+                                Where did you hear about {{ appName }} Marketplace?
                             </label>
 
                             <div class="grid grid-cols-1 gap-3">
@@ -1216,9 +1217,9 @@ const resetApplication = async () => {
 
                             <p class="text-sm text-gray-600">
                                 Opt in to share your contact details, product range and website with South African distributors who are sellers on
-                                buyalot.com.
+                                {{ appName }}.
                                 <br />
-                                For international sellers who cannot sell directly on buyalotltd.com, allow us to share your contact information with
+                                For international sellers who cannot sell directly on our platform, allow us to share your contact information with
                                 our sellers who may purchase and list your product range.
                             </p>
 

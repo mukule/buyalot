@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import MainLayout from '@/layouts/MainLayout.vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
 
 import endToEnd from '@/assets/images/banners/hfl.jpeg';
 import optimiseGrowth from '@/assets/images/banners/optimize.jpg';
@@ -16,6 +17,9 @@ import onboarding from '@/assets/images/icons/onboarding.svg';
 import registration from '@/assets/images/icons/registration.svg';
 import sales from '@/assets/images/icons/sales.svg';
 
+const page = usePage();
+const appName = computed(() => (page.props as any).appName || 'Buyalot');
+
 const cards = [
     {
         title: 'Optimise Your Growth',
@@ -24,8 +28,7 @@ const cards = [
     },
     {
         title: 'End–to–End Solutions',
-        description:
-            "We'll provide the tools you need to set up and sell – manage your stock, pricing, product selection and more from Buyalot Seller Portal.",
+        description: `We'll provide the tools you need to set up and sell – manage your stock, pricing, product selection and more from ${appName.value} Seller Portal.`,
         image: endToEnd,
     },
     {
@@ -53,7 +56,7 @@ const steps = [
     },
     {
         title: 'Registration',
-        description: 'Complete your Buyalot Seller account by supplying all the required information and paperwork.',
+        description: `Complete your ${appName.value} Seller account by supplying all the required information and paperwork.`,
         icon: registration,
     },
     {
@@ -118,7 +121,7 @@ const steps = [
                         Get the tools you need to increase sales and grow your business online
                     </h4>
                     <p class="mx-auto max-w-3xl text-lg leading-relaxed text-gray-600 md:text-xl">
-                        Selling your products online has never been easier. Simply apply to sell as a Buyalot seller today and easily reach online
+                        Selling your products online has never been easier. Simply apply to sell as a {{ appName }} seller today and easily reach online
                         shoppers across Kenya & East Africa.
                     </p>
                 </div>
