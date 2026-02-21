@@ -17,7 +17,7 @@ import { computed } from 'vue';
 import AuthBase from '@/layouts/AuthLayout.vue';
 
 const page = usePage();
-const appName = computed(() => page.props.appName || 'Buyalot');
+const appName = computed(() => page.props.appName || 'Bianlina');
 
 defineProps<{
     title?: string;

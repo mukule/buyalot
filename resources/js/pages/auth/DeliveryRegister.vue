@@ -10,7 +10,7 @@ import { computed, ref } from 'vue';
 import AuthLayout from '@/layouts/AuthLayout.vue';
 
 const page = usePage();
-const appName = computed(() => page.props.appName || 'Buyalot');
+const appName = computed(() => page.props.appName || 'Bianlina');
 
 const props = defineProps<{
     transportTypes: string[];

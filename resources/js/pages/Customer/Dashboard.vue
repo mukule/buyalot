@@ -156,7 +156,7 @@ const statusClass = computed(() => {
 
                     <!-- Store Credit and Newsletter Row -->
                     <div class="grid gap-6 lg:grid-cols-2">
-                        <!-- Buyalot Store Credit / Loyalty Points -->
+                        <!-- Bianlina Store Credit / Loyalty Points -->
                         <div class="rounded-lg border bg-card p-6 shadow-sm">
                             <div class="mb-4">
                                 <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-700">

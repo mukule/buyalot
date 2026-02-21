@@ -417,9 +417,9 @@ const videoEmbedUrl = computed<string | null>(() => {
 
                 <!-- SIDEBAR -->
                 <div class="flex w-full flex-col gap-4 lg:w-2/12">
-                    <!-- Buyalot Swift -->
+                    <!-- Bianlina Swift -->
                     <div class="flex flex-col items-center rounded-xl bg-white p-4 shadow">
-                        <img src="/buyalotswift.png" alt="Buyalot Swift" class="h-10 w-auto object-contain" />
+                        <img src="/swift.png" alt="Bianlina Swift" class="h-10 w-auto object-contain" />
 
                         <p class="text-[11px] text-gray-500">
                             Fast.Smooth.Reliable

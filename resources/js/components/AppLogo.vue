@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import logo from '@/assets/images/buyalot-02.svg';
+import logo from '@/assets/images/bianlina.svg';
 import { usePage } from '@inertiajs/vue3';
 
 const page = usePage();

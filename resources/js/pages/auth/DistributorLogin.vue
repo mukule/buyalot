@@ -17,7 +17,7 @@ defineProps<{
 }>();
 
 const page = usePage();
-const appName = computed(() => page.props.appName || 'Buyalot');
+const appName = computed(() => page.props.appName || 'Bianlina');
 
 const form = useForm({
     email: '',

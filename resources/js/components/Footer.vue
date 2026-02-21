@@ -12,7 +12,7 @@ const page = usePage();
 // Explicitly tell TS that customerPolicies is CustomerPolicy[]
 const customerPolicies = (page.props.customerPolicies as CustomerPolicy[]) ?? [];
 
-const appName = page.props.appName || 'Buyalot';
+const appName = page.props.appName || 'Bianlina';
 </script>
 
 <template>
@@ -38,7 +38,7 @@ const appName = page.props.appName || 'Buyalot';
                     <li><a href="#" class="text-white hover:underline">Returns</a></li>
                     <li><a href="#" class="text-white hover:underline">Personal Details</a></li>
                     <li><a href="#" class="text-white hover:underline">Invoices</a></li>
-                    <li><a href="#" class="text-white hover:underline">BuyalotMORE</a></li>
+                    <li><a href="#" class="text-white hover:underline">Bianlina MORE</a></li>
                 </ul>
             </div>
 
@@ -62,8 +62,8 @@ const appName = page.props.appName || 'Buyalot';
                 <ul class="space-y-1 text-sm">
                     <li><a href="#" class="text-white hover:underline">About Us</a></li>
                     <li><a href="#" class="text-white hover:underline">Careers</a></li>
-                    <li><a href="/sell" class="text-white hover:underline">Sell on Buyalot</a></li>
-                    <li><a href="/delivery/register" class="text-white hover:underline">Deliver for Buyalot</a></li>
+                    <li><a href="/sell" class="text-white hover:underline">Sell on Bianlina</a></li>
+                    <li><a href="/delivery/register" class="text-white hover:underline">Deliver for Bianlina</a></li>
                     <li><a href="#" class="text-white hover:underline">Press & News</a></li>
                     <li><a href="#" class="text-white hover:underline">Competitions</a></li>
                     <li><a href="#" class="text-white hover:underline">B2B</a></li>

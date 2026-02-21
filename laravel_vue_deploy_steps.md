@@ -36,14 +36,14 @@ npm run build
 ```bash
 rm -rf /home/buyalotl/public_html/build
 cp -r /home/buyalotl/buyalot/public/build /home/buyalotl/public_html/
-chown -R buyalotl:buyalotl /home/buyalotl/public_html/build
+chown -R smaina:smaina /home/buyalotl/public_html/build
 ```
 
 ## 6. Sync storage images to public_html
 
 ```bash
 cp -r /home/buyalotl/buyalot/storage/app/public/images/* /home/buyalotl/public_html/storage/images/
-chown -R buyalotl:buyalotl /home/buyalotl/public_html/storage/images
+chown -R smaina:smaina storage/images
 ```
 
 ## 7. Clear Laravel caches
@@ -58,7 +58,7 @@ php artisan view:clear
 ## 8. Fix permissions for storage and cache folders
 
 ```bash
-chown -R buyalotl:buyalotl storage bootstrap/cache
+chown -R smaina:smaina storage bootstrap/cache
 chmod -R 775 storage bootstrap/cache
 ```
 

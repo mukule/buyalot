@@ -112,7 +112,7 @@ public function toSearchableArray(): array
 public function scoutSettings(): array
 {
     return [
-        'filterableAttributes' => ['status_id', 'status'], 
+        'filterableAttributes' => ['status_id', 'status'],
     ];
 }
 
@@ -162,7 +162,7 @@ public function scopeActive($query)
     {
         return Attribute::get(function () {
             if ($this->owner_type === 'admin') {
-                return 'Buyalot';
+                return 'Bianlina';
             }
 
             if (

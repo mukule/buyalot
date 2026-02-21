@@ -18,7 +18,7 @@ defineProps<{
 
 // Get the App Name from the shared data (Inertia typically shares app.name from config)
 const page = usePage();
-const appName = computed(() => page.props.appName || 'Buyalot');
+const appName = computed(() => page.props.appName || 'Bianlina');
 
 const form = useForm({
     email: '',

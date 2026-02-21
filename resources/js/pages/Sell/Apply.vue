@@ -12,7 +12,7 @@ import type { Ref } from 'vue';
 -------------------------------------------------- */
 
 const page = usePage();
-const appName = computed(() => (page.props as any).appName || 'Buyalot');
+const appName = computed(() => (page.props as any).appName || 'Bianlina');
 const stepError = ref<string | null>(null);
 
 const currentStep: Ref<number> = ref(Number(page.props.savedStep) || 1);

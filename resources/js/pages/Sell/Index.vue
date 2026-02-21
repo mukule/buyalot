@@ -18,7 +18,7 @@ import registration from '@/assets/images/icons/registration.svg';
 import sales from '@/assets/images/icons/sales.svg';
 
 const page = usePage();
-const appName = computed(() => (page.props as any).appName || 'Buyalot');
+const appName = computed(() => (page.props as any).appName || 'Bianlina');
 
 const cards = [
     {

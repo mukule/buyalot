@@ -181,7 +181,7 @@ class ProductVariant extends Model
         }
 
         if ($this->product->owner_type === 'admin') {
-            return ['type' => 'admin', 'name' => 'Buyalot Store'];
+            return ['type' => 'admin', 'name' => 'Bianlina Store'];
         }
 
         $sellerName = $this->product->owner?->sellerApplication?->company_legal_name

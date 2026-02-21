@@ -18,7 +18,7 @@ import MainLayout from '@/layouts/MainLayout.vue';
         <div class="prose max-w-none prose-headings:font-semibold prose-p:text-gray-700">
           <h2>1. Introduction</h2>
           <p>
-            Welcome to Buyalot. These Terms &amp; Conditions ("Terms") govern your access to and use of our website,
+            Welcome to Bianlina. These Terms &amp; Conditions ("Terms") govern your access to and use of our website,
             products, and services. By using our platform, you agree to be bound by these Terms.
           </p>
 
@@ -59,7 +59,7 @@ import MainLayout from '@/layouts/MainLayout.vue';
 
           <h2>8. Limitation of Liability</h2>
           <p>
-            To the fullest extent permitted by law, Buyalot is not liable for any indirect, incidental, or consequential
+            To the fullest extent permitted by law, Bianlina is not liable for any indirect, incidental, or consequential
             damages arising from your use of the platform.
           </p>
 

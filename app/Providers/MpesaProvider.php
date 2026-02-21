@@ -258,7 +258,7 @@ class MpesaProvider implements PaymentProviderInterface
     );
 
     $description = sprintf(
-        "Payment for Buyalot order %s",
+        "Payment for Bianlina order %s",
         $payment->account_reference ?? ($payment->payable->order_code ?? 'N/A')
     );
 

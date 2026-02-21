@@ -10,7 +10,7 @@ import { createApp, h } from 'vue';
 import { ZiggyVue } from 'ziggy-js';
 import { initializeTheme } from './composables/useAppearance';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Buyalot';
+const appName = import.meta.env.VITE_APP_NAME || 'Bianlina';
 const pages = import.meta.glob<DefineComponent>('./pages/**/*.vue');
 
 createInertiaApp({

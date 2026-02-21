@@ -85,7 +85,7 @@
     --popover: hsl(0 0% 100%);
     --popover-foreground: hsl(0 0% 3.9%);
 
-    --primary: #000080;
+    --primary: #6C3BAA;
     --product-background: #f4f4f4;
     --primary-foreground: #ffffff;
     --secondary: #FF4500;
@@ -114,7 +114,7 @@
     --sidebar-accent: hsl(0 0% 94%);
     --sidebar-accent-foreground: hsl(0 0% 30%);
     --sidebar-border: hsl(0 0% 91%);
-    --sidebar-ring: #000080;
+    --sidebar-ring: #6C3BAA;
     --sidebar: hsl(0 0% 98%);
 }
 
