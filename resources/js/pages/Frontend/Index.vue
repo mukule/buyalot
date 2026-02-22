@@ -9,6 +9,8 @@ import { usePage } from '@inertiajs/vue3';
 
 // ✅ Shared types
 import type { Brand, Category, SimplifiedProduct } from '@/types';
+import hikvisionBanner from '@/assets/images/banners/hikvision.png';
+import vonBanner from '@/assets/images/banners/von.png';
 
 interface PageProps extends InertiaPageProps {
     categories?: Category[];
@@ -19,9 +21,9 @@ interface PageProps extends InertiaPageProps {
 
 // Default banners
 const DEFAULT_BANNERS = [
-    'https://osx-tal.gumlet.io/onlinesales/image/upload/v1748506085/xnghnkspb2gxrem9ccid.png',
+    hikvisionBanner,
     'https://media.takealot.com/b/2/cms/p/1292x300/smart/filters:format(jpeg):background_color(white):focal(483x0:809x300)/original_images/95f37d1908b3b66ae8ee2cf8ec208cc36e46b576.png',
-    'https://osx-tal.gumlet.io/onlinesales/image/upload/v1748252952/vopuvo5dm6dexmsbotrm.png',
+    vonBanner,
     'https://osx-tal.gumlet.io/onlinesales/image/upload/v1748869172/nncagedishwuq8urp7ps.png',
 ];
 

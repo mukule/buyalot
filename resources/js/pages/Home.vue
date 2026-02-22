@@ -2,6 +2,8 @@
 import CategorySidebar from '@/components/CategorySidebar.vue';
 import FeaturedBrands from '@/components/FeaturedBrands.vue';
 import Hero from '@/components/Hero.vue';
+import hikvisionBanner from '@/assets/images/banners/hikvision.png';
+import vonBanner from '@/assets/images/banners/von.png';
 import ProductCarouselSection from '@/components/ProductCarouselSection.vue';
 import MainLayout from '@/layouts/MainLayout.vue';
 import type { PageProps as InertiaPageProps } from '@inertiajs/core';
@@ -29,9 +31,9 @@ const DEFAULT_CATEGORIES = [
 ];
 
 const DEFAULT_BANNERS = [
-    'https://osx-tal.gumlet.io/onlinesales/image/upload/v1748506085/xnghnkspb2gxrem9ccid.png',
+    hikvisionBanner,
     'https://media.takealot.com/b/2/cms/p/1292x300/smart/filters:format(jpeg):background_color(white):focal(483x0:809x300)/original_images/95f37d1908b3b66ae8ee2cf8ec208cc36e46b576.png',
-    'https://osx-tal.gumlet.io/onlinesales/image/upload/v1748252952/vopuvo5dm6dexmsbotrm.png',
+    vonBanner,
     'https://osx-tal.gumlet.io/onlinesales/image/upload/v1748869172/nncagedishwuq8urp7ps.png',
 ];
 
@@ -74,7 +76,7 @@ const banners = page.props.banners ?? DEFAULT_BANNERS;
 
         <section class="space-y-10 px-4">
             <ProductCarouselSection
-                v-for="(category, index) in categories.slice(0, 4)"
+                v-for="category in categories.slice(0, 4)"
                 :key="category"
                 :title="category"
                 :products="SAMPLE_PRODUCTS"
