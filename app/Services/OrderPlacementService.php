@@ -6,6 +6,7 @@ use App\Mail\AdminOrderNotification;
 use App\Mail\CustomerOrderConfirmation;
 use App\Models\CheckoutSession;
 use App\Models\Customer\CustomerAddress;
+use App\Models\Orders\Delivery;
 use App\Models\Orders\Order;
 use App\Models\Orders\OrderItem;
 use App\Models\Payment\Payment;
@@ -21,7 +22,7 @@ class OrderPlacementService
      *
      * @throws \Exception
      */
-    public function placeOrder(int $checkoutSessionId,$paidAmount,$reference): Order
+    public function placeOrder(int $checkoutSessionId, $paidAmount, $reference, $paymentMethod, ?int $shippingAddressId = null, ?int $billingAddressId = null): Order
     {
         $checkoutSession = CheckoutSession::with('cart.items.productVariant.product')
             ->findOrFail($checkoutSessionId);
@@ -55,20 +56,17 @@ class OrderPlacementService
         try {
             $customerId = $checkoutSession->customer_id;
 
-            // Determine default addresses
-            $billingAddress = CustomerAddress::where('customer_id', $customerId)
-                ->default()
-                ->first()
-                ?? CustomerAddress::where('customer_id', $customerId)
-                   // ->where('type', 'billing')
-                    ->first();
-
-            $shippingAddress = CustomerAddress::where('customer_id', $customerId)
-                ->default()
-                ->first()
-                ?? CustomerAddress::where('customer_id', $customerId)
-                  //  ->where('type', 'shipping')
-                    ->first();
+            // Use checkout-selected addresses if provided; otherwise fall back to customer default
+            $billingAddress = $billingAddressId
+                ? CustomerAddress::where('customer_id', $customerId)->where('id', $billingAddressId)->first()
+                : null;
+            $shippingAddress = $shippingAddressId
+                ? CustomerAddress::where('customer_id', $customerId)->where('id', $shippingAddressId)->first()
+                : null;
+            $billingAddress = $billingAddress ?? CustomerAddress::where('customer_id', $customerId)->default()->first()
+                ?? CustomerAddress::where('customer_id', $customerId)->first();
+            $shippingAddress = $shippingAddress ?? CustomerAddress::where('customer_id', $customerId)->default()->first()
+                ?? CustomerAddress::where('customer_id', $customerId)->first();
 
             $itemsInput = $cart->items->map(function ($ci) {
                 if (!$ci->product_variant_id) {
@@ -109,7 +107,12 @@ class OrderPlacementService
             $shipping = $checkoutSession->shipping_amount;
             $total = $checkoutSession->amount;
 
-            $gen_order_code= Str::upper(Str::random(10));
+            $gen_order_code = Order::generateUniqueOrderCode();
+            if ($reference =='cod'){
+                $payment_status='pending';
+            }else{
+                $payment_status='paid';
+            }
 
             // Create the order
             $order = Order::create([
@@ -127,9 +130,10 @@ class OrderPlacementService
                 'currency' => $cart->currency ?? 'KES',
                 'billing_address_id' => $billingAddress?->id,
                 'shipping_address_id' => $shippingAddress?->id ?? $billingAddress?->id,
-                'payment_status' => 'paid',
+                'payment_status' => $payment_status,
                 'status' => 'pending',
                 'notes' => $cart->notes,
+                'payment_method' => $paymentMethod,
             ]);
 
             // Decrement stock
@@ -161,15 +165,31 @@ class OrderPlacementService
             $cart->save();
             $cart->delete(); // soft delete
 
+            // Create Delivery from customer's shipping address (customer-selected pickup or customer address)
+            $deliveryType = 'customer_address';
+            $pickupWarehouseId = null;
+            if ($shippingAddress && $shippingAddress->pickup_warehouse_id) {
+                $deliveryType = 'pickup_point';
+                $pickupWarehouseId = $shippingAddress->pickup_warehouse_id;
+            }
+            Delivery::create([
+                'order_id' => $order->id,
+                'delivery_type' => $deliveryType,
+                'pickup_warehouse_id' => $pickupWarehouseId,
+                'assignment_status' => 'pending',
+            ]);
+
             // Mark checkout session as order created
             $checkoutSession->order_status = 'created';
             $checkoutSession->save();
 
+            if ($reference !='cod'){
             //update payment records to link payment and order code
             $payment_record=Payment::where('reference',$reference)->first();
             if ($payment_record) {
                 $payment_record->reference = $gen_order_code;
                 $payment_record->save();
+            }
             }
 
             DB::commit();
@@ -182,22 +202,25 @@ class OrderPlacementService
 
             //TODO: GENERATE INVOICE AND eTIMS INTEGRATION
 
-            // ------------------- Send Emails -------------------
+            // ------------------- Queue Emails (avoid blocking/timeout) -------------------
             try {
                 // Customer confirmation
                 if ($order->customer?->email) {
                     Mail::to($order->customer->email)
-                        ->send(new CustomerOrderConfirmation($order));
+                        ->queue(new CustomerOrderConfirmation($order));
                 }
 
                 // Admin notifications
-                $adminEmails = explode(',', env('MAIL_ADMIN_ADDRESS', ''));
+                $adminEmails = config('mail.admin_address');
                 if (!empty($adminEmails)) {
-                    Mail::to($adminEmails)
-                        ->send(new AdminOrderNotification($order));
+                    $addresses = is_string($adminEmails) ? array_map('trim', explode(',', $adminEmails)) : (array) $adminEmails;
+                    if (!empty($addresses)) {
+                        Mail::to($addresses)
+                            ->queue(new AdminOrderNotification($order));
+                    }
                 }
             } catch (\Throwable $e) {
-                Log::error('Failed to send order emails', [
+                Log::error('Failed to queue order emails', [
                     'order_id' => $order->id,
                     'error' => $e->getMessage(),
                     'stack' => $e->getTraceAsString(),

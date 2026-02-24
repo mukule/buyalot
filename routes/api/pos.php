@@ -22,31 +22,41 @@ Route::prefix('pos')->name('api.pos.')->group(function () {
     Route::post('login', [PosAuthController::class, 'login'])->name('login');
 
     Route::middleware(['auth:sanctum'])->group(function () {
-    Route::post('logout', [PosAuthController::class, 'logout'])->name('logout');
+        Route::post('logout', [PosAuthController::class, 'logout'])->name('logout');
 
-    // Session (current, open, close — JSON only)
-    Route::get('session/current', [PosSessionController::class, 'current'])->name('session.current');
-    Route::post('sessions/open', [PosSessionController::class, 'open'])->name('sessions.open');
-    Route::post('sessions/{session}/close', [PosSessionController::class, 'close'])->name('sessions.close');
+        // Registers (list available terminals)
+        Route::get('registers', [PosSessionController::class, 'registers'])->name('registers.index');
 
-    // Products & categories (read-only for selling)
-    Route::get('products', [PosProductController::class, 'index'])->name('products.index');
-    Route::get('categories', [PosProductController::class, 'categories'])->name('categories.index');
+        // Admin PIN verification (for void authorization)
+        Route::post('verify-admin-pin', [\App\Http\Controllers\POS\PosController::class, 'verifyAdminPin'])->name('verify-admin-pin');
 
-    // Customers (search + quick create)
-    Route::get('customers', [PosCustomerController::class, 'index'])->name('customers.index');
-    Route::post('customers', [PosCustomerController::class, 'store'])->name('customers.store');
+        // Session (current, open, close — JSON only)
+        Route::get('session/current', [PosSessionController::class, 'current'])->name('session.current');
+        Route::post('sessions/open', [PosSessionController::class, 'open'])->name('sessions.open');
+        Route::post('sessions/{session}/close', [PosSessionController::class, 'close'])->name('sessions.close');
 
-    // Sales (domain SaleService)
-    Route::post('sales', [PosSaleController::class, 'store'])->name('sales.store');
+        // Settings (lightweight version check + full payload for cache refresh)
+        Route::get('settings-version', [PosSessionController::class, 'settingsVersion'])->name('settings.version');
+        Route::get('settings', [PosSessionController::class, 'settingsFull'])->name('settings.full');
 
-    // Unsettled (unallocated) payments
-    Route::get('unallocated-payments', [PosUnallocatedPaymentController::class, 'index'])->name('unallocated-payments.index');
-    Route::post('unallocated-payments', [PosUnallocatedPaymentController::class, 'store'])->name('unallocated-payments.store');
+        // Products & categories (read-only for selling)
+        Route::get('products', [PosProductController::class, 'index'])->name('products.index');
+        Route::get('categories', [PosProductController::class, 'categories'])->name('categories.index');
 
-    // Voided sales
-    Route::get('voided-sales', [PosVoidedSaleController::class, 'index'])->name('voided-sales.index');
-    Route::post('voided-sales', [PosVoidedSaleController::class, 'store'])->name('voided-sales.store');
-    Route::post('voided-sales/{voidedSale}/recall', [PosVoidedSaleController::class, 'recall'])->name('voided-sales.recall');
+        // Customers (search + quick create)
+        Route::get('customers', [PosCustomerController::class, 'index'])->name('customers.index');
+        Route::post('customers', [PosCustomerController::class, 'store'])->name('customers.store');
+
+        // Sales (domain SaleService)
+        Route::post('sales', [PosSaleController::class, 'store'])->name('sales.store');
+
+        // Unsettled (unallocated) payments
+        Route::get('unallocated-payments', [PosUnallocatedPaymentController::class, 'index'])->name('unallocated-payments.index');
+        Route::post('unallocated-payments', [PosUnallocatedPaymentController::class, 'store'])->name('unallocated-payments.store');
+
+        // Voided sales
+        Route::get('voided-sales', [PosVoidedSaleController::class, 'index'])->name('voided-sales.index');
+        Route::post('voided-sales', [PosVoidedSaleController::class, 'store'])->name('voided-sales.store');
+        Route::post('voided-sales/{voidedSale}/recall', [PosVoidedSaleController::class, 'recall'])->name('voided-sales.recall');
     });
 });

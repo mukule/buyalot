@@ -16,7 +16,7 @@ class Cart extends Model
     protected $fillable = [
         'user_id',
         'cart_token',
-        'status', // new field for cart status
+        'status',
     ];
 
     protected static function booted()
@@ -76,9 +76,9 @@ class Cart extends Model
         }
 
         return [
-            'subtotal'       => round($subtotal, 2),
-            'total_discount' => round($totalDiscount, 2),
-            'grand_total'    => round(max(0, $grandTotal), 2),
+            'subtotal'       => (int) round($subtotal),
+            'total_discount' => (int) round($totalDiscount),
+            'grand_total'    => (int) round(max(0, $grandTotal)),
             'total_quantity' => $totalQty,
             'unique_items'   => $items->count(),
         ];

@@ -77,10 +77,10 @@ class MpesaProvider implements PaymentProviderInterface
             );
 
         } catch (\Throwable $e) {
-            Log::error('M-Pesa initialization failed', [
-                'payment_id' => $payment->id,
-                'error' => $e->getMessage()
-            ]);
+            // Log::error('M-Pesa initialization failed', [
+            //     'payment_id' => $payment->id,
+            //     'error' => $e->getMessage()
+            // ]);
 
             // Ensure we do not call methods that don't exist on MpesaRequest. Persist failure safely.
             $payment->update([
@@ -194,7 +194,7 @@ class MpesaProvider implements PaymentProviderInterface
             if ($checkoutSession) {
                 try {
                     $order = app(\App\Services\OrderPlacementService::class)
-                        ->placeOrder($checkoutSession->id,$requestAmountPaid,$metadata['mpesareceiptnumber']);
+                        ->placeOrder($checkoutSession->id,$requestAmountPaid,$metadata['mpesareceiptnumber'],'MPESA');
 
                     Log::info('Order successfully created from checkout session', [
                         'checkout_session_id' => $checkoutSession->id,

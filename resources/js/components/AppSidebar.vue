@@ -7,6 +7,7 @@ import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/vue3';
 import {
     BadgePercent,
+    Banknote,
     BookUserIcon,
     ClipboardList,
     FileCheck,
@@ -21,6 +22,7 @@ import {
     Map,
     MapPin,
     MapPinCheck,
+    RotateCcw,
     RulerIcon,
     ShieldCheck,
     Tag,
@@ -190,9 +192,35 @@ const allNavItems: NavItem[] = [
     },
     {
         title: 'Orders',
-        href: '/admin/orders',
+        href: '#',
         icon: LucideListOrdered,
         permissions: ['view-orders'],
+        children: [
+            {
+                title: 'In progress',
+                href: '/admin/orders?section=in_progress',
+                icon: LucideListOrdered,
+                permissions: ['view-orders'],
+            },
+            {
+                title: 'Delivered',
+                href: '/admin/orders?section=delivered',
+                icon: LucideListOrdered,
+                permissions: ['view-orders'],
+            },
+        ],
+    },
+    {
+        title: 'Returns',
+        href: '/admin/returns',
+        icon: RotateCcw,
+        permissions: ['view-dashboard'],
+    },
+    {
+        title: 'COD Reconciliations',
+        href: '/admin/cod-reconciliations',
+        icon: Banknote,
+        permissions: ['view-dashboard'],
     },
     {
         title: 'Invoices',
@@ -251,6 +279,25 @@ const allNavItems: NavItem[] = [
         ],
     },
 
+    {
+        title: 'Delivery team',
+        icon: Truck,
+        permissions: ['view-delivery-persons'],
+        children: [
+            {
+                title: 'Team members',
+                href: '/admin/delivery-persons',
+                icon: Users,
+                permissions: ['view-delivery-persons'],
+            },
+            {
+                title: 'Pending applications',
+                href: '/admin/delivery-persons/applications/pending',
+                icon: ClipboardList,
+                permissions: ['view-delivery-persons'],
+            },
+        ],
+    },
     {
         title: 'Delivery Address',
         href: 'null',

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, useForm, router } from '@inertiajs/vue3';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,12 +10,15 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ref } from 'vue';
-import { Plus, Settings, Monitor, Trash2, Edit } from 'lucide-vue-next';
+import { Plus, Settings, Monitor, Trash2, Edit, Store } from 'lucide-vue-next';
 
 const props = defineProps<{
     settings: any;
     registers: any[];
     warehouses: any[];
+    sellers?: any[];
+    isSellerContext?: boolean;
+    accountSettings?: any[];
 }>();
 
 const breadcrumbs = [
@@ -34,6 +37,7 @@ const globalSettingsForm = useForm({
     vat_enabled: !!props.settings.vat_enabled,
     require_admin_void: !!props.settings.require_admin_void,
     show_product_images: props.settings.show_product_images !== undefined ? !!props.settings.show_product_images : true,
+    max_tabs: props.settings.max_tabs || 1,
     product_display_design: props.settings.product_display_design || 'grid',
     currency_symbol: props.settings.currency_symbol || 'KES',
     receipt_header: props.settings.receipt_header || '',
@@ -49,6 +53,7 @@ const globalSettingsForm = useForm({
 const registerForm = useForm({
     id: null as number | null,
     name: '',
+    seller_id: '' as string,
     warehouse_id: '',
     status: 'active',
     receipt_type: 'thermal',
@@ -56,13 +61,25 @@ const registerForm = useForm({
     auto_print_receipt: false,
 });
 
+const accountForm = useForm({
+    id: null as number | null,
+    seller_id: '' as string,
+    max_tabs: 1,
+    show_product_images: true,
+    product_display_design: 'grid',
+    require_admin_void: false,
+});
+
 const showRegisterModal = ref(false);
 const isEditingRegister = ref(false);
+const showAccountModal = ref(false);
+const isEditingAccount = ref(false);
 
 function openAddRegister() {
     isEditingRegister.value = false;
     registerForm.reset();
     registerForm.id = null;
+    registerForm.seller_id = '';
     showRegisterModal.value = true;
 }
 
@@ -70,6 +87,7 @@ function openEditRegister(register: any) {
     isEditingRegister.value = true;
     registerForm.id = register.id;
     registerForm.name = register.name;
+    registerForm.seller_id = register.seller_id ? register.seller_id.toString() : '';
     registerForm.warehouse_id = register.warehouse_id ? register.warehouse_id.toString() : '';
     registerForm.status = register.status;
     registerForm.receipt_type = register.receipt_type;
@@ -78,10 +96,53 @@ function openEditRegister(register: any) {
     showRegisterModal.value = true;
 }
 
+function openAddAccount() {
+    isEditingAccount.value = false;
+    accountForm.reset();
+    accountForm.id = null;
+    accountForm.seller_id = '';
+    accountForm.max_tabs = props.settings.max_tabs || 1;
+    accountForm.show_product_images = !!props.settings.show_product_images;
+    accountForm.product_display_design = props.settings.product_display_design || 'grid';
+    accountForm.require_admin_void = !!props.settings.require_admin_void;
+    showAccountModal.value = true;
+}
+
+function openEditAccount(acct: any) {
+    isEditingAccount.value = true;
+    accountForm.id = acct.id;
+    accountForm.seller_id = acct.seller_id ? acct.seller_id.toString() : '';
+    accountForm.max_tabs = acct.max_tabs || 1;
+    accountForm.show_product_images = !!acct.show_product_images;
+    accountForm.product_display_design = acct.product_display_design || 'grid';
+    accountForm.require_admin_void = !!acct.require_admin_void;
+    showAccountModal.value = true;
+}
+
 function saveGlobalSettings() {
     globalSettingsForm.post(route('admin.pos.settings.global.update'), {
         preserveScroll: true,
     });
+}
+
+function submitAccount() {
+    if (isEditingAccount.value && accountForm.id) {
+        accountForm.put(route('admin.pos.settings.account.update', accountForm.id), {
+            onSuccess: () => (showAccountModal.value = false),
+        });
+    } else {
+        accountForm.post(route('admin.pos.settings.account.store'), {
+            onSuccess: () => (showAccountModal.value = false),
+        });
+    }
+}
+
+function deleteAccountSetting(id: number) {
+    if (confirm('Remove account-specific settings? Global defaults will apply for this account.')) {
+        router.delete(route('admin.pos.settings.account.destroy', id), {
+            preserveScroll: true,
+        });
+    }
 }
 
 function submitRegister() {
@@ -115,6 +176,11 @@ function addPaymentMethod() {
 function removePaymentMethod(index: number) {
     globalSettingsForm.payment_methods.splice(index, 1);
 }
+
+function sellerName(sellerId: number): string {
+    const s = props.sellers?.find((s: any) => s.id === sellerId);
+    return s?.company_legal_name || `Seller #${sellerId}`;
+}
 </script>
 
 <template>
@@ -125,7 +191,7 @@ function removePaymentMethod(index: number) {
             <div class="flex items-center justify-between mb-6">
                 <div>
                     <h1 class="text-2xl font-bold">POS Configuration</h1>
-                    <p class="text-muted-foreground">Manage global POS settings and terminal devices</p>
+                    <p class="text-muted-foreground">Manage global POS settings, per-account overrides, and terminal devices</p>
                 </div>
             </div>
 
@@ -134,6 +200,10 @@ function removePaymentMethod(index: number) {
                     <TabsTrigger value="global" class="gap-2">
                         <Settings class="h-4 w-4" />
                         Global Settings
+                    </TabsTrigger>
+                    <TabsTrigger value="accounts" class="gap-2">
+                        <Store class="h-4 w-4" />
+                        Account Settings
                     </TabsTrigger>
                     <TabsTrigger value="terminals" class="gap-2">
                         <Monitor class="h-4 w-4" />
@@ -178,8 +248,8 @@ function removePaymentMethod(index: number) {
 
                             <Card>
                                 <CardHeader>
-                                    <CardTitle>Tax & Currency</CardTitle>
-                                    <CardDescription>Configure VAT and payment formatting</CardDescription>
+                                    <CardTitle>Tax, Currency & Terminal Defaults</CardTitle>
+                                    <CardDescription>Configure VAT, payment formatting, and default terminal behavior</CardDescription>
                                 </CardHeader>
                                 <CardContent class="space-y-4">
                                     <div class="flex items-center justify-between p-3 border rounded-lg">
@@ -205,12 +275,19 @@ function removePaymentMethod(index: number) {
                                     <div class="flex items-center justify-between p-3 border rounded-lg">
                                         <div class="space-y-0.5">
                                             <Label>Show Product Images</Label>
-                                            <p class="text-xs text-muted-foreground">Display images in POS terminal</p>
+                                            <p class="text-xs text-muted-foreground">Display images in POS terminal product grid</p>
                                         </div>
                                         <Switch
                                             :checked="!!globalSettingsForm.show_product_images"
                                             @update:checked="(val) => globalSettingsForm.show_product_images = !!val"
                                         />
+                                    </div>
+                                    <div class="grid gap-2">
+                                        <Label>Max Selling Tabs</Label>
+                                        <div class="flex items-center gap-3">
+                                            <Input type="number" v-model="globalSettingsForm.max_tabs" min="1" max="20" class="w-24" />
+                                            <span class="text-xs text-muted-foreground">Concurrent carts per terminal (default 1)</span>
+                                        </div>
                                     </div>
                                     <div class="grid gap-2">
                                         <Label>Product Display Design</Label>
@@ -325,6 +402,86 @@ function removePaymentMethod(index: number) {
                     </form>
                 </TabsContent>
 
+                <!-- Account Settings -->
+                <TabsContent value="accounts">
+                    <Card>
+                        <CardHeader class="flex flex-row items-center justify-between space-y-0">
+                            <div>
+                                <CardTitle>Per-Account POS Settings</CardTitle>
+                                <CardDescription>Override global defaults for specific seller accounts. Accounts without overrides inherit global settings.</CardDescription>
+                            </div>
+                            <Button @click="openAddAccount" size="sm" class="gap-2">
+                                <Plus class="h-4 w-4" />
+                                Add Account Override
+                            </Button>
+                        </CardHeader>
+                        <CardContent>
+                            <div class="border rounded-md">
+                                <table class="w-full text-sm">
+                                    <thead>
+                                        <tr class="border-b bg-muted/50">
+                                            <th class="p-3 text-left font-medium">Account</th>
+                                            <th class="p-3 text-center font-medium">Max Tabs</th>
+                                            <th class="p-3 text-center font-medium">Product Images</th>
+                                            <th class="p-3 text-center font-medium">Display</th>
+                                            <th class="p-3 text-center font-medium">Admin Void</th>
+                                            <th class="p-3 text-right font-medium">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="border-b bg-blue-50/50">
+                                            <td class="p-3 font-medium text-blue-700">Global Default</td>
+                                            <td class="p-3 text-center">{{ settings.max_tabs || 1 }}</td>
+                                            <td class="p-3 text-center">
+                                                <span :class="settings.show_product_images ? 'text-green-600' : 'text-gray-400'">
+                                                    {{ settings.show_product_images ? 'Yes' : 'No' }}
+                                                </span>
+                                            </td>
+                                            <td class="p-3 text-center capitalize">{{ settings.product_display_design || 'grid' }}</td>
+                                            <td class="p-3 text-center">
+                                                <span :class="settings.require_admin_void ? 'text-orange-600' : 'text-gray-400'">
+                                                    {{ settings.require_admin_void ? 'Yes' : 'No' }}
+                                                </span>
+                                            </td>
+                                            <td class="p-3 text-right text-xs text-muted-foreground">Edit in Global tab</td>
+                                        </tr>
+                                        <tr v-for="acct in accountSettings" :key="acct.id" class="border-b last:border-0">
+                                            <td class="p-3 font-medium">{{ acct.seller?.company_legal_name || `Seller #${acct.seller_id}` }}</td>
+                                            <td class="p-3 text-center font-bold">{{ acct.max_tabs }}</td>
+                                            <td class="p-3 text-center">
+                                                <span :class="acct.show_product_images ? 'text-green-600' : 'text-gray-400'">
+                                                    {{ acct.show_product_images ? 'Yes' : 'No' }}
+                                                </span>
+                                            </td>
+                                            <td class="p-3 text-center capitalize">{{ acct.product_display_design }}</td>
+                                            <td class="p-3 text-center">
+                                                <span :class="acct.require_admin_void ? 'text-orange-600' : 'text-gray-400'">
+                                                    {{ acct.require_admin_void ? 'Yes' : 'No' }}
+                                                </span>
+                                            </td>
+                                            <td class="p-3 text-right">
+                                                <div class="flex justify-end gap-2">
+                                                    <Button variant="ghost" size="icon" @click="openEditAccount(acct)">
+                                                        <Edit class="h-4 w-4" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" class="text-red-600" @click="deleteAccountSetting(acct.id)">
+                                                        <Trash2 class="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr v-if="!accountSettings?.length">
+                                            <td colspan="6" class="p-8 text-center text-muted-foreground">
+                                                No per-account overrides. All accounts use global defaults.
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
                 <!-- Terminals Management -->
                 <TabsContent value="terminals">
                     <Card>
@@ -344,6 +501,7 @@ function removePaymentMethod(index: number) {
                                     <thead>
                                         <tr class="border-b bg-muted/50">
                                             <th class="p-3 text-left font-medium">Name</th>
+                                            <th v-if="!isSellerContext" class="p-3 text-left font-medium">Branch / Seller</th>
                                             <th class="p-3 text-left font-medium">Warehouse</th>
                                             <th class="p-3 text-left font-medium">Print Type</th>
                                             <th class="p-3 text-left font-medium">Status</th>
@@ -353,6 +511,7 @@ function removePaymentMethod(index: number) {
                                     <tbody>
                                         <tr v-for="reg in registers" :key="reg.id" class="border-b last:border-0">
                                             <td class="p-3 font-medium">{{ reg.name }}</td>
+                                            <td v-if="!isSellerContext" class="p-3 text-muted-foreground">{{ reg.seller?.company_legal_name || '—' }}</td>
                                             <td class="p-3 text-muted-foreground">{{ reg.warehouse?.name }}</td>
                                             <td class="p-3">
                                                 <span class="capitalize">{{ reg.receipt_type }}</span>
@@ -375,7 +534,7 @@ function removePaymentMethod(index: number) {
                                             </td>
                                         </tr>
                                         <tr v-if="registers.length === 0">
-                                            <td colspan="5" class="p-8 text-center text-muted-foreground">
+                                            <td :colspan="isSellerContext ? 5 : 6" class="p-8 text-center text-muted-foreground">
                                                 No registers found. Click "Add Terminal" to create one.
                                             </td>
                                         </tr>
@@ -400,6 +559,19 @@ function removePaymentMethod(index: number) {
                         <div class="grid gap-2">
                             <Label for="reg_name">Terminal Name</Label>
                             <Input id="reg_name" v-model="registerForm.name" required />
+                        </div>
+                        <div v-if="!isSellerContext && (sellers?.length ?? 0) > 0" class="grid gap-2">
+                            <Label for="reg_seller">Branch / Seller Account</Label>
+                            <Select v-model="registerForm.seller_id" required>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select branch/seller" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem v-for="s in sellers" :key="s.id" :value="s.id.toString()">
+                                        {{ s.company_legal_name || `Seller #${s.id}` }}
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                         <div class="grid gap-2">
                             <Label for="reg_warehouse">Warehouse Allocation</Label>
@@ -467,6 +639,85 @@ function removePaymentMethod(index: number) {
                         <Button type="button" variant="outline" @click="showRegisterModal = false">Cancel</Button>
                         <Button :disabled="registerForm.processing">
                             {{ registerForm.processing ? 'Saving...' : 'Save Terminal' }}
+                        </Button>
+                    </CardFooter>
+                </form>
+            </Card>
+        </div>
+
+        <!-- Add/Edit Account Settings Modal -->
+        <div v-if="showAccountModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <Card class="w-full max-w-md bg-white">
+                <CardHeader>
+                    <CardTitle>{{ isEditingAccount ? 'Edit Account Settings' : 'Add Account Override' }}</CardTitle>
+                    <CardDescription>Override global POS settings for a specific seller account</CardDescription>
+                </CardHeader>
+                <form @submit.prevent="submitAccount">
+                    <CardContent class="space-y-4">
+                        <div v-if="!isEditingAccount" class="grid gap-2">
+                            <Label>Seller Account</Label>
+                            <Select v-model="accountForm.seller_id" required>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select seller account" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem v-for="s in sellers" :key="s.id" :value="s.id.toString()">
+                                        {{ s.company_legal_name || `Seller #${s.id}` }}
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div v-else class="p-3 bg-muted rounded-lg">
+                            <p class="text-sm font-medium">{{ sellerName(Number(accountForm.seller_id)) }}</p>
+                        </div>
+
+                        <div class="grid gap-2">
+                            <Label>Max Selling Tabs</Label>
+                            <div class="flex items-center gap-3">
+                                <Input type="number" v-model="accountForm.max_tabs" min="1" max="20" class="w-24" />
+                                <span class="text-xs text-muted-foreground">Concurrent carts per terminal</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between p-3 border rounded-lg">
+                            <div class="space-y-0.5">
+                                <Label>Show Product Images</Label>
+                                <p class="text-xs text-muted-foreground">Display images in POS terminal product grid</p>
+                            </div>
+                            <Switch
+                                :checked="!!accountForm.show_product_images"
+                                @update:checked="(val) => accountForm.show_product_images = !!val"
+                            />
+                        </div>
+
+                        <div class="grid gap-2">
+                            <Label>Product Display Design</Label>
+                            <Select v-model="accountForm.product_display_design">
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select design" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="grid">Standard Grid</SelectItem>
+                                    <SelectItem value="small_grid">Small Grid</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div class="flex items-center justify-between p-3 border rounded-lg">
+                            <div class="space-y-0.5">
+                                <Label>Require Admin to Void</Label>
+                                <p class="text-xs text-muted-foreground">Admin PIN required to clear cart/void sale</p>
+                            </div>
+                            <Switch
+                                :checked="!!accountForm.require_admin_void"
+                                @update:checked="(val) => accountForm.require_admin_void = !!val"
+                            />
+                        </div>
+                    </CardContent>
+                    <CardFooter class="justify-end gap-3 border-t px-6 py-4">
+                        <Button type="button" variant="outline" @click="showAccountModal = false">Cancel</Button>
+                        <Button :disabled="accountForm.processing">
+                            {{ accountForm.processing ? 'Saving...' : 'Save Account Settings' }}
                         </Button>
                     </CardFooter>
                 </form>

@@ -8,6 +8,8 @@ use App\Models\Traits\HasHashid;
 
 class Region extends Model
 {
+    use HasHashid;
+
     protected $fillable = [
         'name',
         'code',
@@ -17,7 +19,7 @@ class Region extends Model
         'zone_id',
     ];
 
-//    protected $appends = ['hashid'];
+protected $appends = ['hashid'];
 
 
     protected static function boot()
@@ -25,9 +27,9 @@ class Region extends Model
         parent::boot();
 
         static::creating(function ($model) {
-//            if (empty($model->uuid)) {
-//                $model->uuid = (string) Str::uuid();
-//            }
+            if (empty($model->uuid)) {
+                $model->uuid = (string) Str::uuid();
+            }
 
             if (empty($model->code) && !empty($model->name)) {
                 $model->code = strtoupper(substr(Str::slug($model->name, ''), 0, 5));
@@ -48,6 +50,16 @@ class Region extends Model
     public function pickupPoints()
     {
         return $this->hasMany(PickupPoint::class);
+    }
+
+    /**
+     * Warehouses that serve this region (via pivot or direct region_id).
+     * Used for pickup point selection (types: pickup_point, dispatch_center, general).
+     */
+    public function warehouses()
+    {
+        return $this->belongsToMany(\App\Models\Warehouse\Warehouse::class, 'warehouse_region')
+            ->withPivot([]);
     }
 
     public function zone()

@@ -14,12 +14,12 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('login', [ApiAuthController::class, 'login']);
 
-//Route::prefix('payments')->name('payments.')->group(function () {
+// Route::prefix('payments')->name('payments.')->group(function () {
 //    Route::get('providers', [PaymentTransactionController::class, 'providers'])->name('providers');
 //    Route::post('initiate', [PaymentTransactionController::class, 'initiate'])->name('initiate');
 //    Route::get('{payment}/status', [PaymentTransactionController::class, 'status'])->name('status');
 //    Route::post('callback/{provider}', [PaymentTransactionController::class, 'callback'])->name('callback');
-//});
+// });
 
 Route::prefix('v1')->middleware(['auth:sanctum'])->group(function () {
 //Route::prefix('v1')->group(function () {

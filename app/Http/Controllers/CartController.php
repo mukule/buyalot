@@ -137,49 +137,58 @@ class CartController extends Controller
                 'name' => $discountObj->name,
             ];
 
-            $couponAmount = $discountObj->type === 'percent'
-                ? round($cartTotal * ($discountObj->value / 100), 2)
-                : min($discountObj->value, $cartTotal);
+            $couponAmount = (int) round($discountObj->type === 'percent'
+                ? $cartTotal * ($discountObj->value / 100)
+                : min($discountObj->value, $cartTotal));
         } else {
             $couponError = 'Coupon code not found or has expired.';
         }
     }
 
-    // Retrieve default address (or first if no default)
+    // Delivery-first flow: customer selects type (pickup/home) on Summary page
+    // Pass regions with pickup points for selection; selected_shipping comes from frontend (query params when proceeding)
     $customer = auth()->user()?->customer;
     $shippingCost = 0;
     $selectedShipping = null;
     $defaultAddress = null;
 
+    // Regions with pickup points (for delivery type = pickup)
+    $regionsWithPickup = $shippingService->getRegionsWithPickup()->map(function ($region) use ($shippingService) {
+        $warehouses = \App\Models\Warehouse\Warehouse::withoutGlobalScopes()
+            ->where(function ($q) use ($region) {
+                $q->where('region_id', $region->id)
+                    ->orWhereHas('regions', fn ($r) => $r->where('regions.id', $region->id));
+            })
+            ->whereIn('type', ['pickup_point', 'dispatch_center', 'general'])
+            ->where('active', true)
+            ->get(['id', 'name', 'address', 'location', 'latitude', 'longitude']);
+
+        return [
+            'id' => $region->id,
+            'name' => $region->name,
+            'pickup_points' => $warehouses->map(fn ($w) => [
+                'id' => $w->id,
+                'name' => $w->name,
+                'address' => $w->address,
+                'location' => $w->location,
+                'latitude' => $w->latitude ? (float) $w->latitude : null,
+                'longitude' => $w->longitude ? (float) $w->longitude : null,
+            ])->values()->toArray(),
+            'shipping_options' => $shippingService->getOptionsByRegion($region->id),
+        ];
+    });
+
     if ($customer) {
         $defaultAddress = $customer->addresses()
-            ->with('pickupPoint.region')
+            ->with(['pickupPoint.region', 'region', 'pickupWarehouse' => fn ($q) => $q->withoutGlobalScopes()->with('region')])
             ->orderByDesc('is_default')
             ->first();
-
-        if ($defaultAddress) {
-            $regionId = data_get($defaultAddress, 'pickupPoint.region.id');
-            $shippingOptions = $regionId ? $shippingService->getOptionsByRegion($regionId) : [];
-
-            if (isset($shippingOptions['pickup'])) {
-                $selectedShipping = [
-                    'method' => 'pickup',
-                    'cost'   => $shippingOptions['pickup']['cost'],
-                    'days'   => $shippingOptions['pickup']['days'],
-                    'region' => data_get($defaultAddress, 'pickupPoint.region.name'),
-                ];
-
-                $shippingCost = $shippingOptions['pickup']['cost'];
-
-
-            }
-        }
     }
 
     $defaultAddressId = $defaultAddress?->id ?? null;
 
-    // Final totals
-    $grandTotal = $cartTotal + $shippingCost - $couponAmount;
+    // Final totals (whole numbers; shipping starts at 0; frontend updates via delivery selection)
+    $grandTotal = (int) round($cartTotal + $shippingCost - $couponAmount);
 
     // Related products
     $topVariant = $cart->items->sortByDesc('quantity')->first()?->productVariant;
@@ -203,11 +212,14 @@ class CartController extends Controller
             'coupon_error'   => $couponError,
         ],
 
-        'selected_shipping'  => $selectedShipping,
-        'customer_addresses' => $defaultAddress ? collect([$defaultAddress]) : collect(),
+        'regions_with_pickup' => $regionsWithPickup,
+        'home_delivery_config' => $shippingService->getHomeDeliveryConfig(),
+        'selected_shipping'   => $selectedShipping,
+        'customer_addresses'  => $defaultAddress ? collect([$defaultAddress]) : collect(),
         'shipping_address_id' => $defaultAddressId,
         'billing_address_id'  => $defaultAddressId,
         'relatedProducts'     => $relatedProducts,
+        'googleMapsApiKey'    => config('services.google.maps_api_key', ''),
     ]);
 }
 
@@ -353,6 +365,52 @@ public function store(Request $request, CartReservationService $cartService)
         return redirect()->back()->with('success', 'Cart updated successfully!');
     }
 
+    public function estimateShipping(Request $request)
+    {
+        return response()->json(['message' => 'Use calculate-home-delivery for home delivery or select pickup for shipping cost.']);
+    }
+
+    public function calculateHomeDelivery(Request $request, ShippingService $shippingService)
+    {
+        $request->validate([
+            'lat' => 'required|numeric|between:-90,90',
+            'lng' => 'required|numeric|between:-180,180',
+        ]);
+
+        $lat = (float) $request->input('lat');
+        $lng = (float) $request->input('lng');
+
+        $region = $shippingService->reverseGeocodeAndMatchRegion($lat, $lng);
+        if (! $region) {
+            return response()->json([
+                'success' => false,
+                'message' => "We don't do home delivery for the selected region.",
+            ], 422);
+        }
+
+        $center = $shippingService->getMainWarehouseCenter();
+        if (! $center) {
+            $center = ['lat' => -1.286389, 'lng' => 36.817223];
+        }
+
+        $distanceKm = $shippingService->distanceKm($lat, $lng, $center['lat'], $center['lng']);
+        $shippingCost = $shippingService->calculateHomeDeliveryCost($distanceKm);
+        $options = $shippingService->getOptionsByRegion($region->id);
+        $days = $options['door']['days'] ?? 2;
+
+        return response()->json([
+            'success' => true,
+            'region' => [
+                'id' => $region->id,
+                'name' => $region->name,
+            ],
+            'distance_km' => $distanceKm,
+            'shipping_cost' => $shippingCost,
+            'days' => $days,
+            'home_delivery_config' => $shippingService->getHomeDeliveryConfig(),
+        ]);
+    }
+
     public function destroy(Request $request, CartItem $item, CartReservationService $cartService)
     {
         $cart = $cartService->getCart($request);
@@ -449,44 +507,78 @@ public function store(Request $request, CartReservationService $cartService)
                 'name' => $discountObj->name,
             ];
 
-            $couponAmount = $discountObj->type === 'percent'
-                ? round($cartTotal * ($discountObj->value / 100), 2)
-                : min($discountObj->value, $cartTotal);
+            $couponAmount = (int) round($discountObj->type === 'percent'
+                ? $cartTotal * ($discountObj->value / 100)
+                : min($discountObj->value, $cartTotal));
         } else {
             $couponError = 'Coupon code not found or has expired.';
         }
     }
 
-    // Customer & default address
+    // Customer & address: prefer query params from Summary (delivery selection), else default address
     $customer = auth()->user()?->customer;
     $defaultAddress = null;
     $selectedShipping = null;
     $shippingCost = 0;
 
-    if ($customer) {
+    $addressIdFromSummary = $request->query('address_id');
+    $shippingCostFromSummary = $request->query('shipping_cost');
+    $deliveryMethodFromSummary = $request->query('delivery_method');
+    $regionNameFromSummary = $request->query('region_name');
+    $pickupPointFromSummary = $request->query('pickup_point');
+    $daysFromSummary = $request->query('shipping_days');
+
+    if ($customer && $addressIdFromSummary && $shippingCostFromSummary !== null && $deliveryMethodFromSummary) {
+        $address = $customer->addresses()
+            ->with(['pickupPoint.region', 'region', 'pickupWarehouse' => fn ($q) => $q->withoutGlobalScopes()->with('region')])
+            ->find($addressIdFromSummary);
+        if ($address) {
+            $defaultAddress = $address;
+            $shippingCost = max(250, (int) round((float) $shippingCostFromSummary));
+            $selectedShipping = [
+                'method'       => $deliveryMethodFromSummary === 'door' ? 'door' : 'pickup',
+                'cost'         => $shippingCost,
+                'days'         => (int) ($daysFromSummary ?? 2),
+                'region'       => $regionNameFromSummary ?? $address->pickupWarehouse?->region?->name ?? $address->region?->name ?? '',
+                'pickup_point' => $pickupPointFromSummary ?? $address->pickupWarehouse?->name ?? $address->pickupPoint?->name ?? null,
+            ];
+        }
+    }
+
+    if (! $selectedShipping && $customer) {
         $defaultAddress = $customer->addresses()
-            ->with('pickupPoint.region')
+            ->with(['pickupPoint.region', 'region', 'pickupWarehouse' => fn ($q) => $q->withoutGlobalScopes()->with('region')])
             ->orderByDesc('is_default')
             ->first();
 
-        if ($defaultAddress && $defaultAddress->pickupPoint) {
-            $regionName = $defaultAddress->pickupPoint->region?->name ?? '';
-            $pickupPointName = $defaultAddress->pickupPoint->name ?? '';
+        if ($defaultAddress) {
+            $regionId = $defaultAddress->pickup_warehouse_id
+                ? ($defaultAddress->pickupWarehouse?->region_id ?? $defaultAddress->pickupWarehouse?->region?->id ?? $defaultAddress->pickupPoint?->region?->id)
+                : $defaultAddress->region_id;
+            $regionName = $defaultAddress->pickupWarehouse?->region?->name ?? $defaultAddress->pickupPoint?->region?->name ?? $defaultAddress->region?->name ?? '';
+            $pickupPointName = $defaultAddress->pickupWarehouse?->name ?? $defaultAddress->pickupPoint?->name ?? '';
 
-            $shippingOptions = $defaultAddress->pickupPoint->region
-                ? $shippingService->getOptionsByRegion($defaultAddress->pickupPoint->region->id)
-                : [];
+            $shippingOptions = $regionId ? $shippingService->getOptionsByRegion($regionId) : [];
 
-            if (isset($shippingOptions['pickup'])) {
+            if ($defaultAddress->pickup_warehouse_id && isset($shippingOptions['pickup'])) {
                 $selectedShipping = [
-                    'method' => 'pickup',
-                    'cost'   => $shippingOptions['pickup']['cost'],
-                    'days'   => $shippingOptions['pickup']['days'],
-                    'region' => $regionName,
+                    'method'       => 'pickup',
+                    'cost'         => $shippingOptions['pickup']['cost'],
+                    'days'         => $shippingOptions['pickup']['days'],
+                    'region'       => $regionName,
                     'pickup_point' => $pickupPointName,
                 ];
-
                 $shippingCost = $shippingOptions['pickup']['cost'];
+            } elseif ($regionId && isset($shippingOptions['door'])) {
+                $doorCost = $shippingOptions['door']['cost'];
+                $selectedShipping = [
+                    'method'       => 'door',
+                    'cost'         => $doorCost,
+                    'days'         => $shippingOptions['door']['days'],
+                    'region'       => $regionName,
+                    'pickup_point' => null,
+                ];
+                $shippingCost = $doorCost;
             }
         }
     }
@@ -498,8 +590,8 @@ public function store(Request $request, CartReservationService $cartService)
 
     $defaultAddressId = $defaultAddress?->id ?? null;
 
-    // Final totals
-    $grandTotal = $cartTotal + $shippingCost - $couponAmount;
+    // Final totals (whole numbers; shipping minimum 250)
+    $grandTotal = (int) round($cartTotal + $shippingCost - $couponAmount);
 
     // Related products
     $topVariant = $cart->items->sortByDesc('quantity')->first()?->productVariant;
@@ -525,11 +617,13 @@ public function store(Request $request, CartReservationService $cartService)
         ],
 
         'selected_shipping'  => $selectedShipping,
+        'home_delivery_config' => $shippingService->getHomeDeliveryConfig(),
         'customer_addresses' => $defaultAddress ? collect([$defaultAddress]) : collect(),
         'shipping_address_id' => $defaultAddressId,
         'billing_address_id'  => $defaultAddressId,
         'default_phone'       => $defaultPhone,
         'relatedProducts'     => $relatedProducts,
+        'googleMapsApiKey'    => config('services.google.maps_api_key', ''),
     ]);
 }
 

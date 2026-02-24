@@ -3,10 +3,11 @@
 namespace App\Http\Controllers\POS;
 
 use App\Http\Controllers\Controller;
-use App\Models\POS\PosVoidedSale;
 use App\Models\POS\PosSession;
-use Illuminate\Http\Request;
+use App\Models\POS\PosVoidedSale;
+use App\Services\SellerContext;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 
 class PosVoidedSaleController extends Controller
 {
@@ -16,7 +17,10 @@ class PosVoidedSaleController extends Controller
             'pos_session_id' => 'required|exists:pos_sessions,id',
         ]);
 
-        $voidedSales = PosVoidedSale::where('pos_session_id', $request->pos_session_id)
+        $user = $request->user() ?? auth()->user();
+        $session = PosSession::forUser($user)->findOrFail($request->pos_session_id);
+
+        $voidedSales = PosVoidedSale::where('pos_session_id', $session->id)
             ->where('recalled', false)
             ->with(['customer.user', 'user'])
             ->latest()
@@ -34,11 +38,12 @@ class PosVoidedSaleController extends Controller
             'reason' => 'nullable|string',
         ]);
 
-        $session = PosSession::findOrFail($request->pos_session_id);
+        $user = $request->user() ?? auth()->user();
+        $session = PosSession::forUser($user)->findOrFail($request->pos_session_id);
 
         $voidedSale = PosVoidedSale::create([
             'pos_session_id' => $session->id,
-            'user_id' => auth()->id(),
+            'user_id' => $user->id,
             'customer_id' => $request->customer_id,
             'cart_data' => $request->cart_data,
             'total_amount' => $request->total_amount,
@@ -48,12 +53,17 @@ class PosVoidedSaleController extends Controller
 
         return response()->json([
             'message' => 'Sale voided and saved.',
-            'voided_sale' => $voidedSale
+            'voided_sale' => $voidedSale,
         ]);
     }
 
-    public function recall(PosVoidedSale $voidedSale)
+    public function recall(Request $request, PosVoidedSale $voidedSale)
     {
+        $user = $request->user() ?? auth()->user();
+        if (! SellerContext::canAccessSession($user, $voidedSale->session)) {
+            abort(403, 'You cannot access this voided sale.');
+        }
+
         if ($voidedSale->recalled) {
             return response()->json(['message' => 'This sale has already been recalled.'], 422);
         }
@@ -65,7 +75,7 @@ class PosVoidedSaleController extends Controller
 
         return response()->json([
             'message' => 'Sale recalled successfully.',
-            'voided_sale' => $voidedSale
+            'voided_sale' => $voidedSale,
         ]);
     }
 }

@@ -4,6 +4,8 @@ namespace App\Models\POS;
 
 use App\Models\Orders\Order;
 use App\Models\User;
+use App\Services\SellerContext;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -49,5 +51,28 @@ class PosSession extends Model
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class);
+    }
+
+    /**
+     * Scope sessions to those accessible by the given user.
+     * Admins see all; seller users see only sessions on their seller's registers.
+     */
+    public function scopeForUser(Builder $query, ?User $user): Builder
+    {
+        if (! $user) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        if (SellerContext::isAdmin($user)) {
+            return $query;
+        }
+
+        $sellerIds = SellerContext::sellerIds($user);
+
+        if ($sellerIds->isEmpty()) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->whereHas('register', fn (Builder $q) => $q->whereIn('seller_id', $sellerIds));
     }
 }

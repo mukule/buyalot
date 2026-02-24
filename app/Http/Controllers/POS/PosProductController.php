@@ -6,18 +6,26 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Brand;
 use App\Models\Product;
-use App\Models\ProductVariant;
+use App\Services\SellerContext;
 use Illuminate\Http\Request;
 
 class PosProductController extends Controller
 {
     public function index(Request $request)
     {
+        $user = $request->user() ?? auth()->user();
+
         $query = Product::withoutGlobalScopes()
-            ->with(['category', 'productVariants' => function($q) {
+            ->with(['category', 'productVariants' => function ($q) {
                 $q->with('values.variant.category');
             }])
-            ->whereIn('status', [Product::STATUS_APPROVED, Product::STATUS_PENDING, 1]); // Show Approved or Pending/1
+            ->whereIn('status', [Product::STATUS_APPROVED, Product::STATUS_PENDING, 1]);
+
+        if ($user && ! SellerContext::isAdmin($user)) {
+            $relatedUserIds = SellerContext::relatedUserIds($user);
+            $query->whereIn('owner_type', ['seller', 'vendor'])
+                  ->whereIn('owner_id', $relatedUserIds);
+        }
 
         if ($request->search) {
             $query->where(function ($q) use ($request) {
@@ -37,9 +45,8 @@ class PosProductController extends Controller
             $query->where('brand_id', $request->brand_id);
         }
 
-        $products = $query->paginate(32); // Slightly larger pagination for POS grid
+        $products = $query->paginate(32);
 
-        // Transform products to include variant labels
         $products->getCollection()->transform(function ($product) {
             $product->productVariants->each(function ($variant) {
                 $variant->label = $variant->display_name;
@@ -56,7 +63,7 @@ class PosProductController extends Controller
         $brands = Brand::where('active', true)->get();
         return response()->json([
             'categories' => $categories,
-            'brands' => $brands
+            'brands' => $brands,
         ]);
     }
 }

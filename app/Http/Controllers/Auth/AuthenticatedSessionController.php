@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 use App\Services\WishlistService;
@@ -86,22 +87,22 @@ public function store(
 //    }
 
 
-    if ($user->user_type === 'customer' || $user->secondary_role=="customer") {
+    if ($user->hasPortalRole('customer')) {
         $customer = \App\Models\Customer\Customer::where('user_id', $user->id)->first();
 
-        if (!$customer) {
+        if (! $customer) {
             Auth::logout();
             return back()->withErrors([
                 'email' => 'Customer account not found.',
             ]);
         }
 
-        session(['customer_id' => $customer->id]);
+        session(['active_role' => 'customer', 'customer_id' => $customer->id]);
         $user->update(['last_login_at' => now()]);
         return redirect()->intended(
             route('customers.dashboard', ['customer' => $customer->id])
         )->with('success', 'Welcome back, ' . $user->name . '!');
-    } else{
+    } else {
         Auth::logout();
         $request->session()->invalidate();
         return redirect()->back()->withErrors(["password"=>"You don't have an active customer account to login. Please create an account or contact admin for assistance"]);
@@ -148,11 +149,12 @@ public function store(
         $request->session()->regenerate();
         $user = Auth::user();
 
-        if (in_array($user->user_type, ['vendor', 'seller']) || $user->secondary_role == 'seller') {
+        if ($user->hasPortalRole('seller')) {
+            session(['active_role' => 'seller']);
             $user->update(['last_login_at' => now()]);
             return redirect()->intended(route('admin.dashboard'))
                 ->with('success', 'Welcome back, ' . $user->name . '!');
-        }else{
+        } else {
             Auth::logout();
             $request->session()->invalidate();
             return redirect()->back()->withErrors(["password"=>"You don't have permission to access this page. Please create an account or contact admin for assistance"]);
@@ -187,4 +189,100 @@ public function store(
         }
     }
 
+    public function createDeliveryLogin(Request $request): Response
+    {
+        return Inertia::render('auth/DeliveryLogin', [
+            'canResetPassword' => Route::has('password.request'),
+            'status' => $request->session()->get('status'),
+        ]);
+    }
+
+    public function createDistributorLogin(Request $request): Response
+    {
+        return Inertia::render('auth/DistributorLogin', [
+            'canResetPassword' => Route::has('password.request'),
+            'status' => $request->session()->get('status'),
+        ]);
+    }
+
+    public function distributorStore(LoginRequest $request): RedirectResponse
+    {
+        $request->authenticate();
+
+        if (! Auth::check()) {
+            return back()->withErrors([
+                'email' => 'These credentials do not match our records.',
+            ]);
+        }
+
+        $request->session()->regenerate();
+        $user = Auth::user();
+
+        if ($user->hasPortalRole('distributor')) {
+            session(['active_role' => 'distributor']);
+            $user->update(['last_login_at' => now()]);
+            return redirect()->intended(route('distributor.dashboard'))
+                ->with('success', 'Welcome back, ' . $user->name . '!');
+        }
+
+        Auth::logout();
+        $request->session()->invalidate();
+        return redirect()->back()->withErrors([
+            'password' => 'You do not have an active distributor account. Please contact admin.',
+        ]);
+    }
+
+    public function deliveryStore(LoginRequest $request): RedirectResponse
+    {
+        $request->authenticate();
+
+        if (!Auth::check()) {
+            return back()->withErrors([
+                'email' => 'These credentials do not match our records.',
+            ]);
+        }
+
+        $request->session()->regenerate();
+        $user = Auth::user();
+
+        $application = $user->deliveryApplication;
+        if ($application && $application->isPending()) {
+            Auth::logout();
+            $request->session()->invalidate();
+            return redirect()->back()->withErrors([
+                'password' => 'Your delivery application is still pending approval. You will be able to login once an admin approves it.',
+            ]);
+        }
+
+        if ($application && $application->isRejected()) {
+            Auth::logout();
+            $request->session()->invalidate();
+            return redirect()->back()->withErrors([
+                'password' => 'Your delivery application was not approved. Please contact admin or reapply.',
+            ]);
+        }
+
+        if ($user->isSuspended()) {
+            Auth::logout();
+            $request->session()->invalidate();
+            return redirect()->back()->withErrors([
+                'password' => 'Your delivery account has been suspended. ' . ($user->suspension_reason ? 'Reason: ' . Str::limit($user->suspension_reason, 100) . '.' : '') . ' Please contact admin.',
+            ]);
+        }
+
+        $isDelivery = $user->hasRole('delivery');
+        $isActive = in_array($user->status, [1, true], true);
+
+        if ($isDelivery && $isActive) {
+            $user->update(['last_login_at' => now()]);
+            return redirect()->intended(route('delivery.dashboard'))
+                ->with('success', 'Welcome back, ' . $user->name . '!');
+        }
+
+        Auth::logout();
+        $request->session()->invalidate();
+        return redirect()->back()->withErrors([
+            'password' => 'You do not have an active delivery account. Please register first or contact admin.',
+        ]);
+    }
 }

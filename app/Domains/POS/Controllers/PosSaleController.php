@@ -31,7 +31,8 @@ class PosSaleController extends Controller
             'allocated_payment_ids.*' => 'exists:pos_unallocated_payments,id',
         ]);
 
-        $session = PosSession::findOrFail($validated['pos_session_id']);
+        $user = $request->user();
+        $session = PosSession::forUser($user)->findOrFail($validated['pos_session_id']);
 
         if ($session->status !== 'open') {
             return response()->json(['message' => 'POS session is closed.'], 422);

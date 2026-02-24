@@ -40,6 +40,10 @@ class User extends Authenticatable
         'provider_verified_at',
         'user_type',
         'secondary_role',
+        'additional_roles',
+        'delivery_application_id',
+        'suspended_at',
+        'suspension_reason',
     ];
 
     protected $hidden = [
@@ -57,17 +61,68 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'provider_verified_at'=>'datetime',
-            'last_login_at'=>'datetime',
+            'last_login_at' => 'datetime',
+            'suspended_at' => 'datetime',
             'google_id'=>'string',
             'provider'=>'string',
             'provider_id'=>'string',
+            'additional_roles' => 'array',
         ];
     }
     protected $appends = ['hashid'];
 
+    /**
+     * Portal role identifiers used for switching (customer, seller, distributor).
+     * 'vendor' is normalized to 'seller'.
+     */
+    public const PORTAL_ROLES = ['customer', 'seller', 'distributor'];
+
+    /**
+     * All portal roles this user has (user_type + additional_roles, with backward compat for secondary_role).
+     *
+     * @return array<int, string>
+     */
+    public function getPortalRoles(): array
+    {
+        $primary = $this->getRawOriginal('user_type') ?? $this->user_type;
+        $primary = $primary === 'vendor' ? 'seller' : $primary;
+
+        $extra = $this->additional_roles;
+        if (! is_array($extra) && $this->secondary_role) {
+            $extra = [$this->secondary_role];
+        }
+        if (! is_array($extra)) {
+            $extra = [];
+        }
+        $extra = array_map(fn ($r) => $r === 'vendor' ? 'seller' : $r, $extra);
+
+        $all = array_values(array_unique(array_merge([$primary], $extra)));
+        return array_values(array_intersect($all, self::PORTAL_ROLES));
+    }
+
+    /**
+     * Whether this user has a given portal role (customer, seller, or distributor).
+     */
+    public function hasPortalRole(string $role): bool
+    {
+        $role = $role === 'vendor' ? 'seller' : $role;
+        return in_array($role, $this->getPortalRoles(), true);
+    }
+
+    /**
+     * Whether this user's account is suspended (e.g. delivery person suspension).
+     */
+    public function isSuspended(): bool
+    {
+        return $this->suspended_at !== null;
+    }
+
     protected static function booted(): void
     {
         static::created(function (User $user) {
+            if ($user->delivery_application_id) {
+                return;
+            }
             $user->notify(new UserRegistered());
         });
     }
@@ -75,6 +130,11 @@ class User extends Authenticatable
     public function sellerApplication(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(SellerApplication::class);
+    }
+
+    public function deliveryApplication(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(DeliveryPersonApplication::class, 'delivery_application_id');
     }
 
     public function sellerDocuments()

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import MapLocationModal from '@/components/MapLocationModal.vue';
 import ProductCarouselSection from '@/components/ProductCarouselSection.vue';
 import MainLayout from '@/layouts/MainLayout.vue';
 import type { SimplifiedProduct } from '@/types';
@@ -8,6 +9,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 
 // --- Props ---
 const props = defineProps<{
+    googleMapsApiKey?: string;
     product: {
         id: number;
         slug: string;
@@ -141,6 +143,10 @@ const decreaseQty = () => {
 interface PickupPoint {
     id: number;
     name: string;
+    address?: string | null;
+    location?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
 }
 
 interface ShippingOptions {
@@ -160,8 +166,13 @@ const regions = ref<Region[]>((page.props.regions as Region[]) ?? []);
 
 const selectedRegionId = ref<number | ''>('');
 const selectedPickupId = ref<number | ''>('');
+const deliveryType = ref<'pickup' | 'door'>('pickup');
+const homeDeliveryLat = ref<number | null>(null);
+const homeDeliveryLng = ref<number | null>(null);
 const filteredPickupPoints = ref<PickupPoint[]>([]);
 const selectedShippingOptions = ref<ShippingOptions | null>(null);
+
+const HOME_DELIVERY_SURCHARGE = 250;
 
 const updatePickupPoints = () => {
     const region = regions.value.find((r) => r.id === selectedRegionId.value);
@@ -171,6 +182,66 @@ const updatePickupPoints = () => {
 };
 
 watch(selectedRegionId, updatePickupPoints);
+
+const selectedPickupPoint = computed(() => {
+    if (!selectedPickupId.value || !Array.isArray(filteredPickupPoints.value)) return null;
+    return filteredPickupPoints.value.find((p) => p.id === selectedPickupId.value) ?? null;
+});
+
+const showMapModal = ref(false);
+
+/** Google Maps embed URL for pickup point */
+const mapApiKey = (props as any).googleMapsApiKey ?? (page?.props as any)?.googleMapsApiKey ?? '';
+const pickupMapEmbedUrl = computed(() => {
+    const p = selectedPickupPoint.value;
+    if (!p || p.latitude == null || p.longitude == null) return '';
+    const lat = p.latitude;
+    const lng = p.longitude;
+    if (mapApiKey) {
+        return `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(mapApiKey)}&q=${lat},${lng}&zoom=15`;
+    }
+    return `https://www.google.com/maps?q=${lat},${lng}`;
+});
+
+function openMapModal() {
+    if (!selectedPickupPoint.value) return;
+    showMapModal.value = true;
+}
+
+function closeMapModal() {
+    showMapModal.value = false;
+}
+
+function openGoogleMapsExternal() {
+    const p = selectedPickupPoint.value;
+    if (!p) return;
+    const lat = p.latitude;
+    const lng = p.longitude;
+    if (lat != null && lng != null) {
+        window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank');
+    } else if (p.address || p.location) {
+        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.address || p.location || p.name)}`, '_blank');
+    }
+}
+
+const showDeliveryMapModal = ref(false);
+function useCurrentLocation() {
+    showDeliveryMapModal.value = true;
+}
+function onDeliveryLocationConfirm(payload: { lat: number; lng: number }) {
+    homeDeliveryLat.value = payload.lat;
+    homeDeliveryLng.value = payload.lng;
+}
+
+const homeDeliveryMapEmbedUrl = computed(() => {
+    const lat = homeDeliveryLat.value;
+    const lng = homeDeliveryLng.value;
+    if (lat == null || lng == null) return '';
+    if (mapApiKey) {
+        return `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(mapApiKey)}&q=${lat},${lng}&zoom=15`;
+    }
+    return `https://www.google.com/maps?q=${lat},${lng}`;
+});
 
 // --- VIDEO PREVIEW ---
 const videoEmbedUrl = computed<string | null>(() => {
@@ -371,22 +442,78 @@ const videoEmbedUrl = computed<string | null>(() => {
                                 </option>
                             </select>
 
-                            <label for="pickup" class="block font-semibold text-gray-700">Pickup Point</label>
-                            <select
-                                id="pickup"
-                                v-model="selectedPickupId"
-                                :disabled="filteredPickupPoints.length === 0"
-                                class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-primary focus:ring-primary"
-                            >
-                                <option disabled value="">Choose pickup point...</option>
-                                <option v-for="pickup in filteredPickupPoints" :key="pickup.id" :value="pickup.id">
-                                    {{ pickup.name }}
-                                </option>
-                            </select>
+                            <label class="block font-semibold text-gray-700">Delivery type</label>
+                            <div class="flex flex-wrap gap-3">
+                                <label class="flex cursor-pointer items-center gap-1.5">
+                                    <input v-model="deliveryType" type="radio" value="pickup" class="rounded border-gray-300 text-primary" />
+                                    <span>Pickup point</span>
+                                </label>
+                                <label class="flex cursor-pointer items-center gap-1.5">
+                                    <input v-model="deliveryType" type="radio" value="door" class="rounded border-gray-300 text-primary" />
+                                    <span>Home delivery</span>
+                                </label>
+                            </div>
+
+                            <template v-if="deliveryType === 'pickup'">
+                                <label for="pickup" class="mt-2 block font-semibold text-gray-700">Pickup Point</label>
+                                <select
+                                    id="pickup"
+                                    v-model="selectedPickupId"
+                                    :disabled="filteredPickupPoints.length === 0"
+                                    class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-primary focus:ring-primary"
+                                >
+                                    <option disabled value="">Choose pickup point...</option>
+                                    <option v-for="pickup in filteredPickupPoints" :key="pickup.id" :value="pickup.id">
+                                        {{ pickup.name }}
+                                    </option>
+                                </select>
+                                <p v-if="selectedPickupPoint?.address || selectedPickupPoint?.location" class="mt-1 text-xs text-gray-500">
+                                    {{ selectedPickupPoint?.address || selectedPickupPoint?.location }}
+                                </p>
+                                <button
+                                    v-if="selectedPickupPoint && (selectedPickupPoint.latitude != null || selectedPickupPoint.address || selectedPickupPoint.location)"
+                                    type="button"
+                                    class="mt-2 w-full rounded border border-primary bg-primary/10 px-2 py-1.5 text-sm font-medium text-primary hover:bg-primary/20"
+                                    @click="openMapModal"
+                                >
+                                    View on map
+                                </button>
+                            </template>
+
+                            <template v-else>
+                                <p class="mt-2 text-xs text-gray-600">We’ll deliver to your address. Set your location at checkout.</p>
+                                <button
+                                    type="button"
+                                    class="mt-1 w-full rounded border border-primary bg-primary/10 px-2 py-1.5 text-sm font-medium text-primary hover:bg-primary/20"
+                                    @click="useCurrentLocation"
+                                >
+                                    Use current location
+                                </button>
+                                <div v-if="homeDeliveryMapEmbedUrl" class="mt-2 h-[200px] w-full overflow-hidden rounded border bg-gray-100">
+                                    <iframe
+                                        v-if="mapApiKey"
+                                        :src="homeDeliveryMapEmbedUrl"
+                                        title="Delivery location - Google Maps"
+                                        class="h-full w-full border-0"
+                                        loading="lazy"
+                                        allowfullscreen
+                                        referrerpolicy="no-referrer-when-downgrade"
+                                    />
+                                    <a
+                                        v-else
+                                        :href="homeDeliveryMapEmbedUrl"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="flex h-full items-center justify-center text-sm text-primary underline"
+                                    >
+                                        View delivery location on Google Maps
+                                    </a>
+                                </div>
+                            </template>
 
                             <div v-if="selectedShippingOptions" class="mt-2 space-y-4 text-sm">
                                 <div class="rounded border border-gray-200 p-3">
-                                    <p class="font-semibold text-gray-700">Pickup Point</p>
+                                    <p class="font-semibold text-gray-700">Pickup point</p>
                                     <ul class="mt-1 list-none space-y-1 pl-0 text-[11px] text-gray-500">
                                         <li>
                                             Delivery Cost KSh
@@ -397,11 +524,11 @@ const videoEmbedUrl = computed<string | null>(() => {
                                             {{ selectedShippingOptions.pickup.days }} day(s).
                                         </li>
                                     </ul>
-                                    <p class="font-semibold text-gray-700">Door Delivery</p>
+                                    <p class="font-semibold text-gray-700">Home delivery</p>
                                     <ul class="mt-1 list-none space-y-1 pl-0 text-[11px] text-gray-500">
                                         <li>
                                             Delivery Cost KSh
-                                            {{ selectedShippingOptions.door.cost.toLocaleString() }}
+                                            {{ (selectedShippingOptions.door.cost).toLocaleString() }}
                                         </li>
                                         <li>
                                             Your order will be delivered in
@@ -411,6 +538,10 @@ const videoEmbedUrl = computed<string | null>(() => {
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <img src="/free_del.jpeg" alt="Free Delivery" class="w-full rounded-md object-contain" />
                     </div>
 
                     <!-- Seller Info -->
@@ -455,6 +586,60 @@ const videoEmbedUrl = computed<string | null>(() => {
                     </div>
                 </div>
             </div>
+
+            <!-- Pickup point map modal (Google Maps) -->
+            <div v-if="showMapModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" @click.self="closeMapModal">
+                <div class="relative max-h-[90vh] w-full max-w-2xl rounded-lg bg-white shadow-xl" @click.stop>
+                    <div class="flex items-center justify-between border-b px-4 py-2">
+                        <h3 class="font-semibold text-gray-800">{{ selectedPickupPoint?.name ?? 'Pickup point' }}</h3>
+                        <button type="button" class="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700" @click="closeMapModal" aria-label="Close">×</button>
+                    </div>
+                    <div class="p-2">
+                        <div v-if="pickupMapEmbedUrl" class="h-[400px] w-full overflow-hidden rounded border bg-gray-100">
+                            <iframe
+                                v-if="mapApiKey"
+                                :src="pickupMapEmbedUrl"
+                                title="Pickup point - Google Maps"
+                                class="h-full w-full border-0"
+                                loading="lazy"
+                                allowfullscreen
+                                referrerpolicy="no-referrer-when-downgrade"
+                            />
+                            <a
+                                v-else
+                                :href="pickupMapEmbedUrl"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="flex h-full items-center justify-center text-sm text-primary underline"
+                            >
+                                View pickup point on Google Maps
+                            </a>
+                        </div>
+                        <p v-else-if="selectedPickupPoint && (selectedPickupPoint.latitude == null || selectedPickupPoint.longitude == null) && (selectedPickupPoint.address || selectedPickupPoint.location)" class="mt-2 text-center text-sm text-gray-500">
+                            No coordinates for this pickup point. You can open the address in Google Maps.
+                        </p>
+                        <div class="mt-2 flex justify-center">
+                            <button
+                                type="button"
+                                class="rounded bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90"
+                                @click="openGoogleMapsExternal"
+                            >
+                                Open in Google Maps
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Home delivery: map modal to select location -->
+            <MapLocationModal
+                v-model="showDeliveryMapModal"
+                :api-key="(props as any).googleMapsApiKey ?? (page.props as any).googleMapsApiKey ?? ''"
+                :initial-lat="homeDeliveryLat"
+                :initial-lng="homeDeliveryLng"
+                :use-geolocation-on-open="true"
+                @confirm="onDeliveryLocationConfirm"
+            />
 
             <!-- Image Preview Modal -->
             <div v-if="showPreview" @click.self="closePreview" class="bg-opacity-70 fixed inset-0 z-50 flex items-center justify-center bg-black p-4">

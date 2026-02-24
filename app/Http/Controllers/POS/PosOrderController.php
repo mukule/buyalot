@@ -3,12 +3,11 @@
 namespace App\Http\Controllers\POS;
 
 use App\Http\Controllers\Controller;
-use App\Models\Customer\Customer;
 use App\Models\Orders\Order;
-use App\Models\Orders\OrderItem;
 use App\Models\POS\PosSession;
 use App\Models\POS\PosSetting;
 use App\Models\ProductVariant;
+use App\Services\SellerContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -29,7 +28,8 @@ class PosOrderController extends Controller
             'allocated_payment_ids.*' => 'exists:pos_unallocated_payments,id',
         ]);
 
-        $session = PosSession::findOrFail($request->pos_session_id);
+        $user = $request->user() ?? auth()->user();
+        $session = PosSession::forUser($user)->findOrFail($request->pos_session_id);
 
         if ($session->status !== 'open') {
             return response()->json(['message' => 'POS session is closed.'], 422);

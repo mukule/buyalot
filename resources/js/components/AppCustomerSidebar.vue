@@ -4,7 +4,7 @@ import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type AppPageProps, type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
-import { User, Package, Star, Heart, Eye, Settings, CreditCard, MapPin, Bell, LogOut, LayoutDashboard } from 'lucide-vue-next';
+import { User, Package, Star, Heart, Eye, Settings,LogOut, LayoutDashboard } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from './AppLogo.vue';
 
@@ -71,31 +71,31 @@ const allNavItems: NavItem[] = [
         title: 'Account Management',
         icon: Settings,
         children: [
-            {
-                title: 'Profile Settings',
-                href: '/customer/profile',
-                icon: Settings,
-            },
-            {
-                title: 'Payment Settings',
-                href: '#',
-                icon: CreditCard,
-            },
-            {
-                title: 'Address Book',
-                href: customerId.value ? `/customers/${customerId.value}/addresses` : '#',
-                icon: MapPin,
-            },
-            {
-                title: 'Loyalty Points',
-                href: customerId.value ? `/customers/${customerId.value}/loyalty-points` : '#',
-                icon: Star,
-            },
-            {
-                title: 'Newsletter Preferences',
-                href: '#',
-                icon: Bell,
-            },
+            // {
+            //     title: 'Profile Settings',
+            //     href: '/customer/profile',
+            //     icon: Settings,
+            // },
+            // {
+            //     title: 'Payment Settings',
+            //     href: '#',
+            //     icon: CreditCard,
+            // },
+            // {
+            //     title: 'Address Book',
+            //     href: customerId.value ? `/customers/${customerId.value}/addresses` : '#',
+            //     icon: MapPin,
+            // },
+            // {
+            //     title: 'Loyalty Points',
+            //     href: customerId.value ? `/customers/${customerId.value}/loyalty-points` : '#',
+            //     icon: Star,
+            // },
+            // {
+            //     title: 'Newsletter Preferences',
+            //     href: '#',
+            //     icon: Bell,
+            // },
             {
                 title: 'Close Account',
                 href: '/customer/account',

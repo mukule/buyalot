@@ -50,21 +50,26 @@ const topLinks = [
     { name: 'Help Center', href: '/help' },
     { name: 'Sell on Buyalot', href: '/sell' },
     { name: 'Vendor Login', href: '/vendor/login' },
+    { name: 'Distributor Login', href: '/distributor/login' },
 ];
 
 // Routes and auth
 const route = inject<((name: string, params?: any) => string) | undefined>('route');
+const activeRole = computed(() => (page.props.auth?.active_role as string) ?? null);
 const authLinks = computed(() => {
-    if (user.value) {
-        const dashboardUrl =
-            customerId.value && route
-                ? route('customers.dashboard', { customer: customerId.value })
-                : route
-                  ? route('admin.dashboard')
-                  : '/admin/dashboard';
+    if (user.value && route) {
+        const role = activeRole.value === 'vendor' ? 'seller' : activeRole.value;
+        let dashboardUrl: string;
+        if (role === 'customer' && customerId.value) {
+            dashboardUrl = route('customers.dashboard', { customer: customerId.value });
+        } else if (role === 'distributor') {
+            dashboardUrl = route('distributor.dashboard');
+        } else {
+            dashboardUrl = route('admin.dashboard');
+        }
         return [
             { name: 'My Account', href: dashboardUrl, isUser: true },
-            { name: 'Orders', href: route ? route('orders.index') : '/orders/my-orders' },
+            { name: 'Orders', href: route('orders.index') },
             { name: 'Logout', href: '/logout', isLogout: true },
         ];
     } else {

@@ -7,13 +7,13 @@ use Illuminate\Support\Facades\Route;
 
 
 //Route::middleware(['auth','web'])->group(function () {
-    // Roles
+    // Roles (create/store must be defined before {role} to avoid "create" matching as role param)
     Route::middleware(['check_permission:view-roles'])->group(function () {
         Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
+        Route::get('/roles/create', [RoleController::class, 'create'])->name('roles.create');
         Route::get('/roles/{role}', [RoleController::class, 'show'])->name('roles.show');
     });
 //    Route::middleware(['check_permission:create-roles'])->group(function () {
-        Route::get('/roles/create', [RoleController::class, 'create'])->name('roles.create');
         Route::post('/roles', [RoleController::class, 'store'])->name('roles.store');
 //    });
     Route::middleware(['check_permission:edit-roles'])->group(function () {
@@ -24,13 +24,13 @@ use Illuminate\Support\Facades\Route;
         Route::delete('/roles/{role}', [RoleController::class, 'destroy'])->name('roles.destroy');
     });
 
-    // Permissions
+    // Permissions (create must be defined before {permission} to avoid "create" matching as param)
     Route::middleware(['check_permission:view-permissions'])->group(function () {
         Route::get('/permissions', [PermissionController::class, 'index'])->name('permissions.index');
+        Route::get('/permissions/create', [PermissionController::class, 'create'])->name('permissions.create');
         Route::get('/permissions/{permission}', [PermissionController::class, 'show'])->name('permissions.show');
     });
     Route::middleware(['check_permission:create-permissions'])->group(function () {
-        Route::get('/permissions/create', [PermissionController::class, 'create'])->name('permissions.create');
         Route::post('/permissions', [PermissionController::class, 'store'])->name('permissions.store');
     });
     Route::middleware(['check_permission:edit-permissions'])->group(function () {

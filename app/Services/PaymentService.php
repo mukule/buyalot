@@ -10,6 +10,7 @@ use App\Models\Payment\PaymentProvider;
 use App\Models\Payment\PaymentStatus;
 use App\Providers\MpesaProvider;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class PaymentService
 {
@@ -39,8 +40,6 @@ class PaymentService
             'metadata' => $request->metadata,
             'expires_at' => now()->addMinutes(config('payment.expiry_minutes', 15)),
         ]);
-        \Illuminate\Log\log($payment);
-
         return $payment;
     }
 
@@ -59,17 +58,17 @@ class PaymentService
 
     try {
         $response = $provider->initialize($log, $request);
-        \Log::info('Payment provider response', [
-            'payment_id' => $log->id,
-            'response' => $response->toArray()
-        ]);
+        // \Log::info('Payment provider response', [
+        //     'payment_id' => $log->id,
+        //     'response' => $response->toArray()
+        // ]);
         return $response;
     } catch (\Exception $e) {
-        \Log::error('Payment initialization failed', [
-            'payment_id' => $log->id,
-            'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString(),
-        ]);
+        // \Log::error('Payment initialization failed', [
+        //     'payment_id' => $log->id,
+        //     'error' => $e->getMessage(),
+        //     'trace' => $e->getTraceAsString(),
+        // ]);
         return PaymentResponse::failed('Server error while processing payment: ' . $e->getMessage());
     }
 }

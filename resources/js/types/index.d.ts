@@ -16,6 +16,8 @@ export interface Auth {
     user: User | null;
     roles: Role | null;
     customer_id?: number | null;
+    active_role?: string | null;
+    switchable_roles?: string[];
     counts: {
         wishlist: number;
         cart: number;
@@ -25,7 +27,6 @@ export interface Auth {
     permissions: string[];
     customer: Customer | null;
     customerOrders: MyOrders | null;
-    active;
 }
 
 export interface BreadcrumbItem {
@@ -86,6 +87,7 @@ export interface User {
     email_verified_at: string | null;
     created_at: string;
     updated_at: string;
+    user_type?: string;
     secondary_role: string | null;
 }
 
@@ -145,6 +147,7 @@ export interface Product {
 
 export interface Order {
     id: number;
+    ulid?: string;
     order_code: string;
     status: string;
     payment_status: string;
@@ -161,13 +164,17 @@ export interface Order {
 
     // Delivery
     rider_id?: number;
+    delivery_id?: number | null;
+    delivery_assignment_status?: string | null;
+    assigned_rider?: { id: number; name: string; email: string } | null;
 }
 
 export interface Permission {
     id: number;
     name: string;
     guard_name: string;
-    module: string;
+    module?: string;
+    description?: string;
     created_at: string;
     updated_at: string;
 }
@@ -287,7 +294,11 @@ export interface Warehouse {
     hashid?: string;
     name: string;
     slug: string;
+    type?: string;
+    region_id?: number | null;
     location?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
     active: boolean;
 }
 

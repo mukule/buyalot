@@ -68,6 +68,11 @@ class ProductVariant extends Model
         return $this->hasMany(\App\Models\Warehouse\WarehouseProductInventory::class, 'product_variant_id');
     }
 
+     public function images(): HasMany
+    {
+        return $this->hasMany(ProductVariantImage::class, 'product_variant_id');
+    }
+
     // ----------------------
     // Accessors
     // ----------------------

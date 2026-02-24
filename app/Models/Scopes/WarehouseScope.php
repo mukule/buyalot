@@ -2,23 +2,29 @@
 
 namespace App\Models\Scopes;
 
+use App\Services\SellerContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Scope;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
 class WarehouseScope implements Scope
 {
-    /**
-     * Apply the scope to a given Eloquent query builder.
-     */
-
     public function apply(Builder $builder, Model $model): void
     {
         $user = Auth::user();
-        if ($user && $user->user_type="seller"){
-                $builder->where('created_by', $user->id);
+
+        if (! $user) {
+            return;
+        }
+
+        if (SellerContext::isAdmin($user)) {
+            return;
+        }
+
+        if (SellerContext::isSeller($user)) {
+            $relatedUserIds = SellerContext::relatedUserIds($user);
+            $builder->whereIn('created_by', $relatedUserIds);
         }
     }
 }

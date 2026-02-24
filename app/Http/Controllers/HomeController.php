@@ -2,16 +2,20 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Brand;
 use App\Models\Category;
+use App\Models\Brand;
 use App\Models\Customer\Customer;
 use App\Models\Orders\Order;
 use App\Models\Orders\OrderItem;
+use App\Models\Orders\OrderReturn;
 use App\Models\Products\Product;
 use App\Models\Region;
 use App\Models\Seller\Seller;
 use App\Models\User;
 use App\Models\Warehouse\Warehouse;
+use App\Models\Warehouse\WarehouseInventoryMovement;
+use App\Models\Warehouse\WarehouseProductInventory;
+use App\Models\Warehouse\WarehouseReceivable;
 use App\Services\FrontendProductService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -157,27 +161,42 @@ public function productDetails(string $slug)
 
     $shippingService = app(\App\Services\ShippingService::class);
 
-    $regions = Region::with(['pickupPoints' => fn($q) => $q->active()])
-        ->active()
+    $regions = Region::active()
         ->level('region')
         ->get()
         ->map(function ($region) use ($shippingService) {
+            $warehouses = Warehouse::withoutGlobalScopes()
+                ->where(function ($q) use ($region) {
+                    $q->where('region_id', $region->id)
+                        ->orWhereHas('regions', fn ($r) => $r->where('regions.id', $region->id));
+                })
+                ->whereIn('type', ['pickup_point', 'dispatch_center', 'general'])
+                ->where('active', true)
+                ->get(['id', 'name', 'address', 'location', 'latitude', 'longitude']);
+
             return [
                 'id' => $region->id,
                 'name' => $region->name,
-                'pickup_points' => $region->pickupPoints->map(fn($pp) => [
-                    'id' => $pp->id,
-                    'name' => $pp->name,
+                'pickup_points' => $warehouses->map(fn ($w) => [
+                    'id' => $w->id,
+                    'name' => $w->name,
+                    'address' => $w->address,
+                    'location' => $w->location,
+                    'latitude' => $w->latitude ? (float) $w->latitude : null,
+                    'longitude' => $w->longitude ? (float) $w->longitude : null,
                 ])->values()->toArray(),
                 'shipping_options' => $shippingService->getOptionsByRegion($region->id),
             ];
         });
+
+    $googleMapsApiKey = config('services.google.maps_api_key', '');
 
     return Inertia::render('Frontend/ProductDetail', [
         'product' => $productData,
         'relatedProducts' => $relatedProducts,
         'cartVariantIds' => $cartVariantIds,
         'regions' => $regions,
+        'googleMapsApiKey' => $googleMapsApiKey,
         'title' => $product->name,
     ]);
 }
@@ -332,14 +351,237 @@ public function category(string $slug)
                 ];
             });
 
+        // Recent returns (scoped to seller orders when seller/vendor)
+        $returnsQuery = OrderReturn::with('order:id,order_code,ulid,status')
+            ->latest()
+            ->limit(15);
+        if ($user && $user->hasRole(['seller', 'vendor']) && $sellerIds !== null) {
+            $returnsQuery->whereHas('order', fn ($q) => $q->forSeller($sellerIds));
+        }
+        $returns = $returnsQuery->get()->map(function ($r) {
+            $reasonLabel = OrderReturn::reasonOptions()[$r->reason] ?? $r->reason;
+            return [
+                'id' => $r->id,
+                'order_id' => $r->order_id,
+                'order_code' => $r->order?->order_code,
+                'order_ulid' => $r->order?->ulid,
+                'order_status' => $r->order?->status,
+                'status' => $r->status,
+                'reason' => $reasonLabel,
+                'reason_notes' => $r->reason_notes,
+                'is_full_return' => $r->is_full_return,
+                'created_at' => $r->created_at?->toDateTimeString(),
+            ];
+        });
+
         return Inertia::render('Dashboard', [
             'stats' => $stats,
             'ordersByStatus' => $ordersByStatus,
             'productVariantPerformance' => $productVariantPerformance,
+            'returns' => $returns,
         ]);
     }
 
+    /**
+     * Admin returns list (full page).
+     */
+    public function returnsIndex(Request $request)
+    {
+        $user = $request->user();
+        $sellerIds = null;
+        if ($user && $user->hasRole(['seller', 'vendor'])) {
+            $sellerIds = $user->sellers()->pluck((new \App\Models\Seller\Seller())->getTable() . '.id');
+        }
 
+        $query = OrderReturn::with('order:id,order_code,ulid,status')
+            ->latest();
+        if ($user && $user->hasRole(['seller', 'vendor']) && $sellerIds !== null) {
+            $query->whereHas('order', fn ($q) => $q->forSeller($sellerIds));
+        }
+
+        $perPage = (int) $request->input('per_page', 20);
+        $paginated = $query->paginate($perPage)->withQueryString();
+
+        $returns = $paginated->getCollection()->map(function ($r) {
+            $reasonLabel = OrderReturn::reasonOptions()[$r->reason] ?? $r->reason;
+            return [
+                'id' => $r->id,
+                'order_id' => $r->order_id,
+                'order_code' => $r->order?->order_code,
+                'order_ulid' => $r->order?->ulid,
+                'order_status' => $r->order?->status,
+                'status' => $r->status,
+                'reason' => $reasonLabel,
+                'reason_notes' => $r->reason_notes,
+                'is_full_return' => $r->is_full_return,
+                'created_at' => $r->created_at?->toDateTimeString(),
+            ];
+        });
+
+        return Inertia::render('Admin/Returns/Index', [
+            'returns' => $returns,
+            'pagination' => [
+                'links' => $paginated->toArray()['links'] ?? [],
+                'meta' => $paginated->toArray(),
+            ],
+            'filters' => [
+                'per_page' => $perPage,
+            ],
+        ]);
+    }
+
+    /**
+     * Admin return detail view.
+     */
+    public function returnsShow(Request $request, OrderReturn $orderReturn)
+    {
+        $user = $request->user();
+        $sellerIds = null;
+        if ($user && $user->hasRole(['seller', 'vendor'])) {
+            $sellerIds = $user->sellers()->pluck((new Seller())->getTable() . '.id');
+        }
+
+        $orderReturn->load([
+            'order:id,order_code,ulid,status',
+            'delivery.dispatchingWarehouse',
+            'items.orderItem.productVariant.product',
+        ]);
+
+        if ($user && $user->hasRole(['seller', 'vendor']) && $sellerIds !== null) {
+            if (! $orderReturn->order || ! Order::where('id', $orderReturn->order_id)->forSeller($sellerIds)->exists()) {
+                abort(403, 'You do not have access to this return.');
+            }
+        }
+
+        $dispatchingWarehouse = $orderReturn->delivery?->dispatchingWarehouse;
+        $pendingReceivablesCount = 0;
+        if ($dispatchingWarehouse && $orderReturn->status === OrderReturn::STATUS_PENDING_RECEIVE) {
+            $pendingReceivablesCount = WarehouseReceivable::where('order_return_id', $orderReturn->id)
+                ->where('warehouse_id', $dispatchingWarehouse->id)
+                ->where('status', 'pending')
+                ->count();
+        }
+
+        $reasonLabel = OrderReturn::reasonOptions()[$orderReturn->reason] ?? $orderReturn->reason;
+        $items = $orderReturn->items->map(function ($ri) {
+            $pv = $ri->orderItem?->productVariant;
+            $product = $pv?->product;
+            return [
+                'id' => $ri->id,
+                'product_name' => $product?->name ?? '—',
+                'variant_display' => $pv ? ($pv->display_name !== 'Unnamed Variant' ? $pv->display_name : ($pv->sku ?: '—')) : '—',
+                'quantity_returned' => $ri->quantity_returned,
+            ];
+        });
+
+        return Inertia::render('Admin/Returns/Show', [
+            'return' => [
+                'id' => $orderReturn->id,
+                'order_id' => $orderReturn->order_id,
+                'order_code' => $orderReturn->order?->order_code,
+                'order_ulid' => $orderReturn->order?->ulid,
+                'order_status' => $orderReturn->order?->status,
+                'status' => $orderReturn->status,
+                'reason' => $reasonLabel,
+                'reason_notes' => $orderReturn->reason_notes,
+                'is_full_return' => $orderReturn->is_full_return,
+                'raised_by_type' => $orderReturn->raised_by_type,
+                'created_at' => $orderReturn->created_at?->toDateTimeString(),
+                'received_at_dispatch_at' => $orderReturn->received_at_dispatch_at?->toDateTimeString(),
+                'items' => $items,
+                'dispatching_warehouse' => $dispatchingWarehouse ? [
+                    'id' => $dispatchingWarehouse->id,
+                    'hashid' => $dispatchingWarehouse->hashid,
+                    'name' => $dispatchingWarehouse->name,
+                ] : null,
+                'can_receive' => $orderReturn->status === OrderReturn::STATUS_PENDING_RECEIVE && $pendingReceivablesCount > 0,
+                'pending_receivables_count' => $pendingReceivablesCount,
+            ],
+        ]);
+    }
+
+    /**
+     * Receive a return at the dispatching warehouse (accept all pending receivables).
+     */
+    public function receiveReturn(Request $request, OrderReturn $orderReturn)
+    {
+        $user = $request->user();
+        $sellerIds = null;
+        if ($user && $user->hasRole(['seller', 'vendor'])) {
+            $sellerIds = $user->sellers()->pluck((new Seller())->getTable() . '.id');
+        }
+
+        $orderReturn->load('order', 'delivery.dispatchingWarehouse');
+        if (! $orderReturn->order || ! $orderReturn->delivery) {
+            return back()->with('error', 'Return has no linked order or delivery.');
+        }
+        if ($user && $user->hasRole(['seller', 'vendor']) && $sellerIds !== null) {
+            if (! Order::where('id', $orderReturn->order_id)->forSeller($sellerIds)->exists()) {
+                abort(403, 'You do not have access to this return.');
+            }
+        }
+
+        if ($orderReturn->status !== OrderReturn::STATUS_PENDING_RECEIVE) {
+            return back()->with('error', 'This return has already been received.');
+        }
+
+        $warehouse = $orderReturn->delivery->dispatchingWarehouse;
+        if (! $warehouse) {
+            return back()->with('error', 'No dispatching warehouse linked to this return.');
+        }
+
+        $receivables = WarehouseReceivable::where('order_return_id', $orderReturn->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->where('status', 'pending')
+            ->lockForUpdate()
+            ->get();
+
+        if ($receivables->isEmpty()) {
+            return back()->with('error', 'No pending items to receive for this return.');
+        }
+
+        DB::transaction(function () use ($receivables, $warehouse, $orderReturn) {
+            foreach ($receivables as $receivable) {
+                $inv = WarehouseProductInventory::lockForUpdate()->firstOrCreate([
+                    'warehouse_id' => $warehouse->id,
+                    'product_variant_id' => $receivable->product_variant_id,
+                ], [
+                    'stock' => 0,
+                    'reserved_stock' => 0,
+                    'damaged_stock' => 0,
+                    'cost_price' => 0,
+                ]);
+                $before = $inv->stock;
+                $inv->stock += (int) $receivable->quantity;
+                $inv->save();
+
+                WarehouseInventoryMovement::create([
+                    'warehouse_id' => $warehouse->id,
+                    'product_variant_id' => $receivable->product_variant_id,
+                    'type' => 'receive',
+                    'quantity' => (int) $receivable->quantity,
+                    'user_id' => auth()->id(),
+                    'before_stock' => $before,
+                    'after_stock' => $inv->stock,
+                    'note' => 'Return received: ' . ($receivable->note ?? ''),
+                ]);
+
+                $receivable->status = 'received';
+                $receivable->received_by = auth()->id();
+                $receivable->received_at = now();
+                $receivable->save();
+            }
+
+            $orderReturn->update([
+                'status' => OrderReturn::STATUS_RECEIVED_AT_DISPATCH,
+                'received_at_dispatch_at' => now(),
+                'received_at_dispatch_by' => auth()->id(),
+            ]);
+        });
+
+        return redirect()->route('admin.returns.show', $orderReturn->id)
+            ->with('success', 'Return received successfully. Items have been added to warehouse inventory.');
+    }
 
     protected function logCategoryWithChildren(Category $category, int $level = 0): array
 {

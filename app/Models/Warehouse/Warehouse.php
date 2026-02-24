@@ -26,6 +26,7 @@ class Warehouse extends Model
         'status',
         'active',
         'is_default',
+        'is_main_warehouse',
         'capacity',
         'supports_pos',
         'supports_pickup',
@@ -36,6 +37,7 @@ class Warehouse extends Model
     protected $casts = [
         'active' => 'boolean',
         'is_default' => 'boolean',
+        'is_main_warehouse' => 'boolean',
         'supports_pos' => 'boolean',
         'supports_pickup' => 'boolean',
         'supports_delivery' => 'boolean',

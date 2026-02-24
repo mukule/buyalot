@@ -22,7 +22,8 @@ class UserController extends Controller
 {
     public function index(Request $request)
     {
-        $query = User::query()->with('roles') ->whereNot("user_type",'customer');
+        $query = User::query()->with('roles')->whereNot('user_type', 'customer')
+            ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'delivery'));
 
         if ($request->filled('search')) {
             $query->where(function ($searchQuery) use ($request) {
@@ -56,7 +57,7 @@ class UserController extends Controller
         }
 
         $users = $query->latest()->get();
-        $roles = Role::allowedForSeller()->pluck('name');
+        $roles = Role::allowedForSeller()->where('name', '!=', 'delivery')->pluck('name');
 
         $isSellerContext = $authUser && (
             (isset($authUser->user_type) && in_array($authUser->user_type, ['seller','vendor']))

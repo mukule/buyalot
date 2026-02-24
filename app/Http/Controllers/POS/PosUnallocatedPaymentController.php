@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\POS;
 
 use App\Http\Controllers\Controller;
-use App\Models\POS\PosUnallocatedPayment;
 use App\Models\POS\PosSession;
+use App\Models\POS\PosUnallocatedPayment;
 use Illuminate\Http\Request;
 
 class PosUnallocatedPaymentController extends Controller
@@ -13,15 +13,24 @@ class PosUnallocatedPaymentController extends Controller
     {
         $request->validate([
             'customer_id' => 'required|exists:customers,id',
+            'pos_session_id' => 'nullable|exists:pos_sessions,id',
         ]);
 
-        $payments = PosUnallocatedPayment::where('customer_id', $request->customer_id)
-            ->where('status', 'active')
-            ->whereColumn('used_amount', '<', 'amount')
-            ->latest()
-            ->get();
+        $user = $request->user() ?? auth()->user();
 
-        return response()->json($payments);
+        $query = PosUnallocatedPayment::where('customer_id', $request->customer_id)
+            ->where('status', 'active')
+            ->whereColumn('used_amount', '<', 'amount');
+
+        if ($request->pos_session_id) {
+            PosSession::forUser($user)->findOrFail($request->pos_session_id);
+        }
+
+        $query->whereHas('session', function ($q) use ($user) {
+            $q->forUser($user);
+        });
+
+        return response()->json($query->latest()->get());
     }
 
     public function store(Request $request)
@@ -35,12 +44,13 @@ class PosUnallocatedPaymentController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        $session = PosSession::findOrFail($request->pos_session_id);
+        $user = $request->user() ?? auth()->user();
+        $session = PosSession::forUser($user)->findOrFail($request->pos_session_id);
 
         $payment = PosUnallocatedPayment::create([
             'customer_id' => $request->customer_id,
             'pos_session_id' => $session->id,
-            'user_id' => auth()->id(),
+            'user_id' => $user->id,
             'amount' => $request->amount,
             'payment_method' => $request->payment_method,
             'reference' => $request->reference,
@@ -48,7 +58,6 @@ class PosUnallocatedPaymentController extends Controller
             'status' => 'active',
         ]);
 
-        // Update session totals based on payment method
         if ($request->payment_method === 'cash') {
             $session->increment('cash_sales_total', $request->amount);
         } elseif ($request->payment_method === 'mpesa') {
@@ -59,7 +68,7 @@ class PosUnallocatedPaymentController extends Controller
 
         return response()->json([
             'message' => 'Unallocated payment recorded.',
-            'payment' => $payment
+            'payment' => $payment,
         ]);
     }
 }

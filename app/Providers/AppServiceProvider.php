@@ -36,7 +36,7 @@ class AppServiceProvider extends ServiceProvider
             });
 
             // Log the result to storage/logs/laravel.log
-            \Log::info('Customer policies loaded', ['policies' => $policies->toArray()]);
+           // \Log::info('Customer policies loaded', ['policies' => $policies->toArray()]);
 
             return $policies;
         },

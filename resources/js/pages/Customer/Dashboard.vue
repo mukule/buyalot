@@ -208,24 +208,40 @@ const statusClass = computed(() => {
                                 View all
                             </Link>
                         </div>
-                        <div class="space-y-4">
-                            <div
-                                v-for="order in recentOrders"
-                                :key="order.id"
-                                class="flex items-center justify-between border-b border-gray-200 pb-4 last:border-0"
-                            >
-                                <div>
-                                    <p class="font-medium text-gray-900">Order #{{ order.order_number }}</p>
-                                    <p class="text-sm text-gray-600">{{ order.created_at }}</p>
-                                </div>
-                                <div>
-                                    <p class="font-medium text-gray-900">Status</p>
-                                    <p class="text-sm text-gray-600">{{ order.status }}</p>
-                                </div>
-                                <div class="text-right">
-                                    <p class="font-medium text-gray-900">KSh {{ order.total }}</p>
-                                </div>
-                            </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left">
+                                <thead>
+                                <tr class="border-b border-gray-200 text-xs uppercase tracking-wider text-gray-500">
+                                    <th class="pb-3 font-semibold">Order #</th>
+                                    <th class="pb-3 font-semibold">Date</th>
+                                    <th class="pb-3 font-semibold">Status</th>
+                                    <th class="pb-3 text-right font-semibold">Total</th>
+                                </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                <tr
+                                    v-for="order in recentOrders"
+                                    :key="order.id"
+                                    class="group hover:bg-gray-50/50"
+                                >
+                                    <td class="py-4 font-medium text-gray-900">
+                                        {{ order.order_number }}
+                                    </td>
+                                    <td class="py-4 text-sm text-gray-600">
+                                        {{ order.created_at }}
+                                    </td>
+                                    <td class="py-4">
+                        <span class="text-sm text-gray-600 capitalize">
+                            {{ order.status }}
+                        </span>
+                                    </td>
+                                    <td class="py-4 text-right font-medium text-gray-900">
+                                        KSh {{ order.total }}
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>

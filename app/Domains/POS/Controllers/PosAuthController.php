@@ -39,7 +39,7 @@ class PosAuthController extends Controller
 
         $session = null;
         if ($request->terminal_id) {
-            $register = PosRegister::findOrFail($request->terminal_id);
+            $register = PosRegister::forUser($user)->findOrFail($request->terminal_id);
             if ($register->activeSession) {
                 $existing = $register->activeSession;
                 if ((int) $existing->user_id === (int) $user->id) {

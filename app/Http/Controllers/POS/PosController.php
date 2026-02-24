@@ -14,8 +14,10 @@ class PosController extends Controller
 {
     public function index()
     {
-        $registers = PosRegister::with('activeSession')->get();
-        $activeSession = PosSession::where('user_id', auth()->id())
+        $user = auth()->user();
+        $registers = PosRegister::forUser($user)->with('activeSession')->get();
+        $activeSession = PosSession::forUser($user)
+            ->where('user_id', $user->id)
             ->where('status', 'open')
             ->with('register')
             ->first();
@@ -34,7 +36,7 @@ class PosController extends Controller
             'opening_balance' => 'required|numeric|min:0',
         ]);
 
-        $register = PosRegister::findOrFail($request->pos_register_id);
+        $register = PosRegister::forUser(auth()->user())->findOrFail($request->pos_register_id);
 
         if ($register->activeSession) {
             return back()->with('error', 'Register is already in use.');
@@ -53,7 +55,9 @@ class PosController extends Controller
 
     public function show(Request $request)
     {
-        $activeSession = PosSession::where('user_id', auth()->id())
+        $user = auth()->user();
+        $activeSession = PosSession::forUser($user)
+            ->where('user_id', $user->id)
             ->where('status', 'open')
             ->with(['register.warehouse', 'user'])
             ->first();
@@ -105,6 +109,11 @@ class PosController extends Controller
             'notes' => 'nullable|string',
         ]);
 
+        $user = auth()->user();
+        if (! \App\Services\SellerContext::canAccessSession($user, $session)) {
+            return back()->with('error', 'You do not have access to this session.');
+        }
+
         $session->update([
             'closed_at' => Carbon::now(),
             'closing_balance' => $request->closing_balance,
@@ -134,13 +143,26 @@ class PosController extends Controller
             'pin' => 'required|string|size:4',
         ]);
 
-        // Find any user with admin/super-admin role and this PIN
+        $currentUser = $request->user() ?? auth()->user();
+
         $admin = \App\Models\User::role(['admin', 'super-admin'])
             ->where('pos_pin', $request->pin)
             ->first();
 
         if ($admin) {
             return response()->json(['success' => true]);
+        }
+
+        if ($currentUser && \App\Services\SellerContext::isSeller($currentUser)) {
+            $sellerIds = \App\Services\SellerContext::sellerIds($currentUser);
+            $owner = \App\Models\User::where('pos_pin', $request->pin)
+                ->whereHas('sellers', fn ($q) => $q->whereIn('seller_applications.id', $sellerIds)
+                    ->where('seller_user.is_owner', true))
+                ->first();
+
+            if ($owner) {
+                return response()->json(['success' => true]);
+            }
         }
 
         return response()->json(['success' => false, 'message' => 'Invalid Admin PIN.'], 422);

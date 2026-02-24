@@ -10,6 +10,7 @@ use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use App\Http\Middleware\Admin;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
+use App\Http\Middleware\EnsurePortalRole;
 use App\Http\Middleware\ShareSellerVerificationStatus;
 use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
 
@@ -42,6 +43,7 @@ return Application::configure(basePath: dirname(__DIR__))
              'permission' => PermissionMiddleware::class,
              'role_or_permission' => RoleOrPermissionMiddleware::class,
              'check_permission' => CheckPermission::class,
+             'ensure.portal.role' => EnsurePortalRole::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

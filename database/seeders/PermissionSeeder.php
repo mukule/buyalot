@@ -80,6 +80,8 @@ class PermissionSeeder extends Seeder
                 'approve-products',
                 'reject-products',
                 'manage-product-inventory',
+                'restock-product-items',
+                'restock-product-history',
                 'view-product-analytics',
                 'import-products',
                 'export-products',
@@ -291,6 +293,9 @@ class PermissionSeeder extends Seeder
                 'edit-delivery_charges',
                 'delete-delivery_charges',
             ],
+            'delivery_persons' => [
+                'view-delivery-persons',
+            ],
             'invoices' =>[
                 'view-invoices',
                 'view-invoice-details',
@@ -346,6 +351,7 @@ class PermissionSeeder extends Seeder
         $managerPermissions = Permission::whereIn('name', [
             'view-dashboard',
             'view-products', 'edit-products', 'approve-products',
+            'restock-product-items', 'restock-product-history',
             'view-sellers', 'approve-sellers',
             'view-orders', 'process-orders',
             'view-inventory', 'manage-inventory',
@@ -361,6 +367,7 @@ class PermissionSeeder extends Seeder
         $staffPermissions = Permission::whereIn('name', [
             'view-dashboard',
             'view-products',
+            'restock-product-items', 'restock-product-history',
             'view-orders', 'process-orders',
             'view-inventory',
         ])->get();
@@ -375,6 +382,7 @@ class PermissionSeeder extends Seeder
             'view-dashboard',
             'view-products', 'create-products', 'edit-products',
             'manage-product-inventory',
+            'restock-product-items', 'restock-product-history',
             'view-orders',
             'view-inventory',
             'view-user-profile', 'edit-user-profile',

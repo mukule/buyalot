@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
+import MapLocationModal from '@/components/MapLocationModal.vue';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 const page = usePage();
 const title = 'Create Warehouse';
+const mapModalOpen = ref(false);
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/admin/dashboard' },
@@ -16,6 +18,7 @@ const breadcrumbs = [
 const regions = page.props.regions || [];
 const types = page.props.types || [];
 const parentWarehouses = page.props.parentWarehouses || [];
+const googleMapsApiKey = (page.props as { googleMapsApiKey?: string }).googleMapsApiKey ?? '';
 
 const form = useForm({
     name: '',
@@ -25,6 +28,7 @@ const form = useForm({
     longitude: null as number | null,
     region_id: '',
     parent_warehouse_id: '',
+    is_main_warehouse: false,
     active: true,
 });
 
@@ -32,7 +36,24 @@ const mapUrl = computed(() => {
     if (form.latitude != null && form.longitude != null) {
         const lat = form.latitude;
         const lon = form.longitude;
-        return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lon}&zoom=15&size=600x300&markers=${lat},${lon},red-pushpin`;
+        if (googleMapsApiKey) {
+            const params = new URLSearchParams({
+                center: `${lat},${lon}`,
+                zoom: '15',
+                size: '600x300',
+                markers: `${lat},${lon}`,
+                key: googleMapsApiKey,
+            });
+            return `https://maps.googleapis.com/maps/api/staticmap?${params.toString()}`;
+        }
+        return '';
+    }
+    return '';
+});
+
+const mapLinkUrl = computed(() => {
+    if (form.latitude != null && form.longitude != null) {
+        return `https://www.google.com/maps?q=${form.latitude},${form.longitude}`;
     }
     return '';
 });
@@ -58,6 +79,11 @@ function useCurrentLocation() {
     } catch (e) {
         console.error('Geolocation not available', e);
     }
+}
+
+function onMapConfirm(payload: { lat: number; lng: number }) {
+    form.latitude = Number(payload.lat.toFixed(7));
+    form.longitude = Number(payload.lng.toFixed(7));
 }
 
 const submitForm = () => {
@@ -156,6 +182,22 @@ const submitForm = () => {
                         </div>
                     </div>
 
+                    <!-- Main Warehouse -->
+                    <div class="flex items-center space-x-2">
+                        <input
+                            id="is_main_warehouse"
+                            type="checkbox"
+                            v-model="form.is_main_warehouse"
+                            class="h-4 w-4 rounded border border-gray-300 text-primary focus:ring-primary"
+                        />
+                        <label for="is_main_warehouse" class="select-none text-sm font-medium text-gray-700">
+                            Main warehouse (center of all pickup points)
+                        </label>
+                    </div>
+                    <p v-if="form.is_main_warehouse" class="text-xs text-gray-500">
+                        Only one warehouse can be the main warehouse. Designating this as main will unset any existing main warehouse.
+                    </p>
+
                     <!-- Location -->
                     <div>
                         <label for="location" class="block text-sm font-medium text-gray-700">Location</label>
@@ -174,7 +216,23 @@ const submitForm = () => {
                     <!-- Geolocation (Latitude/Longitude) -->
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Geolocation</label>
-                        <div class="mt-1 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <p class="mt-0.5 text-xs text-gray-500">
+                            Set coordinates for map display. Use the map to pick a location (defaults to your current location) or enter coordinates manually.
+                        </p>
+                        <div class="mt-1 flex flex-wrap gap-2">
+                            <button
+                                v-if="googleMapsApiKey"
+                                type="button"
+                                @click="mapModalOpen = true"
+                                class="rounded bg-[color:var(--primary)] px-3 py-2 text-sm font-medium text-white hover:opacity-90"
+                            >
+                                Pick on map
+                            </button>
+                            <button type="button" @click="useCurrentLocation" class="rounded bg-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-300">
+                                Use Current Location
+                            </button>
+                        </div>
+                        <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div>
                                 <input
                                     v-model.number="form.latitude"
@@ -199,17 +257,31 @@ const submitForm = () => {
                                 />
                                 <div v-if="form.errors.longitude" class="mt-1 text-sm text-red-600">{{ form.errors.longitude }}</div>
                             </div>
-                            <div class="flex items-center">
-                                <button type="button" @click="useCurrentLocation" class="w-full rounded bg-gray-200 px-3 py-2 text-gray-700 hover:bg-gray-300">
-                                    Use Current Location
-                                </button>
-                            </div>
                         </div>
-                        <div v-if="mapUrl" class="mt-3">
-                            <img :src="mapUrl" alt="Map preview" class="w-full rounded border" />
-                            <p class="mt-1 text-xs text-gray-500">Preview from OpenStreetMap based on the coordinates above.</p>
+                        <div v-if="mapUrl || mapLinkUrl" class="mt-3">
+                            <img v-if="mapUrl" :src="mapUrl" alt="Map preview" class="w-full max-w-md rounded border" />
+                            <a
+                                v-else
+                                :href="mapLinkUrl"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="inline-flex items-center gap-1 rounded border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-primary hover:bg-gray-100"
+                            >
+                                View location on Google Maps
+                            </a>
+                            <p class="mt-1 text-xs text-gray-500">Preview from Google Maps based on the coordinates above.</p>
                         </div>
                     </div>
+
+                    <MapLocationModal
+                        v-model="mapModalOpen"
+                        :api-key="googleMapsApiKey"
+                        :initial-lat="form.latitude"
+                        :initial-lng="form.longitude"
+                        :use-geolocation-on-open="form.latitude == null && form.longitude == null"
+                        title="Select warehouse location"
+                        @confirm="onMapConfirm"
+                    />
 
                     <!-- Active Checkbox -->
                     <div class="flex items-center space-x-2">

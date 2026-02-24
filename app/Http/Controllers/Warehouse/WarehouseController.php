@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Warehouse;
 
 use App\Http\Controllers\Controller;
+use App\Mail\OrderReadyForPickup;
 use App\Models\Category;
+use App\Models\Orders\Order;
 use App\Models\Products\Product;
 use App\Models\Products\ProductVariant;
 use App\Models\Region;
@@ -13,11 +15,17 @@ use App\Models\Warehouse\WarehouseActivityLog;
 use App\Models\Warehouse\WarehouseInventoryMovement;
 use App\Models\Warehouse\WarehouseManager;
 use App\Models\Warehouse\WarehouseProductInventory;
+use App\Models\Orders\OrderItem;
+use App\Models\Orders\OrderReturn;
+use App\Models\Orders\OrderReturnItem;
+use App\Models\Payment\Payment;
+use App\Models\Payment\PaymentStatus;
 use App\Models\Warehouse\WarehouseReceivable;
 use App\Models\Warehouse\WarehouseRejectionReason;
 use App\Traits\HasPermissionCheck;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Spatie\Permission\Models\Role;
@@ -272,6 +280,10 @@ class WarehouseController extends Controller
             }
         }
 
+        $request->merge([
+            'region_id' => $request->input('region_id') ?: null,
+            'parent_warehouse_id' => $request->input('parent_warehouse_id') ?: null,
+        ]);
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:warehouses,name',
             'code' => 'nullable|string|max:50|unique:warehouses,code',
@@ -284,6 +296,7 @@ class WarehouseController extends Controller
             'longitude' => 'nullable|numeric|between:-180,180',
             'capacity' => 'nullable|integer|min:0',
             'is_default' => 'sometimes|boolean',
+            'is_main_warehouse' => 'sometimes|boolean',
             'active' => 'sometimes|boolean',
             'supports_pos' => 'sometimes|boolean',
             'supports_pickup' => 'sometimes|boolean',
@@ -308,6 +321,11 @@ class WarehouseController extends Controller
             // Generate unique code if not provided
             $code = $validated['code'] ?? strtoupper(Str::random(10));
 
+            // If setting as main warehouse, unset other main warehouses
+            if (!empty($validated['is_main_warehouse'])) {
+                Warehouse::withoutGlobalScopes()->where('is_main_warehouse', true)->update(['is_main_warehouse' => false]);
+            }
+
             $warehouse = Warehouse::create([
                 'code' => "WH".$code,
                 'name' => $validated['name'],
@@ -321,6 +339,7 @@ class WarehouseController extends Controller
                 'location' => $validated['location'] ?? null,
                 'capacity' => $validated['capacity'] ?? null,
                 'is_default' => $validated['is_default'] ?? false,
+                'is_main_warehouse' => $validated['is_main_warehouse'] ?? false,
                 'active' => $validated['active'] ?? true,
                 'supports_pos' => $validated['supports_pos'] ?? false,
                 'supports_pickup' => $validated['supports_pickup'] ?? false,
@@ -368,7 +387,8 @@ class WarehouseController extends Controller
         return Inertia::render('Admin/Warehouses/Edit', [
             'warehouse' => $warehouse,
             'regions' => Region::select('id', 'name')->get(),
-            'types' => ['warehouse', 'store', 'pickup_point', 'dispatch_center'],
+            'parentWarehouses' => Warehouse::select('id', 'name')->where('id', '!=', $warehouse->id)->get(),
+            'types' => ['warehouse', 'store', 'pickup_point', 'dispatch_center', 'general'],
         ]);
     }
 
@@ -384,10 +404,14 @@ class WarehouseController extends Controller
             }
         }
 
+        $request->merge([
+            'region_id' => $request->input('region_id') ?: null,
+            'parent_warehouse_id' => $request->input('parent_warehouse_id') ?: null,
+        ]);
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:warehouses,name,' . $warehouse->id,
             'code' => 'nullable|string|max:50|unique:warehouses,code,' . $warehouse->id,
-            'type' => 'required|in:warehouse,store,pickup_point,dispatch_center',
+            'type' => 'required|in:warehouse,store,pickup_point,dispatch_center,general',
             'region_id' => 'nullable|exists:regions,id',
             'parent_warehouse_id' => 'nullable|exists:warehouses,id',
             'address' => 'nullable|string|max:255',
@@ -396,6 +420,7 @@ class WarehouseController extends Controller
             'longitude' => 'nullable|numeric|between:-180,180',
             'capacity' => 'nullable|integer|min:0',
             'is_default' => 'sometimes|boolean',
+            'is_main_warehouse' => 'sometimes|boolean',
             'active' => 'sometimes|boolean',
             'supports_pos' => 'sometimes|boolean',
             'supports_pickup' => 'sometimes|boolean',
@@ -411,6 +436,14 @@ class WarehouseController extends Controller
         ]);
 
         DB::transaction(function () use ($warehouse, $validated) {
+            // If setting as main warehouse, unset other main warehouses
+            if (!empty($validated['is_main_warehouse'])) {
+                Warehouse::withoutGlobalScopes()
+                    ->where('is_main_warehouse', true)
+                    ->where('id', '!=', $warehouse->id)
+                    ->update(['is_main_warehouse' => false]);
+            }
+
             // Update slug if name changed
             if ($warehouse->name !== $validated['name']) {
                 $slug = Str::slug($validated['name']);
@@ -435,6 +468,7 @@ class WarehouseController extends Controller
                 'longitude' => $validated['longitude'] ?? null,
                 'capacity' => $validated['capacity'] ?? null,
                 'is_default' => $validated['is_default'] ?? false,
+                'is_main_warehouse' => $validated['is_main_warehouse'] ?? false,
                 'active' => $validated['active'] ?? true,
                 'supports_pos' => $validated['supports_pos'] ?? false,
                 'supports_pickup' => $validated['supports_pickup'] ?? false,
@@ -954,14 +988,20 @@ class WarehouseController extends Controller
             }
         }
 
-        $query = \App\Models\Warehouse\WarehouseReceivable::with(['productVariant.product'])
+        $query = \App\Models\Warehouse\WarehouseReceivable::with([
+            'productVariant' => fn ($q) => $q->with([
+                'product' => fn ($q2) => $q2->withoutGlobalScopes(),
+                'values',
+            ]),
+        ])
             ->where('warehouse_id', $warehouse->id)
             ->where('status', 'pending');
 
         if ($request->filled('search')) {
             $search = $request->input('search');
-            $query->whereHas('productVariant.product', function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%");
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('productVariant.product', fn ($pq) => $pq->withoutGlobalScopes()->where('name', 'like', "%{$search}%"))
+                    ->orWhereHas('productVariant', fn ($vq) => $vq->where('sku', 'like', "%{$search}%"));
             });
         }
 
@@ -969,10 +1009,18 @@ class WarehouseController extends Controller
         $paginated = $query->orderByDesc('id')->paginate($perPage)->withQueryString();
 
         $receivables = $paginated->getCollection()->map(function ($r) {
+            $variant = $r->productVariant;
+            $product = $variant?->product;
+            $productName = $product?->name ?? 'Unknown Product';
+            // Variant display: use accessor (product name + variant values, or SKU as fallback)
+            $variantDisplay = $variant
+                ? ($variant->display_name !== 'Unnamed Variant' ? $variant->display_name : ($variant->sku ?: '—'))
+                : '—';
+
             return [
                 'id' => $r->id,
-                'product_name' => optional($r->productVariant->product)->name,
-                'variant_display' => method_exists($r->productVariant, 'getDisplayNameAttribute') ? $r->productVariant->display_name : null,
+                'product_name' => $productName,
+                'variant_display' => $variantDisplay,
                 'quantity' => $r->quantity,
                 'note' => $r->note,
                 'created_at' => $r->created_at?->toDateTimeString(),
@@ -1015,18 +1063,21 @@ class WarehouseController extends Controller
             }
         }
 
-        $query = WarehouseReceivable::with(['productVariant.product', 'fromWarehouse'])
+        $query = WarehouseReceivable::with([
+            'productVariant' => fn ($q) => $q->with(['product' => fn ($q2) => $q2->withoutGlobalScopes(), 'values']),
+            'fromWarehouse',
+            'order:id,order_code,ulid',
+        ])
             ->where('warehouse_id', $warehouse->id)
             ->where('status', 'rejected');
 
         if ($request->filled('search')) {
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
-                $q->whereHas('productVariant.product', function ($sub) use ($search) {
-                    $sub->where('name', 'like', "%{$search}%");
-                })->orWhereHas('fromWarehouse', function ($sub) use ($search) {
-                    $sub->where('name', 'like', "%{$search}%");
-                })->orWhere('rejected_reason', 'like', "%{$search}%");
+                $q->whereHas('productVariant.product', fn ($sub) => $sub->withoutGlobalScopes()->where('name', 'like', "%{$search}%"))
+                    ->orWhereHas('productVariant', fn ($sub) => $sub->where('sku', 'like', "%{$search}%"))
+                    ->orWhereHas('fromWarehouse', fn ($sub) => $sub->where('name', 'like', "%{$search}%"))
+                    ->orWhere('rejected_reason', 'like', "%{$search}%");
             });
         }
 
@@ -1034,15 +1085,25 @@ class WarehouseController extends Controller
         $paginated = $query->orderByDesc('id')->paginate($perPage)->withQueryString();
 
         $items = $paginated->getCollection()->map(function ($r) {
+            $variant = $r->productVariant;
+            $product = $variant?->product;
+            $productName = $product?->name ?? 'Unknown Product';
+            $variantDisplay = $variant
+                ? ($variant->display_name !== 'Unnamed Variant' ? $variant->display_name : ($variant->sku ?: '—'))
+                : '—';
+
             return [
                 'id' => $r->id,
-                'product_name' => optional($r->productVariant->product)->name,
-                'variant_display' => method_exists($r->productVariant, 'getDisplayNameAttribute') ? $r->productVariant->display_name : null,
+                'product_name' => $productName,
+                'variant_display' => $variantDisplay,
                 'quantity' => $r->quantity,
                 'from_warehouse' => optional($r->fromWarehouse)->name,
                 'rejected_reason' => $r->rejected_reason,
                 'rejected_at' => $r->rejected_at?->toDateTimeString(),
                 'note' => $r->note,
+                'order_return_id' => $r->order_return_id,
+                'order_code' => $r->order?->order_code,
+                'order_ulid' => $r->order?->ulid,
             ];
         });
 
@@ -1161,6 +1222,45 @@ class WarehouseController extends Controller
                 $receivable->received_by = auth()->id();
                 $receivable->received_at = now();
                 $receivable->save();
+
+                if ($receivable->order_return_id) {
+                    $pendingCount = WarehouseReceivable::where('order_return_id', $receivable->order_return_id)
+                        ->where('status', 'pending')
+                        ->count();
+                    if ($pendingCount === 0) {
+                        OrderReturn::where('id', $receivable->order_return_id)->update([
+                            'status' => OrderReturn::STATUS_RECEIVED_AT_DISPATCH,
+                            'received_at_dispatch_at' => now(),
+                            'received_at_dispatch_by' => auth()->id(),
+                        ]);
+                    }
+                }
+                // Order delivery receivables: when all receivables for this order at this warehouse are received, mark order shipped and notify customer
+                if ($receivable->order_id && ! $receivable->order_return_id) {
+                    $pendingAtWarehouse = WarehouseReceivable::where('order_id', $receivable->order_id)
+                        ->where('warehouse_id', $warehouse->id)
+                        ->whereNull('order_return_id')
+                        ->where('status', '!=', 'received')
+                        ->count();
+                    if ($pendingAtWarehouse === 0) {
+                        $order = Order::with('delivery.pickupWarehouse', 'customer')->find($receivable->order_id);
+                        if ($order) {
+                            $order->update([
+                                'status' => 'shipped',
+                                'shipped_at' => $order->shipped_at ?? now(),
+                            ]);
+                            $delivery = $order->delivery;
+                            $customer = $order->customer;
+                            if ($customer && $customer->email && $delivery && (int) $delivery->pickup_warehouse_id === (int) $warehouse->id) {
+                                $pickupWarehouse = $delivery->pickupWarehouse;
+                                $pickupName = $pickupWarehouse ? $pickupWarehouse->name : 'Pick up point';
+                                $pickupAddress = $pickupWarehouse ? ($pickupWarehouse->address ?? $pickupWarehouse->location) : null;
+                                $pickupDetail = $pickupWarehouse && $pickupWarehouse->location ? $pickupWarehouse->location : null;
+                                Mail::to($customer->email)->send(new OrderReadyForPickup($order, $pickupName, $pickupAddress, $pickupDetail));
+                            }
+                        }
+                    }
+                }
             }
         });
 
@@ -1194,8 +1294,15 @@ class WarehouseController extends Controller
             if ($receivable->status !== 'pending') {
                 abort(422, 'Receivable is not pending.');
             }
-            if (empty($receivable->from_warehouse_id)) {
-                abort(422, 'Original warehouse not specified for this receivable.');
+
+            // For order receivables, original warehouse may be missing if delivery had no dispatching_warehouse_id; try to derive it
+            $sourceWarehouseId = (int) $receivable->from_warehouse_id;
+            if ($sourceWarehouseId <= 0 && !empty($receivable->order_id)) {
+                $order = Order::with('delivery')->find($receivable->order_id);
+                if ($order && $order->delivery && $order->delivery->dispatching_warehouse_id) {
+                    $sourceWarehouseId = (int) $order->delivery->dispatching_warehouse_id;
+                    $receivable->from_warehouse_id = $sourceWarehouseId; // backfill for next time
+                }
             }
 
             // Determine reason record and details
@@ -1222,38 +1329,76 @@ class WarehouseController extends Controller
                 $receivable->rejected_reason = $legacyReasonText ?: $note;
             }
             $receivable->rejected_at = now();
+
+            // When this receivable is order-related, create a return note (OrderReturn) so it appears in Returns
+            if (!empty($receivable->order_id)) {
+                $order = \App\Models\Orders\Order::with('delivery', 'orderItems')->find($receivable->order_id);
+                $orderItem = $order
+                    ? OrderItem::where('order_id', $receivable->order_id)
+                        ->where('product_variant_id', $receivable->product_variant_id)
+                        ->whereRaw('quantity > quantity_returned')
+                        ->first()
+                    : null;
+                if ($order && $orderItem) {
+                    $qtyReturned = (int) min($receivable->quantity, $orderItem->quantity - $orderItem->quantity_returned);
+                    if ($qtyReturned > 0) {
+                        $orderReturn = OrderReturn::create([
+                            'order_id' => $order->id,
+                            'delivery_id' => $order->delivery?->id,
+                            'raised_by_type' => OrderReturn::RAISED_BY_WAREHOUSE,
+                            'raised_by_id' => auth()->id(),
+                            'reason' => OrderReturn::REASON_OTHER,
+                            'reason_notes' => $receivable->rejected_reason ?? 'Rejected at pickup point',
+                            'is_full_return' => false,
+                            'status' => OrderReturn::STATUS_PENDING_RECEIVE,
+                        ]);
+                        OrderReturnItem::create([
+                            'order_return_id' => $orderReturn->id,
+                            'order_item_id' => $orderItem->id,
+                            'quantity_returned' => $qtyReturned,
+                        ]);
+                        $orderItem->increment('quantity_returned', $qtyReturned);
+                        $receivable->order_return_id = $orderReturn->id;
+                        $totalOrdered = (int) OrderItem::where('order_id', $order->id)->sum('quantity');
+                        $totalReturned = (int) OrderItem::where('order_id', $order->id)->sum('quantity_returned');
+                        $newStatus = $totalReturned >= $totalOrdered ? 'returned' : 'partially_returned';
+                        $order->update(['status' => $newStatus]);
+                    }
+                }
+            }
             $receivable->save();
 
-            // Return stock to source warehouse
-            $sourceWarehouseId = (int) $receivable->from_warehouse_id;
-            $sourceInv = WarehouseProductInventory::lockForUpdate()->firstOrCreate([
-                'warehouse_id' => $sourceWarehouseId,
-                'product_variant_id' => $receivable->product_variant_id,
-            ], [
-                'stock' => 0,
-                'reserved_stock' => 0,
-                'damaged_stock' => 0,
-                'cost_price' => 0,
-            ]);
-            $before = $sourceInv->stock;
-            $sourceInv->stock += (int) $receivable->quantity;
-            $sourceInv->save();
+            // Return stock to source warehouse when we have an original warehouse (skip for orders with no dispatching warehouse)
+            if ($sourceWarehouseId > 0) {
+                $sourceInv = WarehouseProductInventory::lockForUpdate()->firstOrCreate([
+                    'warehouse_id' => $sourceWarehouseId,
+                    'product_variant_id' => $receivable->product_variant_id,
+                ], [
+                    'stock' => 0,
+                    'reserved_stock' => 0,
+                    'damaged_stock' => 0,
+                    'cost_price' => 0,
+                ]);
+                $before = $sourceInv->stock;
+                $sourceInv->stock += (int) $receivable->quantity;
+                $sourceInv->save();
 
-            WarehouseInventoryMovement::create([
-                'warehouse_id' => $sourceWarehouseId,
-                'product_variant_id' => $receivable->product_variant_id,
-                'type' => 'transfer_return',
-                'quantity' => (int) $receivable->quantity,
-                'from_warehouse_id' => $warehouse->id,
-                'to_warehouse_id' => $sourceWarehouseId,
-                'user_id' => auth()->id(),
-                'before_stock' => $before,
-                'after_stock' => $sourceInv->stock,
-                'note' => 'Rejected: ' . ($receivable->rejected_reason ?? 'No reason provided'),
-            ]);
+                WarehouseInventoryMovement::create([
+                    'warehouse_id' => $sourceWarehouseId,
+                    'product_variant_id' => $receivable->product_variant_id,
+                    'type' => 'transfer_return',
+                    'quantity' => (int) $receivable->quantity,
+                    'from_warehouse_id' => $warehouse->id,
+                    'to_warehouse_id' => $sourceWarehouseId,
+                    'user_id' => auth()->id(),
+                    'before_stock' => $before,
+                    'after_stock' => $sourceInv->stock,
+                    'note' => 'Rejected: ' . ($receivable->rejected_reason ?? 'No reason provided'),
+                ]);
+            }
         });
 
-        return back()->with('success', 'Receivable rejected and stock returned to source warehouse.');
+        return back()->with('success', 'Receivable rejected and return note created.');
     }
 
     public function dispatches(Request $request, Warehouse $warehouse)
@@ -1386,5 +1531,124 @@ class WarehouseController extends Controller
         });
 
         return back()->with('success', 'Published to variant inventory successfully.');
+    }
+
+    /**
+     * Orders ready for customer pickup at this warehouse (status shipped, pickup_point, pickup_warehouse_id = this warehouse).
+     * Store/pickup point attendant uses this to confirm customer picked and collect COD if needed.
+     */
+    public function ordersReadyForPickup(Request $request, Warehouse $warehouse)
+    {
+        if (! $this->sellerOwns($warehouse)) {
+            $permissionCheck = $this->checkPermissionOrFail('manage-inventory');
+            if ($permissionCheck) {
+                return $permissionCheck;
+            }
+        }
+
+        $orders = Order::with(['customer:id,first_name,last_name,email', 'delivery', 'orderItems.productVariant.product:id,name'])
+            ->where('status', 'shipped')
+            ->whereHas('delivery', function ($q) use ($warehouse) {
+                $q->where('delivery_type', 'pickup_point')->where('pickup_warehouse_id', $warehouse->id);
+            })
+            ->orderByDesc('updated_at')
+            ->get()
+            ->map(function ($order) {
+                return [
+                    'id' => $order->id,
+                    'ulid' => $order->ulid,
+                    'order_code' => $order->order_code,
+                    'payment_status' => $order->payment_status,
+                    'payment_method' => $order->payment_method,
+                    'total_amount' => (float) $order->total_amount,
+                    'currency' => $order->currency,
+                    'customer' => $order->customer ? [
+                        'id' => $order->customer->id,
+                        'first_name' => $order->customer->first_name,
+                        'last_name' => $order->customer->last_name,
+                        'email' => $order->customer->email,
+                    ] : null,
+                    'order_items_summary' => $order->orderItems->map(fn ($i) => [
+                        'product_name' => $i->productVariant?->product?->name ?? '—',
+                        'quantity' => $i->quantity,
+                    ])->toArray(),
+                ];
+            });
+
+        return Inertia::render('Admin/Warehouses/OrdersReadyForPickup', [
+            'warehouse' => [
+                'id' => $warehouse->id,
+                'hashid' => $warehouse->hashid,
+                'name' => $warehouse->name,
+                'code' => $warehouse->code,
+            ],
+            'orders' => $orders,
+            'paymentsInitiateUrl' => route('payments.initiate'),
+        ]);
+    }
+
+    /**
+     * Mark order as delivered when customer collects at pickup point. If COD and not paid, require payment (cash or M-Pesa) first.
+     */
+    public function customerPickedOrder(Request $request, Warehouse $warehouse, Order $order)
+    {
+        if (! $this->sellerOwns($warehouse)) {
+            $permissionCheck = $this->checkPermissionOrFail('manage-inventory');
+            if ($permissionCheck) {
+                return $permissionCheck;
+            }
+        }
+
+        $delivery = $order->delivery;
+        if (! $delivery || (int) $delivery->pickup_warehouse_id !== (int) $warehouse->id) {
+            return back()->with('error', 'This order is not for pickup at this warehouse.');
+        }
+        if ($delivery->delivery_type !== 'pickup_point') {
+            return back()->with('error', 'Not a pickup point order.');
+        }
+        if ($order->status !== 'shipped') {
+            return back()->with('error', 'Order is not ready for pickup (status must be shipped).');
+        }
+        if ($delivery->delivered_at) {
+            return back()->with('error', 'Order is already marked as delivered.');
+        }
+
+        $isCod = strtolower($order->payment_method ?? '') === 'cash_on_delivery' && $order->payment_status !== 'paid';
+        if ($isCod) {
+            $request->validate([
+                'payment_method_collected' => 'required|string|in:cash,mpesa',
+                'mpesa_receipt_number' => 'required_if:payment_method_collected,mpesa|nullable|string|max:50',
+            ]);
+        }
+
+        DB::transaction(function () use ($order, $delivery, $isCod, $request) {
+            if ($isCod) {
+                $reference = 'COD-PICKUP-' . $order->order_code . '-' . now()->format('YmdHisu');
+                Payment::create([
+                    'payable_type' => Order::class,
+                    'payable_id' => $order->id,
+                    'amount' => $order->total_amount,
+                    'amount_paid' => $order->total_amount,
+                    'currency' => $order->currency ?? 'KES',
+                    'provider' => 'cod',
+                    'method' => $request->payment_method_collected,
+                    'status' => PaymentStatus::COMPLETED,
+                    'reference' => $reference,
+                    'provider_reference' => $request->mpesa_receipt_number,
+                    'mpesa_receipt_number' => $request->mpesa_receipt_number,
+                    'completed_at' => now(),
+                ]);
+                $order->update(['payment_status' => 'paid']);
+            }
+
+            $delivery->update(['delivered_at' => now()]);
+            $order->update([
+                'status' => 'delivered',
+                'fulfillment_status' => 'fulfilled',
+                'delivered_at' => $order->delivered_at ?? now(),
+            ]);
+        });
+
+        return back()->with('success', 'Order marked as delivered. ' . ($isCod ? 'Payment recorded.' : ''));
     }
 }

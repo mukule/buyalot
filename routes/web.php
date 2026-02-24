@@ -46,16 +46,31 @@ require __DIR__.'/customer.php';
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
 
+// Distributor portal: login at /distributor/login or switch from customer/seller
+Route::middleware(['auth', 'ensure.portal.role:distributor'])->prefix('distributor')->name('distributor.')->group(function () {
+    Route::get('/dashboard', [\App\Http\Controllers\Distributor\DistributorController::class, 'dashboard'])->name('dashboard');
+});
+
+// Delivery person: login at /delivery/login, then access delivery dashboard
+Route::middleware(['auth', 'role:delivery'])->prefix('admin')->name('delivery.')->group(function () {
+    Route::get('/delivery', [\App\Http\Controllers\Delivery\DeliveryController::class, 'dashboard'])->name('dashboard');
+    Route::post('/delivery/orders/{order}/accept', [\App\Http\Controllers\Delivery\DeliveryController::class, 'accept'])->name('orders.accept');
+    Route::post('/delivery/orders/{order}/reject', [\App\Http\Controllers\Delivery\DeliveryController::class, 'reject'])->name('orders.reject');
+    Route::post('/delivery/orders/{order}/confirm-picked', [\App\Http\Controllers\Delivery\DeliveryController::class, 'confirmPickedForDelivery'])->name('orders.confirm-picked');
+    Route::post('/delivery/orders/{order}/mark-delivered', [\App\Http\Controllers\Delivery\DeliveryController::class, 'markDelivered'])->name('orders.mark-delivered');
+    Route::post('/delivery/orders/{order}/confirm-cash-payment', [\App\Http\Controllers\Delivery\DeliveryController::class, 'confirmCashPayment'])->name('orders.confirm-cash-payment');
+    Route::post('/delivery/orders/{order}/initiate-mpesa', [\App\Http\Controllers\Delivery\DeliveryController::class, 'initiateMpesaForCod'])->name('orders.initiate-mpesa');
+    Route::post('/delivery/orders/{order}/raise-return', [\App\Http\Controllers\Delivery\DeliveryController::class, 'raiseReturn'])->name('orders.raise-return');
+    Route::post('/delivery/orders/{order}/reconcile-cash', [\App\Http\Controllers\Delivery\DeliveryController::class, 'reconcileCashToWarehouse'])->name('orders.reconcile-cash');
+});
+
 // Product search
 Route::get('/refresh/cache', [\App\Services\SearchCacheService::class, 'refresh'])->name('refresh.cache');
 Route::get('/forget/cache', [\App\Services\SearchCacheService::class, 'forget'])->name('forget.cache');
 Route::get('/search', [SearchController::class, 'search'])->name('search');
 
-// POS Direct Login
-Route::middleware('guest')->group(function () {
-    Route::get('/pos/login', [\App\Http\Controllers\POS\PosLoginController::class, 'showLoginForm'])->name('pos.login');
-    Route::post('/pos/login', [\App\Http\Controllers\POS\PosLoginController::class, 'login'])->name('pos.login.submit');
-});
+// POS lives on its own subdomain / origin; redirect legacy /pos URLs
+Route::get('/pos/{path?}', fn () => redirect(rtrim(config('services.pos.url', env('POS_APP_URL', 'http://localhost:5174')), '/')))->where('path', '.*')->name('pos.redirect');
 
 Route::middleware(['auth','role:admin|seller','check_permission:view-dashboard'])->prefix('admin')->name('admin.')->group(function () {
 Route::middleware(['auth','role:admin|seller|vendor|super-admin','check_permission:view-dashboard'])->prefix('admin')->name('admin.')->group(function () {
@@ -64,6 +79,11 @@ Route::middleware(['auth','role:admin|seller|vendor|super-admin','check_permissi
     Route::get('/invoices', [\App\Http\Controllers\Admin\InvoiceController::class, 'index'])->name('invoices.index')
         ->middleware('check_permission:view-invoices');
     Route::get('/dashboard',[HomeController::class,'dashboard'])->name('dashboard');
+    Route::get('/returns', [HomeController::class, 'returnsIndex'])->name('returns.index');
+    Route::get('/returns/{orderReturn}', [HomeController::class, 'returnsShow'])->name('returns.show');
+    Route::post('/returns/{orderReturn}/receive', [HomeController::class, 'receiveReturn'])->name('returns.receive');
+    Route::get('/cod-reconciliations', [\App\Http\Controllers\Admin\CodReconciliationController::class, 'index'])->name('cod-reconciliations.index');
+    Route::post('/cod-reconciliations/{reconciliation}/confirm', [\App\Http\Controllers\Admin\CodReconciliationController::class, 'confirm'])->name('cod-reconciliations.confirm');
 //        function () {
 //        return Inertia::render('Dashboard');
 //    })->name('dashboard');
@@ -79,7 +99,11 @@ Route::middleware(['auth','role:admin|seller|vendor|super-admin','check_permissi
 
     Route::resource('products', ProductController::class);
     Route::post('/products/{product}/restock-variants', [ProductController::class, 'restockVariants'])
+        ->middleware('check_permission:restock-product-items')
         ->name('products.restock.variants');
+    Route::get('/products/{product}/restock-history', [ProductController::class, 'restockHistory'])
+        ->middleware('check_permission:restock-product-history')
+        ->name('products.restock.history');
 
 
     // Delete a single product image
@@ -115,6 +139,8 @@ Route::middleware(['auth','role:admin|seller|vendor|super-admin','check_permissi
     Route::post('{warehouse}/transfer', [WarehouseController::class, 'transferStock'])->name('inventory.transfer');
 
     // Receivables & Dispatches
+    Route::get('{warehouse}/orders-ready-for-pickup', [WarehouseController::class, 'ordersReadyForPickup'])->name('orders-ready-for-pickup');
+    Route::post('{warehouse}/orders/{order}/customer-picked', [WarehouseController::class, 'customerPickedOrder'])->name('orders.customer-picked');
     Route::get('{warehouse}/receivables', [WarehouseController::class, 'receivables'])->name('receivables.index');
     Route::get('{warehouse}/receivables/rejected', [WarehouseController::class, 'rejectedReceivables'])->name('receivables.rejected');
     Route::post('{warehouse}/receivables/create', [WarehouseController::class, 'createReceivable'])->name('receivables.create');
@@ -141,6 +167,14 @@ Route::middleware(['auth','role_or_permission:admin|view-orders'])->prefix('admi
     Route::get('/orders', [\App\Http\Controllers\Orders\OrderController::class, 'index'])->name('orders.index');
     Route::get('/orders/{order}', [\App\Http\Controllers\Admin\OrderController::class, 'show'])
         ->name('orders.show');
+    Route::post('/orders/{order}/assign-delivery', [\App\Http\Controllers\Admin\OrderController::class, 'assignDelivery'])
+        ->name('orders.assign-delivery');
+    Route::post('/orders/{order}/change-delivery', [\App\Http\Controllers\Admin\OrderController::class, 'changeDelivery'])
+        ->name('orders.change-delivery');
+    Route::get('/orders/{order}/delivery-note', [\App\Http\Controllers\Admin\OrderController::class, 'deliveryNote'])
+        ->name('orders.delivery-note');
+    Route::post('/orders/{order}/allocate-for-pickup', [\App\Http\Controllers\Admin\OrderController::class, 'allocateForPickup'])
+        ->name('orders.allocate-for-pickup');
 });
 
 Route::middleware(['auth', 'role_or_permission:admin|super-admin|view-categories'])->prefix('admin')->name('admin.')
@@ -217,6 +251,9 @@ Route::middleware(['auth', 'check_permission:access-pos'])->prefix('admin')->nam
         Route::middleware('check_permission:manage-pos-settings')->group(function () {
             Route::get('/settings', [\App\Http\Controllers\POS\PosSettingsController::class, 'index'])->name('settings.index');
             Route::post('/settings/global', [\App\Http\Controllers\POS\PosSettingsController::class, 'updateGlobal'])->name('settings.global.update');
+            Route::post('/settings/account', [\App\Http\Controllers\POS\PosSettingsController::class, 'storeAccountSettings'])->name('settings.account.store');
+            Route::put('/settings/account/{accountSetting}', [\App\Http\Controllers\POS\PosSettingsController::class, 'updateAccountSettings'])->name('settings.account.update');
+            Route::delete('/settings/account/{accountSetting}', [\App\Http\Controllers\POS\PosSettingsController::class, 'destroyAccountSettings'])->name('settings.account.destroy');
             Route::post('/registers', [\App\Http\Controllers\POS\PosSettingsController::class, 'storeRegister'])->name('registers.store');
             Route::put('/registers/{register}', [\App\Http\Controllers\POS\PosSettingsController::class, 'updateRegister'])->name('registers.update');
             Route::delete('/registers/{register}', [\App\Http\Controllers\POS\PosSettingsController::class, 'destroyRegister'])->name('registers.destroy');
@@ -281,6 +318,19 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::put('/{sellerApplication}/reject', [SellerApplicationController::class, 'reject'])->name('reject');
         });
     });
+
+    // Delivery persons (requires view-delivery-persons permission)
+    Route::middleware(['check_permission:view-delivery-persons'])->prefix('delivery-persons')->name('delivery-persons.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Admin\DeliveryPersonController::class, 'index'])->name('index');
+        Route::get('/applications/pending', [\App\Http\Controllers\Admin\DeliveryPersonController::class, 'pendingApplications'])->name('applications.pending');
+        Route::get('/{deliveryPerson}/document/{type}', [\App\Http\Controllers\Admin\DeliveryPersonController::class, 'document'])->name('document');
+        Route::get('/{deliveryPerson}', [\App\Http\Controllers\Admin\DeliveryPersonController::class, 'show'])->name('show');
+        Route::put('/{deliveryPerson}/approve', [\App\Http\Controllers\Admin\DeliveryPersonController::class, 'approve'])->name('approve');
+        Route::put('/{deliveryPerson}/reject', [\App\Http\Controllers\Admin\DeliveryPersonController::class, 'reject'])->name('reject');
+        Route::put('/{deliveryPerson}/suspend', [\App\Http\Controllers\Admin\DeliveryPersonController::class, 'suspend'])->name('suspend');
+        Route::put('/{deliveryPerson}/unsuspend', [\App\Http\Controllers\Admin\DeliveryPersonController::class, 'unsuspend'])->name('unsuspend');
+    });
+
     Route::resource('document-types', DocumentTypeController::class);
 
     Route::middleware(['check_permission:view-verification-documents'])->group(function () {
@@ -406,6 +456,11 @@ Route::get('/terms', function () {
 // Shipping estimate endpoint
 Route::post('/shipping/estimate', [CartController::class, 'estimateShipping'])
     ->name('shipping.estimate');
+
+// Home delivery: validate region + calculate cost from coordinates
+Route::post('/shipping/calculate-home-delivery', [CartController::class, 'calculateHomeDelivery'])
+    ->middleware('auth')
+    ->name('shipping.calculate-home-delivery');
 
 // Coupon validation endpoint
 Route::post('/coupons/validate', [CouponController::class, 'validateCode'])
