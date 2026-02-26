@@ -106,6 +106,10 @@ const hasDeliveryCoordinates = computed(() => {
 const effectiveShipping = computed(() => Number(cart.totals.shipping ?? 0));
 const effectiveGrandTotal = computed(() => Number(cart.totals.grand_total ?? 0));
 
+// Pay on Delivery is only available for orders over KSh 50,000
+const COD_MIN_AMOUNT = 50000;
+const isCodAvailable = computed(() => effectiveGrandTotal.value > COD_MIN_AMOUNT);
+
 const formatPrice = (amount?: number | null) => {
     if (amount == null || isNaN(amount)) return 'KSh 0';
     return `KSh ${Math.round(amount).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -144,6 +148,10 @@ let dotsTimer: any = null;
 onMounted(() => {
     status.value = 'idle';
     message.value = '';
+    // Ensure COD is not selected when it's not available
+    if (paymentMethod.value === 'cod' && !isCodAvailable.value) {
+        paymentMethod.value = 'mpesa';
+    }
 });
 
 function startDotsAnimation() {
@@ -595,10 +603,14 @@ const paymentMethod = ref<'mpesa' | 'cod'>('mpesa');
                                     <span class="text-sm font-medium text-gray-800"> M-Pesa </span>
                                 </label>
 
-                                <label class="flex cursor-pointer items-center gap-2 rounded border p-3 hover:bg-gray-50">
+                                <label v-if="isCodAvailable" class="flex cursor-pointer items-center gap-2 rounded border p-3 hover:bg-gray-50">
                                     <input type="radio" value="cod" v-model="paymentMethod" />
                                     <span class="text-sm font-medium text-gray-800"> Pay on Delivery </span>
                                 </label>
+
+                                <p v-else class="rounded border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                    Pay on Delivery is available for orders over KSh 50,000. Your order total is {{ formatPrice(effectiveGrandTotal) }}.
+                                </p>
                             </div>
                         </div>
 

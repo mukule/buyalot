@@ -32,6 +32,10 @@ class OrderProcessingService
             $paymentInit = $this->initializeMpesa($session, $amounts['total'], $data['phone']);
         }
         if ($data['payment_provider'] === 'cod') {
+            $codMinAmount = 50000;
+            if ($amounts['total'] < $codMinAmount) {
+                throw new \Exception("Pay on Delivery is only available for orders over KSh " . number_format($codMinAmount) . ". Your order total is KSh " . number_format($amounts['total']) . ". Please use M-Pesa for orders under KSh " . number_format($codMinAmount) . ".");
+            }
             $checkoutSession = CheckoutSession::where('cart_id', $cartId)->first();
             // Update checkout session status first
             if ($checkoutSession) {

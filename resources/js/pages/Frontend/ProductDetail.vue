@@ -429,87 +429,87 @@ const videoEmbedUrl = computed<string | null>(() => {
                         <hr class="my-2 w-full border-gray-200" />
 
                         <div class="w-full space-y-2 text-sm">
-                            <label for="region" class="block font-semibold text-gray-700">Select Region</label>
-                            <select
-                                id="region"
-                                v-model="selectedRegionId"
-                                @change="updatePickupPoints"
-                                class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-primary focus:ring-primary"
-                            >
-                                <option disabled value="">Choose region...</option>
-                                <option v-for="region in regions" :key="region.id" :value="region.id">
-                                    {{ region.name }}
-                                </option>
-                            </select>
+<!--                            <label for="region" class="block font-semibold text-gray-700">Select Region</label>-->
+<!--                            <select-->
+<!--                                id="region"-->
+<!--                                v-model="selectedRegionId"-->
+<!--                                @change="updatePickupPoints"-->
+<!--                                class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-primary focus:ring-primary"-->
+<!--                            >-->
+<!--                                <option disabled value="">Choose region...</option>-->
+<!--                                <option v-for="region in regions" :key="region.id" :value="region.id">-->
+<!--                                    {{ region.name }}-->
+<!--                                </option>-->
+<!--                            </select>-->
 
-                            <label class="block font-semibold text-gray-700">Delivery type</label>
-                            <div class="flex flex-wrap gap-3">
-                                <label class="flex cursor-pointer items-center gap-1.5">
-                                    <input v-model="deliveryType" type="radio" value="pickup" class="rounded border-gray-300 text-primary" />
-                                    <span>Pickup point</span>
-                                </label>
-                                <label class="flex cursor-pointer items-center gap-1.5">
-                                    <input v-model="deliveryType" type="radio" value="door" class="rounded border-gray-300 text-primary" />
-                                    <span>Home delivery</span>
-                                </label>
-                            </div>
+<!--                            <label class="block font-semibold text-gray-700">Delivery type</label>-->
+<!--                            <div class="flex flex-wrap gap-3">-->
+<!--                                <label class="flex cursor-pointer items-center gap-1.5">-->
+<!--                                    <input v-model="deliveryType" type="radio" value="pickup" class="rounded border-gray-300 text-primary" />-->
+<!--                                    <span>Pickup point</span>-->
+<!--                                </label>-->
+<!--                                <label class="flex cursor-pointer items-center gap-1.5">-->
+<!--                                    <input v-model="deliveryType" type="radio" value="door" class="rounded border-gray-300 text-primary" />-->
+<!--                                    <span>Home delivery</span>-->
+<!--                                </label>-->
+<!--                            </div>-->
 
-                            <template v-if="deliveryType === 'pickup'">
-                                <label for="pickup" class="mt-2 block font-semibold text-gray-700">Pickup Point</label>
-                                <select
-                                    id="pickup"
-                                    v-model="selectedPickupId"
-                                    :disabled="filteredPickupPoints.length === 0"
-                                    class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-primary focus:ring-primary"
-                                >
-                                    <option disabled value="">Choose pickup point...</option>
-                                    <option v-for="pickup in filteredPickupPoints" :key="pickup.id" :value="pickup.id">
-                                        {{ pickup.name }}
-                                    </option>
-                                </select>
-                                <p v-if="selectedPickupPoint?.address || selectedPickupPoint?.location" class="mt-1 text-xs text-gray-500">
-                                    {{ selectedPickupPoint?.address || selectedPickupPoint?.location }}
-                                </p>
-                                <button
-                                    v-if="selectedPickupPoint && (selectedPickupPoint.latitude != null || selectedPickupPoint.address || selectedPickupPoint.location)"
-                                    type="button"
-                                    class="mt-2 w-full rounded border border-primary bg-primary/10 px-2 py-1.5 text-sm font-medium text-primary hover:bg-primary/20"
-                                    @click="openMapModal"
-                                >
-                                    View on map
-                                </button>
-                            </template>
+<!--                            <template v-if="deliveryType === 'pickup'">-->
+<!--                                <label for="pickup" class="mt-2 block font-semibold text-gray-700">Pickup Point</label>-->
+<!--                                <select-->
+<!--                                    id="pickup"-->
+<!--                                    v-model="selectedPickupId"-->
+<!--                                    :disabled="filteredPickupPoints.length === 0"-->
+<!--                                    class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-primary focus:ring-primary"-->
+<!--                                >-->
+<!--                                    <option disabled value="">Choose pickup point...</option>-->
+<!--                                    <option v-for="pickup in filteredPickupPoints" :key="pickup.id" :value="pickup.id">-->
+<!--                                        {{ pickup.name }}-->
+<!--                                    </option>-->
+<!--                                </select>-->
+<!--                                <p v-if="selectedPickupPoint?.address || selectedPickupPoint?.location" class="mt-1 text-xs text-gray-500">-->
+<!--                                    {{ selectedPickupPoint?.address || selectedPickupPoint?.location }}-->
+<!--                                </p>-->
+<!--                                <button-->
+<!--                                    v-if="selectedPickupPoint && (selectedPickupPoint.latitude != null || selectedPickupPoint.address || selectedPickupPoint.location)"-->
+<!--                                    type="button"-->
+<!--                                    class="mt-2 w-full rounded border border-primary bg-primary/10 px-2 py-1.5 text-sm font-medium text-primary hover:bg-primary/20"-->
+<!--                                    @click="openMapModal"-->
+<!--                                >-->
+<!--                                    View on map-->
+<!--                                </button>-->
+<!--                            </template>-->
 
-                            <template v-else>
-                                <p class="mt-2 text-xs text-gray-600">We’ll deliver to your address. Set your location at checkout.</p>
-                                <button
-                                    type="button"
-                                    class="mt-1 w-full rounded border border-primary bg-primary/10 px-2 py-1.5 text-sm font-medium text-primary hover:bg-primary/20"
-                                    @click="useCurrentLocation"
-                                >
-                                    Use current location
-                                </button>
-                                <div v-if="homeDeliveryMapEmbedUrl" class="mt-2 h-[200px] w-full overflow-hidden rounded border bg-gray-100">
-                                    <iframe
-                                        v-if="mapApiKey"
-                                        :src="homeDeliveryMapEmbedUrl"
-                                        title="Delivery location - Google Maps"
-                                        class="h-full w-full border-0"
-                                        loading="lazy"
-                                        allowfullscreen
-                                        referrerpolicy="no-referrer-when-downgrade"
-                                    />
-                                    <a
-                                        v-else
-                                        :href="homeDeliveryMapEmbedUrl"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        class="flex h-full items-center justify-center text-sm text-primary underline"
-                                    >
-                                        View delivery location on Google Maps
-                                    </a>
-                                </div>
-                            </template>
+<!--                            <template v-else>-->
+<!--                                <p class="mt-2 text-xs text-gray-600">We’ll deliver to your address. Set your location at checkout.</p>-->
+<!--                                <button-->
+<!--                                    type="button"-->
+<!--                                    class="mt-1 w-full rounded border border-primary bg-primary/10 px-2 py-1.5 text-sm font-medium text-primary hover:bg-primary/20"-->
+<!--                                    @click="useCurrentLocation"-->
+<!--                                >-->
+<!--                                    Use current location-->
+<!--                                </button>-->
+<!--                                <div v-if="homeDeliveryMapEmbedUrl" class="mt-2 h-[200px] w-full overflow-hidden rounded border bg-gray-100">-->
+<!--                                    <iframe-->
+<!--                                        v-if="mapApiKey"-->
+<!--                                        :src="homeDeliveryMapEmbedUrl"-->
+<!--                                        title="Delivery location - Google Maps"-->
+<!--                                        class="h-full w-full border-0"-->
+<!--                                        loading="lazy"-->
+<!--                                        allowfullscreen-->
+<!--                                        referrerpolicy="no-referrer-when-downgrade"-->
+<!--                                    />-->
+<!--                                    <a-->
+<!--                                        v-else-->
+<!--                                        :href="homeDeliveryMapEmbedUrl"-->
+<!--                                        target="_blank"-->
+<!--                                        rel="noopener noreferrer"-->
+<!--                                        class="flex h-full items-center justify-center text-sm text-primary underline"-->
+<!--                                    >-->
+<!--                                        View delivery location on Google Maps-->
+<!--                                    </a>-->
+<!--                                </div>-->
+<!--                            </template>-->
 
                             <div v-if="selectedShippingOptions" class="mt-2 space-y-4 text-sm">
                                 <div class="rounded border border-gray-200 p-3">
