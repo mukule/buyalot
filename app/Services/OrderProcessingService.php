@@ -6,6 +6,8 @@ use App\Http\DTOs\PaymentRequest;
 use App\Http\DTOs\PaymentResponse;
 use App\Models\Cart\Cart;
 use App\Models\CheckoutSession;
+use App\Models\Customer\CustomerAddress;
+use App\Services\ShippingService;
 use Illuminate\Support\Facades\Log;
 
 class OrderProcessingService
@@ -32,8 +34,8 @@ class OrderProcessingService
             $paymentInit = $this->initializeMpesa($session, $amounts['total'], $data['phone']);
         }
         if ($data['payment_provider'] === 'cod') {
-            $codMinAmount = 50000;
-            if ($amounts['total'] < $codMinAmount) {
+            $codMinAmount = $this->getCodMinAmountForAddress($data['shipping_address_id'] ?? null);
+            if ($codMinAmount !== null && $amounts['total'] < $codMinAmount) {
                 throw new \Exception("Pay on Delivery is only available for orders over KSh " . number_format($codMinAmount) . ". Your order total is KSh " . number_format($amounts['total']) . ". Please use M-Pesa for orders under KSh " . number_format($codMinAmount) . ".");
             }
             $checkoutSession = CheckoutSession::where('cart_id', $cartId)->first();
@@ -65,7 +67,7 @@ class OrderProcessingService
     {
         $cartAmount = $cart->items->sum(fn($i) => ($i->marked_price ?? 0) * $i->quantity);
         $discount = $cart->items->sum(fn($i) => ($i->discount_amount ?? 0) * $i->quantity);
-        $shippingRounded = max(250, (int) round((float) $shipping));
+        $shippingRounded = max(0, (int) round((float) $shipping));
         $total = (int) round($cartAmount + $shippingRounded - $discount);
 
         return ['cart' => (int) round($cartAmount), 'discount' => (int) round($discount), 'shipping' => $shippingRounded, 'total' => $total];
@@ -104,6 +106,28 @@ class OrderProcessingService
             $this->reservationService->releaseAllForCart($session->cart_id);
             throw $e;
         }
+    }
+
+    /**
+     * Get COD minimum amount from shipping rate for the delivery address zone.
+     * Returns null if no restriction (COD available for any amount).
+     */
+    protected function getCodMinAmountForAddress(?int $addressId): ?float
+    {
+        if (!$addressId) {
+            return null;
+        }
+        $address = CustomerAddress::with(['region.zone', 'pickupWarehouse.region.zone'])
+            ->find($addressId);
+        if (!$address) {
+            return null;
+        }
+        $zoneId = $address->pickup_warehouse_id
+            ? ($address->pickupWarehouse?->region?->zone_id ?? $address->pickupWarehouse?->region?->zone?->id)
+            : ($address->region?->zone_id ?? $address->region?->zone?->id);
+        $rate = app(ShippingService::class)->getRateForZone($zoneId);
+        $min = $rate?->cod_min_amount;
+        return $min !== null ? (float) $min : null;
     }
 
     protected function updateOrCreateSession($cart, $amounts, $data)

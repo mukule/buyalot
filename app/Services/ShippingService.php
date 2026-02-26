@@ -12,10 +12,25 @@ class ShippingService
     /** Minimum shipping fee (KSh) when no rate configured */
     private const MIN_SHIPPING = 250;
 
-    /** Get the shipping rate used for home delivery config (first rate) */
+    /** Get the shipping rate for home delivery config (default = first rate with no zone) */
     private function getHomeDeliveryRate(): ?ShippingRate
     {
-        return ShippingRate::orderBy('id')->first();
+        return ShippingRate::whereNull('zone_id')->orderBy('id')->first()
+            ?? ShippingRate::orderBy('id')->first();
+    }
+
+    /**
+     * Get shipping rate for a zone. Zone-specific rate first, then default.
+     */
+    public function getRateForZone(?int $zoneId): ?ShippingRate
+    {
+        if ($zoneId) {
+            $rate = ShippingRate::where('zone_id', $zoneId)->orderBy('id')->first();
+            if ($rate) {
+                return $rate;
+            }
+        }
+        return $this->getHomeDeliveryRate();
     }
 
     /**
@@ -190,13 +205,20 @@ class ShippingService
             ->get();
     }
 
-    public function getOptionsByRegion(int $regionId): array
+    /**
+     * Get shipping options for a region.
+     * Uses rate assigned to region's zone. Free shipping when rate has free_shipping_min_amount and order total >= that amount.
+     *
+     * @param  int  $regionId
+     * @param  float|null  $orderTotalBeforeShipping  Order total (items minus coupons) before shipping.
+     */
+    public function getOptionsByRegion(int $regionId, ?float $orderTotalBeforeShipping = null): array
     {
         $region = Region::with('zone')->findOrFail($regionId);
         $tier = $region->zone->tier ?? 1;
+        $zoneId = $region->zone_id;
 
-
-        $rate = $this->getHomeDeliveryRate();
+        $rate = $this->getRateForZone($zoneId);
 
         if (!$rate) {
             return [
@@ -208,6 +230,13 @@ class ShippingService
         $pickupCost = max(self::MIN_SHIPPING, (int) round($rate->costForTier($tier)));
         $doorCost = max(self::MIN_SHIPPING, (int) round($rate->doorMinimumCost()));
 
+        // Free shipping when rate has free_shipping_min_amount and order total >= that amount
+        $freeShippingMin = $rate->free_shipping_min_amount !== null ? (float) $rate->free_shipping_min_amount : null;
+        if ($freeShippingMin !== null && $orderTotalBeforeShipping !== null && $orderTotalBeforeShipping >= $freeShippingMin) {
+            $pickupCost = 0;
+            $doorCost = 0;
+        }
+
         return [
             'pickup' => [
                 'cost' => $pickupCost,
@@ -217,10 +246,6 @@ class ShippingService
                 'cost' => $doorCost,
                 'days' => $rate->doorDaysForTier($tier),
             ],
-            // 'express' => [
-            //     'cost' => $rate->expressCostForTier($tier),
-            //     'hours' => $rate->expressHoursForTier($tier),
-            // ],
         ];
     }
 }

@@ -152,8 +152,11 @@ class CartController extends Controller
     $selectedShipping = null;
     $defaultAddress = null;
 
+    // Order total before shipping (for Nairobi free shipping: >= KSh 50,000)
+    $orderTotalBeforeShipping = max(0, $cartTotal - $couponAmount);
+
     // Regions with pickup points (for delivery type = pickup)
-    $regionsWithPickup = $shippingService->getRegionsWithPickup()->map(function ($region) use ($shippingService) {
+    $regionsWithPickup = $shippingService->getRegionsWithPickup()->map(function ($region) use ($shippingService, $orderTotalBeforeShipping) {
         $warehouses = \App\Models\Warehouse\Warehouse::withoutGlobalScopes()
             ->where(function ($q) use ($region) {
                 $q->where('region_id', $region->id)
@@ -174,7 +177,7 @@ class CartController extends Controller
                 'latitude' => $w->latitude ? (float) $w->latitude : null,
                 'longitude' => $w->longitude ? (float) $w->longitude : null,
             ])->values()->toArray(),
-            'shipping_options' => $shippingService->getOptionsByRegion($region->id),
+            'shipping_options' => $shippingService->getOptionsByRegion($region->id, $orderTotalBeforeShipping),
         ];
     });
 
@@ -375,10 +378,12 @@ public function store(Request $request, CartReservationService $cartService)
         $request->validate([
             'lat' => 'required|numeric|between:-90,90',
             'lng' => 'required|numeric|between:-180,180',
+            'order_total' => 'nullable|numeric|min:0',
         ]);
 
         $lat = (float) $request->input('lat');
         $lng = (float) $request->input('lng');
+        $orderTotalBeforeShipping = $request->has('order_total') ? (float) $request->input('order_total') : null;
 
         $region = $shippingService->reverseGeocodeAndMatchRegion($lat, $lng);
         if (! $region) {
@@ -395,7 +400,13 @@ public function store(Request $request, CartReservationService $cartService)
 
         $distanceKm = $shippingService->distanceKm($lat, $lng, $center['lat'], $center['lng']);
         $shippingCost = $shippingService->calculateHomeDeliveryCost($distanceKm);
-        $options = $shippingService->getOptionsByRegion($region->id);
+
+        // Nairobi: free shipping when order total >= KSh 50,000
+        $options = $shippingService->getOptionsByRegion($region->id, $orderTotalBeforeShipping);
+        if (($options['door']['cost'] ?? $shippingCost) === 0) {
+            $shippingCost = 0;
+        }
+
         $days = $options['door']['days'] ?? 2;
 
         return response()->json([
@@ -534,7 +545,7 @@ public function store(Request $request, CartReservationService $cartService)
             ->find($addressIdFromSummary);
         if ($address) {
             $defaultAddress = $address;
-            $shippingCost = max(250, (int) round((float) $shippingCostFromSummary));
+            $shippingCost = max(0, (int) round((float) $shippingCostFromSummary));
             $selectedShipping = [
                 'method'       => $deliveryMethodFromSummary === 'door' ? 'door' : 'pickup',
                 'cost'         => $shippingCost,
@@ -558,7 +569,8 @@ public function store(Request $request, CartReservationService $cartService)
             $regionName = $defaultAddress->pickupWarehouse?->region?->name ?? $defaultAddress->pickupPoint?->region?->name ?? $defaultAddress->region?->name ?? '';
             $pickupPointName = $defaultAddress->pickupWarehouse?->name ?? $defaultAddress->pickupPoint?->name ?? '';
 
-            $shippingOptions = $regionId ? $shippingService->getOptionsByRegion($regionId) : [];
+            $orderTotalBeforeShipping = max(0, $cartTotal - $couponAmount);
+            $shippingOptions = $regionId ? $shippingService->getOptionsByRegion($regionId, $orderTotalBeforeShipping) : [];
 
             if ($defaultAddress->pickup_warehouse_id && isset($shippingOptions['pickup'])) {
                 $selectedShipping = [
@@ -593,6 +605,16 @@ public function store(Request $request, CartReservationService $cartService)
     // Final totals (whole numbers; shipping minimum 250)
     $grandTotal = (int) round($cartTotal + $shippingCost - $couponAmount);
 
+    // COD min amount from shipping rate for the delivery zone
+    $codMinAmount = null;
+    if ($defaultAddress) {
+        $zoneId = $defaultAddress->pickup_warehouse_id
+            ? ($defaultAddress->pickupWarehouse?->region?->zone_id ?? $defaultAddress->pickupWarehouse?->region?->zone?->id)
+            : ($defaultAddress->region?->zone_id ?? $defaultAddress->region?->zone?->id);
+        $rate = $shippingService->getRateForZone($zoneId);
+        $codMinAmount = $rate?->cod_min_amount;
+    }
+
     // Related products
     $topVariant = $cart->items->sortByDesc('quantity')->first()?->productVariant;
     $relatedProducts = $topVariant ? $productService->getRelatedProducts($topVariant) : collect();
@@ -622,6 +644,7 @@ public function store(Request $request, CartReservationService $cartService)
         'shipping_address_id' => $defaultAddressId,
         'billing_address_id'  => $defaultAddressId,
         'default_phone'       => $defaultPhone,
+        'cod_min_amount'      => $codMinAmount,
         'relatedProducts'     => $relatedProducts,
         'googleMapsApiKey'    => config('services.google.maps_api_key', ''),
     ]);

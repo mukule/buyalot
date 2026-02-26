@@ -106,9 +106,11 @@ const hasDeliveryCoordinates = computed(() => {
 const effectiveShipping = computed(() => Number(cart.totals.shipping ?? 0));
 const effectiveGrandTotal = computed(() => Number(cart.totals.grand_total ?? 0));
 
-// Pay on Delivery is only available for orders over KSh 50,000
-const COD_MIN_AMOUNT = 50000;
-const isCodAvailable = computed(() => effectiveGrandTotal.value > COD_MIN_AMOUNT);
+// Pay on Delivery: available when no cod_min_amount set, or when order total >= cod_min_amount
+const codMinAmount = (props.cod_min_amount as number | null | undefined) ?? null;
+const isCodAvailable = computed(() =>
+    codMinAmount == null ? true : effectiveGrandTotal.value >= codMinAmount,
+);
 
 const formatPrice = (amount?: number | null) => {
     if (amount == null || isNaN(amount)) return 'KSh 0';
@@ -608,8 +610,8 @@ const paymentMethod = ref<'mpesa' | 'cod'>('mpesa');
                                     <span class="text-sm font-medium text-gray-800"> Pay on Delivery </span>
                                 </label>
 
-                                <p v-else class="rounded border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                                    Pay on Delivery is available for orders over KSh 50,000. Your order total is {{ formatPrice(effectiveGrandTotal) }}.
+                                <p v-else-if="codMinAmount != null" class="rounded border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                    Pay on Delivery is available for orders over KSh {{ Math.round(codMinAmount).toLocaleString() }}. Your order total is {{ formatPrice(effectiveGrandTotal) }}.
                                 </p>
                             </div>
                         </div>

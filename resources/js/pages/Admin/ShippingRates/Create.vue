@@ -6,10 +6,12 @@ import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 const page = usePage<
     InertiaPageProps & {
         title: string;
+        zones?: { id: number; name: string; tier: number }[];
     }
 >();
 
 const title = page.props.title || 'Create Shipping Rate';
+const zones = (page.props.zones ?? []) as { id: number; name: string; tier: number }[];
 const basePath = '/admin/shipping-rates';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -20,12 +22,14 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 // Shipping rate form
 const form = useForm({
-    tier: 1,
+    zone_id: null as number | null,
     package_size: 'small',
     base_price: 0.0,
     door_fallback_price: 250,
     door_fallback_min_km: 10,
     door_extra_km_cost: 20,
+    cod_min_amount: null as number | null,
+    free_shipping_min_amount: null as number | null,
 });
 
 function submitRate() {
@@ -51,18 +55,19 @@ function submitRate() {
 
                 <!-- Form -->
                 <form @submit.prevent="submitRate" class="space-y-4">
-                    <!-- Tier -->
-                    <div>
-                        <label for="tier" class="mb-1 block text-sm font-medium text-gray-700">Tier</label>
-                        <input
-                            v-model.number="form.tier"
-                            id="tier"
-                            type="number"
-                            min="1"
-                            required
+                    <!-- Zone (optional: assign to region tier for policy rules) -->
+                    <div v-if="zones.length">
+                        <label for="zone_id" class="mb-1 block text-sm font-medium text-gray-700">Zone</label>
+                        <select
+                            v-model="form.zone_id"
+                            id="zone_id"
                             class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:ring-2 focus:ring-[color:var(--primary)] focus:outline-none"
-                        />
-                        <div v-if="form.errors.tier" class="mt-1 text-sm text-red-600">{{ form.errors.tier }}</div>
+                        >
+                            <option :value="null">Default (all zones)</option>
+                            <option v-for="z in zones" :key="z.id" :value="z.id">{{ z.name }} (Tier {{ z.tier }})</option>
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500">Assign to a zone so regions in that zone use this rate's costs and policy rules.</p>
+                        <div v-if="form.errors.zone_id" class="mt-1 text-sm text-red-600">{{ form.errors.zone_id }}</div>
                     </div>
 
                     <!-- Package Size -->
@@ -145,6 +150,42 @@ function submitRate() {
                                 />
                                 <p class="mt-1 text-xs text-gray-500">Cost per km beyond fallback threshold</p>
                                 <div v-if="form.errors.door_extra_km_cost" class="mt-1 text-sm text-red-600">{{ form.errors.door_extra_km_cost }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Policy Rules (Zone-specific) -->
+                    <div class="rounded border border-amber-200 bg-amber-50/50 p-3">
+                        <h4 class="mb-3 text-sm font-semibold text-amber-800">Policy Rules</h4>
+                        <p class="mb-3 text-xs text-amber-700">When this rate is assigned to a zone, these amounts apply to regions in that zone.</p>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <div>
+                                <label for="cod_min_amount" class="mb-1 block text-sm font-medium text-gray-700">Pay on Delivery min (KSh)</label>
+                                <input
+                                    v-model.number="form.cod_min_amount"
+                                    id="cod_min_amount"
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    placeholder="e.g. 50000"
+                                    class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:ring-2 focus:ring-[color:var(--primary)] focus:outline-none"
+                                />
+                                <p class="mt-1 text-xs text-gray-500">Min order total for Pay on Delivery. Leave empty for no restriction.</p>
+                                <div v-if="form.errors.cod_min_amount" class="mt-1 text-sm text-red-600">{{ form.errors.cod_min_amount }}</div>
+                            </div>
+                            <div>
+                                <label for="free_shipping_min_amount" class="mb-1 block text-sm font-medium text-gray-700">Free shipping min (KSh)</label>
+                                <input
+                                    v-model.number="form.free_shipping_min_amount"
+                                    id="free_shipping_min_amount"
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    placeholder="e.g. 50000"
+                                    class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:ring-2 focus:ring-[color:var(--primary)] focus:outline-none"
+                                />
+                                <p class="mt-1 text-xs text-gray-500">Min order total for free shipping. Leave empty for no free shipping.</p>
+                                <div v-if="form.errors.free_shipping_min_amount" class="mt-1 text-sm text-red-600">{{ form.errors.free_shipping_min_amount }}</div>
                             </div>
                         </div>
                     </div>

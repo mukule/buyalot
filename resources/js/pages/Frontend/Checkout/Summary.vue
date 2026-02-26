@@ -162,9 +162,11 @@ async function onMapLocationConfirm(payload: { lat: number; lng: number }) {
 async function calculateHomeDeliveryCost(lat: number, lng: number) {
     isCalculatingHome.value = true;
     homeDeliveryError.value = '';
+    // Order total before shipping (for Nairobi free shipping when >= KSh 50,000)
+    const orderTotalBeforeShipping = sub_total.value - perItemDiscount.value - couponDiscount.value;
     try {
         const axios = (window as any).axios || (await import('axios')).default;
-        const { data } = await axios.post(route('shipping.calculate-home-delivery'), { lat, lng }, {
+        const { data } = await axios.post(route('shipping.calculate-home-delivery'), { lat, lng, order_total: orderTotalBeforeShipping }, {
             headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
             withCredentials: true,
         });

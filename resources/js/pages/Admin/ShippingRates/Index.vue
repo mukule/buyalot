@@ -8,11 +8,15 @@ import { computed } from 'vue';
 // Interfaces
 interface ShippingRate {
     id: number;
+    zone_id?: number | null;
+    zone?: { id: number; name: string; tier: number } | null;
     package_size: 'small' | 'medium' | 'large';
     base_price: number;
     door_fallback_price?: number;
     door_fallback_min_km?: number;
     door_extra_km_cost?: number;
+    cod_min_amount?: number | null;
+    free_shipping_min_amount?: number | null;
     created_at?: string;
 }
 
@@ -93,10 +97,12 @@ function deleteRate(id: number) {
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Zone</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Package Size</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Base Price</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Door Delivery/KM</th>
-
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">COD Min</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Free Ship Min</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                             </tr>
@@ -104,6 +110,7 @@ function deleteRate(id: number) {
                         <tbody class="divide-y divide-gray-200 bg-white">
                             <tr v-for="(rate, index) in shippingRates" :key="rate.id" class="hover:bg-gray-50">
                                 <td class="px-4 py-4 text-sm text-gray-500">{{ index + 1 }}</td>
+                                <td class="px-4 py-4 text-sm text-gray-700">{{ rate.zone?.name ?? 'Default' }}</td>
                                 <td class="px-4 py-4 text-sm font-medium text-gray-900 capitalize">{{ rate.package_size }}</td>
                                 <td class="px-4 py-4 text-sm text-gray-700">Ksh. {{ rate.base_price.toFixed(2) }}</td>
                                 <td class="px-4 py-4 text-sm text-gray-700">
@@ -114,7 +121,12 @@ function deleteRate(id: number) {
                                     </span>
                                     <span v-else>-</span>
                                 </td>
-
+                                <td class="px-4 py-4 text-sm text-gray-700">
+                                    {{ rate.cod_min_amount != null ? 'Ksh. ' + Math.round(rate.cod_min_amount).toLocaleString() : '-' }}
+                                </td>
+                                <td class="px-4 py-4 text-sm text-gray-700">
+                                    {{ rate.free_shipping_min_amount != null ? 'Ksh. ' + Math.round(rate.free_shipping_min_amount).toLocaleString() : '-' }}
+                                </td>
                                 <td class="px-4 py-4 text-sm text-gray-500">
                                     {{ rate.created_at ? new Date(rate.created_at).toLocaleDateString() : '-' }}
                                 </td>
