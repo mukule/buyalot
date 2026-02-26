@@ -166,13 +166,13 @@ const regions = ref<Region[]>((page.props.regions as Region[]) ?? []);
 
 const selectedRegionId = ref<number | ''>('');
 const selectedPickupId = ref<number | ''>('');
-const deliveryType = ref<'pickup' | 'door'>('pickup');
+// const deliveryType = ref<'pickup' | 'door'>('pickup');
 const homeDeliveryLat = ref<number | null>(null);
 const homeDeliveryLng = ref<number | null>(null);
 const filteredPickupPoints = ref<PickupPoint[]>([]);
 const selectedShippingOptions = ref<ShippingOptions | null>(null);
 
-const HOME_DELIVERY_SURCHARGE = 250;
+// const HOME_DELIVERY_SURCHARGE = 250;
 
 const updatePickupPoints = () => {
     const region = regions.value.find((r) => r.id === selectedRegionId.value);
@@ -203,10 +203,10 @@ const pickupMapEmbedUrl = computed(() => {
     return `https://www.google.com/maps?q=${lat},${lng}`;
 });
 
-function openMapModal() {
-    if (!selectedPickupPoint.value) return;
-    showMapModal.value = true;
-}
+// function openMapModal() {
+//     if (!selectedPickupPoint.value) return;
+//     showMapModal.value = true;
+// }
 
 function closeMapModal() {
     showMapModal.value = false;
@@ -225,23 +225,23 @@ function openGoogleMapsExternal() {
 }
 
 const showDeliveryMapModal = ref(false);
-function useCurrentLocation() {
-    showDeliveryMapModal.value = true;
-}
+// function useCurrentLocation() {
+//     showDeliveryMapModal.value = true;
+// }
 function onDeliveryLocationConfirm(payload: { lat: number; lng: number }) {
     homeDeliveryLat.value = payload.lat;
     homeDeliveryLng.value = payload.lng;
 }
 
-const homeDeliveryMapEmbedUrl = computed(() => {
-    const lat = homeDeliveryLat.value;
-    const lng = homeDeliveryLng.value;
-    if (lat == null || lng == null) return '';
-    if (mapApiKey) {
-        return `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(mapApiKey)}&q=${lat},${lng}&zoom=15`;
-    }
-    return `https://www.google.com/maps?q=${lat},${lng}`;
-});
+// const homeDeliveryMapEmbedUrl = computed(() => {
+//     const lat = homeDeliveryLat.value;
+//     const lng = homeDeliveryLng.value;
+//     if (lat == null || lng == null) return '';
+//     if (mapApiKey) {
+//         return `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(mapApiKey)}&q=${lat},${lng}&zoom=15`;
+//     }
+//     return `https://www.google.com/maps?q=${lat},${lng}`;
+// });
 
 // --- VIDEO PREVIEW ---
 const videoEmbedUrl = computed<string | null>(() => {
@@ -249,7 +249,7 @@ const videoEmbedUrl = computed<string | null>(() => {
 
     try {
         const url = new URL(props.product.video_url);
-        let videoId = url.searchParams.get('v') ?? url.pathname.split('/').pop() ?? null;
+        const videoId = url.searchParams.get('v') ?? url.pathname.split('/').pop() ?? null;
         return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
     } catch {
         return null;
