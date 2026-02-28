@@ -516,7 +516,7 @@ public function store(Request $request, ProductService $productService)
         );
 
         // --- REDIRECT AFTER LAST STEP ---
-        if ($step >= 5) {
+        if ($step >= 4) {
             return redirect()->route('admin.products.index')
                 ->with('success', "Product '{$product->name}' created successfully.");
         }
