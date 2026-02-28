@@ -99,9 +99,7 @@ public function store(
 
         session(['active_role' => 'customer', 'customer_id' => $customer->id]);
         $user->update(['last_login_at' => now()]);
-        return redirect()->intended(
-            route('customers.dashboard', ['customer' => $customer->id])
-        )->with('success', 'Welcome back, ' . $user->name . '!');
+        return redirect()->intended(route('home', ['customer' => $customer->id]))->with('success', 'Welcome back, ' . $user->name . '!');
     } else {
         Auth::logout();
         $request->session()->invalidate();

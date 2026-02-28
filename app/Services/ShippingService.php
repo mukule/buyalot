@@ -20,15 +20,29 @@ class ShippingService
     }
 
     /**
-     * Get shipping rate for a zone. Zone-specific rate first, then default.
+     * Get shipping rate for a zone. Uses zone's shipping rates; falls back to default when zone has none.
+     * Flow: Region → Zone → Shipping Rate
      */
     public function getRateForZone(?int $zoneId): ?ShippingRate
     {
         if ($zoneId) {
-            $rate = ShippingRate::where('zone_id', $zoneId)->orderBy('id')->first();
-            if ($rate) {
-                return $rate;
+            $zone = \App\Models\Zone::with('shippingRates')->find($zoneId);
+            if ($zone && $zone->shippingRates->isNotEmpty()) {
+                return $zone->shippingRates->sortBy('id')->first();
             }
+        }
+        return $this->getHomeDeliveryRate();
+    }
+
+    /**
+     * Get shipping rate for a region via its zone.
+     * Region → Zone → Shipping Rate
+     */
+    public function getRateForRegion(Region $region): ?ShippingRate
+    {
+        $region->loadMissing('zone.shippingRates');
+        if ($region->zone && $region->zone->shippingRates->isNotEmpty()) {
+            return $region->zone->shippingRates->sortBy('id')->first();
         }
         return $this->getHomeDeliveryRate();
     }
@@ -206,19 +220,20 @@ class ShippingService
     }
 
     /**
-     * Get shipping options for a region.
-     * Uses rate assigned to region's zone. Free shipping when rate has free_shipping_min_amount and order total >= that amount.
+     * Get shipping options for a region via its zone.
+     * Flow: Region → Zone → Shipping Rate.
+     * Applies to both pickup point and home delivery – same rate and policy for both.
+     * Free shipping when rate has free_shipping_min_amount and order total >= that amount.
      *
      * @param  int  $regionId
      * @param  float|null  $orderTotalBeforeShipping  Order total (items minus coupons) before shipping.
      */
     public function getOptionsByRegion(int $regionId, ?float $orderTotalBeforeShipping = null): array
     {
-        $region = Region::with('zone')->findOrFail($regionId);
-        $tier = $region->zone->tier ?? 1;
-        $zoneId = $region->zone_id;
+        $region = Region::with('zone.shippingRates')->findOrFail($regionId);
+        $tier = $region->zone?->tier ?? 1;
 
-        $rate = $this->getRateForZone($zoneId);
+        $rate = $this->getRateForRegion($region);
 
         if (!$rate) {
             return [
