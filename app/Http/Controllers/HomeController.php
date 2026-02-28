@@ -81,6 +81,7 @@ public function productDetails(string $slug)
         'primaryImage',
         'images',
         'productVariants.values.variant',
+        'productVariants.images',
         'category.parent',
         'warranties',
     ])->where('slug', $slug)->firstOrFail();
@@ -104,6 +105,12 @@ public function productDetails(string $slug)
                 'variant_category_id' => $v->variant->variant_category_id,
                 'value'               => $v->variant->value,
             ]),
+            'images'           => $variant->images->sortBy('sort_order')->map(fn ($img) => [
+                'id'         => $img->id,
+                'url'        => $img->url,
+                'is_primary' => $img->is_primary,
+                'sort_order' => $img->sort_order,
+            ])->values(),
         ];
     });
 
@@ -121,37 +128,41 @@ public function productDetails(string $slug)
     $ownerInfo = $selectedVariant?->getOwnerInfo();
     $activeWarranty = $selectedVariant?->getActiveWarranty();
 
+    // Use selected variant's primary image if available, else fall back to product primary image
+    $selectedVariantPrimaryImage = $selectedVariant?->images->firstWhere('is_primary', true);
+    $primaryImageUrl = $selectedVariantPrimaryImage?->url ?? $product->primary_image_url;
+
     $productData = [
-        'id' => $product->id,
-        'slug' => $product->slug,
-        'name' => $product->name,
-        'primary_image_url' => $product->primary_image_url, // accessor
-        'stock' => $product->productVariants->sum('stock'),
+        'id'                 => $product->id,
+        'slug'               => $product->slug,
+        'name'               => $product->name,
+        'primary_image_url'  => $primaryImageUrl,
+        'stock'              => $product->productVariants->sum('stock'),
         'category_hierarchy' => $product->category ? $product->category->getHierarchy() : [],
-        'brand' => $product->brand ? [
-            'id' => $product->brand->id,
+        'brand'              => $product->brand ? [
+            'id'   => $product->brand->id,
             'name' => $product->brand->name,
         ] : null,
-        'features' => $product->features,
-        'description' => $product->description,
-        'specifications' => $product->specifications,
-        'whats_in_the_box' => $product->whats_in_the_box,
-        'images' => $product->image_urls,
-        'variants' => $variants,
-        'owner' => $ownerInfo ? [
+        'features'           => $product->features,
+        'description'        => $product->description,
+        'specifications'     => $product->specifications,
+        'whats_in_the_box'   => $product->whats_in_the_box,
+        'images'             => $product->image_urls,
+        'variants'           => $variants,
+        'owner'              => $ownerInfo ? [
             'type' => $ownerInfo['type'],
             'name' => $ownerInfo['name'],
         ] : null,
-        'warranty' => $activeWarranty ? [
-            'id' => $activeWarranty->id,
-            'duration' => $activeWarranty->duration,
+        'warranty'           => $activeWarranty ? [
+            'id'          => $activeWarranty->id,
+            'duration'    => $activeWarranty->duration,
             'description' => $activeWarranty->description,
         ] : null,
     ];
 
     if (!empty($product->video_url)) {
-    $productData['video_url'] = $product->video_url;
-}
+        $productData['video_url'] = $product->video_url;
+    }
 
     $cartVariantIds = [];
     $cart = app(\App\Services\CartService::class)->getCart(request());
@@ -175,14 +186,14 @@ public function productDetails(string $slug)
                 ->get(['id', 'name', 'address', 'location', 'latitude', 'longitude']);
 
             return [
-                'id' => $region->id,
-                'name' => $region->name,
-                'pickup_points' => $warehouses->map(fn ($w) => [
-                    'id' => $w->id,
-                    'name' => $w->name,
-                    'address' => $w->address,
-                    'location' => $w->location,
-                    'latitude' => $w->latitude ? (float) $w->latitude : null,
+                'id'               => $region->id,
+                'name'             => $region->name,
+                'pickup_points'    => $warehouses->map(fn ($w) => [
+                    'id'        => $w->id,
+                    'name'      => $w->name,
+                    'address'   => $w->address,
+                    'location'  => $w->location,
+                    'latitude'  => $w->latitude ? (float) $w->latitude : null,
                     'longitude' => $w->longitude ? (float) $w->longitude : null,
                 ])->values()->toArray(),
                 'shipping_options' => $shippingService->getOptionsByRegion($region->id),
@@ -192,16 +203,14 @@ public function productDetails(string $slug)
     $googleMapsApiKey = config('services.google.maps_api_key', '');
 
     return Inertia::render('Frontend/ProductDetail', [
-        'product' => $productData,
-        'relatedProducts' => $relatedProducts,
-        'cartVariantIds' => $cartVariantIds,
-        'regions' => $regions,
+        'product'          => $productData,
+        'relatedProducts'  => $relatedProducts,
+        'cartVariantIds'   => $cartVariantIds,
+        'regions'          => $regions,
         'googleMapsApiKey' => $googleMapsApiKey,
-        'title' => $product->name,
+        'title'            => $product->name,
     ]);
 }
-
-
 
 
 

@@ -178,41 +178,44 @@ class FrontendProductService
     /**
      * NORMALIZER — strictly using your original fields
      */
-    public function normalizeVariant(ProductVariant $variant, array $priceData = []): array
-    {
-        $product = $variant->product;
+   public function normalizeVariant(ProductVariant $variant, array $priceData = []): array
+{
+    $product = $variant->product;
 
-        $image = $product->primaryImageUrl
-            ?? ($product->primaryImage?->image_path
-                ? asset('storage/' . $product->primaryImage->image_path)
-                : asset('images/fallback-image.png'));
+    $variantPrimaryImage = $variant->images?->firstWhere('is_primary', true);
+    $image = ($variantPrimaryImage?->url)
+        ?? ($variantPrimaryImage?->image_path ? asset('storage/' . $variantPrimaryImage->image_path) : null)
+        ?? $product->primaryImageUrl
+        ?? ($product->primaryImage?->image_path
+            ? asset('storage/' . $product->primaryImage->image_path)
+            : asset('images/fallback-image.png'));
 
-        $markedPrice = $variant->marked_price ?? 0;
-        $sellingPrice = $variant->selling_price ?? 0;
-        $totalDiscount = $variant->discount ?? 0;
+    $markedPrice = $variant->marked_price ?? 0;
+    $sellingPrice = $variant->selling_price ?? 0;
+    $totalDiscount = $variant->discount ?? 0;
 
-        $discountPercent = 0;
-        if ($markedPrice > 0 && $totalDiscount > 0) {
-            $discountPercent = round(($totalDiscount / $markedPrice) * 100, 2);
-        }
-
-        return [
-            'id'                => $variant->id,
-            'variant_hashid'    => $variant->hashid,
-            'product_id'        => $product?->id,
-            'category_slug'     => $product->category?->slug ?? '',
-            'product_slug'      => $product?->slug ?? '',
-            'name'              => $variant->display_name ?? $product?->name,
-            'product_name'      => $product?->name,
-            'marked_price'      => round($markedPrice, 2),
-            'final_price'       => round($sellingPrice, 2),
-            'discount_percent'  => $discountPercent,
-            'has_discount'      => $totalDiscount > 0,
-            'in_stock'          => $variant->in_stock,
-            'brand'             => $product?->brand?->name,
-            'primary_image_url' => $image,
-        ];
+    $discountPercent = 0;
+    if ($markedPrice > 0 && $totalDiscount > 0) {
+        $discountPercent = round(($totalDiscount / $markedPrice) * 100, 2);
     }
+
+    return [
+        'id'                => $variant->id,
+        'variant_hashid'    => $variant->hashid,
+        'product_id'        => $product?->id,
+        'category_slug'     => $product->category?->slug ?? '',
+        'product_slug'      => $product?->slug ?? '',
+        'name'              => $variant->display_name ?? $product?->name,
+        'product_name'      => $product?->name,
+        'marked_price'      => round($markedPrice, 2),
+        'final_price'       => round($sellingPrice, 2),
+        'discount_percent'  => $discountPercent,
+        'has_discount'      => $totalDiscount > 0,
+        'in_stock'          => $variant->in_stock,
+        'brand'             => $product?->brand?->name,
+        'primary_image_url' => $image,
+    ];
+}
 
     /**
      * PRICE MAP — strictly using your original logic
