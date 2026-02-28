@@ -294,12 +294,25 @@ public function edit(Product $product)
         ->with(['values.variant', 'images' => fn($q) => $q->orderBy('sort_order')])
         ->get();
 
-    if (app()->environment('local')) {
-        \Log::info('Raw Product Variants', [
-            'product_id' => $product->id,
-            'variants' => $variants->toArray(),
-        ]);
-    }
+    \Log::info('Raw Product Variants', [
+        'product_id' => $product->id,
+        'variant_count' => $variants->count(),
+        'variants' => $variants->map(fn($v) => [
+            'id' => $v->id,
+            'sku' => $v->sku,
+            'values_count' => $v->values->count(),
+            'null_variant_relations' => $v->values->filter(fn($val) => is_null($val->variant))->count(),
+            'values_raw' => $v->values->map(fn($val) => [
+                'id' => $val->id,
+                'variant_id' => $val->variant_id ?? null,
+                'variant' => $val->variant ? [
+                    'id' => $val->variant->id,
+                    'value' => $val->variant->value,
+                    'variant_category_id' => $val->variant->variant_category_id,
+                ] : null,
+            ]),
+        ]),
+    ]);
 
     /*
     |--------------------------------------------------------------------------
@@ -319,6 +332,14 @@ public function edit(Product $product)
         ];
 
         foreach ($variant->values as $pvValue) {
+            if (!$pvValue->variant) {
+                \Log::warning('Null variant relation on value', [
+                    'product_variant_id' => $variant->id,
+                    'pv_value_id' => $pvValue->id,
+                    'variant_id_fk' => $pvValue->variant_id ?? 'missing',
+                ]);
+                continue;
+            }
             $row['values'][$pvValue->variant->variant_category_id] = $pvValue->variant->value;
         }
 
@@ -332,19 +353,23 @@ public function edit(Product $product)
                     'sort_order' => $img->sort_order,
                     'file' => null,
                 ];
-            })->toArray();
+            })->values()->toArray();
         }
 
         return $row;
 
-    })->toArray();
+    })->values()->toArray();
 
-    if (app()->environment('local')) {
-        \Log::info('Mapped Variant Rows', [
-            'product_id' => $product->id,
-            'variant_rows' => $variantRows,
-        ]);
-    }
+    \Log::info('Mapped Variant Rows', [
+        'product_id' => $product->id,
+        'variant_rows_count' => count($variantRows),
+        'variant_rows' => collect($variantRows)->map(fn($r) => [
+            'id' => $r['id'],
+            'sku' => $r['sku'],
+            'values' => $r['values'],
+            'values_count' => count($r['values']),
+        ]),
+    ]);
 
     /*
     |--------------------------------------------------------------------------
@@ -353,15 +378,15 @@ public function edit(Product $product)
     */
     $usedVariantCategoryIds = collect($variantRows)
         ->flatMap(fn($row) => array_keys($row['values']))
+        ->map(fn($id) => (int) $id)
         ->unique()
         ->values();
 
-    if (app()->environment('local')) {
-        \Log::info('Used Variant Category IDs', [
-            'product_id' => $product->id,
-            'used_category_ids' => $usedVariantCategoryIds,
-        ]);
-    }
+    \Log::info('Used Variant Category IDs', [
+        'product_id' => $product->id,
+        'used_category_ids' => $usedVariantCategoryIds->toArray(),
+        'existing_category_ids' => $variantCategories->pluck('id')->toArray(),
+    ]);
 
     /*
     |--------------------------------------------------------------------------
@@ -380,12 +405,12 @@ public function edit(Product $product)
             $extraCategories->filter(fn($cat) => !in_array($cat->id, $existingIds))
         )->values();
 
-        if (app()->environment('local')) {
-            \Log::info('Merged Extra Variant Categories', [
-                'product_id' => $product->id,
-                'extra_categories' => $extraCategories->pluck('id'),
-            ]);
-        }
+        \Log::info('Merged Extra Variant Categories', [
+            'product_id' => $product->id,
+            'extra_categories_found' => $extraCategories->pluck('id')->toArray(),
+            'after_merge_count' => $variantCategories->count(),
+            'after_merge_ids' => $variantCategories->pluck('id')->toArray(),
+        ]);
     }
 
     /*
@@ -400,16 +425,19 @@ public function edit(Product $product)
             'options' => $category->variants->map(fn ($v) => [
                 'id' => $v->id,
                 'value' => $v->value,
-            ])->toArray(),
+            ])->values()->toArray(),
         ];
-    });
+    })->values();
 
-    if (app()->environment('local')) {
-        \Log::info('Final Variant Categories Sent To View', [
-            'product_id' => $product->id,
-            'variant_categories' => $variantCategories,
-        ]);
-    }
+    \Log::info('Final Variant Categories Sent To View', [
+        'product_id' => $product->id,
+        'count' => $variantCategories->count(),
+        'categories' => $variantCategories->map(fn($c) => [
+            'id' => $c['id'],
+            'name' => $c['name'],
+            'options_count' => count($c['options']),
+        ]),
+    ]);
 
     /*
     |--------------------------------------------------------------------------
@@ -424,7 +452,7 @@ public function edit(Product $product)
             'url' => $img->url ?? Storage::url($img->image_path ?? ''),
             'is_primary' => $img->is_primary ?? false,
         ];
-    })->toArray();
+    })->values()->toArray();
 
     /*
     |--------------------------------------------------------------------------
