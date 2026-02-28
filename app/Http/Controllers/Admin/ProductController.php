@@ -287,17 +287,6 @@ public function edit(Product $product)
             ->get();
     }
 
-    $variantCategories = $variantCategories->map(function ($category) {
-        return [
-            'id' => $category->id,
-            'name' => $category->name,
-            'options' => $category->variants->map(fn ($v) => [
-                'id' => $v->id,
-                'value' => $v->value,
-            ])->toArray(),
-        ];
-    });
-
     // Load variants with their images ordered by sort_order
     $variantRows = $product->variants()
         ->with(['values.variant', 'images' => fn($q) => $q->orderBy('sort_order')])
@@ -313,21 +302,19 @@ public function edit(Product $product)
                 'images' => [],
             ];
 
-            // Map variant attribute values
             foreach ($variant->values as $pvValue) {
                 $row['values'][$pvValue->variant->variant_category_id] = $pvValue->variant->value;
             }
 
-            // Map variant images with full details
             if ($variant->images) {
                 $row['images'] = $variant->images->map(function ($img) {
                     return [
                         'id' => $img->id,
-                        'url' => $img->url, // Uses the model accessor
-                        'preview' => $img->url, // For frontend display
+                        'url' => $img->url,
+                        'preview' => $img->url,
                         'is_primary' => $img->is_primary,
                         'sort_order' => $img->sort_order,
-                        'file' => null, // No file object for existing images
+                        'file' => null,
                     ];
                 })->toArray();
             }
@@ -335,6 +322,37 @@ public function edit(Product $product)
             return $row;
         })
         ->toArray();
+
+    // Collect the actual variant category IDs used by saved variants
+    $usedVariantCategoryIds = collect($variantRows)
+        ->flatMap(fn($row) => array_keys($row['values']))
+        ->unique()
+        ->values();
+
+    // Merge in any missing variant categories from the saved variants
+    if ($usedVariantCategoryIds->isNotEmpty()) {
+        $extraCategories = VariantCategory::whereIn('id', $usedVariantCategoryIds)
+            ->with(['variants' => fn($q) => $q->where('is_active', true)])
+            ->get();
+
+        $existingIds = $variantCategories->pluck('id')->toArray();
+
+        $variantCategories = $variantCategories->merge(
+            $extraCategories->filter(fn($cat) => !in_array($cat->id, $existingIds))
+        )->values();
+    }
+
+    // Map for frontend (after merge)
+    $variantCategories = $variantCategories->map(function ($category) {
+        return [
+            'id' => $category->id,
+            'name' => $category->name,
+            'options' => $category->variants->map(fn ($v) => [
+                'id' => $v->id,
+                'value' => $v->value,
+            ])->toArray(),
+        ];
+    });
 
     // Map product images
     $images = collect($product->images ?? [])->map(function ($img) {
