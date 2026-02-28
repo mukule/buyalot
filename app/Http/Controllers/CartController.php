@@ -605,13 +605,12 @@ public function store(Request $request, CartReservationService $cartService)
     // Final totals (whole numbers; shipping minimum 250)
     $grandTotal = (int) round($cartTotal + $shippingCost - $couponAmount);
 
-    // COD min amount from shipping rate for the delivery zone
+    // COD min amount from shipping rate – applies to both pickup and home delivery
     $codMinAmount = null;
     if ($defaultAddress) {
-        $zoneId = $defaultAddress->pickup_warehouse_id
-            ? ($defaultAddress->pickupWarehouse?->region?->zone_id ?? $defaultAddress->pickupWarehouse?->region?->zone?->id)
-            : ($defaultAddress->region?->zone_id ?? $defaultAddress->region?->zone?->id);
-        $rate = $shippingService->getRateForZone($zoneId);
+        $defaultAddress->loadMissing('region.zone');
+        $zoneId = $defaultAddress->region?->zone_id ?? $defaultAddress->region?->zone?->id;
+        $rate = $zoneId ? $shippingService->getRateForZone($zoneId) : null;
         $codMinAmount = $rate?->cod_min_amount;
     }
 

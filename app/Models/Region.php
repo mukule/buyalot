@@ -62,6 +62,10 @@ protected $appends = ['hashid'];
             ->withPivot([]);
     }
 
+    /**
+     * Zone this region belongs to. Shipping rates are resolved via Zone.
+     * Flow: Region → Zone → Shipping Rate
+     */
     public function zone()
     {
         return $this->belongsTo(Zone::class);

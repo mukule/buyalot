@@ -109,7 +109,8 @@ class OrderProcessingService
     }
 
     /**
-     * Get COD minimum amount from shipping rate for the delivery address zone.
+     * Get COD minimum amount from shipping rate for the delivery address.
+     * Applies to both pickup point and home delivery: zone is resolved from address's region.
      * Returns null if no restriction (COD available for any amount).
      */
     protected function getCodMinAmountForAddress(?int $addressId): ?float
@@ -117,14 +118,11 @@ class OrderProcessingService
         if (!$addressId) {
             return null;
         }
-        $address = CustomerAddress::with(['region.zone', 'pickupWarehouse.region.zone'])
-            ->find($addressId);
-        if (!$address) {
+        $address = CustomerAddress::with('region.zone')->find($addressId);
+        if (!$address || !$address->region) {
             return null;
         }
-        $zoneId = $address->pickup_warehouse_id
-            ? ($address->pickupWarehouse?->region?->zone_id ?? $address->pickupWarehouse?->region?->zone?->id)
-            : ($address->region?->zone_id ?? $address->region?->zone?->id);
+        $zoneId = $address->region->zone_id ?? $address->region->zone?->id;
         $rate = app(ShippingService::class)->getRateForZone($zoneId);
         $min = $rate?->cod_min_amount;
         return $min !== null ? (float) $min : null;
