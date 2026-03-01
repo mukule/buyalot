@@ -4,7 +4,7 @@ import ProductCarouselSection from '@/components/ProductCarouselSection.vue';
 import MainLayout from '@/layouts/MainLayout.vue';
 import type { SimplifiedProduct } from '@/types';
 import { router, usePage } from '@inertiajs/vue3';
-import { Edit, MapPin, Package, PlusCircle } from 'lucide-vue-next';
+import { MapPin, Package, Search } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { route } from 'ziggy-js';
 
@@ -147,8 +147,11 @@ watch(selectedRegionId, () => {
 
 /* -------------------- MAP: Home delivery location -------------------- */
 
-function openMapModal() {
+const mapModalUseGeolocation = ref(false);
+
+function openMapModal(useGeolocationOnOpen = false) {
     homeDeliveryError.value = '';
+    mapModalUseGeolocation.value = useGeolocationOnOpen;
     showMapModal.value = true;
 }
 
@@ -162,9 +165,11 @@ async function onMapLocationConfirm(payload: { lat: number; lng: number }) {
 async function calculateHomeDeliveryCost(lat: number, lng: number) {
     isCalculatingHome.value = true;
     homeDeliveryError.value = '';
+    // Order total before shipping (for Nairobi free shipping when >= KSh 50,000)
+    const orderTotalBeforeShipping = sub_total.value - perItemDiscount.value - couponDiscount.value;
     try {
         const axios = (window as any).axios || (await import('axios')).default;
-        const { data } = await axios.post(route('shipping.calculate-home-delivery'), { lat, lng }, {
+        const { data } = await axios.post(route('shipping.calculate-home-delivery'), { lat, lng, order_total: orderTotalBeforeShipping }, {
             headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
             withCredentials: true,
         });
@@ -325,22 +330,40 @@ const formatPrice = (amount?: number | null) =>
                         </div>
                     </div>
 
-                    <!-- Step 2b: Home Delivery – Map -->
+                    <!-- Step 2b: Home Delivery – Location options -->
                     <div v-else class="space-y-4">
                         <div>
-                            <label class="mb-1 block text-sm font-medium text-gray-700">Delivery location</label>
-                            <p class="mb-2 text-xs text-gray-500">Select your delivery location on the map. We use your current location by default.</p>
-<!--                            <p v-if="homeDeliveryConfig" class="mb-2 text-xs text-gray-600">-->
-<!--                                Door Delivery/KM: From KSh {{ Math.round(homeDeliveryConfig.fallback_price ?? 250).toLocaleString() }} for first {{ homeDeliveryConfig.fallback_min_km ?? 10 }} km, then KSh {{ Math.round(homeDeliveryConfig.extra_km_cost ?? 20).toLocaleString() }}/km.-->
-<!--                            </p>-->
-                            <button
-                                type="button"
-                                class="rounded-md border border-primary bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
-                                :disabled="isCalculatingHome"
-                                @click="openMapModal"
-                            >
-                                {{ homeDeliveryLat != null && homeDeliveryLng != null ? 'Change location' : 'Select delivery location' }}
-                            </button>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">Delivery location</label>
+                            <p class="mb-3 text-xs text-gray-500">Choose how to set your delivery location:</p>
+                            <div class="flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    class="inline-flex items-center gap-2 rounded-md border border-primary bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
+                                    :disabled="isCalculatingHome"
+                                    @click="openMapModal(true)"
+                                >
+                                    <MapPin class="h-4 w-4 shrink-0" />
+                                    Use current location
+                                </button>
+                                <button
+                                    type="button"
+                                    class="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                                    :disabled="isCalculatingHome"
+                                    @click="openMapModal(false)"
+                                >
+                                    <MapPin class="h-4 w-4 shrink-0" />
+                                    Select on map
+                                </button>
+                                <button
+                                    type="button"
+                                    class="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                                    :disabled="isCalculatingHome"
+                                    @click="openMapModal(false)"
+                                >
+                                    <Search class="h-4 w-4 shrink-0" />
+                                    Type address or coordinates
+                                </button>
+                            </div>
                             <p v-if="homeDeliveryError" class="mt-2 text-sm text-red-600">{{ homeDeliveryError }}</p>
                             <div v-if="homeDeliveryRegion && homeDeliveryCost > 0" class="mt-2 space-y-2">
                                 <div class="rounded border border-green-200 bg-green-50 p-3 text-sm text-green-800">
@@ -455,7 +478,7 @@ const formatPrice = (amount?: number | null) =>
             :api-key="googleMapsApiKey"
             :initial-lat="homeDeliveryLat"
             :initial-lng="homeDeliveryLng"
-            :use-geolocation-on-open="true"
+            :use-geolocation-on-open="mapModalUseGeolocation"
             title="Select your delivery location"
             @confirm="onMapLocationConfirm"
         />

@@ -30,6 +30,15 @@ class Zone extends Model
     }
 
     /**
+     * Shipping rates assigned to this zone.
+     * Regions in this zone use these rates for delivery costs and policy (COD min, free shipping min).
+     */
+    public function shippingRates()
+    {
+        return $this->hasMany(\App\Models\ShippingRate::class);
+    }
+
+    /**
      * Scope to get the default origin zone
      */
     public function scopeDefaultOrigin($query)

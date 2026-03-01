@@ -263,8 +263,6 @@ public function create()
 }
 
 
-
-
 public function edit(Product $product)
 {
     $brands = Brand::where('active', true)->get();
@@ -287,6 +285,139 @@ public function edit(Product $product)
             ->get();
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Load Variants With Images
+    |--------------------------------------------------------------------------
+    */
+    $variants = $product->variants()
+        ->with(['values.variant', 'images' => fn($q) => $q->orderBy('sort_order')])
+        ->get();
+
+    // \Log::info('Raw Product Variants', [
+    //     'product_id' => $product->id,
+    //     'variant_count' => $variants->count(),
+    //     'variants' => $variants->map(fn($v) => [
+    //         'id' => $v->id,
+    //         'sku' => $v->sku,
+    //         'values_count' => $v->values->count(),
+    //         'null_variant_relations' => $v->values->filter(fn($val) => is_null($val->variant))->count(),
+    //         'values_raw' => $v->values->map(fn($val) => [
+    //             'id' => $val->id,
+    //             'variant_id' => $val->variant_id ?? null,
+    //             'variant' => $val->variant ? [
+    //                 'id' => $val->variant->id,
+    //                 'value' => $val->variant->value,
+    //                 'variant_category_id' => $val->variant->variant_category_id,
+    //             ] : null,
+    //         ]),
+    //     ]),
+    // ]);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Map Variants For Frontend
+    |--------------------------------------------------------------------------
+    */
+    $variantRows = $variants->map(function ($variant) {
+
+        $row = [
+            'id' => $variant->id,
+            'marked_price' => $variant->marked_price,
+            'buying_price' => $variant->selling_price,
+            'stock' => $variant->stock,
+            'sku' => $variant->sku,
+            'values' => [],
+            'images' => [],
+        ];
+
+        foreach ($variant->values as $pvValue) {
+            if (!$pvValue->variant) {
+                \Log::warning('Null variant relation on value', [
+                    'product_variant_id' => $variant->id,
+                    'pv_value_id' => $pvValue->id,
+                    'variant_id_fk' => $pvValue->variant_id ?? 'missing',
+                ]);
+                continue;
+            }
+            $row['values'][$pvValue->variant->variant_category_id] = $pvValue->variant->value;
+        }
+
+        if ($variant->images) {
+            $row['images'] = $variant->images->map(function ($img) {
+                return [
+                    'id' => $img->id,
+                    'url' => $img->url,
+                    'preview' => $img->url,
+                    'is_primary' => $img->is_primary,
+                    'sort_order' => $img->sort_order,
+                    'file' => null,
+                ];
+            })->values()->toArray();
+        }
+
+        return $row;
+
+    })->values()->toArray();
+
+    // \Log::info('Mapped Variant Rows', [
+    //     'product_id' => $product->id,
+    //     'variant_rows_count' => count($variantRows),
+    //     'variant_rows' => collect($variantRows)->map(fn($r) => [
+    //         'id' => $r['id'],
+    //         'sku' => $r['sku'],
+    //         'values' => $r['values'],
+    //         'values_count' => count($r['values']),
+    //     ]),
+    // ]);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Collect Used Variant Category IDs
+    |--------------------------------------------------------------------------
+    */
+    $usedVariantCategoryIds = collect($variantRows)
+        ->flatMap(fn($row) => array_keys($row['values']))
+        ->map(fn($id) => (int) $id)
+        ->unique()
+        ->values();
+
+    // \Log::info('Used Variant Category IDs', [
+    //     'product_id' => $product->id,
+    //     'used_category_ids' => $usedVariantCategoryIds->toArray(),
+    //     'existing_category_ids' => $variantCategories->pluck('id')->toArray(),
+    // ]);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Merge Missing Categories Used By Saved Variants
+    |--------------------------------------------------------------------------
+    */
+    if ($usedVariantCategoryIds->isNotEmpty()) {
+
+        $extraCategories = VariantCategory::whereIn('id', $usedVariantCategoryIds)
+            ->with(['variants' => fn($q) => $q->where('is_active', true)])
+            ->get();
+
+        $existingIds = $variantCategories->pluck('id')->toArray();
+
+        $variantCategories = $variantCategories->merge(
+            $extraCategories->filter(fn($cat) => !in_array($cat->id, $existingIds))
+        )->values();
+
+        // \Log::info('Merged Extra Variant Categories', [
+        //     'product_id' => $product->id,
+        //     'extra_categories_found' => $extraCategories->pluck('id')->toArray(),
+        //     'after_merge_count' => $variantCategories->count(),
+        //     'after_merge_ids' => $variantCategories->pluck('id')->toArray(),
+        // ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Final Mapping For Frontend
+    |--------------------------------------------------------------------------
+    */
     $variantCategories = $variantCategories->map(function ($category) {
         return [
             'id' => $category->id,
@@ -294,49 +425,25 @@ public function edit(Product $product)
             'options' => $category->variants->map(fn ($v) => [
                 'id' => $v->id,
                 'value' => $v->value,
-            ])->toArray(),
+            ])->values()->toArray(),
         ];
-    });
+    })->values();
 
-    // Load variants with their images ordered by sort_order
-    $variantRows = $product->variants()
-        ->with(['values.variant', 'images' => fn($q) => $q->orderBy('sort_order')])
-        ->get()
-        ->map(function ($variant) {
-            $row = [
-                'id' => $variant->id,
-                'marked_price' => $variant->marked_price,
-                'buying_price' => $variant->selling_price,
-                'stock' => $variant->stock,
-                'sku' => $variant->sku,
-                'values' => [],
-                'images' => [],
-            ];
+    // \Log::info('Final Variant Categories Sent To View', [
+    //     'product_id' => $product->id,
+    //     'count' => $variantCategories->count(),
+    //     'categories' => $variantCategories->map(fn($c) => [
+    //         'id' => $c['id'],
+    //         'name' => $c['name'],
+    //         'options_count' => count($c['options']),
+    //     ]),
+    // ]);
 
-            // Map variant attribute values
-            foreach ($variant->values as $pvValue) {
-                $row['values'][$pvValue->variant->variant_category_id] = $pvValue->variant->value;
-            }
-
-            // Map variant images with full details
-            if ($variant->images) {
-                $row['images'] = $variant->images->map(function ($img) {
-                    return [
-                        'id' => $img->id,
-                        'url' => $img->url, // Uses the model accessor
-                        'preview' => $img->url, // For frontend display
-                        'is_primary' => $img->is_primary,
-                        'sort_order' => $img->sort_order,
-                        'file' => null, // No file object for existing images
-                    ];
-                })->toArray();
-            }
-
-            return $row;
-        })
-        ->toArray();
-
-    // Map product images
+    /*
+    |--------------------------------------------------------------------------
+    | Map Product Images
+    |--------------------------------------------------------------------------
+    */
     $images = collect($product->images ?? [])->map(function ($img) {
         return [
             'id' => $img->id,
@@ -345,8 +452,13 @@ public function edit(Product $product)
             'url' => $img->url ?? Storage::url($img->image_path ?? ''),
             'is_primary' => $img->is_primary ?? false,
         ];
-    })->toArray();
+    })->values()->toArray();
 
+    /*
+    |--------------------------------------------------------------------------
+    | Prepare Product Data
+    |--------------------------------------------------------------------------
+    */
     $productData = [
         'product_id' => $product->id,
         'id' => $product->id,
@@ -379,7 +491,6 @@ public function edit(Product $product)
         ],
     ]);
 }
-
 
 
 public function store(Request $request, ProductService $productService)
@@ -516,7 +627,7 @@ public function store(Request $request, ProductService $productService)
         );
 
         // --- REDIRECT AFTER LAST STEP ---
-        if ($step >= 5) {
+        if ($step >= 4) {
             return redirect()->route('admin.products.index')
                 ->with('success', "Product '{$product->name}' created successfully.");
         }

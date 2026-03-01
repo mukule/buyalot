@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue';
 
-
 const props = withDefaults(
     defineProps<{
         modelValue: boolean;
@@ -41,8 +40,11 @@ let marker: google.maps.Marker | null = null;
 const selectedLat = ref<number>(props.defaultLat);
 const selectedLng = ref<number>(props.defaultLng);
 const isLocating = ref(false);
+const isGeocoding = ref(false);
 const errorMessage = ref<string | null>(null);
+const geocodeError = ref<string | null>(null);
 const mapLoadError = ref<string | null>(null);
+const addressSearch = ref('');
 
 function getCenter(): { lat: number; lng: number } {
     if (props.initialLat != null && props.initialLng != null) {
@@ -180,8 +182,68 @@ function tryGeolocation() {
     );
 }
 
+/** Parse lat,lng from input (e.g. "-1.286389, 36.817223" or "-1.286389 36.817223") */
+function tryParseCoordinates(input: string): { lat: number; lng: number } | null {
+    const trimmed = input.trim();
+    const parts = trimmed.split(/[\s,]+/).filter(Boolean);
+    if (parts.length >= 2) {
+        const lat = parseFloat(parts[0]);
+        const lng = parseFloat(parts[1]);
+        if (!Number.isNaN(lat) && !Number.isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+            return { lat, lng };
+        }
+    }
+    return null;
+}
+
+function locateFromInput() {
+    const query = addressSearch.value?.trim();
+    if (!query) {
+        geocodeError.value = 'Please enter an address or coordinates.';
+        return;
+    }
+    geocodeError.value = null;
+
+    // Try parsing as coordinates first (e.g. -1.286389, 36.817223)
+    const coords = tryParseCoordinates(query);
+    if (coords) {
+        selectedLat.value = coords.lat;
+        selectedLng.value = coords.lng;
+        marker?.setPosition(coords);
+        map?.panTo(coords);
+        map?.setZoom(15);
+        return;
+    }
+
+    // Otherwise geocode as address
+    if (!window.google?.maps?.Geocoder) {
+        geocodeError.value = 'Geocoding is not available yet. Please wait for the map to load.';
+        return;
+    }
+    isGeocoding.value = true;
+    const geocoder = new google.maps.Geocoder();
+    geocoder.geocode({ address: query }, (results, status) => {
+        isGeocoding.value = false;
+        if (status === 'OK' && results && results.length > 0) {
+            const loc = results[0].geometry.location;
+            const lat = loc.lat();
+            const lng = loc.lng();
+            selectedLat.value = lat;
+            selectedLng.value = lng;
+            marker?.setPosition({ lat, lng });
+            map?.panTo({ lat, lng });
+            map?.setZoom(15);
+        } else {
+            geocodeError.value = status === 'ZERO_RESULTS'
+                ? 'No results found. Try a full address or coordinates (e.g. -1.29, 36.82).'
+                : 'Could not find this location. Please try again.';
+        }
+    });
+}
+
 function open() {
     errorMessage.value = null;
+    geocodeError.value = null;
     mapLoadError.value = null;
     if (props.useGeolocationOnOpen) {
         tryGeolocation();
@@ -238,10 +300,10 @@ onBeforeUnmount(() => {
             @click.self="close"
         >
             <div
-                class="relative flex max-h-[90vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl"
+                class="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-white shadow-xl"
                 @click.stop
             >
-                <div class="flex items-center justify-between border-b px-4 py-3">
+                <div class="flex shrink-0 items-center justify-between border-b px-4 py-3">
                     <h2 id="map-modal-title" class="text-lg font-semibold text-gray-800">{{ title }}</h2>
                     <button
                         type="button"
@@ -252,11 +314,13 @@ onBeforeUnmount(() => {
                         ×
                     </button>
                 </div>
-                <div class="flex flex-col gap-3 p-4">
+                <div class="min-h-0 flex-1 overflow-y-auto p-4">
+                <div class="flex flex-col gap-3">
                     <p class="text-sm text-gray-600">
-                        Move the pin or click on the map to set your delivery location. You can also use your current
-                        location.
+                        Choose how to set your delivery location:
                     </p>
+
+                    <!-- Option 1: Use current location -->
                     <div class="flex flex-wrap items-center gap-2">
                         <button
                             type="button"
@@ -268,23 +332,52 @@ onBeforeUnmount(() => {
                         </button>
                         <span v-if="errorMessage" class="text-xs text-amber-600">{{ errorMessage }}</span>
                     </div>
+
+                    <!-- Option 2: Type address or coordinates -->
+                    <div class="flex flex-col gap-1">
+                        <label for="address-input" class="text-xs font-medium text-gray-600">Or type your delivery address or paste coordinates</label>
+                        <div class="flex gap-2">
+                            <input
+                                id="address-input"
+                                v-model="addressSearch"
+                                type="text"
+                                placeholder="e.g. Westlands, Nairobi or -1.286389, 36.817223"
+                                class="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-primary focus:ring focus:ring-primary/30"
+                                @keydown.enter.prevent="locateFromInput"
+                            />
+                            <button
+                                type="button"
+                                class="rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+                                :disabled="isGeocoding"
+                                @click="locateFromInput"
+                            >
+                                {{ isGeocoding ? 'Locating…' : 'Show on map' }}
+                            </button>
+                        </div>
+                        <span v-if="geocodeError" class="text-xs text-amber-600">{{ geocodeError }}</span>
+                    </div>
+
+                    <!-- Option 3: Click on map -->
+                    <p class="text-xs text-gray-500">
+                        Or click directly on the map to place the pin at your delivery location.
+                    </p>
                     <div
                         v-if="mapLoadError"
-                        class="flex h-[400px] w-full items-center justify-center rounded border border-gray-200 bg-gray-100 text-sm text-gray-600"
+                        class="flex h-[280px] min-h-[200px] w-full shrink-0 items-center justify-center rounded border border-gray-200 bg-gray-100 text-sm text-gray-600"
                     >
                         {{ mapLoadError }}
                     </div>
                     <div
                         v-else
                         ref="mapContainer"
-                        class="h-[400px] w-full overflow-hidden rounded border border-gray-200 bg-gray-100"
-                        style="min-height: 400px"
+                        class="h-[280px] min-h-[200px] w-full shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-100"
                     />
                     <div v-if="!mapLoadError" class="flex justify-between text-xs text-gray-500">
                         <span>Coordinates: {{ selectedLat.toFixed(5) }}, {{ selectedLng.toFixed(5) }}</span>
                     </div>
                 </div>
-                <div class="flex justify-end gap-2 border-t px-4 py-3">
+                </div>
+                <div class="flex shrink-0 justify-end gap-2 border-t bg-white px-4 py-3">
                     <button
                         type="button"
                         class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"

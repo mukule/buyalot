@@ -12,12 +12,15 @@ class ShippingRate extends Model
     protected $table = 'shipping_rates';
 
     protected $fillable = [
+        'zone_id',
         'package_size',
         'base_price',
         'door_price',
         'door_fallback_price',
         'door_fallback_min_km',
         'door_extra_km_cost',
+        'cod_min_amount',
+        'free_shipping_min_amount',
     ];
 
     protected $casts = [
@@ -26,7 +29,14 @@ class ShippingRate extends Model
         'door_fallback_price' => 'float',
         'door_fallback_min_km' => 'float',
         'door_extra_km_cost' => 'float',
+        'cod_min_amount' => 'float',
+        'free_shipping_min_amount' => 'float',
     ];
+
+    public function zone()
+    {
+        return $this->belongsTo(Zone::class);
+    }
 
     /** Defaults when DB values are null */
     private const DEFAULT_FALLBACK_PRICE = 250;
