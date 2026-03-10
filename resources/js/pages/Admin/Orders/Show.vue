@@ -24,6 +24,16 @@ interface OrderItemPayload {
   product?: Product | null;
   variant?: Variant | null;
   seller?: Seller | null;
+  dispatch_status: string;
+  dispatch_center?: {
+    id: number;
+    name: string;
+    latitude?: number | null;
+    longitude?: number | null;
+    address?: string | null;
+  } | null;
+  dispatch_decline_reason?: string | null;
+  rejection_reason?: string | null;
 }
 interface DeliveryUser { id: number; name: string; email: string }
 interface Warehouse { id: number; name: string; address?: string | null; location?: string | null }
@@ -58,13 +68,141 @@ interface OrderPayload {
   payment_method?: string | null;
   delivery_note_summary?: string;
   assigned_rider?: { id: number; name: string; email: string } | null;
+  is_seller?: boolean;
+  all_items_received?: boolean;
 }
 
 const props = defineProps<{
   order: OrderPayload;
   delivery_users: DeliveryUser[];
   warehouses: Warehouse[];
+  googleMapsApiKey?: string;
+  rejectionReasons: { id: string; name: string }[];
+  declineReasons: { id: string; name: string }[];
 }>();
+
+const selectedItem = ref<OrderItemPayload | null>(null);
+const showDispatchModal = ref(false);
+const showDeclineModal = ref(false);
+const showReceiveModal = ref(false);
+const showRejectModal = ref(false);
+const showConfirmAvailableModal = ref(false);
+
+const reason = ref('');
+const otherReason = ref('');
+
+const mapContainer = ref<HTMLElement | null>(null);
+let map: google.maps.Map | null = null;
+let marker: google.maps.Marker | null = null;
+
+function loadGoogleMapsScript(): Promise<void> {
+  if (window.google?.maps) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${props.googleMapsApiKey}`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load Google Maps'));
+    document.head.appendChild(script);
+  });
+}
+
+function initMap() {
+  if (!mapContainer.value || !selectedItem.value?.dispatch_center?.latitude) return;
+  const center = {
+    lat: Number(selectedItem.value.dispatch_center.latitude),
+    lng: Number(selectedItem.value.dispatch_center.longitude)
+  };
+
+  map = new google.maps.Map(mapContainer.value, {
+    center,
+    zoom: 15,
+  });
+
+  marker = new google.maps.Marker({
+    position: center,
+    map,
+    title: selectedItem.value.dispatch_center.name,
+  });
+}
+
+const receiveItem = (itemId: number) => {
+  selectedItem.value = props.order.order_items.find(i => i.id === itemId) || null;
+  showReceiveModal.value = true;
+};
+
+const confirmReceive = () => {
+  if (!selectedItem.value) return;
+  router.post(route('admin.admin.orders.items.receive', { order: props.order.ulid ?? props.order.id, item: selectedItem.value.id }), {}, {
+    onSuccess: () => { showReceiveModal.value = false; selectedItem.value = null; }
+  });
+};
+
+const rejectItem = (itemId: number) => {
+  selectedItem.value = props.order.order_items.find(i => i.id === itemId) || null;
+  reason.value = '';
+  otherReason.value = '';
+  showRejectModal.value = true;
+};
+
+const confirmReject = () => {
+  if (!selectedItem.value || !reason.value) return;
+  if (reason.value === 'other' && !otherReason.value) return;
+  router.post(route('admin.admin.orders.items.reject', { order: props.order.ulid ?? props.order.id, item: selectedItem.value.id }), {
+    reason: reason.value,
+    other_reason: otherReason.value
+  }, {
+    onSuccess: () => { showRejectModal.value = false; selectedItem.value = null; reason.value = ''; otherReason.value = ''; }
+  });
+};
+
+const confirmAvailable = (itemId: number) => {
+  selectedItem.value = props.order.order_items.find(i => i.id === itemId) || null;
+  showConfirmAvailableModal.value = true;
+};
+
+const executeConfirmAvailable = () => {
+  if (!selectedItem.value) return;
+  router.post(route('admin.orders.items.confirm-available', { order: props.order.ulid ?? props.order.id, item: selectedItem.value.id }), {}, {
+    onSuccess: () => { showConfirmAvailableModal.value = false; selectedItem.value = null; }
+  });
+};
+
+const dispatchItem = (itemId: number) => {
+  selectedItem.value = props.order.order_items.find(i => i.id === itemId) || null;
+  showDispatchModal.value = true;
+  if (props.googleMapsApiKey) {
+    loadGoogleMapsScript().then(() => {
+      setTimeout(initMap, 200);
+    });
+  }
+};
+
+const confirmDispatch = () => {
+  if (!selectedItem.value) return;
+  router.post(route('orders.items.dispatch', { order: props.order.ulid ?? props.order.id, item: selectedItem.value.id }), {}, {
+    onSuccess: () => { showDispatchModal.value = false; selectedItem.value = null; }
+  });
+};
+
+const declineDispatch = (itemId: number) => {
+  selectedItem.value = props.order.order_items.find(i => i.id === itemId) || null;
+  reason.value = '';
+  otherReason.value = '';
+  showDeclineModal.value = true;
+};
+
+const confirmDecline = () => {
+  if (!selectedItem.value || !reason.value) return;
+  if (reason.value === 'other' && !otherReason.value) return;
+  router.post(route('orders.items.decline', { order: props.order.ulid ?? props.order.id, item: selectedItem.value.id }), {
+    reason: reason.value,
+    other_reason: otherReason.value
+  }, {
+    onSuccess: () => { showDeclineModal.value = false; selectedItem.value = null; reason.value = ''; otherReason.value = ''; }
+  });
+};
 
 function money(val: number, currency: string) {
   const num = Number(val ?? 0);
@@ -106,6 +244,7 @@ function changeDelivery() {
 }
 
 const canAssign = () => {
+  if (!props.order.all_items_received) return false;
   if (!assignForm.delivery_id) return false;
   if (assignForm.delivery_type === 'pickup_point') return !!assignForm.pickup_warehouse_id;
   return true;
@@ -186,16 +325,22 @@ function allocateForPickup() {
           <p v-if="props.order.customer">{{ props.order.customer.first_name }} {{ props.order.customer.last_name }}</p>
           <p v-if="props.order.customer && props.order.customer.email">{{ props.order.customer.email }}</p>
         </div>
-        <div class="rounded bg-white p-4 shadow">
+        <div v-if="props.order.shipping_address" class="rounded bg-white p-4 shadow">
           <h2 class="font-semibold">Shipping Address</h2>
-          <p>{{ props.order.shipping_address?.address_line_1 }}</p>
-          <p>{{ props.order.shipping_address?.city }}<span v-if="props.order.shipping_address?.country">, {{ props.order.shipping_address?.country }}</span></p>
+          <p>{{ props.order.shipping_address.address_line_1 }}</p>
+          <p>{{ props.order.shipping_address.city }}<span v-if="props.order.shipping_address.country">, {{ props.order.shipping_address.country }}</span></p>
         </div>
       </div>
 
-      <!-- Delivery assignment (hidden when order is already delivered) -->
-      <div v-if="(props.order.status || '').toLowerCase() !== 'delivered'" class="mb-6 rounded bg-white p-4 shadow">
+      <!-- Delivery assignment (hidden when order is already delivered or for sellers) -->
+      <div v-if="(props.order.status || '').toLowerCase() !== 'delivered' && !props.order.is_seller" class="mb-6 rounded bg-white p-4 shadow">
         <h2 class="mb-3 font-semibold">Delivery</h2>
+        <div v-if="!props.order.all_items_received" class="mb-4 rounded-md bg-amber-50 p-4 text-amber-800">
+          <p class="flex items-center text-sm font-medium">
+            <Clock class="mr-2 h-4 w-4" />
+            Cannot assign delivery until all items are confirmed received from sellers.
+          </p>
+        </div>
 <!--        <p v-if="props.order.customer_selected_pickup_warehouse" class="mb-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm font-medium text-primary">-->
 <!--          Customer selected pickup point: <strong>{{ props.order.customer_selected_pickup_warehouse.name }}</strong>-->
 <!--          <span v-if="props.order.customer_selected_pickup_warehouse.address" class="block mt-1 font-normal text-muted-foreground">{{ props.order.customer_selected_pickup_warehouse.address }}</span>-->
@@ -387,7 +532,9 @@ function allocateForPickup() {
                 <th class="px-4 py-2">Quantity</th>
                 <th class="px-4 py-2">Unit Price</th>
                 <th class="px-4 py-2">Total</th>
-                <th class="px-4 py-2">Seller</th>
+                <th v-if="!props.order.is_seller" class="px-4 py-2">Seller</th>
+                <th class="px-4 py-2">Dispatch Status</th>
+                <th class="px-4 py-2">Actions</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-200">
@@ -397,10 +544,83 @@ function allocateForPickup() {
                 <td class="px-4 py-2">{{ item.quantity }}</td>
                 <td class="px-4 py-2">{{ money(item.unit_price, props.order.currency) }}</td>
                 <td class="px-4 py-2">{{ money(item.total_price, props.order.currency) }}</td>
-                <td class="px-4 py-2">{{ item.seller?.name ?? '—' }}</td>
+                <td v-if="!props.order.is_seller" class="px-4 py-2">{{ item.seller?.name ?? '—' }}</td>
+                <td class="px-4 py-2">
+                  <span
+                    class="rounded-full px-2 py-1 text-xs font-semibold"
+                    :class="{
+                      'bg-gray-100 text-gray-800': item.dispatch_status === 'pending',
+                      'bg-blue-100 text-blue-800': item.dispatch_status === 'dispatched',
+                      'bg-green-100 text-green-800': item.dispatch_status === 'received',
+                      'bg-red-100 text-red-800': ['declined', 'rejected'].includes(item.dispatch_status)
+                    }"
+                  >
+                    {{ item.dispatch_status }}
+                  </span>
+                  <div v-if="item.dispatch_decline_reason" class="mt-1 text-xs text-red-500">
+                    Reason: {{ item.dispatch_decline_reason }}
+                  </div>
+                  <div v-if="item.rejection_reason" class="mt-1 text-xs text-red-500">
+                    Rejected: {{ item.rejection_reason }}
+                  </div>
+                </td>
+                <td class="px-4 py-2">
+                  <div class="flex flex-wrap gap-2">
+                    <!-- Seller Actions -->
+                    <template v-if="props.order.is_seller">
+                      <Button
+                        v-if="['pending', 'declined'].includes(item.dispatch_status)"
+                        size="sm"
+                        variant="default"
+                        class="bg-blue-600 text-white hover:bg-blue-700"
+                        @click="dispatchItem(item.id)"
+                      >
+                        Dispatch
+                      </Button>
+                      <Button
+                        v-if="item.dispatch_status === 'pending'"
+                        size="sm"
+                        variant="destructive"
+                        @click="declineDispatch(item.id)"
+                      >
+                        Decline
+                      </Button>
+                    </template>
+
+                    <!-- Admin Actions -->
+                    <template v-else>
+                      <Button
+                        v-if="(!item.seller || item.seller.id === 0) && item.dispatch_status === 'pending'"
+                        size="sm"
+                        variant="default"
+                        class="bg-indigo-600 text-white hover:bg-indigo-700"
+                        @click="confirmAvailable(item.id)"
+                      >
+                        Confirm Available
+                      </Button>
+                      <Button
+                        v-if="['dispatched', 'rejected'].includes(item.dispatch_status)"
+                        size="sm"
+                        variant="default"
+                        class="bg-green-600 text-white hover:bg-green-700"
+                        @click="receiveItem(item.id)"
+                      >
+                        Confirm Receipt
+                      </Button>
+                      <Button
+                        v-if="item.dispatch_status === 'dispatched'"
+                        size="sm"
+                        variant="destructive"
+                        @click="rejectItem(item.id)"
+                      >
+                        Reject
+                      </Button>
+                    </template>
+                  </div>
+                </td>
               </tr>
               <tr v-if="props.order.order_items.length === 0">
-                <td colspan="6" class="px-4 py-6 text-center text-gray-500">No items</td>
+                <td :colspan="props.order.is_seller ? 7 : 8" class="px-4 py-6 text-center text-gray-500">No items</td>
               </tr>
             </tbody>
           </table>
@@ -412,8 +632,145 @@ function allocateForPickup() {
         <DialogContent class="max-w-lg">
           <DialogHeader>
             <DialogTitle>Delivery note – Order #{{ props.order.order_code }}</DialogTitle>
+            <DialogDescription>Summary of the delivery note for this order.</DialogDescription>
           </DialogHeader>
           <pre class="whitespace-pre-wrap rounded bg-muted p-4 text-sm">{{ props.order.delivery_note_summary || 'No note generated.' }}</pre>
+        </DialogContent>
+      </Dialog>
+
+      <!-- Dispatch Modal -->
+      <Dialog v-model:open="showDispatchModal">
+        <DialogContent class="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Dispatch Item</DialogTitle>
+            <DialogDescription>Confirm the dispatch of this item to the assigned center.</DialogDescription>
+          </DialogHeader>
+          <div class="space-y-4">
+            <p>You are about to dispatch <strong>{{ selectedItem?.product?.name }}</strong> to the dispatch center.</p>
+            <div v-if="selectedItem?.dispatch_center" class="rounded-md border p-3">
+              <p class="font-semibold">{{ selectedItem.dispatch_center.name }}</p>
+              <p class="text-sm text-muted-foreground">{{ selectedItem.dispatch_center.address }}</p>
+            </div>
+            <div
+              v-if="selectedItem?.dispatch_center?.latitude"
+              ref="mapContainer"
+              class="h-[300px] w-full rounded border bg-muted"
+            ></div>
+            <div class="flex justify-end gap-2">
+              <Button variant="outline" @click="showDispatchModal = false">Cancel</Button>
+              <Button @click="confirmDispatch">Confirm Dispatch</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <!-- Decline Dispatch Modal -->
+      <Dialog v-model:open="showDeclineModal">
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Decline Dispatch</DialogTitle>
+            <DialogDescription>Please provide a reason for declining this dispatch.</DialogDescription>
+          </DialogHeader>
+          <div class="space-y-4">
+            <div class="space-y-2">
+              <Label for="decline-reason">Reason for declining</Label>
+              <select
+                id="decline-reason"
+                v-model="reason"
+                class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="" disabled>Select a reason...</option>
+                <option v-for="r in props.declineReasons" :key="r.id" :value="r.id">
+                  {{ r.name }}
+                </option>
+              </select>
+            </div>
+            <div v-if="reason === 'other'" class="space-y-2">
+              <Label for="decline-other-reason">Please specify</Label>
+              <textarea
+                id="decline-other-reason"
+                v-model="otherReason"
+                class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                placeholder="Enter other reason..."
+              ></textarea>
+            </div>
+            <div class="flex justify-end gap-2">
+              <Button variant="outline" @click="showDeclineModal = false">Cancel</Button>
+              <Button variant="destructive" :disabled="!reason || (reason === 'other' && !otherReason)" @click="confirmDecline">Decline Dispatch</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <!-- Receive Item Modal -->
+      <Dialog v-model:open="showReceiveModal">
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Receipt</DialogTitle>
+            <DialogDescription>Verify that the item has arrived at the dispatch center.</DialogDescription>
+          </DialogHeader>
+          <div class="space-y-4">
+            <p>Confirm that you have received <strong>{{ selectedItem?.product?.name }}</strong> from the seller?</p>
+            <div class="flex justify-end gap-2">
+              <Button variant="outline" @click="showReceiveModal = false">Cancel</Button>
+              <Button @click="confirmReceive">Confirm Receipt</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <!-- Reject Item Modal -->
+      <Dialog v-model:open="showRejectModal">
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject Item</DialogTitle>
+            <DialogDescription>Explain why this item is being rejected.</DialogDescription>
+          </DialogHeader>
+          <div class="space-y-4">
+            <div class="space-y-2">
+              <Label for="reject-reason">Reason for rejection</Label>
+              <select
+                id="reject-reason"
+                v-model="reason"
+                class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="" disabled>Select a reason...</option>
+                <option v-for="r in props.rejectionReasons" :key="r.id" :value="r.id">
+                  {{ r.name }}
+                </option>
+              </select>
+            </div>
+            <div v-if="reason === 'other'" class="space-y-2">
+              <Label for="reject-other-reason">Please specify</Label>
+              <textarea
+                id="reject-other-reason"
+                v-model="otherReason"
+                class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                placeholder="Enter other reason..."
+              ></textarea>
+            </div>
+            <div class="flex justify-end gap-2">
+              <Button variant="outline" @click="showRejectModal = false">Cancel</Button>
+              <Button variant="destructive" :disabled="!reason || (reason === 'other' && !otherReason)" @click="confirmReject">Reject Item</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <!-- Confirm Available Modal (System Items) -->
+      <Dialog v-model:open="showConfirmAvailableModal">
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Item Available</DialogTitle>
+            <DialogDescription>Mark this platform item as available for delivery.</DialogDescription>
+          </DialogHeader>
+          <div class="space-y-4">
+            <p>Are you sure this item <strong>{{ selectedItem?.product?.name }}</strong> is available at the dispatch center?</p>
+            <div class="flex justify-end gap-2">
+              <Button variant="outline" @click="showConfirmAvailableModal = false">Cancel</Button>
+              <Button @click="executeConfirmAvailable">Confirm Available</Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

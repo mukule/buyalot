@@ -8,7 +8,6 @@ interface SellerRow {
     first_name?: string | null;
     last_name?: string | null;
     company_legal_name?: string | null;
-    business_name?: string | null;
     business_type?: string | null;
     primary_product_category?: string | null;
     owner_email?: string | null;
@@ -79,7 +78,7 @@ const viewItem = (s: SellerRow) => router.visit(route('admin.sellers.show', s.id
                         <tbody class="divide-y divide-gray-200 bg-white">
                             <tr v-for="s in sellers.data || []" :key="s.id" class="odd:bg-gray-50">
                                 <td class="px-4 py-2 break-words">
-                                    {{ s.company_legal_name || s.business_name || '-' }}
+                                    {{ s.company_legal_name || '-' }}
                                 </td>
 
                                 <td class="px-4 py-2 break-words">

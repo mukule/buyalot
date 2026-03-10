@@ -1,11 +1,99 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/CustomerAppSidebarLayout.vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { Package, CheckCircle, Cog, Truck, Home, XCircle } from 'lucide-vue-next';
+import { router } from '@inertiajs/vue3';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 const page = usePage();
 const order = computed<any>(() => (page.props as any).order || {});
+const googleMapsApiKey = computed(() => (page.props as any).googleMapsApiKey || '');
+const declineReasons = computed(() => (page.props as any).declineReasons || []);
+
+const selectedItem = ref<any>(null);
+const showDispatchModal = ref(false);
+const showDeclineModal = ref(false);
+const reason = ref('');
+const otherReason = ref('');
+
+const mapContainer = ref<HTMLElement | null>(null);
+let map: google.maps.Map | null = null;
+let marker: google.maps.Marker | null = null;
+
+function loadGoogleMapsScript(): Promise<void> {
+  if (window.google?.maps) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey.value}`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load Google Maps'));
+    document.head.appendChild(script);
+  });
+}
+
+function initMap() {
+  if (!mapContainer.value || !selectedItem.value?.dispatch_center?.latitude) return;
+  const center = {
+    lat: Number(selectedItem.value.dispatch_center.latitude),
+    lng: Number(selectedItem.value.dispatch_center.longitude)
+  };
+
+  map = new google.maps.Map(mapContainer.value, {
+    center,
+    zoom: 15,
+  });
+
+  marker = new google.maps.Marker({
+    position: center,
+    map,
+    title: selectedItem.value.dispatch_center.name,
+  });
+}
+
+const dispatchItem = (itemId: number) => {
+  selectedItem.value = order.value.order_items.find((i: any) => i.id === itemId) || null;
+  showDispatchModal.value = true;
+  if (googleMapsApiKey.value) {
+    loadGoogleMapsScript().then(() => {
+      setTimeout(initMap, 200);
+    });
+  }
+};
+
+const confirmDispatch = () => {
+  if (!selectedItem.value) return;
+  router.post(route('orders.items.dispatch', { order: order.value.ulid ?? order.value.id, item: selectedItem.value.id }), {}, {
+    onSuccess: () => { showDispatchModal.value = false; selectedItem.value = null; }
+  });
+};
+
+const declineDispatch = (itemId: number) => {
+  selectedItem.value = order.value.order_items.find((i: any) => i.id === itemId) || null;
+  reason.value = '';
+  otherReason.value = '';
+  showDeclineModal.value = true;
+};
+
+const confirmDecline = () => {
+  if (!selectedItem.value || !reason.value) return;
+  if (reason.value === 'other' && !otherReason.value) return;
+  router.post(route('orders.items.decline', { order: order.value.ulid ?? order.value.id, item: selectedItem.value.id }), {
+    reason: reason.value,
+    other_reason: otherReason.value
+  }, {
+    onSuccess: () => { showDeclineModal.value = false; selectedItem.value = null; reason.value = ''; otherReason.value = ''; }
+  });
+};
 
 const paying = ref(false);
 
@@ -211,10 +299,50 @@ function statusBadgeClass(status?: string) {
               <div>
                 <div class="font-medium text-gray-800">{{ item.product?.name || item.product_variant?.product?.name || item.productVariant?.product?.name || 'Product' }}</div>
                 <div class="text-xs text-gray-500">Qty: {{ item.quantity }}</div>
+                <div v-if="item.dispatch_status" class="mt-1">
+                  <span
+                    class="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                    :class="{
+                      'bg-gray-100 text-gray-600': item.dispatch_status === 'pending',
+                      'bg-blue-100 text-blue-600': item.dispatch_status === 'dispatched',
+                      'bg-green-100 text-green-600': item.dispatch_status === 'received',
+                      'bg-red-100 text-red-600': ['declined', 'rejected'].includes(item.dispatch_status)
+                    }"
+                  >
+                    {{ item.dispatch_status }}
+                  </span>
+                  <div v-if="item.dispatch_decline_reason" class="mt-0.5 text-[10px] text-red-500">
+                    Declined: {{ item.dispatch_decline_reason }}
+                  </div>
+                  <div v-if="item.rejection_reason" class="mt-0.5 text-[10px] text-red-500">
+                    Rejected by Admin: {{ item.rejection_reason }}
+                  </div>
+                  <div v-if="item.dispatch_center" class="mt-0.5 text-[10px] text-gray-500">
+                    To: {{ item.dispatch_center.name }}
+                  </div>
+                </div>
               </div>
               <div class="text-right">
                 <div class="text-sm text-gray-700">{{ formatMoney(item.unit_price) }} <span class="text-xs text-gray-500">each</span></div>
                 <div class="text-sm font-semibold text-gray-900">{{ formatMoney(item.total_price) }}</div>
+                <div v-if="order.is_seller" class="mt-2 flex flex-col gap-1">
+                  <Button
+                    v-if="['pending', 'declined'].includes(item.dispatch_status)"
+                    size="sm"
+                    class="bg-blue-600 text-white hover:bg-blue-700"
+                    @click="dispatchItem(item.id)"
+                  >
+                    Dispatch
+                  </Button>
+                  <Button
+                    v-if="item.dispatch_status === 'pending'"
+                    size="sm"
+                    variant="destructive"
+                    @click="declineDispatch(item.id)"
+                  >
+                    Decline
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -244,7 +372,7 @@ function statusBadgeClass(status?: string) {
             </div>
           </div>
 
-          <div class="rounded-lg bg-white p-4 shadow">
+          <div v-if="order?.shipping_address && !order?.is_seller" class="rounded-lg bg-white p-4 shadow">
             <h3 class="mb-2 text-sm font-semibold text-gray-800">Shipping Address</h3>
             <div class="text-sm text-gray-700">
               <div v-if="order?.shipping_address">
@@ -259,7 +387,7 @@ function statusBadgeClass(status?: string) {
             </div>
           </div>
 
-          <div class="rounded-lg bg-white p-4 shadow">
+          <div v-if="order?.billing_address && !order?.is_seller" class="rounded-lg bg-white p-4 shadow">
             <h3 class="mb-2 text-sm font-semibold text-gray-800">Billing Address</h3>
             <div class="text-sm text-gray-700">
               <div v-if="order?.billing_address">
@@ -280,6 +408,68 @@ function statusBadgeClass(status?: string) {
         <h3 class="mb-2 text-sm font-semibold text-gray-800">Notes</h3>
         <p class="text-sm text-gray-700 whitespace-pre-line">{{ order.notes }}</p>
       </div>
+
+      <!-- Dispatch Modal -->
+      <Dialog v-model:open="showDispatchModal">
+        <DialogContent class="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Dispatch Item</DialogTitle>
+          </DialogHeader>
+          <div class="space-y-4">
+            <p>You are about to dispatch <strong>{{ selectedItem?.product?.name || selectedItem?.product_variant?.product?.name || 'Item' }}</strong> to the dispatch center.</p>
+            <div v-if="selectedItem?.dispatch_center" class="rounded-md border p-3">
+              <p class="font-semibold">{{ selectedItem.dispatch_center.name }}</p>
+              <p class="text-sm text-muted-foreground">{{ selectedItem.dispatch_center.address }}</p>
+            </div>
+            <div
+              v-if="selectedItem?.dispatch_center?.latitude"
+              ref="mapContainer"
+              class="h-[300px] w-full rounded border bg-muted"
+            ></div>
+            <div class="flex justify-end gap-2">
+              <Button variant="outline" @click="showDispatchModal = false">Cancel</Button>
+              <Button @click="confirmDispatch">Confirm Dispatch</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <!-- Decline Dispatch Modal -->
+      <Dialog v-model:open="showDeclineModal">
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Decline Dispatch</DialogTitle>
+          </DialogHeader>
+          <div class="space-y-4">
+            <div class="space-y-2">
+              <Label for="customer-decline-reason">Reason for declining</Label>
+              <select
+                id="customer-decline-reason"
+                v-model="reason"
+                class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="" disabled>Select a reason...</option>
+                <option v-for="r in declineReasons" :key="r.id" :value="r.id">
+                  {{ r.name }}
+                </option>
+              </select>
+            </div>
+            <div v-if="reason === 'other'" class="space-y-2">
+              <Label for="customer-decline-other-reason">Please specify</Label>
+              <textarea
+                id="customer-decline-other-reason"
+                v-model="otherReason"
+                class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                placeholder="Enter other reason..."
+              ></textarea>
+            </div>
+            <div class="flex justify-end gap-2">
+              <Button variant="outline" @click="showDeclineModal = false">Cancel</Button>
+              <Button variant="destructive" :disabled="!reason || (reason === 'other' && !otherReason)" @click="confirmDecline">Decline Dispatch</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   </AppLayout>
 </template>

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\DeliveryOrderAssigned;
 use App\Models\Orders\Delivery;
 use App\Models\Orders\Order;
+use App\Models\Orders\OrderItem;
 use App\Models\User;
 use App\Models\Warehouse\Warehouse;
 use Illuminate\Http\Request;
@@ -19,24 +20,57 @@ class OrderController extends Controller
      */
     public function show(Order $order)
     {
+        // Get currently logged-in user
+        $user = auth()->user();
+        $isSeller = $user?->hasPortalRole('seller');
+        $sellerIds = $isSeller ? $user->sellers->pluck('id')->toArray() : [];
+
         // Eager-load relations to avoid N+1
         $order->load([
             'customer.defaultAddress',
-            'orderItems.productVariant' => fn ($q) => $q->with(['product' => fn ($pq) => $pq->withoutGlobalScopes(), 'values']),
-            'orderItems.seller:id,name',
+            'orderItems' => function ($q) use ($isSeller, $sellerIds) {
+                if ($isSeller) {
+                    $q->whereIn('seller_id', $sellerIds);
+                }
+                $q->with([
+                    'productVariant' => fn ($pq) => $pq->with(['product' => fn ($ppq) => $ppq->withoutGlobalScopes(), 'values']),
+                    'seller:id,company_legal_name',
+                    'dispatchCenter:id,name'
+                ]);
+            },
             'shippingAddress.pickupWarehouse' => fn ($q) => $q->withoutGlobalScopes(),
             'billingAddress',
             'delivery.deliveryUser:id,name,email',
             'delivery.pickupWarehouse',
         ]);
 
+        if ($isSeller) {
+            $order->subtotal = $order->orderItems->sum('total_price');
+            $order->tax_amount = $order->orderItems->sum('tax_amount');
+            // If we have shipping/discount per item or per seller, we could use that.
+            // For now, setting them to zero if not specifically for this seller.
+            $order->shipping_amount = 0;
+            $order->discount_amount = 0;
+            $order->total_amount = $order->subtotal + $order->tax_amount;
+        }
+
         $shippingAddress = $order->shippingAddress ?: $order->customer?->getDefaultAddress();
         $billingAddress = $order->billingAddress ?: $order->customer?->getDefaultAddress();
+
+        // Check if all items are received (for admin)
+        $all_items_received = false;
+        if (!$isSeller && $order->orderItems->count() > 0) {
+            $all_items_received = $order->orderItems->every(fn($item) =>
+                $item->dispatch_status === OrderItem::DISPATCH_STATUS_RECEIVED
+            );
+        }
 
         // Transform payload for frontend simplicity
         $payload = [
             'id' => $order->id,
             'ulid' => $order->ulid,
+            'is_seller' => $isSeller,
+            'all_items_received' => $all_items_received,
             'order_code' => $order->order_code,
             'status' => $order->status,
             'payment_status' => $order->payment_status,
@@ -54,7 +88,7 @@ class OrderController extends Controller
                 'last_name' => $order->customer->last_name,
                 'email' => $order->customer->email ?? null,
             ] : null,
-            'shipping_address' => $shippingAddress ? [
+            'shipping_address' => ($shippingAddress && !$isSeller) ? [
                 'first_name' => $shippingAddress->first_name,
                 'last_name' => $shippingAddress->last_name,
                 'address_line_1' => $shippingAddress->address_line_1,
@@ -68,7 +102,7 @@ class OrderController extends Controller
                 'country_name' => $shippingAddress->country_name,
                 'phone' => $shippingAddress->phone,
             ] : null,
-            'billing_address' => $billingAddress ? [
+            'billing_address' => ($billingAddress && !$isSeller) ? [
                 'first_name' => $billingAddress->first_name,
                 'last_name' => $billingAddress->last_name,
                 'address_line_1' => $billingAddress->address_line_1,
@@ -95,6 +129,16 @@ class OrderController extends Controller
                     'quantity' => (int) $item->quantity,
                     'unit_price' => (float) $item->unit_price,
                     'total_price' => (float) $item->total_price,
+                    'dispatch_status' => $item->dispatch_status,
+                    'dispatch_center' => $item->dispatchCenter ? [
+                        'id' => $item->dispatchCenter->id,
+                        'name' => $item->dispatchCenter->name,
+                        'latitude' => $item->dispatchCenter->latitude,
+                        'longitude' => $item->dispatchCenter->longitude,
+                        'address' => $item->dispatchCenter->address,
+                    ] : null,
+                    'dispatch_decline_reason' => $item->dispatch_decline_reason,
+                    'rejection_reason' => $item->rejection_reason,
                     'product' => $product ? [
                         'id' => $product->id,
                         'name' => $product->name,
@@ -106,8 +150,11 @@ class OrderController extends Controller
                     ] : null,
                     'seller' => $item->seller ? [
                         'id' => $item->seller->id,
-                        'name' => $item->seller->name,
-                    ] : null,
+                        'name' => $item->seller->company_legal_name ?: 'Unknown Seller',
+                    ] : [
+                        'id' => 0,
+                        'name' => config('app.name', 'System'),
+                    ],
                 ];
             })->toArray(),
             'rider_id' => $order->delivery?->deliveryUser?->id,
@@ -115,24 +162,24 @@ class OrderController extends Controller
             'delivery_type' => $order->delivery?->delivery_type ?? 'customer_address',
             'pickup_warehouse_id' => $order->delivery?->pickup_warehouse_id,
             'dispatching_warehouse_id' => $order->delivery?->dispatching_warehouse_id,
-            'pickup_warehouse' => $order->delivery?->pickupWarehouse ? [
+            'pickup_warehouse' => (!$isSeller && $order->delivery?->pickupWarehouse) ? [
                 'id' => $order->delivery->pickupWarehouse->id,
                 'name' => $order->delivery->pickupWarehouse->name,
                 'address' => $order->delivery->pickupWarehouse->address,
                 'location' => $order->delivery->pickupWarehouse->location,
             ] : null,
-            'customer_selected_pickup_warehouse' => $order->shippingAddress?->pickup_warehouse_id && $order->shippingAddress?->pickupWarehouse ? [
+            'customer_selected_pickup_warehouse' => (!$isSeller && $order->shippingAddress?->pickup_warehouse_id && $order->shippingAddress?->pickupWarehouse) ? [
                 'id' => $order->shippingAddress->pickupWarehouse->id,
                 'name' => $order->shippingAddress->pickupWarehouse->name,
                 'address' => $order->shippingAddress->pickupWarehouse->address,
                 'location' => $order->shippingAddress->pickupWarehouse->location,
             ] : null,
-            'delivery_assignment_status' => $order->delivery?->assignment_status,
-            'allocated_for_pickup_at' => $order->delivery?->allocated_for_pickup_at?->toDateTimeString(),
-            'picked_at' => $order->delivery?->picked_at?->toDateTimeString(),
+            'delivery_assignment_status' => !$isSeller ? $order->delivery?->assignment_status : null,
+            'allocated_for_pickup_at' => !$isSeller ? $order->delivery?->allocated_for_pickup_at?->toDateTimeString() : null,
+            'picked_at' => !$isSeller ? $order->delivery?->picked_at?->toDateTimeString() : null,
             'payment_method' => $order->payment_method ?? null,
-            'delivery_note_summary' => $order->getDeliveryNoteSummary(),
-            'assigned_rider' => $order->delivery?->deliveryUser ? [
+            'delivery_note_summary' => !$isSeller ? $order->getDeliveryNoteSummary() : null,
+            'assigned_rider' => (!$isSeller && $order->delivery?->deliveryUser) ? [
                 'id' => $order->delivery->deliveryUser->id,
                 'name' => $order->delivery->deliveryUser->name,
                 'email' => $order->delivery->deliveryUser->email,
@@ -159,6 +206,9 @@ class OrderController extends Controller
             'riders' => $deliveryUsers,
             'delivery_users' => $deliveryUsers,
             'warehouses' => $warehouses,
+            'googleMapsApiKey' => config('services.google_maps.api_key'),
+            'rejectionReasons' => array_map(fn($key, $label) => ['id' => $key, 'name' => $label], array_keys(OrderItem::REJECTION_REASONS), OrderItem::REJECTION_REASONS),
+            'declineReasons' => array_map(fn($key, $label) => ['id' => $key, 'name' => $label], array_keys(OrderItem::DECLINE_REASONS), OrderItem::DECLINE_REASONS),
             'breadcrumbs' => [
                 ['title' => 'Dashboard', 'href' => '/admin/dashboard'],
                 ['title' => 'Orders', 'href' => '/admin/orders'],
@@ -172,6 +222,18 @@ class OrderController extends Controller
      */
     public function assignDelivery(Request $request, Order $order)
     {
+        // Ensure all items are received before assigning delivery
+        $all_received = $order->orderItems->every(fn($item) => $item->dispatch_status === OrderItem::DISPATCH_STATUS_RECEIVED);
+
+        if (!$all_received) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Cannot assign delivery until all items are confirmed received from sellers.'
+                ], 422);
+            }
+            return back()->with('error', 'Cannot assign delivery until all items are confirmed received from sellers.');
+        }
+
         $request->validate([
             'delivery_id' => 'required|exists:users,id',
             'delivery_type' => 'required|in:customer_address,pickup_point',
@@ -335,5 +397,98 @@ class OrderController extends Controller
             'total_amount' => $order->total_amount,
             'currency' => $order->currency,
         ]);
+    }
+    /**
+     * Mark an order item as received by the admin at the dispatch center.
+     */
+    public function receiveItem(Request $request, Order $order, OrderItem $item)
+    {
+        if ($item->order_id !== $order->id) {
+            abort(404);
+        }
+
+        if ($item->dispatch_status !== OrderItem::DISPATCH_STATUS_DISPATCHED && $item->dispatch_status !== OrderItem::DISPATCH_STATUS_REJECTED) {
+            return back()->with('error', 'Item must be dispatched before it can be received.');
+        }
+
+        $item->update([
+            'dispatch_status' => OrderItem::DISPATCH_STATUS_RECEIVED,
+            'received_at' => now(),
+            'received_by' => auth()->id(),
+            'rejection_reason' => null,
+            'rejected_at' => null,
+            'rejected_by' => null,
+        ]);
+
+        return back()->with('success', 'Item confirmed as received.');
+    }
+
+    /**
+     * Reject an order item at the dispatch center.
+     */
+    public function rejectItem(Request $request, Order $order, OrderItem $item, \App\Services\ProfanityFilterService $profanityFilter)
+    {
+        if ($item->order_id !== $order->id) {
+            abort(404);
+        }
+
+        $request->validate([
+            'reason' => 'required|string|in:' . implode(',', array_keys(OrderItem::REJECTION_REASONS)),
+            'other_reason' => 'nullable|string|max:500',
+        ]);
+
+        if ($request->reason === 'other') {
+            if (empty($request->other_reason)) {
+                return back()->withErrors(['other_reason' => 'Please provide a reason.']);
+            }
+            if ($profanityFilter->isAbusive($request->other_reason)) {
+                return back()->withErrors(['other_reason' => 'Your reason contains prohibited words. Please use professional language.']);
+            }
+        }
+
+        $reasonLabel = OrderItem::REJECTION_REASONS[$request->reason];
+        if ($request->reason === 'other') {
+            $reasonLabel = 'Other: ' . $request->other_reason;
+        }
+
+        $item->update([
+            'dispatch_status' => OrderItem::DISPATCH_STATUS_REJECTED,
+            'rejection_reason' => $reasonLabel,
+            'rejected_at' => now(),
+            'rejected_by' => auth()->id(),
+            'received_at' => null,
+            'received_by' => null,
+        ]);
+
+        // Send email to seller
+        $sellerEmail = $item->seller?->email ?? $item->seller?->user?->email;
+        if ($sellerEmail) {
+            Mail::to($sellerEmail)->send(new \App\Mail\OrderItemRejectedMail($item, $request->reason));
+        }
+
+        return back()->with('success', 'Item rejected.');
+    }
+
+    /**
+     * Confirm a system-owned item is available at the dispatch center.
+     */
+    public function confirmItemAvailable(Request $request, Order $order, OrderItem $item)
+    {
+        if ($item->order_id !== $order->id) {
+            abort(404);
+        }
+
+        // Only for system items (seller_id is null)
+        if ($item->seller_id !== null) {
+            return back()->with('error', 'Only system items can be confirmed available directly.');
+        }
+
+        $item->update([
+            'dispatch_status' => OrderItem::DISPATCH_STATUS_RECEIVED,
+            'received_at' => now(),
+            'received_by' => auth()->id(),
+        ]);
+
+        return back()->with('success', 'Item confirmed as available.');
     }
 }

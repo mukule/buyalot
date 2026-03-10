@@ -119,7 +119,6 @@ function submitDocument(documentTypeId: number, event: Event) {
 
                 <!-- Business Info -->
                 <div class="mt-4 grid grid-cols-1 gap-4 text-sm text-gray-700 sm:grid-cols-2">
-                    <div><span class="font-medium">Business Name:</span> {{ app.business_name }}</div>
                     <div><span class="font-medium">Legal Name:</span> {{ app.company_legal_name }}</div>
                     <div><span class="font-medium">Business Type:</span> {{ app.business_type }}</div>
                     <div><span class="font-medium">Product Category:</span> {{ app.primary_product_category }}</div>

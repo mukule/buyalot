@@ -94,9 +94,9 @@ public function index(Request $request)
 
     // Statuses
     $statusesQuery = ProductStatus::orderBy('name');
-    if ($user->hasRole('seller')) {
-        $statusesQuery->whereIn('name', ['draft', 'submit', 'pause']);
-    }
+//    if ($user->hasRole('seller')) {
+//        $statusesQuery->whereIn('name', ['draft', 'submit', 'pause']);
+//    }
 
     $statuses = $statusesQuery->get(['id', 'name', 'label', 'color_class'])
         ->map(fn($status) => [
@@ -142,26 +142,26 @@ public function create()
         ->with('children')
         ->get();
 
-    
+
     $draftProduct = auth()->user()->products()->latestDraft()->first();
 
     $selectedCategoryId = $draftProduct?->category_id ?? null;
 
-    
+
     $variantCategories = VariantCategory::when($selectedCategoryId, function ($query, $categoryId) {
         $query->whereHas('categories', fn($q) => $q->where('categories.id', $categoryId));
     })
     ->with(['variants' => fn($q) => $q->where('is_active', true)])
     ->get();
 
-    
+
     if ($variantCategories->isEmpty()) {
         $variantCategories = VariantCategory::where('default', true)
             ->with(['variants' => fn($q) => $q->where('is_active', true)])
             ->get();
     }
 
-    
+
     $variantRows = [];
     if ($draftProduct) {
         $variantRows = $draftProduct->variants()
@@ -524,7 +524,7 @@ public function store(Request $request, ProductService $productService)
     if ($step === 5) {
         // Get the variant_images metadata (without files)
         $variantImagesInput = $request->input('variant_images', []);
-        
+
         // \Log::info("Step 5: Processing variant_images", [
         //     'count' => count($variantImagesInput),
         //     'has_files' => $request->hasFile('variant_images'),
@@ -664,14 +664,14 @@ public function store(Request $request, ProductService $productService)
 
     public function destroy(Product $product)
 {
-    
+
     foreach ($product->images ?? [] as $image) {
         if (!empty($image['file_path']) && Storage::exists($image['file_path'])) {
             Storage::delete($image['file_path']);
         }
     }
 
-   
+
     if (method_exists($product, 'variants')) {
         $product->variants()->delete();
     }
@@ -680,7 +680,7 @@ public function store(Request $request, ProductService $productService)
         $product->variant_rows()->delete();
     }
 
-    
+
     $product->delete();
 
 
@@ -761,7 +761,7 @@ public function show(Product $product)
         'hashid' => $product->hashid,
         'name' => $product->name,
         'product_code' => $product->product_code,
-        'primary_image_url' => $product->primary_image_url, 
+        'primary_image_url' => $product->primary_image_url,
         'stock' => $product->productVariants->sum('stock'),
         'category_hierarchy' => $product->category ? $product->category->getHierarchy() : [],
 

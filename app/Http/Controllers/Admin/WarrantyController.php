@@ -30,7 +30,7 @@ class WarrantyController extends Controller
     public function store(Request $request, Product $product)
 {
     // Ensure the logged-in user is the owner of the product
-    if ($product->owner_id !== auth()->id()) {
+    if ($product->owner_id != auth()->id()) {
         return redirect()->back()->with('error', 'You are not allowed to add a warranty to this product.');
     }
 

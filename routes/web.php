@@ -165,6 +165,16 @@ Route::middleware(['auth','role_or_permission:admin|view-orders'])->prefix('admi
         ->name('orders.show');
     Route::post('/orders/{order}/assign-delivery', [\App\Http\Controllers\Admin\OrderController::class, 'assignDelivery'])
         ->name('orders.assign-delivery');
+    Route::post('/orders/{order}/items/{item}/receive', [\App\Http\Controllers\Admin\OrderController::class, 'receiveItem'])
+        ->name('admin.orders.items.receive');
+    Route::post('/orders/{order}/items/{item}/reject', [\App\Http\Controllers\Admin\OrderController::class, 'rejectItem'])
+        ->name('admin.orders.items.reject');
+    Route::post('/orders/{order}/items/{item}/confirm-available', [\App\Http\Controllers\Admin\OrderController::class, 'confirmItemAvailable'])
+        ->name('admin.orders.items.confirm-available');
+    Route::post('/orders/{order}/items/{item}/dispatch', [\App\Http\Controllers\Orders\OrderController::class, 'dispatchItem'])
+        ->name('orders.items.dispatch');
+    Route::post('/orders/{order}/items/{item}/decline', [\App\Http\Controllers\Orders\OrderController::class, 'declineDispatch'])
+        ->name('orders.items.decline');
     Route::post('/orders/{order}/change-delivery', [\App\Http\Controllers\Admin\OrderController::class, 'changeDelivery'])
         ->name('orders.change-delivery');
     Route::get('/orders/{order}/delivery-note', [\App\Http\Controllers\Admin\OrderController::class, 'deliveryNote'])

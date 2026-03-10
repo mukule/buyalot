@@ -26,8 +26,8 @@ class Invoice extends Model
 
     public function seller(): BelongsTo
     {
-        // maps to sellers table via SellerAccount
-        return $this->belongsTo(\App\Models\Seller\SellerAccount::class, 'seller_id');
+        // maps to seller_applications table
+        return $this->belongsTo(\App\Models\Seller\Seller::class, 'seller_id');
     }
 
     public function markIssued(): void

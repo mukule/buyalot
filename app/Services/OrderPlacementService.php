@@ -24,7 +24,7 @@ class OrderPlacementService
      */
     public function placeOrder(int $checkoutSessionId, $paidAmount, $reference, $paymentMethod, ?int $shippingAddressId = null, ?int $billingAddressId = null): Order
     {
-        $checkoutSession = CheckoutSession::with('cart.items.productVariant.product')
+        $checkoutSession = CheckoutSession::with('cart.items.productVariant.product.owner')
             ->findOrFail($checkoutSessionId);
 
         if ($checkoutSession->status !== 'completed') {
@@ -136,16 +136,29 @@ class OrderPlacementService
                 'payment_method' => $paymentMethod,
             ]);
 
-            // Decrement stock
+            // Create order items
             foreach ($itemsInput as $ci) {
+                // Determine seller_id based on owner_type.
+                // If owner_type is 'seller', owner_id in Product refers to the User who owns it.
+                // We need to find that user's seller_application_id.
+                $sellerId = null;
+                if ($ci['product']->owner_type === 'seller') {
+                    $owner = $ci['product']->owner;
+                    if ($owner) {
+                        $sellerId = $owner->seller_application_id;
+                    }
+                }
+
                 OrderItem::create([
                     'ulid' => Str::ulid(),
                     'order_id' => $order->id,
                     'product_variant_id' => $ci['variant']->id,
+                    'seller_id' => $sellerId,
                     'quantity' => $ci['quantity'],
                     'unit_price' => $ci['unit_price'],
                     'total_price' => $ci['line_subtotal'],
                     'discount_amount' => $ci['line_discount'],
+                    'dispatch_status' => OrderItem::DISPATCH_STATUS_PENDING,
                     'product_snapshot' => [
                         'id' => $ci['product']->id,
                         'name' => $ci['product']->name,

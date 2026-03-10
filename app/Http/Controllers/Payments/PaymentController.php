@@ -125,11 +125,11 @@ class PaymentController extends Controller
 
     public function statusFlexible(string $id): JsonResponse
 {
-    Log::info('Flexible payment status check hit', [
-        'id' => $id,
-        'ip' => request()->ip(),
-        'user_id' => auth()->id(),
-    ]);
+//    Log::info('Flexible payment status check hit', [
+//        'id' => $id,
+//        'ip' => request()->ip(),
+//        'user_id' => auth()->id(),
+//    ]);
 
     // 1) Check Payment model first
     $payment = $this->findPaymentByAnyId($id);
@@ -231,9 +231,9 @@ class PaymentController extends Controller
     /**
      * Map MpesaRequest row to verification tuple [success, message, normalizedStatus]
      */
-  
 
-    
+
+
     private function mapMpesaVerification(MpesaRequest $log): array
 {
     $normalizedStatus = $this->normalizeStatus($log);
@@ -266,8 +266,8 @@ class PaymentController extends Controller
                 $message = 'Payment completed successfully.';
                 break;
 
-            case '1032': 
-            case '1037': 
+            case '1032':
+            case '1037':
                 if ($isFinalized) {
                     $success = false;
                     $message = $resultDesc
@@ -275,7 +275,7 @@ class PaymentController extends Controller
                             ? 'Payment cancelled by user.'
                             : 'Payment request expired or no response from user.');
                 } else {
-                    
+
                     $success = null;
                     $message = 'Awaiting user confirmation.';
                 }

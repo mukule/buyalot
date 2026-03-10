@@ -82,7 +82,6 @@ const form = useForm({
     id_number: '',
     passport_number: '',
 
-    business_name: '',
     primary_product_category: '',
     description: '',
 

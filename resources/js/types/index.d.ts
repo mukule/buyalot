@@ -215,7 +215,6 @@ export interface SellerApplication {
     drivers_license?: string;
 
     // Business Info
-    business_name?: string;
     primary_product_category?: string;
     description?: string;
 

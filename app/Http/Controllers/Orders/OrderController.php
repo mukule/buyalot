@@ -48,7 +48,7 @@ class OrderController extends Controller
         $deliveredStatuses = ['delivered', 'returned', 'partially_returned', 'refunded', 'partially_refunded', 'cancelled', 'failed'];
         $section = $request->get('section', 'in_progress');
 
-        $query = Order::with(['customer:id,first_name,last_name', 'orderItems.productVariant.product:id,name', 'orderItems.seller:id,name', 'shippingAddress', 'billingAddress', 'delivery.deliveryUser:id,name,email'])
+        $query = Order::with(['customer:id,first_name,last_name', 'orderItems.productVariant.product:id,name', 'orderItems.seller:id,company_legal_name', 'shippingAddress', 'billingAddress', 'delivery.deliveryUser:id,name,email'])
             ->when($section === 'in_progress', fn($q) => $q->whereIn('status', $inProgressStatuses))
             ->when($section === 'delivered', fn($q) => $q->whereIn('status', $deliveredStatuses))
             ->when($request->status, fn($q) => $q->where('status', $request->status))
@@ -61,8 +61,8 @@ class OrderController extends Controller
 
         // If the authenticated user is a seller, limit orders to those containing their items
         $authUser = $request->user();
-        if ($authUser && method_exists($authUser, 'hasRole') && $authUser->hasRole('seller')) {
-            $sellerIds = $authUser->sellers()->pluck('seller_applications.id');
+        if ($authUser && $authUser->hasPortalRole('seller')) {
+            $sellerIds = $authUser->sellers->pluck('id')->toArray();
             $query->forSeller($sellerIds);
         }
 
@@ -71,6 +71,24 @@ class OrderController extends Controller
         $query->orderBy($sortBy, $sortOrder);
 
         $orders = $query->paginate($request->get('per_page', 15))->withQueryString();
+
+        // If seller, override the totals for each order
+        if ($authUser && $authUser->hasPortalRole('seller')) {
+            $sellerIds = $authUser->sellers->pluck('id')->toArray();
+            $orders->getCollection()->transform(function ($order) use ($sellerIds) {
+                $sellerItems = $order->orderItems->whereIn('seller_id', $sellerIds);
+                $order->subtotal = $sellerItems->sum('total_price');
+                $order->tax_amount = $sellerItems->sum('tax_amount');
+                // Note: shipping_amount and discount_amount are order-level,
+                // but usually for sellers we only show their items' subtotal and tax.
+                // If they have seller-specific shipping/discount we'd use that,
+                // but usually it's better to show what they've earned.
+                $order->shipping_amount = 0;
+                $order->discount_amount = 0;
+                $order->total_amount = $order->subtotal + $order->tax_amount;
+                return $order;
+            });
+        }
 
         return Inertia::render('Orders/Index', [
             'orders' => $orders,
@@ -90,9 +108,42 @@ class OrderController extends Controller
 
     public function show(Order $order)
     {
-        logger("view order details");
-        $order->load(['customer.defaultAddress', 'orderItems.productVariant.product', 'shippingAddress', 'billingAddress', 'delivery.deliveryUser:id,name,email']);
-        logger($order);
+//        logger("view order details");
+
+        // Get currently logged-in user
+        $user = auth()->user();
+        $isSeller = $user?->hasPortalRole('seller');
+        $sellerIds = $isSeller ? $user->sellers->pluck('id')->toArray() : [];
+
+        $order->load([
+            'customer.defaultAddress',
+            'orderItems' => function ($q) use ($isSeller, $sellerIds) {
+                if ($isSeller) {
+                    $q->whereIn('seller_id', $sellerIds);
+                }
+                $q->with([
+                    'productVariant.product',
+                    'seller:id,company_legal_name',
+                    'dispatchCenter:id,name'
+                ]);
+            },
+            'shippingAddress',
+            'billingAddress',
+            'delivery.deliveryUser:id,name,email'
+        ]);
+
+        if ($isSeller) {
+            $order->subtotal = $order->orderItems->sum('total_price');
+            $order->tax_amount = $order->orderItems->sum('tax_amount');
+            // discount and shipping are not easily split per seller yet, so zeroing them or keeping them as is?
+            // Usually, sellers don't want to see full order shipping/discount if it doesn't apply to them.
+            // But if the order total is shown, it must be consistent.
+            $order->shipping_amount = 0;
+            $order->discount_amount = 0;
+            $order->total_amount = $order->subtotal + $order->tax_amount;
+        }
+
+//        logger($order);
 
         $shippingAddress = $order->shippingAddress ?: $order->customer?->getDefaultAddress();
         $billingAddress = $order->billingAddress ?: $order->customer?->getDefaultAddress();
@@ -101,6 +152,7 @@ class OrderController extends Controller
         $payload = [
             'id' => $order->id,
             'ulid' => $order->ulid,
+            'is_seller' => $isSeller,
             'order_code' => $order->order_code,
             'subtotal' => (float) $order->subtotal,
             'tax_amount' => (float) $order->tax_amount,
@@ -121,6 +173,16 @@ class OrderController extends Controller
                     'quantity' => (int) $item->quantity,
                     'unit_price' => (float) $item->unit_price,
                     'total_price' => (float) $item->total_price,
+                    'dispatch_status' => $item->dispatch_status,
+                    'dispatch_center' => $item->dispatchCenter ? [
+                        'id' => $item->dispatchCenter->id,
+                        'name' => $item->dispatchCenter->name,
+                        'latitude' => $item->dispatchCenter->latitude,
+                        'longitude' => $item->dispatchCenter->longitude,
+                        'address' => $item->dispatchCenter->address,
+                    ] : null,
+                    'dispatch_decline_reason' => $item->dispatch_decline_reason,
+                    'rejection_reason' => $item->rejection_reason,
                     // Keep both a direct product field and the nested product_variant.product for compatibility
                     'product' => $product ? ['id' => $product->id, 'name' => $product->name] : null,
                     'product_variant' => $variant ? [
@@ -128,9 +190,16 @@ class OrderController extends Controller
                         'sku' => $variant->sku,
                         'product' => $product ? ['id' => $product->id, 'name' => $product->name] : null,
                     ] : null,
+                    'seller' => $item->seller ? [
+                        'id' => $item->seller->id,
+                        'name' => $item->seller->company_legal_name ?: 'Unknown Seller',
+                    ] : [
+                        'id' => 0,
+                        'name' => config('app.name', 'System'),
+                    ],
                 ];
             })->toArray(),
-            'shipping_address' => $shippingAddress ? [
+            'shipping_address' => ($shippingAddress && !$isSeller) ? [
                 'first_name' => $shippingAddress->first_name,
                 'last_name' => $shippingAddress->last_name,
                 'address_line_1' => $shippingAddress->address_line_1,
@@ -144,14 +213,14 @@ class OrderController extends Controller
                 'country_name' => $shippingAddress->country_name,
                 'phone' => $shippingAddress->phone,
             ] : null,
-            'billing_address' => $billingAddress ? [
+            'billing_address' => ($billingAddress && !$isSeller) ? [
                 'first_name' => $billingAddress->first_name,
                 'last_name' => $billingAddress->last_name,
                 'address_line_1' => $billingAddress->address_line_1,
                 'address_line_2' => $billingAddress->address_line_2,
                 'city' => $billingAddress->city,
                 'state' => $billingAddress->state ?? $billingAddress->state_province,
-                'state_province' => $billingAddress->state_province,
+                'state_province' => $state_province ?? $billingAddress->state_province,
                 'postal_code' => $billingAddress->postal_code,
                 'country' => $billingAddress->country ?? $billingAddress->country_code,
                 'country_code' => $billingAddress->country_code,
@@ -162,7 +231,97 @@ class OrderController extends Controller
 
         return Inertia::render('Customer/OrderDetails', [
             'order' => $payload,
+            'googleMapsApiKey' => config('services.google_maps.api_key'),
+            'declineReasons' => array_map(fn($key, $label) => ['id' => $key, 'name' => $label], array_keys(OrderItem::DECLINE_REASONS), OrderItem::DECLINE_REASONS),
+            'rejectionReasons' => array_map(fn($key, $label) => ['id' => $key, 'name' => $label], array_keys(OrderItem::REJECTION_REASONS), OrderItem::REJECTION_REASONS),
         ]);
+    }
+
+    /**
+     * Dispatch an order item to a dispatch center.
+     */
+    public function dispatchItem(Request $request, Order $order, OrderItem $item)
+    {
+        $user = $request->user();
+        if (!$user->hasPortalRole('seller')) {
+            abort(403);
+        }
+
+        $sellerIds = $user->sellers->pluck('id')->toArray();
+        if (!in_array($item->seller_id, $sellerIds) || $item->order_id !== $order->id) {
+            abort(403);
+        }
+
+        if ($item->dispatch_status !== OrderItem::DISPATCH_STATUS_PENDING && $item->dispatch_status !== OrderItem::DISPATCH_STATUS_DECLINED) {
+            return back()->with('error', 'Item already processed.');
+        }
+
+        $dispatchCenter = \App\Models\Warehouse\Warehouse::where('type', 'dispatch_center')
+            ->where('active', true)
+            ->first();
+
+        if (!$dispatchCenter) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'No active dispatch center found in your region.'], 422);
+            }
+            return back()->with('error', 'No active dispatch center found in your region.');
+        }
+
+        $item->update([
+            'dispatch_status' => OrderItem::DISPATCH_STATUS_DISPATCHED,
+            'dispatched_at' => now(),
+            'dispatch_center_id' => $dispatchCenter->id,
+            'dispatch_decline_reason' => null,
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Item marked as dispatched to ' . $dispatchCenter->name]);
+        }
+        return back()->with('success', 'Item marked as dispatched to ' . $dispatchCenter->name);
+    }
+
+    /**
+     * Decline dispatching an order item.
+     */
+    public function declineDispatch(Request $request, Order $order, OrderItem $item, \App\Services\ProfanityFilterService $profanityFilter)
+    {
+        $user = $request->user();
+        if (!$user->hasPortalRole('seller')) {
+            abort(403);
+        }
+
+        $sellerIds = $user->sellers->pluck('id')->toArray();
+        if (!in_array($item->seller_id, $sellerIds) || $item->order_id !== $order->id) {
+            abort(403);
+        }
+
+        $request->validate([
+            'reason' => 'required|string|in:' . implode(',', array_keys(OrderItem::DECLINE_REASONS)),
+            'other_reason' => 'nullable|string|max:500',
+        ]);
+
+        if ($request->reason === 'other') {
+            if (empty($request->other_reason)) {
+                return back()->withErrors(['other_reason' => 'Please provide a reason.']);
+            }
+            if ($profanityFilter->isAbusive($request->other_reason)) {
+                return back()->withErrors(['other_reason' => 'Your reason contains prohibited words. Please use professional language.']);
+            }
+        }
+
+        $reasonLabel = OrderItem::DECLINE_REASONS[$request->reason];
+        if ($request->reason === 'other') {
+            $reasonLabel = 'Other: ' . $request->other_reason;
+        }
+
+        $item->update([
+            'dispatch_status' => OrderItem::DISPATCH_STATUS_DECLINED,
+            'dispatch_decline_reason' => $reasonLabel,
+            'dispatched_at' => null,
+            'dispatch_center_id' => null,
+        ]);
+
+        return back()->with('success', 'Dispatch declined.');
     }
 
     public function assignRider(Request $request, Order $order)
@@ -225,10 +384,31 @@ class OrderController extends Controller
             $cart = Cart::with(['items.productVariant.product'])->findOrFail($request->cart_id);
             return redirect()->route('checkout.payment', $cart)->with('success', 'Order processing initiated. Please scan the QR code to complete payment.');
         } catch (\Exception $e) {
-            if ($request->expectsJson()) {
-                return response()->json(['message' => $e->getMessage()], 500);
+            \Log::error('Order placement failed', [
+                'cart_id' => $request->cart_id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            $message = 'Something went wrong while processing your order. Please try again later.';
+
+            // For certain known exceptions, we might want to show the message
+            // But per requirement "never return a sql error on frontend", we should be careful.
+            // If it contains "SQLSTATE" or "Integrity constraint violation", we definitely hide it.
+            if (str_contains($e->getMessage(), 'SQLSTATE') || str_contains($e->getMessage(), 'database')) {
+                $message = 'A database error occurred. Please contact support if the issue persists.';
+            } else if ($e instanceof \Illuminate\Validation\ValidationException) {
+                throw $e;
+            } else {
+                // For other exceptions (like the one thrown manually in Service), we might show it if it's safe.
+                // But the user said "just show the errors like something went wrong and such appropriate messages"
+                $message = $e->getMessage();
             }
-            return back()->with('error', $e->getMessage())->withInput();
+
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 500);
+            }
+            return back()->with('error', $message)->withInput();
         }
     }
 
@@ -552,7 +732,7 @@ class OrderController extends Controller
             }
             return redirect()->back()->with('error', 'Customer record not found');
         }
-        $orders = Order::with(['orderItems.productVariant.product:id,name', 'orderItems.seller:id,name'])
+        $orders = Order::with(['orderItems.productVariant.product:id,name', 'orderItems.seller:id,company_legal_name'])
             ->where('customer_id', $customer->id)
             ->latest()
             ->paginate(10);

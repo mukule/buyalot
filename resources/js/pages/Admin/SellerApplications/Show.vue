@@ -51,7 +51,6 @@ const breadcrumbs = [
                 <!-- Business Info -->
                 <h2 class="mb-2 text-lg font-semibold text-gray-700">Business Info</h2>
                 <div class="grid gap-4 text-sm sm:grid-cols-2">
-                    <p><strong>Business Name:</strong> {{ app.business_name }}</p>
                     <p><strong>Company Legal Name:</strong> {{ app.company_legal_name }}</p>
                     <p><strong>Business Type:</strong> {{ app.business_type }}</p>
                     <p><strong>Product Category:</strong> {{ app.primary_product_category }}</p>

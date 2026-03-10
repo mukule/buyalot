@@ -22,7 +22,6 @@ class SellerController extends Controller
                   ->orWhere('contact_email', 'like', "%{$search}%")
                   ->orWhere('contact_phone', 'like', "%{$search}%")
                   ->orWhere('company_legal_name', 'like', "%{$search}%")
-                  ->orWhere('business_name', 'like', "%{$search}%")
                   ->orWhere('business_type', 'like', "%{$search}%")
                   ->orWhere('primary_product_category', 'like', "%{$search}%");
             });
@@ -37,7 +36,6 @@ class SellerController extends Controller
                     'first_name' => $app->first_name,
                     'last_name' => $app->last_name,
                     'company_legal_name' => $app->company_legal_name,
-                    'business_name' => $app->business_name,
                     'business_type' => $app->business_type,
                     'primary_product_category' => $app->primary_product_category,
                     'owner_email' => $app->owner_email ?? $app->contact_email,
@@ -65,7 +63,6 @@ class SellerController extends Controller
 
         $business = [
             'company_legal_name' => $seller->company_legal_name,
-            'business_name' => $seller->business_name,
             'business_type' => $seller->business_type,
             'primary_product_category' => $seller->primary_product_category,
             'contact_email' => $seller->contact_email ?? $seller->owner_email,
@@ -100,7 +97,7 @@ class SellerController extends Controller
         return Inertia::render('Admin/Sellers/Show', [
             'seller' => [
                 'id' => $seller->id,
-                'display_name' => $seller->company_legal_name ?? $seller->business_name ?? ($seller->first_name && $seller->last_name ? $seller->first_name.' '.$seller->last_name : 'Vendor #'.$seller->id),
+                'display_name' => $seller->company_legal_name ?? ($seller->first_name && $seller->last_name ? $seller->first_name.' '.$seller->last_name : 'Vendor #'.$seller->id),
                 'is_active' => (int) $seller->status === 1,
                 'created_at' => optional($seller->created_at)->toDateString(),
             ],
