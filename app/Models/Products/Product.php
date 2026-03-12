@@ -80,11 +80,35 @@ class Product extends Model
     // Attributes
     // ----------------------
 
+    
     protected static function booted(): void
-    {
-        static::addGlobalScope(new SellerProductScope);
+{
+    static::addGlobalScope(new SellerProductScope);
 
-   }
+    static::saving(function ($product) {
+        $fields = [
+            'name', 'description', 'features', 'specifications',
+            'whats_in_the_box', 'meta_title', 'meta_keywords', 'meta_description',
+        ];
+
+        $replacements = [
+            "\xe2\x80\x91" => '-', // non-breaking hyphen U+2011
+            "\xe2\x80\x92" => '-', // figure dash U+2012
+            "\xe2\x80\x93" => '-', // en dash U+2013
+            "\xe2\x80\x94" => '-', // em dash U+2014
+            "\xe2\x80\x98" => "'", // left single quote U+2018
+            "\xe2\x80\x99" => "'", // right single quote U+2019
+            "\xe2\x80\x9c" => '"', // left double quote U+201C
+            "\xe2\x80\x9d" => '"', // right double quote U+201D
+        ];
+
+        foreach ($fields as $field) {
+            if (!empty($product->$field)) {
+                $product->$field = strtr($product->$field, $replacements);
+            }
+        }
+    });
+}
 
 
 
