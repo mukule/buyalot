@@ -117,39 +117,47 @@ class FrontendProductService
     /**
      * FILTERED CATEGORY PAGE
      */
-    public function getPaginatedProductsByCategoryIds(
-        array $categoryIds,
-        int $perPage = 20,
-        ?float $minPrice = null,
-        ?float $maxPrice = null,
-        array $brandIds = []
-    ): LengthAwarePaginator {
+   public function getPaginatedProductsByCategoryIds(
+    array $categoryIds,
+    int $perPage = 20,
+    ?float $minPrice = null,
+    ?float $maxPrice = null,
+    array $brandIds = []
+): LengthAwarePaginator {
 
-        $query = ProductVariant::query()
-            ->with(['product.brand', 'product.primaryImage', 'product.category'])
-            ->whereHas('product', function ($q) use ($categoryIds, $brandIds) {
-                $q->whereIn('category_id', $categoryIds)
-                  ->where('status_id', 2);
+    // Subquery: get the minimum variant id (cheapest) per product
+    $cheapestVariantIds = ProductVariant::query()
+        ->selectRaw('MIN(id) as id')
+        ->whereHas('product', function ($q) use ($categoryIds, $brandIds) {
+            $q->whereIn('category_id', $categoryIds)
+              ->where('status_id', 2);
+            if (!empty($brandIds)) {
+                $q->whereIn('brand_id', $brandIds);
+            }
+        })
+        ->when(!is_null($minPrice), fn ($q) => $q->where('selling_price', '>=', $minPrice))
+        ->when(!is_null($maxPrice), fn ($q) => $q->where('selling_price', '<=', $maxPrice))
+        ->groupBy('product_id');
 
-                if (!empty($brandIds)) {
-                    $q->whereIn('brand_id', $brandIds);
-                }
-            });
+    $query = ProductVariant::query()
+        ->with(['product.brand', 'product.primaryImage', 'product.category'])
+        ->whereIn('id', $cheapestVariantIds)
+        ->when(!is_null($minPrice), fn ($q) => $q->where('selling_price', '>=', $minPrice))
+        ->when(!is_null($maxPrice), fn ($q) => $q->where('selling_price', '<=', $maxPrice));
 
-        if (!is_null($minPrice)) $query->where('selling_price', '>=', $minPrice);
-        if (!is_null($maxPrice)) $query->where('selling_price', '<=', $maxPrice);
+    $paginator = $query->latest()->paginate($perPage);
 
-        $paginator = $query->latest()->paginate($perPage);
-        $priceData = $this->getPriceForVariants($paginator->getCollection());
+    $priceData = $this->getPriceForVariants($paginator->getCollection());
 
-        $paginator->setCollection(
-            $paginator->getCollection()->map(
-                fn ($variant) => $this->normalizeVariant($variant, $priceData)
-            )
-        );
+    $paginator->setCollection(
+        $paginator->getCollection()->map(
+            fn ($variant) => $this->normalizeVariant($variant, $priceData)
+        )
+    );
 
-        return $paginator;
-    }
+    return $paginator;
+}
+
 
     /**
      * RELATED PRODUCTS

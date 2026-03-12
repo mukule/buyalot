@@ -744,12 +744,11 @@ public function destroyAll()
 
 public function show(Product $product)
 {
-    // Eager load relations
     $product->load([
         'primaryImage',
         'images',
-        'productVariants.values.variant',
-        'productVariants.images', // Variant images
+        'productVariants.values.variant.category',
+        'productVariants.images',
         'category.parent',
         'owner.roles',
         'brand',
@@ -757,58 +756,85 @@ public function show(Product $product)
     ]);
 
     $productData = [
-        'id' => $product->id,
-        'hashid' => $product->hashid,
-        'name' => $product->name,
-        'product_code' => $product->product_code,
-        'primary_image_url' => $product->primary_image_url,
-        'stock' => $product->productVariants->sum('stock'),
+        'id'                 => $product->id,
+        'hashid'             => $product->hashid,
+        'name'               => $product->name,
+        'product_code'       => $product->product_code,
+        'primary_image_url'  => $product->primary_image_url,
+        'stock'              => $product->productVariants->sum('stock'),
         'category_hierarchy' => $product->category ? $product->category->getHierarchy() : [],
 
         'owner' => $product->owner ? [
-            'id' => $product->owner->id,
-            'name' => $product->owner->name,
+            'id'    => $product->owner->id,
+            'name'  => $product->owner->name,
             'roles' => $product->owner->getRoleNames()->toArray(),
         ] : null,
 
         'brand' => $product->brand ? [
-            'id' => $product->brand->id,
+            'id'   => $product->brand->id,
             'name' => $product->brand->name,
         ] : null,
 
         'unit' => $product->unit ? [
-            'id' => $product->unit->id,
+            'id'   => $product->unit->id,
             'name' => $product->unit->name,
         ] : null,
 
-        'features' => $product->features,
-        'description' => $product->description,
-        'specifications' => $product->specifications,
+        'features'         => $product->features,
+        'description'      => $product->description,
+        'specifications'   => $product->specifications,
         'whats_in_the_box' => $product->whats_in_the_box,
 
-        // Product-level images
-        'images' => $product->image_urls,
+        'images'     => $product->image_urls,
         'image_urls' => $product->image_urls,
 
-        // Variant data including variant images
         'variants' => $product->productVariants->map(fn($variant) => [
-            'id' => $variant->id,
+            'id'           => $variant->id,
             'marked_price' => $variant->marked_price,
             'buying_price' => $variant->selling_price,
-            'stock' => $variant->stock,
-            'sku' => $variant->sku,
-            'values' => $variant->values->map(fn($v) => [
+            'stock'        => $variant->stock,
+            'sku'          => $variant->sku,
+            'values'       => $variant->values->map(fn($v) => [
                 'variant_category_id' => $v->variant->variant_category_id,
-                'value' => $v->variant->value,
+                'value'               => $v->variant->value,
             ]),
             'images' => $variant->images->map(fn($img) => [
-                'id' => $img->id,
-                'url' => $img->url,
+                'id'         => $img->id,
+                'url'        => $img->url,
                 'is_primary' => $img->is_primary,
                 'sort_order' => $img->sort_order,
-                'alt_text' => $img->alt_text,
+                'alt_text'   => $img->alt_text,
             ]),
         ]),
+
+        'variant_attributes' => $product->productVariants
+            ->flatMap(fn($variant) => $variant->values)
+            ->groupBy(fn($v) => $v->variant->category->name)
+            ->map(fn($group, $categoryName) => [
+                'name'    => $categoryName,
+                'options' => $group->map(fn($v) => $v->variant->value)->unique()->values(),
+            ])
+            ->values(),
+
+        'variant_map' => $product->productVariants
+            ->keyBy(fn($variant) => $variant->values
+                ->sortBy(fn($v) => $v->variant->variant_category_id)
+                ->map(fn($v) => $v->variant->value)
+                ->join('|')
+            )
+            ->map(fn($variant) => [
+                'id'           => $variant->id,
+                'marked_price' => $variant->marked_price,
+                'buying_price' => $variant->selling_price,
+                'stock'        => $variant->stock,
+                'sku'          => $variant->sku,
+                'images'       => $variant->images->map(fn($img) => [
+                    'id'         => $img->id,
+                    'url'        => $img->url,
+                    'is_primary' => $img->is_primary,
+                    'sort_order' => $img->sort_order,
+                ]),
+            ]),
     ];
 
     return Inertia::render('Admin/Products/Show', [

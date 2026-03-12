@@ -73,14 +73,13 @@ class HomeController extends Controller
 }
 
 
-
 public function productDetails(string $slug)
 {
     $product = Product::with([
         'brand',
         'primaryImage',
         'images',
-        'productVariants.values.variant',
+        'productVariants.values.variant.category', // added .category
         'productVariants.images',
         'category.parent',
         'warranties',
@@ -105,7 +104,7 @@ public function productDetails(string $slug)
                 'variant_category_id' => $v->variant->variant_category_id,
                 'value'               => $v->variant->value,
             ]),
-            'images'           => $variant->images->sortBy('sort_order')->map(fn ($img) => [
+            'images' => $variant->images->sortBy('sort_order')->map(fn ($img) => [
                 'id'         => $img->id,
                 'url'        => $img->url,
                 'is_primary' => $img->is_primary,
@@ -113,6 +112,42 @@ public function productDetails(string $slug)
             ])->values(),
         ];
     });
+
+    // Variant attributes for selector UI
+    $variantAttributes = $product->productVariants
+        ->flatMap(fn ($variant) => $variant->values)
+        ->groupBy(fn ($v) => $v->variant->category->name)
+        ->map(fn ($group, $categoryName) => [
+            'name'    => $categoryName,
+            'options' => $group->map(fn ($v) => $v->variant->value)->unique()->values(),
+        ])
+        ->values();
+
+    // Variant map keyed by "Red|M|Cotton" for instant frontend lookup
+    $variantMap = $product->productVariants
+        ->keyBy(fn ($variant) => $variant->values
+            ->sortBy(fn ($v) => $v->variant->variant_category_id)
+            ->map(fn ($v) => $v->variant->value)
+            ->join('|')
+        )
+        ->map(fn ($variant) => [
+            'id'          => $variant->id,
+            'marked_price' => $variant->marked_price,
+            'buying_price' => $variant->selling_price,
+            'stock'       => $variant->stock,
+            'sku'         => $variant->sku,
+            'has_discount'     => $variant->discount > 0,
+            'discount'         => $variant->discount,
+            'discount_percent' => $variant->marked_price > 0 && $variant->discount > 0
+                ? round(($variant->discount / $variant->marked_price) * 100, 2)
+                : 0,
+            'images' => $variant->images->sortBy('sort_order')->map(fn ($img) => [
+                'id'         => $img->id,
+                'url'        => $img->url,
+                'is_primary' => $img->is_primary,
+                'sort_order' => $img->sort_order,
+            ])->values(),
+        ]);
 
     // Determine selected variant
     $selectedVariant = $product->productVariants->first();
@@ -128,7 +163,6 @@ public function productDetails(string $slug)
     $ownerInfo = $selectedVariant?->getOwnerInfo();
     $activeWarranty = $selectedVariant?->getActiveWarranty();
 
-    // Use selected variant's primary image if available, else fall back to product primary image
     $selectedVariantPrimaryImage = $selectedVariant?->images->firstWhere('is_primary', true);
     $primaryImageUrl = $selectedVariantPrimaryImage?->url ?? $product->primary_image_url;
 
@@ -149,6 +183,8 @@ public function productDetails(string $slug)
         'whats_in_the_box'   => $product->whats_in_the_box,
         'images'             => $product->image_urls,
         'variants'           => $variants,
+        'variant_attributes' => $variantAttributes,
+        'variant_map'        => $variantMap,
         'owner'              => $ownerInfo ? [
             'type' => $ownerInfo['type'],
             'name' => $ownerInfo['name'],
@@ -211,7 +247,6 @@ public function productDetails(string $slug)
         'title'            => $product->name,
     ]);
 }
-
 
 
 public function category(string $slug)

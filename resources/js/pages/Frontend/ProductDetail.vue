@@ -32,6 +32,23 @@ interface Variant {
     images: VariantImage[];
 }
 
+interface VariantAttribute {
+    name: string;
+    options: string[];
+}
+
+interface VariantMapEntry {
+    id: number;
+    marked_price: number;
+    buying_price: number;
+    stock: number;
+    sku: string;
+    has_discount: boolean;
+    discount: number;
+    discount_percent: number;
+    images: { id: number; url: string; is_primary: boolean; sort_order: number }[];
+}
+
 // --- Props ---
 const props = defineProps<{
     googleMapsApiKey?: string;
@@ -59,87 +76,106 @@ const props = defineProps<{
             description: string;
         } | null;
         variants: Variant[];
+        variant_attributes?: VariantAttribute[];
+        variant_map?: Record<string, VariantMapEntry>;
     };
     relatedProducts?: SimplifiedProduct[];
 }>();
 
-// --- VARIANT ATTRIBUTES ---
-// Build unique attribute map from all variants
-const variantAttributes = computed(() => {
-    const map = new Map<number, { id: number; values: string[] }>();
-    props.product.variants.forEach((variant) => {
-        variant.values.forEach((val) => {
-            if (!map.has(val.variant_category_id)) {
-                map.set(val.variant_category_id, { id: val.variant_category_id, values: [] });
-            }
-            const attr = map.get(val.variant_category_id)!;
-            if (!attr.values.includes(val.value)) attr.values.push(val.value);
-        });
+// --- VARIANT SELECTION via variant_map ---
+const selectedAttributes = ref<Record<string, string>>({});
+
+// Initialize from the first key in variant_map
+const initializeSelections = () => {
+    const firstKey = Object.keys(props.product.variant_map || {})[0];
+    if (!firstKey) return;
+    const parts = firstKey.split('|');
+    const attrs = props.product.variant_attributes || [];
+    attrs.forEach((attr, i) => {
+        selectedAttributes.value[attr.name] = parts[i] ?? '';
     });
-    return Array.from(map.values());
+};
+
+// Build the lookup key from current selections
+const currentKey = computed(() => {
+    const attrs = props.product.variant_attributes || [];
+    return attrs.map((attr) => selectedAttributes.value[attr.name] ?? '').join('|');
+});
+
+// Active variant from map
+const activeVariant = computed<VariantMapEntry | null>(() => {
+    return props.product.variant_map?.[currentKey.value] ?? null;
 });
 
 // Use dropdown when more than 5 unique values for an attribute
 const DROPDOWN_THRESHOLD = 5;
 
-// --- SELECTED VARIANT STATE ---
-const selectedAttributes = ref<Record<number, string>>({});
-const selectedVariant = ref<Variant | null>(null);
-
-const initVariant = (variant: Variant) => {
-    selectedVariant.value = variant;
-    variant.values.forEach((val) => {
-        selectedAttributes.value[val.variant_category_id] = val.value;
-    });
-};
-
 onMounted(() => {
+    // Try to initialize from URL ?v=variantId
     const params = new URLSearchParams(window.location.search);
     const variantId = params.get('v');
-    let initial = props.product.variants[0] ?? null;
-    if (variantId) {
-        const found = props.product.variants.find((v) => v.id === Number(variantId));
-        if (found) initial = found;
+
+    if (variantId && props.product.variant_map) {
+        // Find the key in variant_map that matches this variant id
+        const matchingKey = Object.entries(props.product.variant_map).find(
+            ([, entry]) => entry.id === Number(variantId),
+        )?.[0];
+
+        if (matchingKey) {
+            const parts = matchingKey.split('|');
+            const attrs = props.product.variant_attributes || [];
+            attrs.forEach((attr, i) => {
+                selectedAttributes.value[attr.name] = parts[i] ?? '';
+            });
+            return;
+        }
     }
-    if (initial) initVariant(initial);
+
+    // Default: initialize from first key
+    initializeSelections();
 });
 
-const selectAttribute = (categoryId: number, value: string) => {
-    selectedAttributes.value[categoryId] = value;
-    // Find variant matching all currently selected attributes
-    const match = props.product.variants.find((variant) =>
-        variant.values.every((val) => selectedAttributes.value[val.variant_category_id] === val.value),
-    );
-    if (match) {
-        selectedVariant.value = match;
-        // Sync images when variant changes
-        const primary = match.images?.find((i) => i.is_primary);
-        if (match.images?.length) {
-            mainImage.value = (primary ?? match.images[0]).url;
-        } else {
-            mainImage.value = props.product.primary_image_url || props.product.images?.[0] || '';
+// Select an attribute — auto-correct linked combos if needed
+const selectAttribute = (attrName: string, value: string) => {
+    selectedAttributes.value[attrName] = value;
+
+    // If current combo doesn't exist in map, find nearest valid one
+    if (!props.product.variant_map?.[currentKey.value]) {
+        const attrs = props.product.variant_attributes || [];
+        const map = props.product.variant_map || {};
+        const attrIndex = attrs.findIndex((a) => a.name === attrName);
+
+        const fallbackKey = Object.keys(map).find((key) => {
+            const parts = key.split('|');
+            return parts[attrIndex] === value;
+        });
+
+        if (fallbackKey) {
+            const parts = fallbackKey.split('|');
+            attrs.forEach((attr, i) => {
+                selectedAttributes.value[attr.name] = parts[i];
+            });
         }
     }
 };
 
-const isOptionAvailable = (categoryId: number, value: string): boolean => {
-    return props.product.variants.some((variant) => {
-        const hasValue = variant.values.some((v) => v.variant_category_id === categoryId && v.value === value);
-        const matchesOthers = variant.values.every(
-            (v) => v.variant_category_id === categoryId || selectedAttributes.value[v.variant_category_id] === v.value,
-        );
-        return hasValue && matchesOthers && variant.stock > 0;
+// An option is available if any map entry with stock > 0 contains it
+const isOptionAvailable = (attrName: string, value: string): boolean => {
+    const map = props.product.variant_map || {};
+    const attrs = props.product.variant_attributes || [];
+    const attrIndex = attrs.findIndex((a) => a.name === attrName);
+
+    return Object.entries(map).some(([key, variant]) => {
+        const parts = key.split('|');
+        return parts[attrIndex] === value && variant.stock > 0;
     });
 };
 
 // --- CURRENT IMAGES ---
-// Show variant images if available, otherwise product images
 const currentImages = computed<string[]>(() => {
-    if (selectedVariant.value?.images?.length) {
-        return selectedVariant.value.images
-            .slice()
-            .sort((a, b) => a.sort_order - b.sort_order)
-            .map((i) => i.url);
+    const imgs = activeVariant.value?.images ?? [];
+    if (imgs.length) {
+        return imgs.slice().sort((a, b) => a.sort_order - b.sort_order).map((i) => i.url);
     }
     return props.product.images ?? [];
 });
@@ -151,23 +187,27 @@ const openPreview = () => (showPreview.value = true);
 const closePreview = () => (showPreview.value = false);
 const selectImage = (img: string) => (mainImage.value = img);
 
-// When currentImages changes (variant switch), update mainImage to first
-watch(currentImages, (imgs) => {
+// When variant changes, update mainImage to first image of new variant
+watch(activeVariant, () => {
+    const imgs = currentImages.value;
     if (imgs.length) mainImage.value = imgs[0];
 });
 
 // --- PRICE ---
-const formatPrice = (amount: number | string | null): string => `KSh ${(Number(amount) ?? 0).toLocaleString()}`;
+const formatPrice = (amount: number | string | null): string =>
+    `KSh ${(Number(amount) ?? 0).toLocaleString()}`;
 
 const displayPrice = computed(() => {
-    if (!selectedVariant.value) return null;
+    if (!activeVariant.value) return null;
     return {
-        marked_price: selectedVariant.value.marked_price,
-        final_price: selectedVariant.value.final_price,
-        discount_percent: selectedVariant.value.discount_percent,
-        has_discount: selectedVariant.value.has_discount,
+        marked_price: activeVariant.value.marked_price,
+        final_price: activeVariant.value.buying_price,
+        discount_percent: activeVariant.value.discount_percent,
+        has_discount: activeVariant.value.has_discount,
     };
 });
+
+const currentStock = computed(() => activeVariant.value?.stock ?? 0);
 
 // --- OWNER INFO ---
 const ownerInfo = computed(() => {
@@ -196,29 +236,33 @@ const auth = computed<any>(() => page.props.auth ?? {});
 const cartItems = computed(() => auth.value.cartItems ?? []);
 
 const currentCartItem = computed(() => {
-    if (!selectedVariant.value) return null;
-    return cartItems.value.find((i: any) => i.product_variant_id === selectedVariant.value!.id);
+    if (!activeVariant.value) return null;
+    return cartItems.value.find((i: any) => i.product_variant_id === activeVariant.value!.id);
 });
 
 const addToCart = () => {
-    if (!selectedVariant.value) return;
-    router.post(route('cart.store'), { product_variant_id: selectedVariant.value.id, quantity: 1 }, { preserveScroll: true });
+    if (!activeVariant.value) return;
+    router.post(
+        route('cart.store'),
+        { product_variant_id: activeVariant.value.id, quantity: 1 },
+        { preserveScroll: true },
+    );
 };
 
 const increaseQty = () => {
-    if (!selectedVariant.value || !currentCartItem.value) return;
+    if (!activeVariant.value || !currentCartItem.value) return;
     router.post(
         route('cart.store'),
-        { product_variant_id: selectedVariant.value.id, quantity: currentCartItem.value.quantity + 1 },
+        { product_variant_id: activeVariant.value.id, quantity: currentCartItem.value.quantity + 1 },
         { preserveScroll: true },
     );
 };
 
 const decreaseQty = () => {
-    if (!selectedVariant.value || !currentCartItem.value) return;
+    if (!activeVariant.value || !currentCartItem.value) return;
     router.post(
         route('cart.store'),
-        { product_variant_id: selectedVariant.value.id, quantity: currentCartItem.value.quantity - 1 },
+        { product_variant_id: activeVariant.value.id, quantity: currentCartItem.value.quantity - 1 },
         { preserveScroll: true },
     );
 };
@@ -276,7 +320,8 @@ const pickupMapEmbedUrl = computed(() => {
     if (!p || p.latitude == null || p.longitude == null) return '';
     const lat = p.latitude;
     const lng = p.longitude;
-    if (mapApiKey) return `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(mapApiKey)}&q=${lat},${lng}&zoom=15`;
+    if (mapApiKey)
+        return `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(mapApiKey)}&q=${lat},${lng}&zoom=15`;
     return `https://www.google.com/maps?q=${lat},${lng}`;
 });
 
@@ -290,7 +335,10 @@ function openGoogleMapsExternal() {
     if (p.latitude != null && p.longitude != null) {
         window.open(`https://www.google.com/maps?q=${p.latitude},${p.longitude}`, '_blank');
     } else if (p.address || p.location) {
-        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.address || p.location || p.name)}`, '_blank');
+        window.open(
+            `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.address || p.location || p.name)}`,
+            '_blank',
+        );
     }
 }
 
@@ -362,7 +410,9 @@ const videoEmbedUrl = computed<string | null>(() => {
                                         @click="selectImage(img)"
                                         :class="[
                                             'h-16 w-16 cursor-pointer rounded border-2 object-cover transition',
-                                            img === mainImage ? 'border-primary ring-2 ring-primary/20' : 'border-gray-200 hover:border-gray-300',
+                                            img === mainImage
+                                                ? 'border-primary ring-2 ring-primary/20'
+                                                : 'border-gray-200 hover:border-gray-300',
                                         ]"
                                     />
                                 </div>
@@ -394,9 +444,9 @@ const videoEmbedUrl = computed<string | null>(() => {
                                 </div>
 
                                 <!-- Stock -->
-                                <p v-if="selectedVariant?.stock === 0" class="font-semibold text-red-600">Out of Stock</p>
-                                <p v-else-if="selectedVariant && selectedVariant.stock <= 5" class="text-sm font-medium text-orange-500">
-                                    Only {{ selectedVariant.stock }} left in stock!
+                                <p v-if="currentStock === 0" class="font-semibold text-red-600">Out of Stock</p>
+                                <p v-else-if="currentStock <= 5" class="text-sm font-medium text-orange-500">
+                                    Only {{ currentStock }} left in stock!
                                 </p>
 
                                 <!-- Ratings -->
@@ -405,25 +455,32 @@ const videoEmbedUrl = computed<string | null>(() => {
                                 </div>
 
                                 <!-- VARIANT SELECTOR -->
-                                <div v-if="product.variants.length > 1 && variantAttributes.length" class="space-y-4">
-                                    <div v-for="attr in variantAttributes" :key="attr.id" class="space-y-2">
+                                <div
+                                    v-if="(props.product.variant_attributes?.length ?? 0) > 0"
+                                    class="space-y-4"
+                                >
+                                    <div
+                                        v-for="attr in props.product.variant_attributes"
+                                        :key="attr.name"
+                                        class="space-y-2"
+                                    >
                                         <p class="text-sm font-semibold text-gray-700">
-                                            Option:
-                                            <span class="font-normal text-gray-500">{{ selectedAttributes[attr.id] }}</span>
+                                            {{ attr.name }}:
+                                            <span class="font-normal text-gray-500">{{ selectedAttributes[attr.name] }}</span>
                                         </p>
 
                                         <!-- Buttons for small sets -->
-                                        <div v-if="attr.values.length <= DROPDOWN_THRESHOLD" class="flex flex-wrap gap-2">
+                                        <div v-if="attr.options.length <= DROPDOWN_THRESHOLD" class="flex flex-wrap gap-2">
                                             <button
-                                                v-for="value in attr.values"
+                                                v-for="value in attr.options"
                                                 :key="value"
-                                                @click="selectAttribute(attr.id, value)"
-                                                :disabled="!isOptionAvailable(attr.id, value)"
+                                                @click="selectAttribute(attr.name, value)"
+                                                :disabled="!isOptionAvailable(attr.name, value)"
                                                 :class="[
                                                     'rounded-md border-2 px-3 py-1.5 text-sm font-medium transition',
-                                                    selectedAttributes[attr.id] === value
+                                                    selectedAttributes[attr.name] === value
                                                         ? 'border-primary bg-primary text-white'
-                                                        : isOptionAvailable(attr.id, value)
+                                                        : isOptionAvailable(attr.name, value)
                                                           ? 'border-gray-300 bg-white text-gray-700 hover:border-primary hover:text-primary'
                                                           : 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 line-through',
                                                 ]"
@@ -435,17 +492,17 @@ const videoEmbedUrl = computed<string | null>(() => {
                                         <!-- Dropdown for large sets -->
                                         <select
                                             v-else
-                                            :value="selectedAttributes[attr.id]"
-                                            @change="selectAttribute(attr.id, ($event.target as HTMLSelectElement).value)"
+                                            :value="selectedAttributes[attr.name]"
+                                            @change="selectAttribute(attr.name, ($event.target as HTMLSelectElement).value)"
                                             class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
                                         >
                                             <option
-                                                v-for="value in attr.values"
+                                                v-for="value in attr.options"
                                                 :key="value"
                                                 :value="value"
-                                                :disabled="!isOptionAvailable(attr.id, value)"
+                                                :disabled="!isOptionAvailable(attr.name, value)"
                                             >
-                                                {{ value }}{{ !isOptionAvailable(attr.id, value) ? ' (unavailable)' : '' }}
+                                                {{ value }}{{ !isOptionAvailable(attr.name, value) ? ' (unavailable)' : '' }}
                                             </option>
                                         </select>
                                     </div>
@@ -473,10 +530,12 @@ const videoEmbedUrl = computed<string | null>(() => {
                                     <template v-else>
                                         <button
                                             @click="addToCart"
-                                            :disabled="selectedVariant?.stock === 0"
+                                            :disabled="currentStock === 0"
                                             :class="[
                                                 'flex w-full items-center justify-center gap-2 rounded px-4 py-2 text-white transition',
-                                                selectedVariant?.stock === 0 ? 'cursor-not-allowed bg-gray-400' : 'bg-primary hover:bg-primary/90',
+                                                currentStock === 0
+                                                    ? 'cursor-not-allowed bg-gray-400'
+                                                    : 'bg-primary hover:bg-primary/90',
                                             ]"
                                         >
                                             <Plus class="h-4 w-4" />
@@ -589,7 +648,11 @@ const videoEmbedUrl = computed<string | null>(() => {
             </div>
 
             <!-- Pickup map modal -->
-            <div v-if="showMapModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" @click.self="closeMapModal">
+            <div
+                v-if="showMapModal"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+                @click.self="closeMapModal"
+            >
                 <div class="relative max-h-[90vh] w-full max-w-2xl rounded-lg bg-white shadow-xl" @click.stop>
                     <div class="flex items-center justify-between border-b px-4 py-2">
                         <h3 class="font-semibold text-gray-800">{{ selectedPickupPoint?.name ?? 'Pickup point' }}</h3>
@@ -640,10 +703,16 @@ const videoEmbedUrl = computed<string | null>(() => {
             />
 
             <!-- Image preview modal -->
-            <div v-if="showPreview" @click.self="closePreview" class="bg-opacity-70 fixed inset-0 z-50 flex items-center justify-center bg-black p-4">
-                <button @click="closePreview" class="absolute top-4 right-4 rounded bg-white px-3 py-1 text-gray-800 hover:bg-gray-200">Close</button>
+            <div
+                v-if="showPreview"
+                @click.self="closePreview"
+                class="bg-opacity-70 fixed inset-0 z-50 flex items-center justify-center bg-black p-4"
+            >
+                <button @click="closePreview" class="absolute top-4 right-4 rounded bg-white px-3 py-1 text-gray-800 hover:bg-gray-200">
+                    Close
+                </button>
                 <img :src="mainImage" alt="Preview" class="max-h-[90vh] max-w-full rounded-md shadow-lg" />
             </div>
         </section>
     </MainLayout>
-</template>
+</template>s
