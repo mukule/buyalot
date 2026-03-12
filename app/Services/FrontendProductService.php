@@ -18,34 +18,34 @@ class FrontendProductService
     /**
      * HOMEPAGE — High Performance with Redis
      */
-   public function getProductsGroupedByCategory($categories, int $limit = 12)
+
+    public function getProductsGroupedByCategory($categories, int $limit = 12)
 {
-    $cacheKey = 'home_grouped_v9_' . $categories->pluck('id')->implode('_');
+    $cacheKey = 'home_grouped_v10_' . $categories->pluck('id')->implode('_');
     $lockKey = $cacheKey . '_lock';
 
     $cache = Cache::supportsTags()
         ? Cache::tags(['frontend_products', 'homepage'])
         : Cache::getFacadeRoot();
 
-    // 1. Try to get it from cache first (The "Happy Path")
     $cachedData = $cache->get($cacheKey);
     if ($cachedData) {
         return $cachedData;
     }
 
-    /** * 2. If not in cache, use a Lock.
-     * block(5): Wait up to 5 seconds for the lock to become free.
-     * 10: Hold the lock for 10 seconds (long enough for the query to finish).
-     */
     return Cache::lock($lockKey, 10)->block(5, function () use ($cache, $cacheKey, $categories, $limit) {
 
-        // 3. RE-CHECK: Another process might have finished the work while we were waiting for the lock!
+        // Re-check cache after acquiring lock
         $data = $cache->get($cacheKey);
         if ($data) return $data;
 
-        // 4. Perform the heavy lifting
-        $allCategoryIds = $categories->flatMap(fn($cat) => $cat->getAllCategoryIds())->unique()->toArray();
+        // Collect all relevant category IDs
+        $allCategoryIds = $categories
+            ->flatMap(fn($cat) => $cat->getAllCategoryIds())
+            ->unique()
+            ->toArray();
 
+        // Fetch variants
         $allVariants = ProductVariant::query()
             ->with(['product.brand', 'product.primaryImage', 'product.category'])
             ->whereHas('product', function ($q) use ($allCategoryIds) {
@@ -54,25 +54,31 @@ class FrontendProductService
                   ->whereNotNull('slug')
                   ->where('slug', '!=', '');
             })
-            ->latest()
-            ->get();
+            ->orderBy('selling_price') // ensures cheapest variant per product is kept
+            ->get()
+            ->unique('product_id')     // keep only ONE variant per product
+            ->values();
 
         $result = $categories->mapWithKeys(function ($category) use ($allVariants, $limit) {
+
             $specificCategoryIds = $category->getAllCategoryIds()->toArray();
-            $categoryVariants = $allVariants->filter(function ($variant) use ($specificCategoryIds) {
-                return $variant->product && in_array($variant->product->category_id, $specificCategoryIds);
-            })->take($limit);
+
+            $categoryVariants = $allVariants
+                ->filter(function ($variant) use ($specificCategoryIds) {
+                    return $variant->product &&
+                        in_array($variant->product->category_id, $specificCategoryIds);
+                })
+                ->take($limit);
 
             $priceData = $this->getPriceForVariants($categoryVariants);
 
             return [
-                $category->id => $categoryVariants->map(
-                    fn ($variant) => $this->normalizeVariant($variant, $priceData)
-                )->values(),
+                $category->id => $categoryVariants
+                    ->map(fn($variant) => $this->normalizeVariant($variant, $priceData))
+                    ->values(),
             ];
         });
 
-        // 5. Save to cache and return
         $cache->put($cacheKey, $result, now()->addHours(12));
 
         return $result;
@@ -148,32 +154,35 @@ class FrontendProductService
     /**
      * RELATED PRODUCTS
      */
+  
     public function getRelatedProducts(ProductVariant $variant, int $limit = 12)
-    {
-        $product = $variant->product;
-        if (!$product?->category) return collect();
+{
+    $product = $variant->product;
+    if (!$product?->category) return collect();
 
-        $categoryIds = $product->category->getAllCategoryIds()->toArray();
+    $categoryIds = $product->category->getAllCategoryIds()->toArray();
 
-        $variants = ProductVariant::query()
-            ->with(['product.brand', 'product.primaryImage', 'product.category'])
-            ->where('id', '!=', $variant->id)
-            ->whereHas('product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds)
-                  ->where('status_id', 2)
-                  ->whereNotNull('slug')
-                  ->where('slug', '!=', '');
-            })
-            ->latest()
-            ->take($limit)
-            ->get();
+    $variants = ProductVariant::query()
+        ->with(['product.brand', 'product.primaryImage', 'product.category'])
+        ->where('id', '!=', $variant->id)
+        ->whereHas('product', function ($q) use ($categoryIds) {
+            $q->whereIn('category_id', $categoryIds)
+              ->where('status_id', 2)
+              ->whereNotNull('slug')
+              ->where('slug', '!=', '');
+        })
+        ->orderBy('selling_price')   // choose cheapest variant per product
+        ->get()
+        ->unique('product_id')       // keep only one variant per product
+        ->values()
+        ->take($limit);              // limit after deduplication
 
-        $priceData = $this->getPriceForVariants($variants);
+    $priceData = $this->getPriceForVariants($variants);
 
-        return $variants->map(
-            fn ($v) => $this->normalizeVariant($v, $priceData)
-        );
-    }
+    return $variants->map(
+        fn ($v) => $this->normalizeVariant($v, $priceData)
+    );
+}
 
     /**
      * NORMALIZER — strictly using your original fields
