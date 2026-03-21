@@ -228,7 +228,7 @@ class OrderController extends Controller
             'delivery_users' => $deliveryUsers,
             'warehouses' => $warehouses,
             'dispatch_centers' => $dispatchCenters,
-            'googleMapsApiKey' => config('services.google_maps.api_key'),
+            'googleMapsApiKey' => config('services.google.maps_api_key'),
             'rejectionReasons' => array_map(fn($key, $label) => ['id' => $key, 'name' => $label], array_keys(OrderItem::REJECTION_REASONS), OrderItem::REJECTION_REASONS),
             'declineReasons' => array_map(fn($key, $label) => ['id' => $key, 'name' => $label], array_keys(OrderItem::DECLINE_REASONS), OrderItem::DECLINE_REASONS),
             'breadcrumbs' => [

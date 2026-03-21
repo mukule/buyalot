@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -96,9 +97,13 @@ const showConfirmAvailableModal = ref(false);
 const reason = ref('');
 const otherReason = ref('');
 
-const mapContainer = ref<HTMLElement | null>(null);
-let map: google.maps.Map | null = null;
-let marker: google.maps.Marker | null = null;
+
+// Standalone map modal — visible at any time from the Actions column
+const showMapModal = ref(false);
+const mapModalCenter = ref<DispatchCenter | null>(null);
+const mapModalContainer = ref<HTMLElement | null>(null);
+let mapModal: google.maps.Map | null = null;
+let markerModal: google.maps.Marker | null = null;
 
 function loadGoogleMapsScript(): Promise<void> {
   if (window.google?.maps) return Promise.resolve();
@@ -113,29 +118,58 @@ function loadGoogleMapsScript(): Promise<void> {
   });
 }
 
-function initMap(center: { lat: number; lng: number }, title: string) {
-  if (!mapContainer.value) return;
-  if (map) {
-    map.setCenter(center);
-    if (marker) { marker.setPosition(center); marker.setTitle(title); }
-    return;
-  }
-  map = new google.maps.Map(mapContainer.value, { center, zoom: 15 });
-  marker = new google.maps.Marker({ position: center, map, title });
-}
-
-function openDispatchMap(dc: DispatchCenter | null) {
-  if (!props.googleMapsApiKey || !dc?.latitude || !dc?.longitude) return;
-  loadGoogleMapsScript().then(() => {
-    setTimeout(() => initMap({ lat: Number(dc.latitude), lng: Number(dc.longitude) }, dc.name), 200);
-  });
-}
 
 function onDispatchCenterChange(id: number) {
   selectedDispatchCenterId.value = id;
   const dc = (props.dispatch_centers ?? []).find(c => c.id === id) ?? null;
   activeDispatchCenter.value = dc;
-  openDispatchMap(dc);
+}
+
+function mountModalMap(el: HTMLElement, center: { lat: number; lng: number }, title: string) {
+  if (mapModal) {
+    mapModal.setCenter(center);
+    if (markerModal) { markerModal.setPosition(center); markerModal.setTitle(title); }
+  } else {
+    mapModal = new google.maps.Map(el, { center, zoom: 15 });
+    markerModal = new google.maps.Marker({ position: center, map: mapModal, title });
+  }
+}
+
+function waitForModalContainer(center: { lat: number; lng: number }, title: string, attempts = 0) {
+  if (attempts > 20) return;
+  const el = mapModalContainer.value;
+  if (!el) { setTimeout(() => waitForModalContainer(center, title, attempts + 1), 100); return; }
+  mountModalMap(el, center, title);
+}
+
+function geocodeAndMount(query: string, title: string) {
+  const geocoder = new google.maps.Geocoder();
+  geocoder.geocode({ address: query }, (results, status) => {
+    if (status === 'OK' && results && results[0]) {
+      const loc = results[0].geometry.location;
+      waitForModalContainer({ lat: loc.lat(), lng: loc.lng() }, title);
+    }
+  });
+}
+
+function openMapModal(item: OrderItemPayload) {
+  const dc: DispatchCenter | null = item.dispatch_center?.latitude
+    ? (item.dispatch_center as DispatchCenter)
+    : ((props.dispatch_centers ?? [])[0] ?? null);
+  if (!dc) return;
+  mapModalCenter.value = dc;
+  mapModal = null;
+  markerModal = null;
+  showMapModal.value = true;
+  if (!props.googleMapsApiKey) return;
+  loadGoogleMapsScript().then(() => {
+    if (dc.latitude && dc.longitude) {
+      waitForModalContainer({ lat: Number(dc.latitude), lng: Number(dc.longitude) }, dc.name);
+    } else {
+      const query = [dc.name, dc.address, dc.location].filter(Boolean).join(', ');
+      geocodeAndMount(query, dc.name);
+    }
+  });
 }
 
 const receiveItem = (itemId: number) => {
@@ -182,10 +216,7 @@ const executeConfirmAvailable = () => {
 
 const dispatchItem = (itemId: number) => {
   selectedItem.value = props.order.order_items.find(i => i.id === itemId) || null;
-  map = null;
-  marker = null;
 
-  // Prefer recorded dispatch center (if already dispatched), otherwise first available
   if (selectedItem.value?.dispatch_center?.latitude) {
     activeDispatchCenter.value = selectedItem.value.dispatch_center as DispatchCenter;
     selectedDispatchCenterId.value = selectedItem.value.dispatch_center.id;
@@ -196,7 +227,6 @@ const dispatchItem = (itemId: number) => {
   }
 
   showDispatchModal.value = true;
-  openDispatchMap(activeDispatchCenter.value);
 };
 
 const confirmDispatch = () => {
@@ -607,6 +637,15 @@ function allocateForPickup() {
                       >
                         Decline
                       </Button>
+                      <Button
+                        v-if="!['declined', 'rejected'].includes(item.dispatch_status) && ((item.dispatch_center?.latitude) || (props.dispatch_centers ?? []).length > 0)"
+                        size="sm"
+                        variant="outline"
+                        class="border-green-500 text-green-700 hover:bg-green-50"
+                        @click="openMapModal(item)"
+                      >
+                        📍 View on Map
+                      </Button>
                     </template>
 
                     <!-- Admin Actions -->
@@ -697,16 +736,6 @@ function allocateForPickup() {
             <div v-else-if="!(dispatch_centers ?? []).length" class="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
               No dispatch centers are currently available. Contact the administrator.
             </div>
-
-            <!-- Map -->
-            <div
-              v-if="activeDispatchCenter?.latitude"
-              ref="mapContainer"
-              class="h-[300px] w-full rounded border bg-muted"
-            ></div>
-            <p v-else-if="activeDispatchCenter && !activeDispatchCenter.latitude" class="text-xs text-muted-foreground">
-              Map not available for this dispatch center.
-            </p>
 
             <div class="flex justify-end gap-2">
               <Button variant="outline" @click="showDispatchModal = false">Cancel</Button>
@@ -821,6 +850,31 @@ function allocateForPickup() {
             <div class="flex justify-end gap-2">
               <Button variant="outline" @click="showConfirmAvailableModal = false">Cancel</Button>
               <Button @click="executeConfirmAvailable">Confirm Available</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <!-- Standalone dispatch center map modal -->
+      <Dialog v-model:open="showMapModal">
+        <DialogContent class="max-w-4xl w-full">
+          <DialogHeader>
+            <DialogTitle>Dispatch Center Location</DialogTitle>
+            <DialogDescription>Location where you should bring the item.</DialogDescription>
+          </DialogHeader>
+          <div class="space-y-3">
+            <div v-if="mapModalCenter" class="rounded-md border border-green-200 bg-green-50 p-3">
+              <p class="font-semibold text-green-900">{{ mapModalCenter.name }}</p>
+              <p v-if="mapModalCenter.address" class="text-sm text-green-700">{{ mapModalCenter.address }}</p>
+              <p v-if="mapModalCenter.location" class="text-xs text-green-600">{{ mapModalCenter.location }}</p>
+            </div>
+            <!-- Map container always present so geocoder can render into it even without stored coords -->
+            <div
+              ref="mapModalContainer"
+              class="h-[480px] w-full rounded border bg-muted"
+            ></div>
+            <div class="flex justify-end">
+              <Button variant="outline" @click="showMapModal = false">Close</Button>
             </div>
           </div>
         </DialogContent>

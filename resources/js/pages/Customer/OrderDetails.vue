@@ -28,9 +28,12 @@ const showDeclineModal = ref(false);
 const reason = ref('');
 const otherReason = ref('');
 
-const mapContainer = ref<HTMLElement | null>(null);
-let map: google.maps.Map | null = null;
-let marker: google.maps.Marker | null = null;
+// Standalone "View on Map" modal (separate from dispatch flow)
+const showMapModal = ref(false);
+const mapModalCenter = ref<any>(null);
+const mapModalContainer = ref<HTMLElement | null>(null);
+let mapModal: google.maps.Map | null = null;
+let markerModal: google.maps.Marker | null = null;
 
 function loadGoogleMapsScript(): Promise<void> {
   if (window.google?.maps) return Promise.resolve();
@@ -45,56 +48,67 @@ function loadGoogleMapsScript(): Promise<void> {
   });
 }
 
-function initMap(center: { lat: number; lng: number } | null, title: string) {
-  if (!mapContainer.value || !center) return;
-  if (map) {
-    map.setCenter(center);
-    if (marker) {
-      marker.setPosition(center);
-      marker.setTitle(title);
-    }
-    return;
-  }
-  map = new google.maps.Map(mapContainer.value, { center, zoom: 15 });
-  marker = new google.maps.Marker({ position: center, map, title });
-}
-
 function getMapCoords(dc: any): { lat: number; lng: number } | null {
   if (!dc?.latitude || !dc?.longitude) return null;
   return { lat: Number(dc.latitude), lng: Number(dc.longitude) };
 }
 
-function openDispatchMap(dc: any) {
-  if (!googleMapsApiKey.value || !dc) return;
+function mountModalMap(center: { lat: number; lng: number }, title: string, attempts = 0) {
+  if (attempts > 20) return;
+  if (!mapModalContainer.value) {
+    setTimeout(() => mountModalMap(center, title, attempts + 1), 100);
+    return;
+  }
+  if (mapModal) {
+    mapModal.setCenter(center);
+    if (markerModal) { markerModal.setPosition(center); markerModal.setTitle(title); }
+  } else {
+    mapModal = new google.maps.Map(mapModalContainer.value, { center, zoom: 15 });
+    markerModal = new google.maps.Marker({ position: center, map: mapModal, title });
+  }
+}
+
+function openMapModal(item: any) {
+  const dc = item.dispatch_center?.latitude
+    ? item.dispatch_center
+    : (dispatchCenters.value[0] ?? null);
+  if (!dc) return;
+  mapModalCenter.value = dc;
+  mapModal = null;
+  markerModal = null;
+  showMapModal.value = true;
+  if (!googleMapsApiKey.value) return;
   loadGoogleMapsScript().then(() => {
-    setTimeout(() => {
-      const coords = getMapCoords(dc);
-      if (coords) initMap(coords, dc.name);
-    }, 200);
+    const coords = getMapCoords(dc);
+    if (coords) {
+      mountModalMap(coords, dc.name);
+    } else {
+      // Geocode fallback when no coordinates stored
+      const geocoder = new google.maps.Geocoder();
+      const query = [dc.name, dc.address, dc.location].filter(Boolean).join(', ');
+      geocoder.geocode({ address: query }, (results, status) => {
+        if (status === 'OK' && results && results[0]) {
+          const loc = results[0].geometry.location;
+          mountModalMap({ lat: loc.lat(), lng: loc.lng() }, dc.name);
+        }
+      });
+    }
   });
 }
 
 const dispatchItem = (itemId: number) => {
   selectedItem.value = order.value.order_items.find((i: any) => i.id === itemId) || null;
-  map = null;
-  marker = null;
 
-  // If already dispatched, show the recorded dispatch center
-  if (selectedItem.value?.dispatch_center?.latitude) {
+  if (selectedItem.value?.dispatch_center?.id) {
     activeDispatchCenter.value = selectedItem.value.dispatch_center;
     selectedDispatchCenterId.value = selectedItem.value.dispatch_center.id;
   } else {
-    // Show first available dispatch center so vendor knows where to bring the item
     const first = dispatchCenters.value[0] ?? null;
     activeDispatchCenter.value = first;
     selectedDispatchCenterId.value = first?.id ?? null;
   }
 
   showDispatchModal.value = true;
-
-  if (activeDispatchCenter.value) {
-    openDispatchMap(activeDispatchCenter.value);
-  }
 };
 
 // When vendor picks a different dispatch center from the dropdown
@@ -379,6 +393,16 @@ function statusBadgeClass(status?: string) {
                   >
                     Decline
                   </Button>
+                  <!-- Always-visible map button for non-declined/rejected items -->
+                  <Button
+                    v-if="!['declined', 'rejected'].includes(item.dispatch_status) && (item.dispatch_center?.latitude || dispatchCenters.length > 0)"
+                    size="sm"
+                    variant="outline"
+                    class="border-green-500 text-green-700 hover:bg-green-50"
+                    @click="openMapModal(item)"
+                  >
+                    📍 View on Map
+                  </Button>
                 </div>
               </div>
             </div>
@@ -484,16 +508,6 @@ function statusBadgeClass(status?: string) {
               No dispatch centers are currently available. Contact the administrator.
             </div>
 
-            <!-- Map showing dispatch center location -->
-            <div
-              v-if="activeDispatchCenter?.latitude"
-              ref="mapContainer"
-              class="h-[300px] w-full rounded border bg-muted"
-            ></div>
-            <p v-else-if="activeDispatchCenter && !activeDispatchCenter.latitude" class="text-xs text-muted-foreground">
-              Map not available for this dispatch center.
-            </p>
-
             <div class="flex justify-end gap-2">
               <Button variant="outline" @click="showDispatchModal = false">Cancel</Button>
               <Button
@@ -502,6 +516,35 @@ function statusBadgeClass(status?: string) {
               >
                 Confirm Dispatch
               </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <!-- Standalone Map Modal — vendors can view dispatch center location at any time -->
+      <Dialog v-model:open="showMapModal">
+        <DialogContent class="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Dispatch Center Location</DialogTitle>
+          </DialogHeader>
+          <div class="space-y-3">
+            <!-- Center info card -->
+            <div v-if="mapModalCenter" class="rounded-md border border-green-200 bg-green-50 p-3">
+              <p class="font-semibold text-green-900">{{ mapModalCenter.name }}</p>
+              <p v-if="mapModalCenter.address" class="text-sm text-green-700">{{ mapModalCenter.address }}</p>
+              <p v-if="mapModalCenter.location" class="text-xs text-green-600">{{ mapModalCenter.location }}</p>
+            </div>
+            <!-- Map -->
+            <div
+              v-if="mapModalCenter?.latitude"
+              ref="mapModalContainer"
+              class="h-[350px] w-full rounded border bg-muted"
+            ></div>
+            <p v-else class="text-sm text-muted-foreground">
+              No map coordinates available for this dispatch center.
+            </p>
+            <div class="flex justify-end">
+              <Button variant="outline" @click="showMapModal = false">Close</Button>
             </div>
           </div>
         </DialogContent>

@@ -254,7 +254,7 @@ class OrderController extends Controller
 
         return Inertia::render('Customer/OrderDetails', [
             'order' => $payload,
-            'googleMapsApiKey' => config('services.google_maps.api_key'),
+            'googleMapsApiKey' => config('services.google.maps_api_key'),
             'dispatch_centers' => $dispatchCenters,
             'declineReasons' => array_map(fn($key, $label) => ['id' => $key, 'name' => $label], array_keys(OrderItem::DECLINE_REASONS), OrderItem::DECLINE_REASONS),
             'rejectionReasons' => array_map(fn($key, $label) => ['id' => $key, 'name' => $label], array_keys(OrderItem::REJECTION_REASONS), OrderItem::REJECTION_REASONS),
