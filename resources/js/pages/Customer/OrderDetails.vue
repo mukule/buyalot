@@ -523,7 +523,7 @@ function statusBadgeClass(status?: string) {
 
       <!-- Standalone Map Modal — vendors can view dispatch center location at any time -->
       <Dialog v-model:open="showMapModal">
-        <DialogContent class="max-w-2xl">
+        <DialogContent class="max-w-4xl w-full">
           <DialogHeader>
             <DialogTitle>Dispatch Center Location</DialogTitle>
           </DialogHeader>
@@ -534,15 +534,11 @@ function statusBadgeClass(status?: string) {
               <p v-if="mapModalCenter.address" class="text-sm text-green-700">{{ mapModalCenter.address }}</p>
               <p v-if="mapModalCenter.location" class="text-xs text-green-600">{{ mapModalCenter.location }}</p>
             </div>
-            <!-- Map -->
+            <!-- Map container always present so geocoder can render even without stored coordinates -->
             <div
-              v-if="mapModalCenter?.latitude"
               ref="mapModalContainer"
-              class="h-[350px] w-full rounded border bg-muted"
+              class="h-[480px] w-full rounded border bg-muted"
             ></div>
-            <p v-else class="text-sm text-muted-foreground">
-              No map coordinates available for this dispatch center.
-            </p>
             <div class="flex justify-end">
               <Button variant="outline" @click="showMapModal = false">Close</Button>
             </div>
