@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php artisan:*)",
+      "Bash(xargs grep:*)",
+      "Bash(xargs cat:*)",
+      "Bash(grep -n \"region\\\\|address\\\\|location\\\\|warehouse\\\\|seller_id\" d:/Newfolder/buyalot/database/migrations/2025_09_13_214*.php)",
+      "Bash(php -l app/Http/Controllers/Orders/OrderController.php)",
+      "Bash(php -l app/Http/Controllers/Admin/OrderController.php)",
+      "Bash(php -l app/Services/CartReservationService.php)",
+      "Bash(php -l app/Services/OrderProcessingService.php)",
+      "Bash(php -l app/Console/Commands/ReleaseExpiredReservations.php)",
+      "Bash(php -l routes/console.php)",
+      "Bash(php -l app/Http/Controllers/CartController.php)",
+      "Bash(php -l \"d:/Newfolder/buyalot/app/Services/CartReservationService.php\")"
+    ]
+  }
+}

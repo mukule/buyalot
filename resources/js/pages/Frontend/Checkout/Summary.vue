@@ -123,7 +123,7 @@ const canProceed = computed(() => {
     if (deliveryType.value === 'pickup') {
         return !!selectedRegionId.value && !!selectedPickupPointId.value;
     }
-    return !!homeDeliveryRegion.value && homeDeliveryCost.value > 0 && homeDeliveryLat.value != null && homeDeliveryLng.value != null;
+    return !!homeDeliveryRegion.value && homeDeliveryLat.value != null && homeDeliveryLng.value != null;
 });
 
 /* -------------------- WATCH: Reset on delivery type change -------------------- */
@@ -365,9 +365,9 @@ const formatPrice = (amount?: number | null) =>
                                 </button>
                             </div>
                             <p v-if="homeDeliveryError" class="mt-2 text-sm text-red-600">{{ homeDeliveryError }}</p>
-                            <div v-if="homeDeliveryRegion && homeDeliveryCost > 0" class="mt-2 space-y-2">
+                            <div v-if="homeDeliveryRegion" class="mt-2 space-y-2">
                                 <div class="rounded border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-                                    {{ homeDeliveryRegion.name }} – {{ formatPrice(homeDeliveryCost) }} ({{ homeDeliveryDays }} day(s))
+                                    {{ homeDeliveryRegion.name }} – {{ homeDeliveryCost > 0 ? formatPrice(homeDeliveryCost) : (canProceed ? 'FREE' : formatPrice(0)) }} ({{ homeDeliveryDays }} day(s))
                                 </div>
                                 <div v-if="homeDeliveryLat != null && homeDeliveryLng != null" class="h-[220px] w-full overflow-hidden rounded border border-gray-200 bg-gray-100">
                                     <iframe
@@ -438,7 +438,7 @@ const formatPrice = (amount?: number | null) =>
                         </div>
                         <div class="flex justify-between">
                             <span>Shipping</span>
-                            <span>{{ formatPrice(effectiveShippingCost) }}</span>
+                            <span>{{ effectiveShippingCost > 0 ? formatPrice(effectiveShippingCost) : (canProceed ? 'FREE' : '—') }}</span>
                         </div>
                         <div class="flex justify-between font-semibold text-gray-800">
                             <span>Total</span>

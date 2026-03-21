@@ -3,7 +3,7 @@ import ProductCarouselSection from '@/components/ProductCarouselSection.vue';
 import MainLayout from '@/layouts/MainLayout.vue';
 import type { SimplifiedProduct } from '@/types';
 import { router, usePage } from '@inertiajs/vue3';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { route } from 'ziggy-js';
 
 interface SummaryItem {
@@ -147,6 +147,77 @@ const canPay = computed(() => {
 let pollTimer: any = null;
 let dotsTimer: any = null;
 
+// ── Reservation countdown ────────────────────────────────────────────────────
+
+const reservationExpiresAt = ref<Date | null>(
+    props.reservation_expires_at ? new Date(props.reservation_expires_at as string) : null,
+);
+const reservationSecondsLeft = ref(0);
+const reservationExpired = ref(false);
+const reservationMessage = ref('');
+let reservationTimer: ReturnType<typeof setInterval> | null = null;
+
+function updateReservationCountdown() {
+    if (!reservationExpiresAt.value) return;
+    const diff = Math.floor((reservationExpiresAt.value.getTime() - Date.now()) / 1000);
+    reservationSecondsLeft.value = Math.max(0, diff);
+    if (diff <= 0) {
+        reservationExpired.value = true;
+        stopReservationTimer();
+        triggerReReserve();
+    }
+}
+
+function startReservationTimer() {
+    stopReservationTimer();
+    updateReservationCountdown();
+    reservationTimer = setInterval(updateReservationCountdown, 1000);
+}
+
+function stopReservationTimer() {
+    if (reservationTimer !== null) {
+        clearInterval(reservationTimer);
+        reservationTimer = null;
+    }
+}
+
+async function triggerReReserve() {
+    reservationMessage.value = 'Checking stock availability…';
+    try {
+        const axios = (window as any).axios || (await import('axios')).default;
+        const { data } = await axios.post(route('checkout.re-reserve'), {}, {
+            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            withCredentials: true,
+        });
+        if (data.ok) {
+            reservationExpiresAt.value = new Date(data.expires_at);
+            reservationExpired.value = false;
+            reservationMessage.value = data.refreshed
+                ? 'Items are still available — your reservation has been refreshed.'
+                : '';
+            startReservationTimer();
+        } else {
+            reservationMessage.value = data.message || 'Some items are no longer available.';
+            // Redirect to cart after a short delay so the customer can read the message
+            setTimeout(() => router.visit(route('cart.index')), 3000);
+        }
+    } catch (e: any) {
+        const msg = e?.response?.data?.message;
+        if (msg) {
+            reservationMessage.value = msg;
+            setTimeout(() => router.visit(route('cart.index')), 3000);
+        } else {
+            reservationMessage.value = 'Could not verify stock. Please refresh the page.';
+        }
+    }
+}
+
+const reservationMinutes = computed(() => Math.floor(reservationSecondsLeft.value / 60));
+const reservationSeconds = computed(() => String(reservationSecondsLeft.value % 60).padStart(2, '0'));
+const reservationUrgent = computed(() => reservationSecondsLeft.value <= 60 && reservationSecondsLeft.value > 0);
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 onMounted(() => {
     status.value = 'idle';
     message.value = '';
@@ -154,6 +225,13 @@ onMounted(() => {
     if (paymentMethod.value === 'cod' && !isCodAvailable.value) {
         paymentMethod.value = 'mpesa';
     }
+    if (reservationExpiresAt.value) {
+        startReservationTimer();
+    }
+});
+
+onUnmounted(() => {
+    stopReservationTimer();
 });
 
 function startDotsAnimation() {
@@ -477,6 +555,29 @@ const paymentMethod = ref<'mpesa' | 'cod'>('mpesa');
 
 <template>
     <MainLayout>
+        <!-- ── Reservation timer banner ─────────────────────────────────── -->
+        <div
+            v-if="reservationExpiresAt && !reservationExpired && reservationSecondsLeft > 0"
+            class="sticky top-0 z-30 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium shadow-sm"
+            :class="reservationUrgent ? 'bg-red-600 text-white' : 'bg-amber-500 text-white'"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Items reserved for
+            <span class="tabular-nums font-bold">{{ reservationMinutes }}:{{ reservationSeconds }}</span>
+            — complete payment before time runs out.
+        </div>
+
+        <!-- Re-reserve feedback (shown while checking / after refresh) -->
+        <div
+            v-if="reservationMessage"
+            class="flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium"
+            :class="reservationExpired && !reservationExpiresAt ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-800'"
+        >
+            {{ reservationMessage }}
+        </div>
+
         <section class="mx-auto mt-4 mb-4 px-2">
             <div class="grid gap-4 lg:grid-cols-12">
                 <!-- LEFT — Payment -->
@@ -729,7 +830,7 @@ const paymentMethod = ref<'mpesa' | 'cod'>('mpesa');
 
                             <div class="flex justify-between">
                                 <span>Shipping</span>
-                                <span>{{ formatPrice(effectiveShipping) }}</span>
+                                <span>{{ selected_shipping ? (effectiveShipping > 0 ? formatPrice(effectiveShipping) : 'FREE') : '—' }}</span>
                             </div>
 
                             <div class="flex justify-between" v-if="cart.totals.tax > 0">

@@ -19,6 +19,7 @@ const page = usePage<
             door_extra_km_cost?: number;
             cod_min_amount?: number | null;
             free_shipping_min_amount?: number | null;
+            max_shipping_fee?: number | null;
             express_price?: number;
         };
     }
@@ -45,6 +46,7 @@ const form = useForm({
     door_extra_km_cost: rate.door_extra_km_cost ?? 20,
     cod_min_amount: rate.cod_min_amount ?? null,
     free_shipping_min_amount: rate.free_shipping_min_amount ?? null,
+    max_shipping_fee: rate.max_shipping_fee ?? null,
 });
 
 function updateRate() {
@@ -204,6 +206,20 @@ function updateRate() {
                                 />
                                 <p class="mt-1 text-xs text-gray-500">Min order total for free shipping.</p>
                                 <div v-if="form.errors.free_shipping_min_amount" class="mt-1 text-sm text-red-600">{{ form.errors.free_shipping_min_amount }}</div>
+                            </div>
+                            <div>
+                                <label for="max_shipping_fee" class="mb-1 block text-sm font-medium text-gray-700">Max shipping fee (KSh)</label>
+                                <input
+                                    v-model.number="form.max_shipping_fee"
+                                    id="max_shipping_fee"
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    placeholder="e.g. 1000"
+                                    class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:ring-2 focus:ring-[color:var(--primary)] focus:outline-none"
+                                />
+                                <p class="mt-1 text-xs text-gray-500">Shipping will never exceed this amount. Leave empty for no cap.</p>
+                                <div v-if="form.errors.max_shipping_fee" class="mt-1 text-sm text-red-600">{{ form.errors.max_shipping_fee }}</div>
                             </div>
                         </div>
                     </div>

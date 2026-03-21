@@ -10,6 +10,7 @@ use App\Models\Orders\Order;
 use App\Models\Orders\OrderItem;
 use App\Models\Products\ProductVariant;
 use App\Models\User;
+use App\Models\Warehouse\WarehouseReceivable;
 use App\Services\CartService;
 use App\Services\OrderProcessingService;
 use DB;
@@ -124,7 +125,7 @@ class OrderController extends Controller
                 $q->with([
                     'productVariant.product',
                     'seller:id,company_legal_name',
-                    'dispatchCenter:id,name'
+                    'dispatchCenter:id,name,latitude,longitude,address'
                 ]);
             },
             'shippingAddress',
@@ -229,9 +230,32 @@ class OrderController extends Controller
             ] : null,
         ];
 
+        // For sellers: pass available dispatch centers so they can see where to send items
+        // withoutGlobalScope bypasses the WarehouseScope so sellers can see dispatch centers
+        // even though those centers were not created by them.
+        $dispatchCenters = [];
+        if ($isSeller) {
+            $dispatchCenters = \App\Models\Warehouse\Warehouse::withoutGlobalScope(\App\Models\Scopes\WarehouseScope::class)
+                ->where('type', 'dispatch_center')
+                ->where('active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'address', 'latitude', 'longitude', 'location'])
+                ->map(fn($w) => [
+                    'id'        => $w->id,
+                    'name'      => $w->name,
+                    'address'   => $w->address,
+                    'location'  => $w->location,
+                    'latitude'  => $w->latitude  ? (float) $w->latitude  : null,
+                    'longitude' => $w->longitude ? (float) $w->longitude : null,
+                ])
+                ->values()
+                ->toArray();
+        }
+
         return Inertia::render('Customer/OrderDetails', [
             'order' => $payload,
             'googleMapsApiKey' => config('services.google_maps.api_key'),
+            'dispatch_centers' => $dispatchCenters,
             'declineReasons' => array_map(fn($key, $label) => ['id' => $key, 'name' => $label], array_keys(OrderItem::DECLINE_REASONS), OrderItem::DECLINE_REASONS),
             'rejectionReasons' => array_map(fn($key, $label) => ['id' => $key, 'name' => $label], array_keys(OrderItem::REJECTION_REASONS), OrderItem::REJECTION_REASONS),
         ]);
@@ -243,39 +267,97 @@ class OrderController extends Controller
     public function dispatchItem(Request $request, Order $order, OrderItem $item)
     {
         $user = $request->user();
-        if (!$user->hasPortalRole('seller')) {
+        if (!$user->hasPortalRole('seller') && !$user->hasRole('admin')) {
             abort(403);
         }
 
-        $sellerIds = $user->sellers->pluck('id')->toArray();
-        if (!in_array($item->seller_id, $sellerIds) || $item->order_id !== $order->id) {
-            abort(403);
+        if ($user->hasPortalRole('seller')) {
+            $sellerIds = $user->sellers->pluck('id')->toArray();
+            if (!in_array($item->seller_id, $sellerIds) || $item->order_id !== $order->id) {
+                abort(403);
+            }
+        } else {
+            // Admin can dispatch any item, but ensure it belongs to the order
+            if ($item->order_id !== $order->id) {
+                abort(404);
+            }
         }
 
         if ($item->dispatch_status !== OrderItem::DISPATCH_STATUS_PENDING && $item->dispatch_status !== OrderItem::DISPATCH_STATUS_DECLINED) {
             return back()->with('error', 'Item already processed.');
         }
 
-        $dispatchCenter = \App\Models\Warehouse\Warehouse::where('type', 'dispatch_center')
-            ->where('active', true)
-            ->first();
+        $request->validate([
+            'dispatch_center_id' => 'nullable|integer|exists:warehouses,id',
+        ]);
+
+        // Resolve which dispatch center to use:
+        // 1. Specific one requested (vendor picked from map)
+        // 2. Fall back to first active dispatch center
+        $dispatchCenter = null;
+        if ($request->filled('dispatch_center_id')) {
+            $dispatchCenter = \App\Models\Warehouse\Warehouse::withoutGlobalScope(\App\Models\Scopes\WarehouseScope::class)
+                ->where('type', 'dispatch_center')
+                ->where('active', true)
+                ->find($request->dispatch_center_id);
+        }
+
+        if (!$dispatchCenter) {
+            $dispatchCenter = \App\Models\Warehouse\Warehouse::withoutGlobalScope(\App\Models\Scopes\WarehouseScope::class)
+                ->where('type', 'dispatch_center')
+                ->where('active', true)
+                ->orderBy('id')
+                ->first();
+        }
 
         if (!$dispatchCenter) {
             if ($request->expectsJson()) {
-                return response()->json(['message' => 'No active dispatch center found in your region.'], 422);
+                return response()->json(['message' => 'No active dispatch center found. Please contact the administrator.'], 422);
             }
-            return back()->with('error', 'No active dispatch center found in your region.');
+            return back()->with('error', 'No active dispatch center found. Please contact the administrator.');
         }
 
-        $item->update([
-            'dispatch_status' => OrderItem::DISPATCH_STATUS_DISPATCHED,
-            'dispatched_at' => now(),
-            'dispatch_center_id' => $dispatchCenter->id,
-            'dispatch_decline_reason' => null,
-        ]);
+        DB::transaction(function () use ($item, $dispatchCenter, $user) {
+            $item->update([
+                'dispatch_status' => OrderItem::DISPATCH_STATUS_DISPATCHED,
+                'dispatched_at'   => now(),
+                'dispatch_center_id' => $dispatchCenter->id,
+                'dispatch_decline_reason' => null,
+            ]);
+
+            // Create (or update) a pending receivable at the dispatch center so staff
+            // can see the incoming item manifest before it physically arrives.
+            WarehouseReceivable::updateOrCreate(
+                [
+                    'warehouse_id'       => $dispatchCenter->id,
+                    'order_id'           => $item->order_id,
+                    'product_variant_id' => $item->product_variant_id,
+                ],
+                [
+                    'quantity'   => $item->quantity,
+                    'status'     => 'pending',
+                    'created_by' => $user->id,
+                    // clear any previous rejection data if item was re-dispatched
+                    'received_by'      => null,
+                    'received_at'      => null,
+                    'rejected_by'      => null,
+                    'rejected_at'      => null,
+                    'rejected_reason'  => null,
+                ]
+            );
+        });
 
         if ($request->expectsJson()) {
-            return response()->json(['message' => 'Item marked as dispatched to ' . $dispatchCenter->name]);
+            return response()->json([
+                'message' => 'Item marked as dispatched to ' . $dispatchCenter->name,
+                'dispatch_center' => [
+                    'id'        => $dispatchCenter->id,
+                    'name'      => $dispatchCenter->name,
+                    'address'   => $dispatchCenter->address,
+                    'latitude'  => $dispatchCenter->latitude  ? (float) $dispatchCenter->latitude  : null,
+                    'longitude' => $dispatchCenter->longitude ? (float) $dispatchCenter->longitude : null,
+                ],
+            ]);
         }
         return back()->with('success', 'Item marked as dispatched to ' . $dispatchCenter->name);
     }
@@ -286,13 +368,19 @@ class OrderController extends Controller
     public function declineDispatch(Request $request, Order $order, OrderItem $item, \App\Services\ProfanityFilterService $profanityFilter)
     {
         $user = $request->user();
-        if (!$user->hasPortalRole('seller')) {
+        if (!$user->hasPortalRole('seller') && !$user->hasRole('admin')) {
             abort(403);
         }
 
-        $sellerIds = $user->sellers->pluck('id')->toArray();
-        if (!in_array($item->seller_id, $sellerIds) || $item->order_id !== $order->id) {
-            abort(403);
+        if ($user->hasPortalRole('seller')) {
+            $sellerIds = $user->sellers->pluck('id')->toArray();
+            if (!in_array($item->seller_id, $sellerIds) || $item->order_id !== $order->id) {
+                abort(403);
+            }
+        } else {
+            if ($item->order_id !== $order->id) {
+                abort(404);
+            }
         }
 
         $request->validate([

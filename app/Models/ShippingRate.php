@@ -21,6 +21,7 @@ class ShippingRate extends Model
         'door_extra_km_cost',
         'cod_min_amount',
         'free_shipping_min_amount',
+        'max_shipping_fee',
     ];
 
     protected $casts = [
@@ -31,6 +32,7 @@ class ShippingRate extends Model
         'door_extra_km_cost' => 'float',
         'cod_min_amount' => 'float',
         'free_shipping_min_amount' => 'float',
+        'max_shipping_fee' => 'float',
     ];
 
     public function zone()
@@ -103,5 +105,17 @@ class ShippingRate extends Model
         $baseDays = (int) env('DOOR_DELIVERY_DEFAULT_DAYS', 2);
         $increment = (int) env('DOOR_DELIVERY_DAYS_INCREMENT', 1);
         return $baseDays + (($tier - 1) * $increment);
+    }
+
+    /**
+     * Apply the max_shipping_fee cap to a computed cost.
+     * Returns the cost unchanged when no cap is configured.
+     */
+    public function applyCap(float $cost): float
+    {
+        if ($this->max_shipping_fee !== null && $this->max_shipping_fee > 0) {
+            return min($cost, $this->max_shipping_fee);
+        }
+        return $cost;
     }
 }

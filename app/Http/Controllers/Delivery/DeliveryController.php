@@ -679,15 +679,17 @@ class DeliveryController extends Controller
                 'longitude' => $shipping->longitude ? (float) $shipping->longitude : null,
             ] : null,
             'delivery_note_summary' => $order->getDeliveryNoteSummary(),
-            'order_items' => $order->orderItems->map(function ($item) {
-                $p = $item->productVariant?->product;
-                return [
-                    'id' => $item->id,
-                    'quantity' => $item->quantity,
-                    'quantity_returned' => $item->quantity_returned ?? 0,
-                    'product_name' => $p?->name ?? '—',
-                ];
-            })->toArray(),
+            'order_items' => $order->orderItems
+                ->whereNotIn('dispatch_status', ['declined', 'rejected'])
+                ->map(function ($item) {
+                    $p = $item->productVariant?->product;
+                    return [
+                        'id' => $item->id,
+                        'quantity' => $item->quantity,
+                        'quantity_returned' => $item->quantity_returned ?? 0,
+                        'product_name' => $p?->name ?? '—',
+                    ];
+                })->values()->toArray(),
         ];
     }
 }

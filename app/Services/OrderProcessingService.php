@@ -7,6 +7,7 @@ use App\Http\DTOs\PaymentResponse;
 use App\Models\Cart\Cart;
 use App\Models\CheckoutSession;
 use App\Models\Customer\CustomerAddress;
+use App\Services\CartReservationService;
 use App\Services\ShippingService;
 use Illuminate\Support\Facades\Log;
 
@@ -25,9 +26,14 @@ class OrderProcessingService
         $cart = Cart::with(['items.productVariant.product'])->findOrFail($cartId);
         $amounts = $this->calculateTotals($cart, $data['shipping_amount'] ?? 0);
 
+        // Detect retry: if this cart already has live reservations the customer
+        // has previously attempted payment and the window is still open.
+        $isRetry = $this->reservationService->hasActiveReservations($cart->id);
+        $ttl = $isRetry ? CartReservationService::TTL_RETRY : CartReservationService::TTL_INITIAL;
+
         $session = $this->updateOrCreateSession($cart, $amounts, $data);
 
-        $this->reserveStock($cart);
+        $this->reserveStock($cart, $ttl);
 
         $paymentInit = null;
         if ($data['payment_provider'] === 'mpesa') {
@@ -77,14 +83,14 @@ class OrderProcessingService
         ];
     }
 
-    protected function reserveStock($cart)
+    protected function reserveStock($cart, int $ttlSeconds = CartReservationService::TTL_INITIAL)
     {
         foreach ($cart->items as $item) {
             $available = $this->reservationService->availableForCart($item->product_variant_id, $cart->id);
             if ($item->quantity > $available) {
                 throw new \Exception("Items in your cart became unavailable.");
             }
-            $this->reservationService->reserve($cart->id, $item->product_variant_id, $item->quantity, 60);
+            $this->reservationService->reserve($cart->id, $item->product_variant_id, $item->quantity, $ttlSeconds);
         }
     }
 

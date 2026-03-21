@@ -30,6 +30,7 @@ const form = useForm({
     door_extra_km_cost: 20,
     cod_min_amount: null as number | null,
     free_shipping_min_amount: null as number | null,
+    max_shipping_fee: null as number | null,
 });
 
 function submitRate() {
@@ -186,6 +187,20 @@ function submitRate() {
                                 />
                                 <p class="mt-1 text-xs text-gray-500">Min order total for free shipping. Leave empty for no free shipping.</p>
                                 <div v-if="form.errors.free_shipping_min_amount" class="mt-1 text-sm text-red-600">{{ form.errors.free_shipping_min_amount }}</div>
+                            </div>
+                            <div>
+                                <label for="max_shipping_fee" class="mb-1 block text-sm font-medium text-gray-700">Max shipping fee (KSh)</label>
+                                <input
+                                    v-model.number="form.max_shipping_fee"
+                                    id="max_shipping_fee"
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    placeholder="e.g. 1000"
+                                    class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:ring-2 focus:ring-[color:var(--primary)] focus:outline-none"
+                                />
+                                <p class="mt-1 text-xs text-gray-500">Shipping will never exceed this amount. Leave empty for no cap.</p>
+                                <div v-if="form.errors.max_shipping_fee" class="mt-1 text-sm text-red-600">{{ form.errors.max_shipping_fee }}</div>
                             </div>
                         </div>
                     </div>

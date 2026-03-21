@@ -9,7 +9,9 @@ use App\Models\Orders\Order;
 use App\Models\Orders\OrderItem;
 use App\Models\User;
 use App\Models\Warehouse\Warehouse;
+use App\Models\Warehouse\WarehouseReceivable;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 
@@ -35,7 +37,7 @@ class OrderController extends Controller
                 $q->with([
                     'productVariant' => fn ($pq) => $pq->with(['product' => fn ($ppq) => $ppq->withoutGlobalScopes(), 'values']),
                     'seller:id,company_legal_name',
-                    'dispatchCenter:id,name'
+                    'dispatchCenter:id,name,latitude,longitude,address'
                 ]);
             },
             'shippingAddress.pickupWarehouse' => fn ($q) => $q->withoutGlobalScopes(),
@@ -57,11 +59,15 @@ class OrderController extends Controller
         $shippingAddress = $order->shippingAddress ?: $order->customer?->getDefaultAddress();
         $billingAddress = $order->billingAddress ?: $order->customer?->getDefaultAddress();
 
-        // Check if all items are received (for admin)
+        // Check if all deliverable items are received (declined/rejected items are excluded from delivery)
         $all_items_received = false;
         if (!$isSeller && $order->orderItems->count() > 0) {
-            $all_items_received = $order->orderItems->every(fn($item) =>
-                $item->dispatch_status === OrderItem::DISPATCH_STATUS_RECEIVED
+            $deliverableItems = $order->orderItems->whereNotIn('dispatch_status', [
+                OrderItem::DISPATCH_STATUS_DECLINED,
+                OrderItem::DISPATCH_STATUS_REJECTED,
+            ]);
+            $all_items_received = $deliverableItems->isNotEmpty() && $deliverableItems->every(
+                fn($item) => $item->dispatch_status === OrderItem::DISPATCH_STATUS_RECEIVED
             );
         }
 
@@ -201,11 +207,27 @@ class OrderController extends Controller
             ->get(['id', 'name', 'address', 'location'])
             ->map(fn ($w) => ['id' => $w->id, 'name' => $w->name, 'address' => $w->address, 'location' => $w->location]);
 
+        // Active dispatch centers — bypass WarehouseScope so all dispatch centers are visible regardless of creator
+        $dispatchCenters = Warehouse::withoutGlobalScope(\App\Models\Scopes\WarehouseScope::class)->where('type', 'dispatch_center')
+            ->where('active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'address', 'location', 'latitude', 'longitude'])
+            ->map(fn ($w) => [
+                'id'        => $w->id,
+                'name'      => $w->name,
+                'address'   => $w->address,
+                'location'  => $w->location,
+                'latitude'  => $w->latitude  ? (float) $w->latitude  : null,
+                'longitude' => $w->longitude ? (float) $w->longitude : null,
+            ])
+            ->values();
+
         return Inertia::render('Admin/Orders/Show', [
             'order' => $payload,
             'riders' => $deliveryUsers,
             'delivery_users' => $deliveryUsers,
             'warehouses' => $warehouses,
+            'dispatch_centers' => $dispatchCenters,
             'googleMapsApiKey' => config('services.google_maps.api_key'),
             'rejectionReasons' => array_map(fn($key, $label) => ['id' => $key, 'name' => $label], array_keys(OrderItem::REJECTION_REASONS), OrderItem::REJECTION_REASONS),
             'declineReasons' => array_map(fn($key, $label) => ['id' => $key, 'name' => $label], array_keys(OrderItem::DECLINE_REASONS), OrderItem::DECLINE_REASONS),
@@ -222,16 +244,28 @@ class OrderController extends Controller
      */
     public function assignDelivery(Request $request, Order $order)
     {
-        // Ensure all items are received before assigning delivery
-        $all_received = $order->orderItems->every(fn($item) => $item->dispatch_status === OrderItem::DISPATCH_STATUS_RECEIVED);
+        // Declined/rejected items are excluded from delivery — only check deliverable items
+        $deliverableItems = $order->orderItems->whereNotIn('dispatch_status', [
+            OrderItem::DISPATCH_STATUS_DECLINED,
+            OrderItem::DISPATCH_STATUS_REJECTED,
+        ]);
+
+        if ($deliverableItems->isEmpty()) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Cannot assign delivery: all items have been declined or rejected.'], 422);
+            }
+            return back()->with('error', 'Cannot assign delivery: all items have been declined or rejected.');
+        }
+
+        $all_received = $deliverableItems->every(fn($item) => $item->dispatch_status === OrderItem::DISPATCH_STATUS_RECEIVED);
 
         if (!$all_received) {
             if ($request->expectsJson()) {
                 return response()->json([
-                    'message' => 'Cannot assign delivery until all items are confirmed received from sellers.'
+                    'message' => 'Cannot assign delivery until all remaining items are confirmed received from sellers.'
                 ], 422);
             }
-            return back()->with('error', 'Cannot assign delivery until all items are confirmed received from sellers.');
+            return back()->with('error', 'Cannot assign delivery until all remaining items are confirmed received from sellers.');
         }
 
         $request->validate([
@@ -411,14 +445,27 @@ class OrderController extends Controller
             return back()->with('error', 'Item must be dispatched before it can be received.');
         }
 
-        $item->update([
-            'dispatch_status' => OrderItem::DISPATCH_STATUS_RECEIVED,
-            'received_at' => now(),
-            'received_by' => auth()->id(),
-            'rejection_reason' => null,
-            'rejected_at' => null,
-            'rejected_by' => null,
-        ]);
+        DB::transaction(function () use ($item) {
+            $item->update([
+                'dispatch_status' => OrderItem::DISPATCH_STATUS_RECEIVED,
+                'received_at'     => now(),
+                'received_by'     => auth()->id(),
+                'rejection_reason' => null,
+                'rejected_at'     => null,
+                'rejected_by'     => null,
+            ]);
+
+            // Sync the warehouse receivable so dispatch center records stay consistent
+            WarehouseReceivable::where('warehouse_id', $item->dispatch_center_id)
+                ->where('order_id', $item->order_id)
+                ->where('product_variant_id', $item->product_variant_id)
+                ->where('status', 'pending')
+                ->update([
+                    'status'      => 'received',
+                    'received_by' => auth()->id(),
+                    'received_at' => now(),
+                ]);
+        });
 
         return back()->with('success', 'Item confirmed as received.');
     }
@@ -451,14 +498,28 @@ class OrderController extends Controller
             $reasonLabel = 'Other: ' . $request->other_reason;
         }
 
-        $item->update([
-            'dispatch_status' => OrderItem::DISPATCH_STATUS_REJECTED,
-            'rejection_reason' => $reasonLabel,
-            'rejected_at' => now(),
-            'rejected_by' => auth()->id(),
-            'received_at' => null,
-            'received_by' => null,
-        ]);
+        DB::transaction(function () use ($item, $reasonLabel) {
+            $item->update([
+                'dispatch_status'  => OrderItem::DISPATCH_STATUS_REJECTED,
+                'rejection_reason' => $reasonLabel,
+                'rejected_at'      => now(),
+                'rejected_by'      => auth()->id(),
+                'received_at'      => null,
+                'received_by'      => null,
+            ]);
+
+            // Sync the warehouse receivable so dispatch center records stay consistent
+            WarehouseReceivable::where('warehouse_id', $item->dispatch_center_id)
+                ->where('order_id', $item->order_id)
+                ->where('product_variant_id', $item->product_variant_id)
+                ->where('status', 'pending')
+                ->update([
+                    'status'          => 'rejected',
+                    'rejected_by'     => auth()->id(),
+                    'rejected_at'     => now(),
+                    'rejected_reason' => $reasonLabel,
+                ]);
+        });
 
         // Send email to seller
         $sellerEmail = $item->seller?->email ?? $item->seller?->user?->email;

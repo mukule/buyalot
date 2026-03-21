@@ -72,6 +72,8 @@ interface OrderPayload {
   all_items_received?: boolean;
 }
 
+interface DispatchCenter { id: number; name: string; address?: string | null; location?: string | null; latitude?: number | null; longitude?: number | null }
+
 const props = defineProps<{
   order: OrderPayload;
   delivery_users: DeliveryUser[];
@@ -79,9 +81,12 @@ const props = defineProps<{
   googleMapsApiKey?: string;
   rejectionReasons: { id: string; name: string }[];
   declineReasons: { id: string; name: string }[];
+  dispatch_centers?: DispatchCenter[];
 }>();
 
 const selectedItem = ref<OrderItemPayload | null>(null);
+const activeDispatchCenter = ref<DispatchCenter | null>(null);
+const selectedDispatchCenterId = ref<number | null>(null);
 const showDispatchModal = ref(false);
 const showDeclineModal = ref(false);
 const showReceiveModal = ref(false);
@@ -108,23 +113,29 @@ function loadGoogleMapsScript(): Promise<void> {
   });
 }
 
-function initMap() {
-  if (!mapContainer.value || !selectedItem.value?.dispatch_center?.latitude) return;
-  const center = {
-    lat: Number(selectedItem.value.dispatch_center.latitude),
-    lng: Number(selectedItem.value.dispatch_center.longitude)
-  };
+function initMap(center: { lat: number; lng: number }, title: string) {
+  if (!mapContainer.value) return;
+  if (map) {
+    map.setCenter(center);
+    if (marker) { marker.setPosition(center); marker.setTitle(title); }
+    return;
+  }
+  map = new google.maps.Map(mapContainer.value, { center, zoom: 15 });
+  marker = new google.maps.Marker({ position: center, map, title });
+}
 
-  map = new google.maps.Map(mapContainer.value, {
-    center,
-    zoom: 15,
+function openDispatchMap(dc: DispatchCenter | null) {
+  if (!props.googleMapsApiKey || !dc?.latitude || !dc?.longitude) return;
+  loadGoogleMapsScript().then(() => {
+    setTimeout(() => initMap({ lat: Number(dc.latitude), lng: Number(dc.longitude) }, dc.name), 200);
   });
+}
 
-  marker = new google.maps.Marker({
-    position: center,
-    map,
-    title: selectedItem.value.dispatch_center.name,
-  });
+function onDispatchCenterChange(id: number) {
+  selectedDispatchCenterId.value = id;
+  const dc = (props.dispatch_centers ?? []).find(c => c.id === id) ?? null;
+  activeDispatchCenter.value = dc;
+  openDispatchMap(dc);
 }
 
 const receiveItem = (itemId: number) => {
@@ -134,7 +145,7 @@ const receiveItem = (itemId: number) => {
 
 const confirmReceive = () => {
   if (!selectedItem.value) return;
-  router.post(route('admin.admin.orders.items.receive', { order: props.order.ulid ?? props.order.id, item: selectedItem.value.id }), {}, {
+  router.post(route('admin.orders.items.receive', { order: props.order.ulid ?? props.order.id, item: selectedItem.value.id }), {}, {
     onSuccess: () => { showReceiveModal.value = false; selectedItem.value = null; }
   });
 };
@@ -149,7 +160,7 @@ const rejectItem = (itemId: number) => {
 const confirmReject = () => {
   if (!selectedItem.value || !reason.value) return;
   if (reason.value === 'other' && !otherReason.value) return;
-  router.post(route('admin.admin.orders.items.reject', { order: props.order.ulid ?? props.order.id, item: selectedItem.value.id }), {
+  router.post(route('admin.orders.items.reject', { order: props.order.ulid ?? props.order.id, item: selectedItem.value.id }), {
     reason: reason.value,
     other_reason: otherReason.value
   }, {
@@ -171,19 +182,30 @@ const executeConfirmAvailable = () => {
 
 const dispatchItem = (itemId: number) => {
   selectedItem.value = props.order.order_items.find(i => i.id === itemId) || null;
-  showDispatchModal.value = true;
-  if (props.googleMapsApiKey) {
-    loadGoogleMapsScript().then(() => {
-      setTimeout(initMap, 200);
-    });
+  map = null;
+  marker = null;
+
+  // Prefer recorded dispatch center (if already dispatched), otherwise first available
+  if (selectedItem.value?.dispatch_center?.latitude) {
+    activeDispatchCenter.value = selectedItem.value.dispatch_center as DispatchCenter;
+    selectedDispatchCenterId.value = selectedItem.value.dispatch_center.id;
+  } else {
+    const first = (props.dispatch_centers ?? [])[0] ?? null;
+    activeDispatchCenter.value = first;
+    selectedDispatchCenterId.value = first?.id ?? null;
   }
+
+  showDispatchModal.value = true;
+  openDispatchMap(activeDispatchCenter.value);
 };
 
 const confirmDispatch = () => {
   if (!selectedItem.value) return;
-  router.post(route('orders.items.dispatch', { order: props.order.ulid ?? props.order.id, item: selectedItem.value.id }), {}, {
-    onSuccess: () => { showDispatchModal.value = false; selectedItem.value = null; }
-  });
+  router.post(
+    route('admin.orders.items.dispatch', { order: props.order.ulid ?? props.order.id, item: selectedItem.value.id }),
+    { dispatch_center_id: selectedDispatchCenterId.value },
+    { onSuccess: () => { showDispatchModal.value = false; selectedItem.value = null; } }
+  );
 };
 
 const declineDispatch = (itemId: number) => {
@@ -196,7 +218,7 @@ const declineDispatch = (itemId: number) => {
 const confirmDecline = () => {
   if (!selectedItem.value || !reason.value) return;
   if (reason.value === 'other' && !otherReason.value) return;
-  router.post(route('orders.items.decline', { order: props.order.ulid ?? props.order.id, item: selectedItem.value.id }), {
+  router.post(route('admin.orders.items.decline', { order: props.order.ulid ?? props.order.id, item: selectedItem.value.id }), {
     reason: reason.value,
     other_reason: otherReason.value
   }, {
@@ -643,22 +665,52 @@ function allocateForPickup() {
         <DialogContent class="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Dispatch Item</DialogTitle>
-            <DialogDescription>Confirm the dispatch of this item to the assigned center.</DialogDescription>
+            <DialogDescription>Bring this item to the dispatch center shown below, then confirm.</DialogDescription>
           </DialogHeader>
           <div class="space-y-4">
-            <p>You are about to dispatch <strong>{{ selectedItem?.product?.name }}</strong> to the dispatch center.</p>
-            <div v-if="selectedItem?.dispatch_center" class="rounded-md border p-3">
-              <p class="font-semibold">{{ selectedItem.dispatch_center.name }}</p>
-              <p class="text-sm text-muted-foreground">{{ selectedItem.dispatch_center.address }}</p>
+            <p>
+              Dispatching <strong>{{ selectedItem?.product?.name ?? '—' }}</strong>.
+              Please physically bring the item to the dispatch center location.
+            </p>
+
+            <!-- Center selector when multiple are available and item not yet dispatched -->
+            <div v-if="(dispatch_centers ?? []).length > 1 && selectedItem?.dispatch_status !== 'dispatched'" class="space-y-1">
+              <Label for="admin-dispatch-center-select" class="text-sm font-medium">Select dispatch center</Label>
+              <select
+                id="admin-dispatch-center-select"
+                :value="selectedDispatchCenterId"
+                @change="onDispatchCenterChange(Number(($event.target as HTMLSelectElement).value))"
+                class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option v-for="dc in dispatch_centers" :key="dc.id" :value="dc.id">
+                  {{ dc.name }}{{ dc.address ? ' — ' + dc.address : '' }}
+                </option>
+              </select>
             </div>
+
+            <!-- Dispatch center info card -->
+            <div v-if="activeDispatchCenter" class="rounded-md border border-blue-200 bg-blue-50 p-3">
+              <p class="font-semibold text-blue-900">{{ activeDispatchCenter.name }}</p>
+              <p v-if="activeDispatchCenter.address" class="text-sm text-blue-700">{{ activeDispatchCenter.address }}</p>
+              <p v-if="activeDispatchCenter.location" class="text-xs text-blue-600">{{ activeDispatchCenter.location }}</p>
+            </div>
+            <div v-else-if="!(dispatch_centers ?? []).length" class="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              No dispatch centers are currently available. Contact the administrator.
+            </div>
+
+            <!-- Map -->
             <div
-              v-if="selectedItem?.dispatch_center?.latitude"
+              v-if="activeDispatchCenter?.latitude"
               ref="mapContainer"
               class="h-[300px] w-full rounded border bg-muted"
             ></div>
+            <p v-else-if="activeDispatchCenter && !activeDispatchCenter.latitude" class="text-xs text-muted-foreground">
+              Map not available for this dispatch center.
+            </p>
+
             <div class="flex justify-end gap-2">
               <Button variant="outline" @click="showDispatchModal = false">Cancel</Button>
-              <Button @click="confirmDispatch">Confirm Dispatch</Button>
+              <Button :disabled="!activeDispatchCenter" @click="confirmDispatch">Confirm Dispatch</Button>
             </div>
           </div>
         </DialogContent>

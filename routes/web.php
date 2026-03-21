@@ -166,11 +166,11 @@ Route::middleware(['auth','role_or_permission:admin|view-orders'])->prefix('admi
     Route::post('/orders/{order}/assign-delivery', [\App\Http\Controllers\Admin\OrderController::class, 'assignDelivery'])
         ->name('orders.assign-delivery');
     Route::post('/orders/{order}/items/{item}/receive', [\App\Http\Controllers\Admin\OrderController::class, 'receiveItem'])
-        ->name('admin.orders.items.receive');
+        ->name('orders.items.receive');
     Route::post('/orders/{order}/items/{item}/reject', [\App\Http\Controllers\Admin\OrderController::class, 'rejectItem'])
-        ->name('admin.orders.items.reject');
+        ->name('orders.items.reject');
     Route::post('/orders/{order}/items/{item}/confirm-available', [\App\Http\Controllers\Admin\OrderController::class, 'confirmItemAvailable'])
-        ->name('admin.orders.items.confirm-available');
+        ->name('orders.items.confirm-available');
     Route::post('/orders/{order}/items/{item}/dispatch', [\App\Http\Controllers\Orders\OrderController::class, 'dispatchItem'])
         ->name('orders.items.dispatch');
     Route::post('/orders/{order}/items/{item}/decline', [\App\Http\Controllers\Orders\OrderController::class, 'declineDispatch'])
@@ -405,6 +405,11 @@ Route::get('/checkout/summary', [CartController::class, 'checkout'])
 // Checkout Payment page
 Route::get('/checkout/payment', [CartController::class, 'payment'])
     ->name('checkout.payment');
+
+// On-demand re-reservation: called by the payment page countdown timer
+// when the reservation window expires but the customer still wants to pay.
+Route::post('/checkout/re-reserve', [CartController::class, 'reReserve'])
+    ->name('checkout.re-reserve');
 
 // Terms & Conditions
 Route::get('/terms', function () {

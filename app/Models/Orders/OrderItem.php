@@ -225,6 +225,15 @@ class OrderItem extends Model
         return 'ulid';
     }
 
+    public function resolveRouteBinding($value, $field = null)
+    {
+        if (is_numeric($value)) {
+            return static::where('id', (int) $value)->first();
+        }
+
+        return static::where($field ?? $this->getRouteKeyName(), $value)->first();
+    }
+
     // Boot method for model events
     protected static function boot()
     {
