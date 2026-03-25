@@ -12,7 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('order_items', function (Blueprint $table) {
-            $table->dropForeign(['seller_id']);
+            try {
+                $table->dropForeign('order_items_seller_id_foreign');
+            } catch (\Exception $e) {
+            }
             $table->foreign('seller_id')
                 ->references('id')
                 ->on('seller_applications')
@@ -26,7 +29,11 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('order_items', function (Blueprint $table) {
-            $table->dropForeign(['seller_id']);
+            try {
+                $table->dropForeign('order_items_seller_id_foreign');
+                $table->dropColumn('seller_id');
+            } catch (\Exception $e) {
+            }
             $table->foreign('seller_id')
                 ->references('id')
                 ->on('sellers')
