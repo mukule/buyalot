@@ -351,7 +351,7 @@ function statusBadgeClass(status?: string) {
                 <div class="font-medium text-gray-800">{{ item.product?.name || item.product_variant?.product?.name || item.productVariant?.product?.name || 'Product' }}</div>
                 <div class="text-xs text-gray-500">Qty: {{ item.quantity }}</div>
                 <div v-if="item.dispatch_status" class="mt-1">
-                  <span
+                  <!-- <span
                     class="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
                     :class="{
                       'bg-gray-100 text-gray-600': item.dispatch_status === 'pending',
@@ -361,7 +361,7 @@ function statusBadgeClass(status?: string) {
                     }"
                   >
                     {{ item.dispatch_status }}
-                  </span>
+                  </span> -->
                   <div v-if="item.dispatch_decline_reason" class="mt-0.5 text-[10px] text-red-500">
                     Declined: {{ item.dispatch_decline_reason }}
                   </div>

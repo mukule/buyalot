@@ -618,6 +618,7 @@ onBeforeUnmount(() => stopLocationWatch());
                                 v-if="!order.picked_at"
                                 size="sm"
                                 @click="openConfirmPick(order)"
+                                class="text-white"
                             >
                                 Confirm items & mark as picked for delivery
                             </Button>
@@ -845,7 +846,7 @@ onBeforeUnmount(() => stopLocationWatch());
                 </div>
                 <DialogFooter>
                     <Button type="button" variant="outline" @click="closeConfirmPick">Cancel</Button>
-                    <Button @click="confirmPickedForDelivery">Items match – mark as picked for delivery</Button>
+                    <Button @click="confirmPickedForDelivery" class="text-white">Items match – mark as picked for delivery</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

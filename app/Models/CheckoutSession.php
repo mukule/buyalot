@@ -20,6 +20,9 @@ class CheckoutSession extends Model
         'ref_num',
         'status',
         'order_status',
+        'delivery_method',
+        'shipping_address_id',
+        'billing_address_id',
     ];
 
     /**

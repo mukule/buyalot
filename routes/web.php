@@ -158,6 +158,13 @@ Route::middleware(['auth','role:admin|seller|vendor|super-admin','check_permissi
 
 });
 
+// Internal notification endpoints — available to any authenticated user
+Route::middleware('auth')->prefix('notifications')->name('notifications.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\NotificationController::class, 'index'])->name('index');
+    Route::post('/read-all', [\App\Http\Controllers\NotificationController::class, 'markAllRead'])->name('readAll');
+    Route::post('/{id}/read', [\App\Http\Controllers\NotificationController::class, 'markRead'])->name('read');
+});
+
 // Allow non-admin users with specific permissions to access listing pages
 Route::middleware(['auth','role_or_permission:admin|view-orders'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/orders', [\App\Http\Controllers\Orders\OrderController::class, 'index'])->name('orders.index');

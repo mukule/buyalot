@@ -33,6 +33,7 @@ class OrderController extends Controller
             'payment_status' => 'sometimes|string|in:pending,paid,partially_paid,failed,refunded,partially_refunded',
             'fulfillment_status' => 'sometimes|string|in:unfulfilled,processing,partially_fulfilled,fulfilled,cancelled',
             'customer_id' => 'sometimes|integer|exists:customers,id',
+            'search' => 'sometimes|string|max:255',
             'order_code' => 'sometimes|string',
             'date_from' => 'sometimes|date',
             'date_to' => 'sometimes|date',
@@ -57,6 +58,18 @@ class OrderController extends Controller
             ->when($request->fulfillment_status, fn($q) => $q->where('fulfillment_status', $request->fulfillment_status))
             ->when($request->customer_id, fn($q) => $q->where('customer_id', $request->customer_id))
             ->when($request->order_code, fn($q) => $q->where('order_code', 'like', "%{$request->order_code}%"))
+            ->when($request->search, function ($q) use ($request) {
+                $term = $request->search;
+                $q->where(function ($sub) use ($term) {
+                    $sub->where('order_code', 'like', "%{$term}%")
+                        ->orWhereHas('customer', fn ($cq) => $cq
+                            ->where('first_name', 'like', "%{$term}%")
+                            ->orWhere('last_name', 'like', "%{$term}%")
+                            ->orWhere('email', 'like', "%{$term}%")
+                            ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$term}%"])
+                        );
+                });
+            })
             ->when($request->date_from, fn($q) => $q->whereDate('created_at', '>=', $request->date_from))
             ->when($request->date_to, fn($q) => $q->whereDate('created_at', '<=', $request->date_to));
 
@@ -93,7 +106,7 @@ class OrderController extends Controller
 
         return Inertia::render('Orders/Index', [
             'orders' => $orders,
-            'filters' => array_merge(['section' => $section], $request->only(['status', 'payment_status', 'fulfillment_status', 'customer_id', 'order_code', 'date_from', 'date_to'])),
+            'filters' => array_merge(['section' => $section], $request->only(['search', 'status', 'payment_status', 'fulfillment_status', 'customer_id', 'order_code', 'date_from', 'date_to'])),
             'statusOptions' => [
                 'pending', 'confirmed', 'processing', 'on_hold', 'out_for_delivery', 'shipped',
                 'delivered', 'returned', 'partially_returned', 'refunded', 'partially_refunded', 'cancelled', 'failed'
@@ -462,6 +475,7 @@ class OrderController extends Controller
             'customer_id'         => 'nullable|exists:customers,id',
             'notes'               => 'nullable|string|max:1000',
             'coupon_code'         => 'nullable|string',
+            'delivery_method'     => 'nullable|string|in:pickup,door',
         ]);
 
         try {
@@ -625,9 +639,6 @@ class OrderController extends Controller
                         break;
                     case 'delivered':
                         $updateData['delivered_at'] = now();
-                        if (! array_key_exists('fulfillment_status', $updateData)) {
-                            $updateData['fulfillment_status'] = 'fulfilled';
-                        }
                         break;
                     case 'cancelled':
                         $updateData['cancelled_at'] = now();

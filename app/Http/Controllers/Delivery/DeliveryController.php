@@ -18,6 +18,7 @@ use App\Models\Warehouse\WarehouseInventoryMovement;
 use App\Models\Warehouse\WarehouseManager;
 use App\Models\Warehouse\WarehouseProductInventory;
 use App\Models\Warehouse\WarehouseReceivable;
+use App\Notifications\OrderReadyForPickupNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -260,17 +261,22 @@ class DeliveryController extends Controller
         });
 
         $order->update([
-            'status' => 'shipped',
+            'status' => 'delivered',
             'shipped_at' => $order->shipped_at ?? now(),
+            'delivered_at' => now(),
         ]);
 
+        $order->load('customer.user');
         $pickupWarehouse = $delivery->pickupWarehouse;
         $customer = $order->customer;
-        if ($customer && $customer->email) {
+        if ($customer) {
             $pickupName = $pickupWarehouse ? $pickupWarehouse->name : 'Pick up point';
             $pickupAddress = $pickupWarehouse ? ($pickupWarehouse->address ?? $pickupWarehouse->location) : null;
             $pickupDetail = $pickupWarehouse && $pickupWarehouse->location ? $pickupWarehouse->location : null;
-            Mail::to($customer->email)->send(new OrderReadyForPickup($order, $pickupName, $pickupAddress, $pickupDetail));
+            if ($customer->email) {
+                Mail::to($customer->email)->send(new OrderReadyForPickup($order, $pickupName, $pickupAddress, $pickupDetail));
+            }
+            $customer->user?->notify(new OrderReadyForPickupNotification($order, $pickupName, $pickupAddress));
         }
 
         return back()->with('success', 'Order received at pickup point. Customer has been notified.');
@@ -436,11 +442,10 @@ class DeliveryController extends Controller
             return back()->with('error', 'Please collect and confirm payment (cash or M-Pesa) before marking as delivered.');
         }
 
-        DB::transaction(function () use ($order, $delivery, $request) {
+        DB::transaction(function () use ($order, $delivery, $request, $isCod) {
             $delivery->update(['delivered_at' => now()]);
             $order->update([
                 'status' => 'delivered',
-                'fulfillment_status' => 'fulfilled',
                 'delivered_at' => $order->delivered_at ?? now(),
             ]);
 

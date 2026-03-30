@@ -106,6 +106,9 @@ class HandleInertiaRequests extends Middleware
             'googleMapsApiKey' => config('services.google.maps_api_key', ''),
 
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+
+            // Unread notification count — lazily evaluated per request for authenticated users
+            'unread_notifications_count' => fn () => $user ? $user->unreadNotifications()->count() : 0,
         ];
     }
 }

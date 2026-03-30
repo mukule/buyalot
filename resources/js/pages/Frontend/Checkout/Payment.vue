@@ -106,10 +106,10 @@ const hasDeliveryCoordinates = computed(() => {
 const effectiveShipping = computed(() => Number(cart.totals.shipping ?? 0));
 const effectiveGrandTotal = computed(() => Number(cart.totals.grand_total ?? 0));
 
-// Pay on Delivery: available when no cod_min_amount set, or when order total >= cod_min_amount
-const codMinAmount = (props.cod_min_amount as number | null | undefined) ?? null;
+// Pay on Delivery: available when no cod_max_amount set, or when order total <= cod_max_amount
+const codMaxAmount = (props.cod_max_amount as number | null | undefined) ?? null;
 const isCodAvailable = computed(() =>
-    codMinAmount == null ? true : effectiveGrandTotal.value >= codMinAmount,
+    codMaxAmount == null ? true : effectiveGrandTotal.value <= codMaxAmount,
 );
 
 const formatPrice = (amount?: number | null) => {
@@ -327,6 +327,7 @@ async function startPayment() {
             shipping_amount: shippingAmount,
             payment_provider: 'mpesa',
             phone: phone.value.trim(),
+            delivery_method: selected_shipping.value?.method ?? null,
         };
 
         const axios = (window as any).axios || (await import('axios')).default;
@@ -491,6 +492,7 @@ async function placeCashOnDeliveryOrder() {
                 coupon_code: cart.coupon_code,
                 shipping_amount: shippingAmount,
                 payment_provider: 'cod',
+                delivery_method: selected_shipping.value?.method ?? null,
             },
             {
                 headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -711,9 +713,9 @@ const paymentMethod = ref<'mpesa' | 'cod'>('mpesa');
                                     <span class="text-sm font-medium text-gray-800"> Pay on Delivery </span>
                                 </label>
 
-                                <p v-else-if="codMinAmount != null" class="rounded border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                                    Pay on Delivery is available for orders over KSh {{ Math.round(codMinAmount).toLocaleString() }}. Your order total is {{ formatPrice(effectiveGrandTotal) }}.
-                                </p>
+                                <!-- <p v-else-if="codMaxAmount != null" class="rounded border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                    Pay on Delivery is only available for orders up to KSh {{ Math.round(codMaxAmount).toLocaleString() }}. Your order total is {{ formatPrice(effectiveGrandTotal) }}.
+                                </p> -->
                             </div>
                         </div>
 

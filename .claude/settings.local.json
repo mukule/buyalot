@@ -12,7 +12,8 @@
       "Bash(php -l app/Console/Commands/ReleaseExpiredReservations.php)",
       "Bash(php -l routes/console.php)",
       "Bash(php -l app/Http/Controllers/CartController.php)",
-      "Bash(php -l \"d:/Newfolder/buyalot/app/Services/CartReservationService.php\")"
+      "Bash(php -l \"d:/Newfolder/buyalot/app/Services/CartReservationService.php\")",
+      "Bash(find d:Newfolderbuyalot/app/Mail -name OrderReady* -o -name *Pickup*)"
     ]
   }
 }

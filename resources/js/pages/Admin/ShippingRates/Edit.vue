@@ -17,7 +17,7 @@ const page = usePage<
             door_fallback_price?: number;
             door_fallback_min_km?: number;
             door_extra_km_cost?: number;
-            cod_min_amount?: number | null;
+            cod_max_amount?: number | null;
             free_shipping_min_amount?: number | null;
             max_shipping_fee?: number | null;
             express_price?: number;
@@ -44,7 +44,7 @@ const form = useForm({
     door_fallback_price: rate.door_fallback_price ?? rate.door_price ?? 250,
     door_fallback_min_km: rate.door_fallback_min_km ?? 10,
     door_extra_km_cost: rate.door_extra_km_cost ?? 20,
-    cod_min_amount: rate.cod_min_amount ?? null,
+    cod_max_amount: rate.cod_max_amount ?? null,
     free_shipping_min_amount: rate.free_shipping_min_amount ?? null,
     max_shipping_fee: rate.max_shipping_fee ?? null,
 });
@@ -180,18 +180,18 @@ function updateRate() {
                         <h4 class="mb-3 text-sm font-semibold text-amber-800">Policy Rules</h4>
                         <div class="grid gap-3 sm:grid-cols-2">
                             <div>
-                                <label for="cod_min_amount" class="mb-1 block text-sm font-medium text-gray-700">Pay on Delivery min (KSh)</label>
+                                <label for="cod_max_amount" class="mb-1 block text-sm font-medium text-gray-700">Pay on Delivery max (KSh)</label>
                                 <input
-                                    v-model.number="form.cod_min_amount"
-                                    id="cod_min_amount"
+                                    v-model.number="form.cod_max_amount"
+                                    id="cod_max_amount"
                                     type="number"
                                     min="0"
                                     step="1"
                                     placeholder="e.g. 50000"
                                     class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:ring-2 focus:ring-[color:var(--primary)] focus:outline-none"
                                 />
-                                <p class="mt-1 text-xs text-gray-500">Min order total for Pay on Delivery.</p>
-                                <div v-if="form.errors.cod_min_amount" class="mt-1 text-sm text-red-600">{{ form.errors.cod_min_amount }}</div>
+                                <p class="mt-1 text-xs text-gray-500">Max order total for Pay on Delivery.</p>
+                                <div v-if="form.errors.cod_max_amount" class="mt-1 text-sm text-red-600">{{ form.errors.cod_max_amount }}</div>
                             </div>
                             <div>
                                 <label for="free_shipping_min_amount" class="mb-1 block text-sm font-medium text-gray-700">Free shipping min (KSh)</label>

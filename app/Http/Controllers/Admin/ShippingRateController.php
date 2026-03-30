@@ -46,7 +46,7 @@ class ShippingRateController extends Controller
             'door_fallback_price'   => ['required', 'numeric', 'min:0'],
             'door_fallback_min_km'  => ['required', 'numeric', 'min:0'],
             'door_extra_km_cost'    => ['required', 'numeric', 'min:0'],
-            'cod_min_amount'        => ['nullable', 'numeric', 'min:0'],
+            'cod_max_amount'        => ['nullable', 'numeric', 'min:0'],
             'free_shipping_min_amount' => ['nullable', 'numeric', 'min:0'],
             'max_shipping_fee'      => ['nullable', 'numeric', 'min:0'],
         ]);
@@ -69,7 +69,7 @@ class ShippingRateController extends Controller
             'door_fallback_price'      => $request->door_fallback_price,
             'door_fallback_min_km'     => $request->door_fallback_min_km,
             'door_extra_km_cost'       => $request->door_extra_km_cost,
-            'cod_min_amount'           => $request->cod_min_amount ?: null,
+            'cod_max_amount'           => $request->cod_max_amount ?: null,
             'free_shipping_min_amount' => $request->free_shipping_min_amount ?: null,
             'max_shipping_fee'         => $request->max_shipping_fee ?: null,
         ]);
@@ -107,7 +107,7 @@ class ShippingRateController extends Controller
             'door_fallback_price'      => ['required', 'numeric', 'min:0'],
             'door_fallback_min_km'     => ['required', 'numeric', 'min:0'],
             'door_extra_km_cost'       => ['required', 'numeric', 'min:0'],
-            'cod_min_amount'           => ['nullable', 'numeric', 'min:0'],
+            'cod_max_amount'           => ['nullable', 'numeric', 'min:0'],
             'free_shipping_min_amount' => ['nullable', 'numeric', 'min:0'],
             'max_shipping_fee'         => ['nullable', 'numeric', 'min:0'],
         ]);
@@ -131,7 +131,7 @@ class ShippingRateController extends Controller
             'door_fallback_price'      => $request->door_fallback_price,
             'door_fallback_min_km'     => $request->door_fallback_min_km,
             'door_extra_km_cost'       => $request->door_extra_km_cost,
-            'cod_min_amount'           => $request->cod_min_amount ?: null,
+            'cod_max_amount'           => $request->cod_max_amount ?: null,
             'free_shipping_min_amount' => $request->free_shipping_min_amount ?: null,
             'max_shipping_fee'         => $request->max_shipping_fee ?: null,
         ]);

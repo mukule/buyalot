@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Mail\DeliveryOrderAssigned;
 use App\Models\Orders\Delivery;
+use App\Notifications\OrderAssignedToDeliveryNotification;
 use App\Models\Orders\Order;
 use App\Models\Orders\OrderItem;
 use App\Models\User;
@@ -316,6 +317,8 @@ class OrderController extends Controller
             $loginUrl
         ));
 
+        $deliveryUser->notify(new OrderAssignedToDeliveryNotification($order));
+
         return back()->with('success', 'Delivery person assigned and notified by email.');
     }
 
@@ -381,6 +384,8 @@ class OrderController extends Controller
             $deliveryNoteSummary,
             $loginUrl
         ));
+
+        $deliveryUser->notify(new OrderAssignedToDeliveryNotification($order));
 
         return back()->with('success', 'Delivery person updated and notified by email.');
     }

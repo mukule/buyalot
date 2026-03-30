@@ -65,7 +65,10 @@ class ShippingService
             'fallback_min_km' => (float) ($rate->door_fallback_min_km ?? 10),
             'extra_km_cost'   => (float) ($rate->door_extra_km_cost ?? 20),
             'min_shipping'    => (int) round($rate->doorMinimumCost()),
-            'max_shipping_fee' => $rate->max_shipping_fee !== null ? (int) round($rate->max_shipping_fee) : null,
+            // Effective cap is max(max_shipping_fee, fallback) — cap never undercuts the minimum.
+            'max_shipping_fee' => $rate->max_shipping_fee !== null
+                ? (int) round(max((float) $rate->max_shipping_fee, $rate->doorMinimumCost()))
+                : null,
         ];
     }
 
@@ -116,19 +119,22 @@ class ShippingService
      * Calculate home delivery cost from Shipping Rates (Door Delivery/KM).
      * Uses door_fallback_price, door_fallback_min_km, door_extra_km_cost.
      * Rounded to whole number. Minimum is the rate's configured door minimum cost.
+     * When a Region is supplied the zone-specific rate is used; otherwise falls
+     * back to the default (no-zone) rate.
      */
-    public function calculateHomeDeliveryCost(float $distanceKm): float
+    public function calculateHomeDeliveryCost(float $distanceKm, ?Region $region = null): float
     {
-        $rate = $this->getHomeDeliveryRate();
+        $rate = $region ? $this->getRateForRegion($region) : $this->getHomeDeliveryRate();
         if (!$rate) {
             return 0.0;
         }
 
-        $cost = $rate->calculateDoorCostByDistance($distanceKm);
+        $cost    = $rate->calculateDoorCostByDistance($distanceKm);
         $minCost = (int) round($rate->doorMinimumCost());
         $computed = (float) max($minCost, (int) round($cost));
 
-        return $rate->applyCap($computed);
+        // applyHomeDeliveryCap ensures the cap never falls below the fallback price.
+        return $rate->applyHomeDeliveryCap($computed);
     }
 
     /**
@@ -243,7 +249,8 @@ class ShippingService
         }
 
         $pickupCost = (int) round($rate->applyCap($rate->costForTier($tier)));
-        $doorCost   = (int) round($rate->applyCap($rate->doorMinimumCost()));
+        // Home delivery cap must not undercut the fallback price.
+        $doorCost   = (int) round($rate->applyHomeDeliveryCap($rate->doorMinimumCost()));
 
         // Free shipping when rate has free_shipping_min_amount and order total >= that amount
         $freeShippingMin = $rate->free_shipping_min_amount !== null ? (float) $rate->free_shipping_min_amount : null;

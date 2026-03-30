@@ -24,7 +24,7 @@ class OrderProcessingService
     public function process(int $cartId, array $data)
     {
         $cart = Cart::with(['items.productVariant.product'])->findOrFail($cartId);
-        $amounts = $this->calculateTotals($cart, $data['shipping_amount'] ?? 0);
+        $amounts = $this->calculateTotals($cart, $data['shipping_amount'] ?? 0, $data['shipping_address_id'] ?? null);
 
         // Detect retry: if this cart already has live reservations the customer
         // has previously attempted payment and the window is still open.
@@ -40,9 +40,9 @@ class OrderProcessingService
             $paymentInit = $this->initializeMpesa($session, $amounts['total'], $data['phone']);
         }
         if ($data['payment_provider'] === 'cod') {
-            $codMinAmount = $this->getCodMinAmountForAddress($data['shipping_address_id'] ?? null);
-            if ($codMinAmount !== null && $amounts['total'] < $codMinAmount) {
-                throw new \Exception("Pay on Delivery is only available for orders over KSh " . number_format($codMinAmount) . ". Your order total is KSh " . number_format($amounts['total']) . ". Please use M-Pesa for orders under KSh " . number_format($codMinAmount) . ".");
+            $codMaxAmount = $this->getCodMaxAmountForAddress($data['shipping_address_id'] ?? null);
+            if ($codMaxAmount !== null && $amounts['total'] > $codMaxAmount) {
+                throw new \Exception("Pay on Delivery is only available for orders up to KSh " . number_format($codMaxAmount) . ". Your order total is KSh " . number_format($amounts['total']) . ". Please use M-Pesa for orders over KSh " . number_format($codMaxAmount) . ".");
             }
             $checkoutSession = CheckoutSession::where('cart_id', $cartId)->first();
             // Update checkout session status first
@@ -69,10 +69,17 @@ class OrderProcessingService
         return [$session, $paymentInit];
     }
 
-    protected function calculateTotals($cart, $shipping)
+    protected function calculateTotals($cart, $shipping, $addressId = null)
     {
         $totalItemsPrice = $cart->items->sum(fn($i) => ($i->unit_price ?? 0) * $i->quantity);
         $shippingRounded = max(0, (int) round((float) $shipping));
+
+        // Server-side: enforce max_shipping_fee cap so no matter what the client
+        // sends, the charge never exceeds the configured maximum for the zone.
+        if ($shippingRounded > 0 && $addressId) {
+            $shippingRounded = $this->applyMaxShippingFeeCap($shippingRounded, (int) $addressId);
+        }
+
         $total = (int) round($totalItemsPrice + $shippingRounded);
 
         return [
@@ -81,6 +88,35 @@ class OrderProcessingService
             'shipping' => $shippingRounded,
             'total'    => $total
         ];
+    }
+
+    /**
+     * Cap the computed shipping fee against the max_shipping_fee configured on the
+     * shipping rate that applies to the delivery address's zone.
+     *
+     * For home delivery the effective cap is max(max_shipping_fee, door_fallback_price)
+     * so the cap never undercuts the configured minimum fallback amount.
+     * For pickup the plain max_shipping_fee cap is applied.
+     */
+    private function applyMaxShippingFeeCap(int $shipping, int $addressId): int
+    {
+        $address = CustomerAddress::with('region.zone')->find($addressId);
+        if (!$address || !$address->region) {
+            return $shipping;
+        }
+
+        $zoneId = $address->region->zone_id ?? $address->region->zone?->id;
+        $rate = app(ShippingService::class)->getRateForZone($zoneId);
+
+        if (!$rate) {
+            return $shipping;
+        }
+
+        $isHomeDelivery = !$address->pickup_warehouse_id;
+
+        return $isHomeDelivery
+            ? (int) round($rate->applyHomeDeliveryCap($shipping))
+            : (int) round($rate->applyCap($shipping));
     }
 
     protected function reserveStock($cart, int $ttlSeconds = CartReservationService::TTL_INITIAL)
@@ -123,7 +159,7 @@ class OrderProcessingService
      * Applies to both pickup point and home delivery: zone is resolved from address's region.
      * Returns null if no restriction (COD available for any amount).
      */
-    protected function getCodMinAmountForAddress(?int $addressId): ?float
+    protected function getCodMaxAmountForAddress(?int $addressId): ?float
     {
         if (!$addressId) {
             return null;
@@ -134,8 +170,8 @@ class OrderProcessingService
         }
         $zoneId = $address->region->zone_id ?? $address->region->zone?->id;
         $rate = app(ShippingService::class)->getRateForZone($zoneId);
-        $min = $rate?->cod_min_amount;
-        return $min !== null ? (float) $min : null;
+        $max = $rate?->cod_max_amount;
+        return $max !== null ? (float) $max : null;
     }
 
     protected function updateOrCreateSession($cart, $amounts, $data)
@@ -143,13 +179,16 @@ class OrderProcessingService
         $session = CheckoutSession::firstOrNew(['cart_id' => $cart->id]);
         $session->ref_num = $session->ref_num ?? CheckoutSession::generateRefNum();
         $session->fill([
-            'customer_id' => $data['customer_id'] ?? auth()->user()?->customer?->id,
-            'cart_amount' => $amounts['cart'],
-            'discount_amount' => $amounts['discount'],
-            'shipping_amount' => $amounts['shipping'],
-            'amount' => $amounts['total'],
-            'currency' => $cart->currency ?? 'KES',
-            'status' => 'pending',
+            'customer_id'       => $data['customer_id'] ?? auth()->user()?->customer?->id,
+            'cart_amount'       => $amounts['cart'],
+            'discount_amount'   => $amounts['discount'],
+            'shipping_amount'   => $amounts['shipping'],
+            'amount'            => $amounts['total'],
+            'currency'          => $cart->currency ?? 'KES',
+            'status'            => 'pending',
+            'delivery_method'   => $data['delivery_method'] ?? null,
+            'shipping_address_id' => isset($data['shipping_address_id']) ? (int) $data['shipping_address_id'] : null,
+            'billing_address_id'  => isset($data['billing_address_id'])  ? (int) $data['billing_address_id']  : null,
         ])->save();
 
         return $session;

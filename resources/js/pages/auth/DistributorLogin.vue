@@ -44,9 +44,9 @@ const submit = () => {
 <template>
     <VendorAuthLayout
         :title="`Welcome back to ${appName}`"
-        description="Access your distributor portal."
+        description="Access your delivery portal."
     >
-        <Head :title="`${appName} Distributor Login`" />
+        <Head :title="`${appName} Delivery Login`" />
 
         <div v-if="status" class="mb-4 text-sm font-medium text-green-600">
             {{ status }}

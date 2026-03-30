@@ -3,16 +3,19 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import type { AppPageProps, Order } from '@/types'
 import { Head, router, useForm, usePage, Link } from '@inertiajs/vue3'
 import { computed, ref, watch } from 'vue'
+import { useDebounceFn } from '@vueuse/core'
 
 // Props from Inertia page
 const page = usePage<AppPageProps<{
-    orders: Order[]
+    orders: { data: Order[]; links: any[] }
     filters?: {
         section?: string
-        order_code?: string
+        search?: string
         status?: string
         payment_status?: string
         fulfillment_status?: string
+        date_from?: string
+        date_to?: string
     }
     statusOptions: string[]
     paymentStatusOptions: string[]
@@ -27,10 +30,12 @@ const currentSection = computed(() => filters.value.section || 'in_progress')
 // Form for filters
 const searchForm = useForm({
     section: filters.value.section || 'in_progress',
-    order_code: filters.value.order_code || '',
+    search: filters.value.search || '',
     status: filters.value.status || '',
     payment_status: filters.value.payment_status || '',
     fulfillment_status: filters.value.fulfillment_status || '',
+    date_from: filters.value.date_from || '',
+    date_to: filters.value.date_to || '',
 })
 
 // Selected orders for bulk actions (if needed)
@@ -44,20 +49,24 @@ const breadcrumbs = computed(() => [
     { title: currentSection.value === 'delivered' ? 'Delivered' : 'In progress', href: '#' },
 ])
 
+const hasActiveFilters = computed(() =>
+    !!(searchForm.search || searchForm.status || searchForm.payment_status || searchForm.fulfillment_status || searchForm.date_from || searchForm.date_to)
+)
+
 // Filter search
 function search() {
-    router.get(
-        route('admin.orders.index'),
-        {
-            section: searchForm.section,
-            order_code: searchForm.order_code,
-            status: searchForm.status,
-            payment_status: searchForm.payment_status,
-            fulfillment_status: searchForm.fulfillment_status,
-        },
-        { preserveState: true, replace: true }
-    )
+    const params: Record<string, string> = { section: searchForm.section }
+    if (searchForm.search) params.search = searchForm.search
+    if (searchForm.status) params.status = searchForm.status
+    if (searchForm.payment_status) params.payment_status = searchForm.payment_status
+    if (searchForm.fulfillment_status) params.fulfillment_status = searchForm.fulfillment_status
+    if (searchForm.date_from) params.date_from = searchForm.date_from
+    if (searchForm.date_to) params.date_to = searchForm.date_to
+
+    router.get(route('admin.orders.index'), params, { preserveState: true, replace: true })
 }
+
+const debouncedSearch = useDebounceFn(search, 350)
 
 function setSection(section: 'in_progress' | 'delivered') {
     searchForm.section = section
@@ -66,10 +75,12 @@ function setSection(section: 'in_progress' | 'delivered') {
 
 // Clear filters
 function clearFilters() {
-    searchForm.order_code = ''
+    searchForm.search = ''
     searchForm.status = ''
     searchForm.payment_status = ''
     searchForm.fulfillment_status = ''
+    searchForm.date_from = ''
+    searchForm.date_to = ''
     search()
 }
 
@@ -82,18 +93,11 @@ function toggleSelectAll() {
     }
 }
 
-// Watch filters and auto-search
+// Debounce the text search; fire immediately for dropdowns/dates
+watch(() => searchForm.search, debouncedSearch)
 watch(
-    [
-        () => searchForm.order_code,
-        () => searchForm.status,
-        () => searchForm.payment_status,
-        () => searchForm.fulfillment_status,
-    ],
-    () => {
-        search()
-    },
-    { debounce: 300 }
+    [() => searchForm.status, () => searchForm.payment_status, () => searchForm.fulfillment_status, () => searchForm.date_from, () => searchForm.date_to],
+    search,
 )
 </script>
 
@@ -131,13 +135,13 @@ watch(
                     </div>
 
                 <!-- Filters -->
-                <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                    <div class="flex flex-col gap-4 md:flex-row md:items-center">
+                <div class="flex flex-col gap-3">
+                    <div class="flex flex-col gap-3 md:flex-row md:items-center md:flex-wrap">
                         <input
-                            v-model="searchForm.order_code"
+                            v-model="searchForm.search"
                             type="text"
-                            placeholder="Search order code..."
-                            class="w-full rounded-lg border border-gray-300 px-4 py-2 md:w-64"
+                            placeholder="Search by order code, customer name or email..."
+                            class="w-full rounded-lg border border-gray-300 px-4 py-2 md:w-80"
                         />
                         <select v-model="searchForm.status" class="rounded-lg border border-gray-300 px-4 py-2">
                             <option value="">All Status</option>
@@ -151,11 +155,20 @@ watch(
                             <option value="">All Fulfillment</option>
                             <option v-for="f in page.props.fulfillmentStatusOptions" :key="f" :value="f">{{ f }}</option>
                         </select>
-
+                    </div>
+                    <div class="flex flex-col gap-3 md:flex-row md:items-center">
+                        <div class="flex items-center gap-2">
+                            <label class="text-sm text-gray-600 whitespace-nowrap">From</label>
+                            <input v-model="searchForm.date_from" type="date" class="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="text-sm text-gray-600 whitespace-nowrap">To</label>
+                            <input v-model="searchForm.date_to" type="date" class="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                        </div>
                         <button
-                            v-if="searchForm.order_code || searchForm.status || searchForm.payment_status || searchForm.fulfillment_status"
+                            v-if="hasActiveFilters"
                             @click="clearFilters"
-                            class="text-sm text-gray-600 hover:text-gray-800"
+                            class="text-sm text-gray-600 hover:text-gray-800 underline"
                         >
                             Clear filters
                         </button>

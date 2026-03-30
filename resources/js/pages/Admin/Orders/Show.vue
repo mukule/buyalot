@@ -523,7 +523,7 @@ function allocateForPickup() {
                   {{ u.name }} ({{ u.email }})
                 </option>
               </select>
-              <Button size="sm" :disabled="!canAssign() || assignForm.processing" @click="assignDelivery">
+              <Button class="text-white" size="sm" :disabled="!canAssign() || assignForm.processing" @click="assignDelivery">
                 Assign & send email
               </Button>
               <Button size="sm" variant="outline" @click="viewDeliveryNote">View delivery note</Button>

@@ -407,13 +407,15 @@ public function store(Request $request, CartReservationService $cartService)
         }
 
         $distanceKm = $shippingService->distanceKm($lat, $lng, $center['lat'], $center['lng']);
-        $shippingCost = $shippingService->calculateHomeDeliveryCost($distanceKm);
 
-        // Nairobi: free shipping when order total >= KSh 50,000
+        // Resolve zone-aware options (handles free shipping threshold and max_shipping_fee cap)
         $options = $shippingService->getOptionsByRegion($region->id, $orderTotalBeforeShipping);
-        if (($options['door']['cost'] ?? $shippingCost) === 0) {
-            $shippingCost = 0;
-        }
+        $isFreeShipping = ($options['door']['cost'] ?? 1) === 0;
+
+        // Use the zone-specific rate for distance-based calculation; cap applied inside
+        $shippingCost = $isFreeShipping
+            ? 0
+            : $shippingService->calculateHomeDeliveryCost($distanceKm, $region);
 
         $days = $options['door']['days'] ?? 2;
 
@@ -576,11 +578,22 @@ public function store(Request $request, CartReservationService $cartService)
 
     if ($customer && $addressIdFromSummary && $shippingCostFromSummary !== null && $deliveryMethodFromSummary) {
         $address = $customer->addresses()
-            ->with(['pickupPoint.region', 'region', 'pickupWarehouse' => fn ($q) => $q->withoutGlobalScopes()->with('region')])
+            ->with(['pickupPoint.region', 'region.zone', 'pickupWarehouse' => fn ($q) => $q->withoutGlobalScopes()->with('region')])
             ->find($addressIdFromSummary);
         if ($address) {
             $defaultAddress = $address;
             $shippingCost = max(0, (int) round((float) $shippingCostFromSummary));
+
+            // For home delivery, enforce max_shipping_fee cap — but the cap must not
+            // undercut the fallback price, so applyHomeDeliveryCap() is used.
+            if ($shippingCost > 0 && $deliveryMethodFromSummary === 'door') {
+                $zoneId = $address->region?->zone_id ?? $address->region?->zone?->id;
+                $rate = $shippingService->getRateForZone($zoneId);
+                if ($rate) {
+                    $shippingCost = (int) round($rate->applyHomeDeliveryCap($shippingCost));
+                }
+            }
+
             $selectedShipping = [
                 'method'       => $deliveryMethodFromSummary === 'door' ? 'door' : 'pickup',
                 'cost'         => $shippingCost,
@@ -641,12 +654,12 @@ public function store(Request $request, CartReservationService $cartService)
     $grandTotal = (int) round($cartTotal + $shippingCost - $couponAmount);
 
     // COD min amount from shipping rate – applies to both pickup and home delivery
-    $codMinAmount = null;
+    $codMaxAmount = null;
     if ($defaultAddress) {
         $defaultAddress->loadMissing('region.zone');
         $zoneId = $defaultAddress->region?->zone_id ?? $defaultAddress->region?->zone?->id;
         $rate = $zoneId ? $shippingService->getRateForZone($zoneId) : null;
-        $codMinAmount = $rate?->cod_min_amount;
+        $codMaxAmount = $rate?->cod_max_amount;
     }
 
     // Related products
@@ -678,7 +691,7 @@ public function store(Request $request, CartReservationService $cartService)
         'shipping_address_id' => $defaultAddressId,
         'billing_address_id'  => $defaultAddressId,
         'default_phone'            => $defaultPhone,
-        'cod_min_amount'           => $codMinAmount,
+        'cod_max_amount'           => $codMaxAmount,
         'relatedProducts'          => $relatedProducts,
         'googleMapsApiKey'         => config('services.google.maps_api_key', ''),
         'reservation_expires_at'   => $reservationExpiresAt?->toIso8601String(),
