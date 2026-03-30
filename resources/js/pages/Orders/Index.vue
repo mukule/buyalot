@@ -202,7 +202,7 @@ watch(
                             <th class="px-4 py-3">Status</th>
                             <th class="px-4 py-3">Payment</th>
                             <th class="px-4 py-3">Total</th>
-                            <th class="px-4 py-3">Delivery</th>
+                            <th class="px-4 py-3">Delivery Person Assigned</th>
                             <th class="px-4 py-3">Date</th>
                             <th class="px-4 py-3">Actions</th>
                         </tr>

@@ -25,6 +25,8 @@ class MpesaRequestController extends Controller
     }
     public function initiate(InitiatePaymentRequest $request): JsonResponse
     {
+        logger()->info('Payment initiated', [$request->validated()]);
+
         try {
             $payable = $request->getPayable();
             // If paying for an order, ensure there is enough stock before allowing payment
@@ -122,7 +124,7 @@ class MpesaRequestController extends Controller
         'ip' => request()->ip(),
         'user_id' => auth()->id(),
     ]);
-    
+
         /** @var MpesaRequest|null $log */
         $log = MpesaRequest::query()
             ->where('checkout_request_id', $checkout_request_id)

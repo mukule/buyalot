@@ -443,7 +443,7 @@ function allocateForPickup() {
                   {{ u.name }} ({{ u.email }})
                 </option>
               </select>
-              <Button size="sm" :disabled="!canChange() || changeForm.processing" @click="changeDelivery">
+              <Button class="text-white" size="sm" :disabled="!canChange() || changeForm.processing" @click="changeDelivery">
                 Change delivery person
               </Button>
               <Button size="sm" variant="outline" @click="viewDeliveryNote">View delivery note</Button>
@@ -849,7 +849,7 @@ function allocateForPickup() {
             <p>Are you sure this item <strong>{{ selectedItem?.product?.name }}</strong> is available at the dispatch center?</p>
             <div class="flex justify-end gap-2">
               <Button variant="outline" @click="showConfirmAvailableModal = false">Cancel</Button>
-              <Button @click="executeConfirmAvailable">Confirm Available</Button>
+              <Button @click="executeConfirmAvailable" class="text-white">Confirm Available</Button>
             </div>
           </div>
         </DialogContent>
