@@ -121,6 +121,7 @@ protected function handleStep1(array $data, ?User $user, ?array $images, ?Produc
         $product->update(Arr::only($data, [
             'product_code',
             'name',
+            'package_size',
             'brand_id',
             'category_id',
             'unit_id',

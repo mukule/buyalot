@@ -81,10 +81,7 @@ class ShippingRateController extends Controller
  
     public function edit(ShippingRate $shippingRate)
     {
-        Log::info('Admin/ShippingRateController@edit called', [
-            'user_id' => auth()->id(),
-            'route'   => request()->fullUrl(),
-        ]);
+       
 
         $packageSizes = ['small', 'medium', 'large'];
         $zones = Zone::orderBy('name')->get(['id', 'name', 'tier']);

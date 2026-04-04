@@ -249,6 +249,7 @@ public function create()
         'specifications' => $draftProduct->specifications,
         'whats_in_the_box' => $draftProduct->whats_in_the_box,
         'video_url' => $draftProduct->video_url,
+        'package_size' => $draftProduct->package_size,
         'variant_rows' => $variantRows,
         'images' => $draftProduct->images ?? [],
     ] : null;
@@ -294,25 +295,7 @@ public function edit(Product $product)
         ->with(['values.variant', 'images' => fn($q) => $q->orderBy('sort_order')])
         ->get();
 
-    // \Log::info('Raw Product Variants', [
-    //     'product_id' => $product->id,
-    //     'variant_count' => $variants->count(),
-    //     'variants' => $variants->map(fn($v) => [
-    //         'id' => $v->id,
-    //         'sku' => $v->sku,
-    //         'values_count' => $v->values->count(),
-    //         'null_variant_relations' => $v->values->filter(fn($val) => is_null($val->variant))->count(),
-    //         'values_raw' => $v->values->map(fn($val) => [
-    //             'id' => $val->id,
-    //             'variant_id' => $val->variant_id ?? null,
-    //             'variant' => $val->variant ? [
-    //                 'id' => $val->variant->id,
-    //                 'value' => $val->variant->value,
-    //                 'variant_category_id' => $val->variant->variant_category_id,
-    //             ] : null,
-    //         ]),
-    //     ]),
-    // ]);
+   
 
     /*
     |--------------------------------------------------------------------------
@@ -360,16 +343,7 @@ public function edit(Product $product)
 
     })->values()->toArray();
 
-    // \Log::info('Mapped Variant Rows', [
-    //     'product_id' => $product->id,
-    //     'variant_rows_count' => count($variantRows),
-    //     'variant_rows' => collect($variantRows)->map(fn($r) => [
-    //         'id' => $r['id'],
-    //         'sku' => $r['sku'],
-    //         'values' => $r['values'],
-    //         'values_count' => count($r['values']),
-    //     ]),
-    // ]);
+   
 
     /*
     |--------------------------------------------------------------------------
@@ -382,11 +356,7 @@ public function edit(Product $product)
         ->unique()
         ->values();
 
-    // \Log::info('Used Variant Category IDs', [
-    //     'product_id' => $product->id,
-    //     'used_category_ids' => $usedVariantCategoryIds->toArray(),
-    //     'existing_category_ids' => $variantCategories->pluck('id')->toArray(),
-    // ]);
+    
 
     /*
     |--------------------------------------------------------------------------
@@ -405,12 +375,7 @@ public function edit(Product $product)
             $extraCategories->filter(fn($cat) => !in_array($cat->id, $existingIds))
         )->values();
 
-        // \Log::info('Merged Extra Variant Categories', [
-        //     'product_id' => $product->id,
-        //     'extra_categories_found' => $extraCategories->pluck('id')->toArray(),
-        //     'after_merge_count' => $variantCategories->count(),
-        //     'after_merge_ids' => $variantCategories->pluck('id')->toArray(),
-        // ]);
+       
     }
 
     /*
@@ -429,16 +394,7 @@ public function edit(Product $product)
         ];
     })->values();
 
-    // \Log::info('Final Variant Categories Sent To View', [
-    //     'product_id' => $product->id,
-    //     'count' => $variantCategories->count(),
-    //     'categories' => $variantCategories->map(fn($c) => [
-    //         'id' => $c['id'],
-    //         'name' => $c['name'],
-    //         'options_count' => count($c['options']),
-    //     ]),
-    // ]);
-
+   
     /*
     |--------------------------------------------------------------------------
     | Map Product Images
@@ -469,6 +425,7 @@ public function edit(Product $product)
         'category_id' => $product->category_id,
         'brand_id' => $product->brand_id,
         'unit_id' => $product->unit_id,
+        'package_size' => $product->package_size,
         'description' => $product->description,
         'features' => $product->features,
         'specifications' => $product->specifications,
@@ -498,13 +455,7 @@ public function store(Request $request, ProductService $productService)
     $step = (int) $request->input('step');
     $data = $request->all();
 
-    // --- LOG FULL REQUEST FROM FRONTEND ---
-     \Log::info("Step {$step} received payload from frontend", [
-         'all' => $data,
-         'variant_rows' => $request->input('variant_rows', []),
-         'variant_images' => $request->input('variant_images', []),
-         'images' => $request->input('images', []),
-     ]);
+    
 
     // --- MERGE FILES AND INPUT INTO CONSISTENT STRUCTURE FOR PRODUCT IMAGES ---
     $imagesInput = $request->input('images', []);
@@ -525,11 +476,7 @@ public function store(Request $request, ProductService $productService)
         // Get the variant_images metadata (without files)
         $variantImagesInput = $request->input('variant_images', []);
 
-        // \Log::info("Step 5: Processing variant_images", [
-        //     'count' => count($variantImagesInput),
-        //     'has_files' => $request->hasFile('variant_images'),
-        //     'all_files' => $request->allFiles(),
-        // ]);
+        
 
         foreach ($variantImagesInput as $index => $img) {
             // Skip if variant_id is missing
@@ -542,13 +489,7 @@ public function store(Request $request, ProductService $productService)
             $file = null;
             if ($request->hasFile("variant_images.{$index}.file")) {
                 $file = $request->file("variant_images.{$index}.file");
-                // \Log::info("File found for variant image", [
-                //     'index' => $index,
-                //     'variant_id' => $img['variant_id'],
-                //     'filename' => $file->getClientOriginalName(),
-                //     'size' => $file->getSize(),
-                //     'mime' => $file->getMimeType(),
-                // ]);
+               
             } else {
                // \Log::warning("No file found for variant image at index {$index}");
             }
@@ -562,20 +503,7 @@ public function store(Request $request, ProductService $productService)
             ];
         }
 
-        // \Log::info("Prepared Variant Images for Step 5", [
-        //     'count' => count($variantImages),
-        //     'files_with_uploads' => count(array_filter($variantImages, fn($img) => $img['file'] !== null)),
-        //     'breakdown' => array_map(function($img) {
-        //         return [
-        //             'variant_id' => $img['variant_id'],
-        //             'id' => $img['id'],
-        //             'is_primary' => $img['is_primary'],
-        //             'has_file' => $img['file'] !== null,
-        //             'filename' => $img['file'] ? $img['file']->getClientOriginalName() : null,
-        //             'sort_order' => $img['sort_order'],
-        //         ];
-        //     }, $variantImages)
-        // ]);
+        
     }
 
     // --- DETERMINE PRODUCT ---
@@ -613,10 +541,7 @@ public function store(Request $request, ProductService $productService)
         // --- CHOOSE IMAGE PAYLOAD BASED ON STEP ---
         $imagesToSave = $step === 5 ? $variantImages : $images;
 
-        // \Log::info("Images to save for step {$step}", [
-        //     'count' => count($imagesToSave),
-        //     'is_variant_images' => $step === 5,
-        // ]);
+       
 
         $product = $productService->createOrUpdateProductStep(
             $step,

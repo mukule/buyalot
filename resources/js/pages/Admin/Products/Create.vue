@@ -18,6 +18,7 @@ interface OptionItem {
     name: string;
 }
 
+
 // Extend VariantRow for frontend Step 5
 interface VariantRowWithImages extends VariantRow {
     primaryImage?: ImageItem;
@@ -45,6 +46,7 @@ interface ProductFormBase {
     variant_images: VariantImagePayload[];
     images: ImageItem[];
     video_url?: string | null;
+    package_size: string;
 }
 
 interface ProductFormEditorFields {
@@ -134,6 +136,7 @@ const form = useForm<ProductForm>({
     whats_in_the_box: product?.whats_in_the_box ?? '',
     variant_rows: variantRows.value,
     images: images.value,
+    package_size: product?.package_size ?? 'small',
     video_url: product?.video_url ?? null,
     variant_images: [],
 });
@@ -475,6 +478,16 @@ function handleSuccess(pageResponse: any) {
                                     <option v-for="u in unitOptions" :key="u.id" :value="u.id">{{ u.name }}</option>
                                 </select>
                             </div>
+
+                            <div>
+                            <label class="block text-sm font-medium text-gray-700">Package Size*</label>
+                            <select v-model="form.package_size" class="w-full rounded-md border px-3 py-2">
+                                <option value="small">Small</option>
+                                <option value="medium">Medium</option>
+                                <option value="large">Large</option>
+                            </select>
+                        </div>
+
                             <div>
                                 <SearchableSelect v-model="form.brand_id" :options="brandOptions" label="Brand*" placeholder="Select Brand" />
                             </div>

@@ -87,7 +87,7 @@ function deleteRate(id: number) {
                         @click="createRate"
                         class="hover:bg-primary-dark flex cursor-pointer items-center rounded-xl bg-primary px-4 py-2 text-white transition-colors"
                     >
-                        <PlusIcon class="mr-2 h-5 w-5" /> New Shipping Rate
+                        <PlusIcon class="mr-2 h-5 w-5" /> New Shipping Rates
                     </button>
                 </div>
 

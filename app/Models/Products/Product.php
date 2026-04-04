@@ -45,6 +45,7 @@ class Product extends Model
         'unit_id',
         'max_step_completed',
         'status_id',
+        'package_size',  
         'stock',
         'buying_price',
         'marked_price',
@@ -92,14 +93,14 @@ class Product extends Model
         ];
 
         $replacements = [
-            "\xe2\x80\x91" => '-', // non-breaking hyphen U+2011
-            "\xe2\x80\x92" => '-', // figure dash U+2012
-            "\xe2\x80\x93" => '-', // en dash U+2013
-            "\xe2\x80\x94" => '-', // em dash U+2014
-            "\xe2\x80\x98" => "'", // left single quote U+2018
-            "\xe2\x80\x99" => "'", // right single quote U+2019
-            "\xe2\x80\x9c" => '"', // left double quote U+201C
-            "\xe2\x80\x9d" => '"', // right double quote U+201D
+            "\xe2\x80\x91" => '-', 
+            "\xe2\x80\x92" => '-', 
+            "\xe2\x80\x93" => '-',
+            "\xe2\x80\x94" => '-', 
+            "\xe2\x80\x98" => "'", 
+            "\xe2\x80\x99" => "'", 
+            "\xe2\x80\x9c" => '"', 
+            "\xe2\x80\x9d" => '"', 
         ];
 
         foreach ($fields as $field) {
