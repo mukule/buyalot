@@ -511,6 +511,27 @@ interface Policy {
     updated_at: string;
 }
 
+export interface Promotion {
+  id: number;
+  title: string | null;
+  image: string;
+  position: string;
+  link_type: 'category' | 'product' | 'flash_sale';
+  link_id: number | null;
+  start_date: string | null;
+  end_date: string | null;
+  priority: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  
+  // optionally include relations if needed
+  category?: { id: number; name: string };
+  product?: { id: number; name: string };
+  flashSale?: { id: number; name: string };
+}
+
+
 const page = usePage<
     AppPageProps & {
         region: Region;

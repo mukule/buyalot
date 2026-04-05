@@ -32,6 +32,7 @@ use App\Http\Controllers\SellController;
 use App\Http\Controllers\SellerAccountController;
 use App\Http\Controllers\Seller\UserManagementController as SellerUserManagementController;
 use App\Http\Controllers\Admin\PolicyController;
+use App\Http\Controllers\Admin\PromotionController;
 use App\Http\Controllers\Warehouse\WarehouseController;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken as VerifyCsrfTokenMiddleware;
 use Illuminate\Support\Facades\Route;
@@ -328,6 +329,16 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::resource('subregions', RegionController::class);
     Route::resource('areas', RegionController::class);
     Route::resource('routes', RegionController::class);
+    
+
+   Route::prefix('promotions')->name('promotions.')->group(function () {
+    Route::get('/', [PromotionController::class, 'index'])->name('index');
+    Route::post('/save', [PromotionController::class, 'save'])->name('save');
+    Route::delete('/{promotion}', [PromotionController::class, 'destroy'])->name('destroy');
+    Route::get('/search-categories', [PromotionController::class, 'searchCategories'])->name('searchCategories');
+    Route::get('/search-products', [PromotionController::class, 'searchProducts'])->name('searchProducts');
+});
+    
 
     // Brands management (create/edit/delete)
     // Note: index is defined under a separate middleware group for users with view-brands permission

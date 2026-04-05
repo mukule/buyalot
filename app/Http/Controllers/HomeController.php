@@ -42,7 +42,7 @@ class HomeController extends Controller
 
     public function index()
 {
-    // 1. Light queries (Fast, no need to cache these specifically)
+    // 1. Light queries
     $categories = \App\Models\Category::query()
         ->select('id', 'name', 'slug')
         ->with(['children:id,parent_id,name,slug'])
@@ -56,22 +56,35 @@ class HomeController extends Controller
         ->orderBy('name')
         ->get();
 
-    // 2. Heavy logic (The Service handles its own Redis caching internally)
+    // 2. Promotions (cached)
+    $promotions = Cache::remember('promotions:homepage:category', now()->addMinutes(30), function () {
+        return \App\Models\Promotion::active()
+            ->where('link_type', 'category')
+            ->with(['category:id,slug'])
+            ->orderBy('priority')
+            ->get()
+            ->map(fn($promotion) => [
+                'image_url'     => $promotion->image_url,
+                'category_slug' => $promotion->category?->slug,
+            ]);
+    });
+
+    // 3. Heavy logic
     $productsByCategory = $this->productService->getProductsGroupedByCategory($categories);
 
     return Inertia::render('Frontend/Index', [
-        'title' => 'Online Shopping Store',
-        'categories' => $categories,
-        'brands' => $brands->map(fn($brand) => [
-            'id' => $brand->id,
-            'name' => $brand->name,
-            'slug' => $brand->slug,
+        'title'              => 'Online Shopping Store',
+        'categories'         => $categories,
+        'brands'             => $brands->map(fn($brand) => [
+            'id'       => $brand->id,
+            'name'     => $brand->name,
+            'slug'     => $brand->slug,
             'logo_url' => $brand->logo_url,
         ]),
+        'promotions'         => $promotions,
         'productsByCategory' => $productsByCategory,
     ]);
 }
-
 
 public function productDetails(string $slug)
 {
