@@ -23,7 +23,7 @@ interface PageProps extends InertiaPageProps {
 
 // ─── Fallback ─────────────────────────────────────────────────────────────────
 const DEFAULT_PROMOTIONS: Promotion[] = [
-    { image_url: 'http://127.0.0.1:8000/default.jpg', category_slug: null },
+    { image_url: '/default.jpg', category_slug: null },
 ];
 
 // ─── Page props ───────────────────────────────────────────────────────────────
