@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('order_items', function (Blueprint $table) {
-            $table->dropForeignIfExists('order_items_seller_id_foreign');
+            $table->dropIndex('order_items_seller_id_foreign');
 
             $table->foreign('seller_id')
                 ->references('id')
@@ -21,12 +21,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('order_items', function (Blueprint $table) {
-            $table->dropForeignIfExists('order_items_seller_id_foreign');
+            $table->dropForeign(['seller_id']);
 
-            $table->foreign('seller_id')
-                ->references('id')
-                ->on('sellers')
-                ->onDelete('cascade');
+            $table->index('seller_id');
         });
     }
 };
