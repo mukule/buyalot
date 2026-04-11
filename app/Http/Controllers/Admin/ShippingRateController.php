@@ -46,8 +46,9 @@ class ShippingRateController extends Controller
             'door_fallback_price'   => ['required', 'numeric', 'min:0'],
             'door_fallback_min_km'  => ['required', 'numeric', 'min:0'],
             'door_extra_km_cost'    => ['required', 'numeric', 'min:0'],
-            'cod_min_amount'        => ['nullable', 'numeric', 'min:0'],
+            'cod_max_amount'        => ['nullable', 'numeric', 'min:0'],
             'free_shipping_min_amount' => ['nullable', 'numeric', 'min:0'],
+            'max_shipping_fee'      => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $zoneAndPackage = ShippingRate::where('package_size', $request->package_size);
@@ -61,15 +62,16 @@ class ShippingRateController extends Controller
         }
 
         ShippingRate::create([
-            'zone_id'                 => $request->zone_id,
-            'package_size'            => $request->package_size,
-            'base_price'              => $request->base_price,
-            'door_price'              => $request->door_fallback_price,
-            'door_fallback_price'     => $request->door_fallback_price,
-            'door_fallback_min_km'    => $request->door_fallback_min_km,
-            'door_extra_km_cost'      => $request->door_extra_km_cost,
-            'cod_min_amount'          => $request->cod_min_amount ?: null,
+            'zone_id'                  => $request->zone_id,
+            'package_size'             => $request->package_size,
+            'base_price'               => $request->base_price,
+            'door_price'               => $request->door_fallback_price,
+            'door_fallback_price'      => $request->door_fallback_price,
+            'door_fallback_min_km'     => $request->door_fallback_min_km,
+            'door_extra_km_cost'       => $request->door_extra_km_cost,
+            'cod_max_amount'           => $request->cod_max_amount ?: null,
             'free_shipping_min_amount' => $request->free_shipping_min_amount ?: null,
+            'max_shipping_fee'         => $request->max_shipping_fee ?: null,
         ]);
 
         return redirect()->route('admin.shipping-rates.index')
@@ -79,10 +81,7 @@ class ShippingRateController extends Controller
  
     public function edit(ShippingRate $shippingRate)
     {
-        Log::info('Admin/ShippingRateController@edit called', [
-            'user_id' => auth()->id(),
-            'route'   => request()->fullUrl(),
-        ]);
+       
 
         $packageSizes = ['small', 'medium', 'large'];
         $zones = Zone::orderBy('name')->get(['id', 'name', 'tier']);
@@ -99,14 +98,15 @@ class ShippingRateController extends Controller
     public function update(Request $request, ShippingRate $shippingRate)
     {
         $request->validate([
-            'zone_id'                 => ['nullable', 'exists:zones,id'],
-            'package_size'            => ['required', 'in:small,medium,large'],
-            'base_price'              => ['required', 'numeric', 'min:0'],
-            'door_fallback_price'     => ['required', 'numeric', 'min:0'],
-            'door_fallback_min_km'    => ['required', 'numeric', 'min:0'],
-            'door_extra_km_cost'      => ['required', 'numeric', 'min:0'],
-            'cod_min_amount'          => ['nullable', 'numeric', 'min:0'],
+            'zone_id'                  => ['nullable', 'exists:zones,id'],
+            'package_size'             => ['required', 'in:small,medium,large'],
+            'base_price'               => ['required', 'numeric', 'min:0'],
+            'door_fallback_price'      => ['required', 'numeric', 'min:0'],
+            'door_fallback_min_km'     => ['required', 'numeric', 'min:0'],
+            'door_extra_km_cost'       => ['required', 'numeric', 'min:0'],
+            'cod_max_amount'           => ['nullable', 'numeric', 'min:0'],
             'free_shipping_min_amount' => ['nullable', 'numeric', 'min:0'],
+            'max_shipping_fee'         => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $zoneAndPackage = ShippingRate::where('package_size', $request->package_size)
@@ -121,15 +121,16 @@ class ShippingRateController extends Controller
         }
 
         $shippingRate->update([
-            'zone_id'                 => $request->zone_id ?: null,
-            'package_size'            => $request->package_size,
-            'base_price'              => $request->base_price,
-            'door_price'              => $request->door_fallback_price,
-            'door_fallback_price'     => $request->door_fallback_price,
-            'door_fallback_min_km'    => $request->door_fallback_min_km,
-            'door_extra_km_cost'      => $request->door_extra_km_cost,
-            'cod_min_amount'          => $request->cod_min_amount ?: null,
+            'zone_id'                  => $request->zone_id ?: null,
+            'package_size'             => $request->package_size,
+            'base_price'               => $request->base_price,
+            'door_price'               => $request->door_fallback_price,
+            'door_fallback_price'      => $request->door_fallback_price,
+            'door_fallback_min_km'     => $request->door_fallback_min_km,
+            'door_extra_km_cost'       => $request->door_extra_km_cost,
+            'cod_max_amount'           => $request->cod_max_amount ?: null,
             'free_shipping_min_amount' => $request->free_shipping_min_amount ?: null,
+            'max_shipping_fee'         => $request->max_shipping_fee ?: null,
         ]);
 
         return redirect()->route('admin.shipping-rates.index')

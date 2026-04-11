@@ -15,7 +15,7 @@ interface ShippingRate {
     door_fallback_price?: number;
     door_fallback_min_km?: number;
     door_extra_km_cost?: number;
-    cod_min_amount?: number | null;
+    cod_max_amount?: number | null;
     free_shipping_min_amount?: number | null;
     created_at?: string;
 }
@@ -87,7 +87,7 @@ function deleteRate(id: number) {
                         @click="createRate"
                         class="hover:bg-primary-dark flex cursor-pointer items-center rounded-xl bg-primary px-4 py-2 text-white transition-colors"
                     >
-                        <PlusIcon class="mr-2 h-5 w-5" /> New Shipping Rate
+                        <PlusIcon class="mr-2 h-5 w-5" /> New Shipping Rates
                     </button>
                 </div>
 
@@ -101,7 +101,7 @@ function deleteRate(id: number) {
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Package Size</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Base Price</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Door Delivery/KM</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">COD Min</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">COD Max</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Free Ship Min</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -122,7 +122,7 @@ function deleteRate(id: number) {
                                     <span v-else>-</span>
                                 </td>
                                 <td class="px-4 py-4 text-sm text-gray-700">
-                                    {{ rate.cod_min_amount != null ? 'Ksh. ' + Math.round(rate.cod_min_amount).toLocaleString() : '-' }}
+                                    {{ rate.cod_max_amount != null ? 'Ksh. ' + Math.round(rate.cod_max_amount).toLocaleString() : '-' }}
                                 </td>
                                 <td class="px-4 py-4 text-sm text-gray-700">
                                     {{ rate.free_shipping_min_amount != null ? 'Ksh. ' + Math.round(rate.free_shipping_min_amount).toLocaleString() : '-' }}

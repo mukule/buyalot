@@ -10,9 +10,14 @@ use App\Models\Orders\Delivery;
 use App\Models\Orders\Order;
 use App\Models\Orders\OrderItem;
 use App\Models\Payment\Payment;
+use App\Models\Seller\Seller;
+use App\Models\User;
+use App\Notifications\NewOrderPlacedNotification;
+use App\Notifications\OrderItemsDispatchRequiredNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 
 class OrderPlacementService
@@ -24,7 +29,7 @@ class OrderPlacementService
      */
     public function placeOrder(int $checkoutSessionId, $paidAmount, $reference, $paymentMethod, ?int $shippingAddressId = null, ?int $billingAddressId = null): Order
     {
-        $checkoutSession = CheckoutSession::with('cart.items.productVariant.product')
+        $checkoutSession = CheckoutSession::with('cart.items.productVariant.product.owner')
             ->findOrFail($checkoutSessionId);
 
         if ($checkoutSession->status !== 'completed') {
@@ -136,16 +141,30 @@ class OrderPlacementService
                 'payment_method' => $paymentMethod,
             ]);
 
-            // Decrement stock
+            // Create order items — track per-seller item counts for notifications
+            $sellerItemCounts = []; // seller_id => item count
             foreach ($itemsInput as $ci) {
+                // Determine seller_id based on owner_type.
+                // If owner_type is 'seller', owner_id in Product refers to the User who owns it.
+                // We need to find that user's seller_application_id.
+                $sellerId = null;
+                if ($ci['product']->owner_type === 'seller') {
+                    $owner = $ci['product']->owner;
+                    if ($owner) {
+                        $sellerId = $owner->seller_application_id;
+                    }
+                }
+
                 OrderItem::create([
                     'ulid' => Str::ulid(),
                     'order_id' => $order->id,
                     'product_variant_id' => $ci['variant']->id,
+                    'seller_id' => $sellerId,
                     'quantity' => $ci['quantity'],
                     'unit_price' => $ci['unit_price'],
                     'total_price' => $ci['line_subtotal'],
                     'discount_amount' => $ci['line_discount'],
+                    'dispatch_status' => OrderItem::DISPATCH_STATUS_PENDING,
                     'product_snapshot' => [
                         'id' => $ci['product']->id,
                         'name' => $ci['product']->name,
@@ -153,6 +172,10 @@ class OrderPlacementService
                         'current_stock' => $ci['variant']->stock,
                     ],
                 ]);
+
+                if ($sellerId !== null) {
+                    $sellerItemCounts[$sellerId] = ($sellerItemCounts[$sellerId] ?? 0) + 1;
+                }
             }
 
             // Release reservations WITHOUT returning stock (already deducted)
@@ -165,10 +188,13 @@ class OrderPlacementService
             $cart->save();
             $cart->delete(); // soft delete
 
-            // Create Delivery from customer's shipping address (customer-selected pickup or customer address)
+            // Create Delivery — respect the delivery method the customer explicitly selected.
+            // 'door' always means home delivery regardless of what is stored on the address.
+            // 'pickup' (or no preference stored) falls back to checking the address for a pickup warehouse.
+            $sessionDeliveryMethod = $checkoutSession->delivery_method; // 'pickup' | 'door' | null
             $deliveryType = 'customer_address';
             $pickupWarehouseId = null;
-            if ($shippingAddress && $shippingAddress->pickup_warehouse_id) {
+            if ($sessionDeliveryMethod !== 'door' && $shippingAddress && $shippingAddress->pickup_warehouse_id) {
                 $deliveryType = 'pickup_point';
                 $pickupWarehouseId = $shippingAddress->pickup_warehouse_id;
             }
@@ -224,6 +250,33 @@ class OrderPlacementService
                     'order_id' => $order->id,
                     'error' => $e->getMessage(),
                     'stack' => $e->getTraceAsString(),
+                ]);
+            }
+
+            // ------------------- In-app notifications -------------------
+            try {
+                // Notify all admin/super-admin users
+                $adminUsers = User::role(['admin', 'super-admin'])->get();
+                if ($adminUsers->isNotEmpty()) {
+                    Notification::send($adminUsers, new NewOrderPlacedNotification($order));
+                }
+
+                // Notify each seller whose items are in this order
+                foreach ($sellerItemCounts as $sellerId => $itemCount) {
+                    $seller = Seller::find($sellerId);
+                    if (!$seller) {
+                        continue;
+                    }
+                    $sellerUsers = $seller->users;
+                    if ($sellerUsers->isNotEmpty()) {
+                        Notification::send($sellerUsers, new OrderItemsDispatchRequiredNotification($order, $itemCount));
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::error('Failed to send in-app notifications', [
+                    'order_id' => $order->id,
+                    'error'    => $e->getMessage(),
+                    'stack'    => $e->getTraceAsString(),
                 ]);
             }
 

@@ -12,7 +12,7 @@ class Seller extends Model
 
     public function products()
     {
-        return $this->hasMany(Product::class, 'owner_id');
+        return $this->hasMany(Product::class, 'owner_id')->where('owner_type', 'seller');
     }
 
     public function users()

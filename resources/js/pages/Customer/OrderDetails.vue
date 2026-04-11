@@ -1,11 +1,150 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/CustomerAppSidebarLayout.vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { Package, CheckCircle, Cog, Truck, Home, XCircle } from 'lucide-vue-next';
+import { router } from '@inertiajs/vue3';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 const page = usePage();
 const order = computed<any>(() => (page.props as any).order || {});
+const googleMapsApiKey = computed(() => (page.props as any).googleMapsApiKey || '');
+const declineReasons = computed(() => (page.props as any).declineReasons || []);
+const dispatchCenters = computed<any[]>(() => (page.props as any).dispatch_centers || []);
+
+const selectedItem = ref<any>(null);
+// The dispatch center shown in the modal (before or after dispatch)
+const activeDispatchCenter = ref<any>(null);
+const selectedDispatchCenterId = ref<number | null>(null);
+const showDispatchModal = ref(false);
+const showDeclineModal = ref(false);
+const reason = ref('');
+const otherReason = ref('');
+
+// Standalone "View on Map" modal (separate from dispatch flow)
+const showMapModal = ref(false);
+const mapModalCenter = ref<any>(null);
+const mapModalContainer = ref<HTMLElement | null>(null);
+let mapModal: google.maps.Map | null = null;
+let markerModal: google.maps.Marker | null = null;
+
+function loadGoogleMapsScript(): Promise<void> {
+  if (window.google?.maps) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey.value}`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load Google Maps'));
+    document.head.appendChild(script);
+  });
+}
+
+function getMapCoords(dc: any): { lat: number; lng: number } | null {
+  if (!dc?.latitude || !dc?.longitude) return null;
+  return { lat: Number(dc.latitude), lng: Number(dc.longitude) };
+}
+
+function mountModalMap(center: { lat: number; lng: number }, title: string, attempts = 0) {
+  if (attempts > 20) return;
+  if (!mapModalContainer.value) {
+    setTimeout(() => mountModalMap(center, title, attempts + 1), 100);
+    return;
+  }
+  if (mapModal) {
+    mapModal.setCenter(center);
+    if (markerModal) { markerModal.setPosition(center); markerModal.setTitle(title); }
+  } else {
+    mapModal = new google.maps.Map(mapModalContainer.value, { center, zoom: 15 });
+    markerModal = new google.maps.Marker({ position: center, map: mapModal, title });
+  }
+}
+
+function openMapModal(item: any) {
+  const dc = item.dispatch_center?.latitude
+    ? item.dispatch_center
+    : (dispatchCenters.value[0] ?? null);
+  if (!dc) return;
+  mapModalCenter.value = dc;
+  mapModal = null;
+  markerModal = null;
+  showMapModal.value = true;
+  if (!googleMapsApiKey.value) return;
+  loadGoogleMapsScript().then(() => {
+    const coords = getMapCoords(dc);
+    if (coords) {
+      mountModalMap(coords, dc.name);
+    } else {
+      // Geocode fallback when no coordinates stored
+      const geocoder = new google.maps.Geocoder();
+      const query = [dc.name, dc.address, dc.location].filter(Boolean).join(', ');
+      geocoder.geocode({ address: query }, (results, status) => {
+        if (status === 'OK' && results && results[0]) {
+          const loc = results[0].geometry.location;
+          mountModalMap({ lat: loc.lat(), lng: loc.lng() }, dc.name);
+        }
+      });
+    }
+  });
+}
+
+const dispatchItem = (itemId: number) => {
+  selectedItem.value = order.value.order_items.find((i: any) => i.id === itemId) || null;
+
+  if (selectedItem.value?.dispatch_center?.id) {
+    activeDispatchCenter.value = selectedItem.value.dispatch_center;
+    selectedDispatchCenterId.value = selectedItem.value.dispatch_center.id;
+  } else {
+    const first = dispatchCenters.value[0] ?? null;
+    activeDispatchCenter.value = first;
+    selectedDispatchCenterId.value = first?.id ?? null;
+  }
+
+  showDispatchModal.value = true;
+};
+
+// When vendor picks a different dispatch center from the dropdown
+function onDispatchCenterChange(id: number) {
+  selectedDispatchCenterId.value = id;
+  const dc = dispatchCenters.value.find((c: any) => c.id === id) ?? null;
+  activeDispatchCenter.value = dc;
+  if (dc) openDispatchMap(dc);
+}
+
+const confirmDispatch = () => {
+  if (!selectedItem.value) return;
+  router.post(
+    route('admin.orders.items.dispatch', { order: order.value.ulid ?? order.value.id, item: selectedItem.value.id }),
+    { dispatch_center_id: selectedDispatchCenterId.value },
+    { onSuccess: () => { showDispatchModal.value = false; selectedItem.value = null; } }
+  );
+};
+
+const declineDispatch = (itemId: number) => {
+  selectedItem.value = order.value.order_items.find((i: any) => i.id === itemId) || null;
+  reason.value = '';
+  otherReason.value = '';
+  showDeclineModal.value = true;
+};
+
+const confirmDecline = () => {
+  if (!selectedItem.value || !reason.value) return;
+  if (reason.value === 'other' && !otherReason.value) return;
+  router.post(route('admin.orders.items.decline', { order: order.value.ulid ?? order.value.id, item: selectedItem.value.id }), {
+    reason: reason.value,
+    other_reason: otherReason.value
+  }, {
+    onSuccess: () => { showDeclineModal.value = false; selectedItem.value = null; reason.value = ''; otherReason.value = ''; }
+  });
+};
 
 const paying = ref(false);
 
@@ -211,10 +350,60 @@ function statusBadgeClass(status?: string) {
               <div>
                 <div class="font-medium text-gray-800">{{ item.product?.name || item.product_variant?.product?.name || item.productVariant?.product?.name || 'Product' }}</div>
                 <div class="text-xs text-gray-500">Qty: {{ item.quantity }}</div>
+                <div v-if="item.dispatch_status" class="mt-1">
+                  <!-- <span
+                    class="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                    :class="{
+                      'bg-gray-100 text-gray-600': item.dispatch_status === 'pending',
+                      'bg-blue-100 text-blue-600': item.dispatch_status === 'dispatched',
+                      'bg-green-100 text-green-600': item.dispatch_status === 'received',
+                      'bg-red-100 text-red-600': ['declined', 'rejected'].includes(item.dispatch_status)
+                    }"
+                  >
+                    {{ item.dispatch_status }}
+                  </span> -->
+                  <div v-if="item.dispatch_decline_reason" class="mt-0.5 text-[10px] text-red-500">
+                    Declined: {{ item.dispatch_decline_reason }}
+                  </div>
+                  <div v-if="item.rejection_reason" class="mt-0.5 text-[10px] text-red-500">
+                    Rejected by Admin: {{ item.rejection_reason }}
+                  </div>
+                  <div v-if="item.dispatch_center" class="mt-0.5 text-[10px] text-gray-500">
+                    To: {{ item.dispatch_center.name }}
+                  </div>
+                </div>
               </div>
               <div class="text-right">
                 <div class="text-sm text-gray-700">{{ formatMoney(item.unit_price) }} <span class="text-xs text-gray-500">each</span></div>
                 <div class="text-sm font-semibold text-gray-900">{{ formatMoney(item.total_price) }}</div>
+                <div v-if="order.is_seller" class="mt-2 flex flex-col gap-1">
+                  <Button
+                    v-if="['pending', 'declined'].includes(item.dispatch_status)"
+                    size="sm"
+                    class="bg-blue-600 text-white hover:bg-blue-700"
+                    @click="dispatchItem(item.id)"
+                  >
+                    Dispatch
+                  </Button>
+                  <Button
+                    v-if="item.dispatch_status === 'pending'"
+                    size="sm"
+                    variant="destructive"
+                    @click="declineDispatch(item.id)"
+                  >
+                    Decline
+                  </Button>
+                  <!-- Always-visible map button for non-declined/rejected items -->
+                  <Button
+                    v-if="!['declined', 'rejected'].includes(item.dispatch_status) && (item.dispatch_center?.latitude || dispatchCenters.length > 0)"
+                    size="sm"
+                    variant="outline"
+                    class="border-green-500 text-green-700 hover:bg-green-50"
+                    @click="openMapModal(item)"
+                  >
+                    📍 View on Map
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -244,7 +433,7 @@ function statusBadgeClass(status?: string) {
             </div>
           </div>
 
-          <div class="rounded-lg bg-white p-4 shadow">
+          <div v-if="order?.shipping_address && !order?.is_seller" class="rounded-lg bg-white p-4 shadow">
             <h3 class="mb-2 text-sm font-semibold text-gray-800">Shipping Address</h3>
             <div class="text-sm text-gray-700">
               <div v-if="order?.shipping_address">
@@ -259,7 +448,7 @@ function statusBadgeClass(status?: string) {
             </div>
           </div>
 
-          <div class="rounded-lg bg-white p-4 shadow">
+          <div v-if="order?.billing_address && !order?.is_seller" class="rounded-lg bg-white p-4 shadow">
             <h3 class="mb-2 text-sm font-semibold text-gray-800">Billing Address</h3>
             <div class="text-sm text-gray-700">
               <div v-if="order?.billing_address">
@@ -280,6 +469,119 @@ function statusBadgeClass(status?: string) {
         <h3 class="mb-2 text-sm font-semibold text-gray-800">Notes</h3>
         <p class="text-sm text-gray-700 whitespace-pre-line">{{ order.notes }}</p>
       </div>
+
+      <!-- Dispatch Modal -->
+      <Dialog v-model:open="showDispatchModal">
+        <DialogContent class="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Dispatch Item</DialogTitle>
+          </DialogHeader>
+          <div class="space-y-4">
+            <p>
+              You are about to dispatch
+              <strong>{{ selectedItem?.product?.name || selectedItem?.product_variant?.product?.name || 'Item' }}</strong>
+              to the dispatch center. Please bring the item to the location shown below.
+            </p>
+
+            <!-- Dispatch center selector (when multiple centers available and item not yet dispatched) -->
+            <div v-if="dispatchCenters.length > 1 && selectedItem?.dispatch_status !== 'dispatched'" class="space-y-1">
+              <Label for="dispatch-center-select" class="text-sm font-medium">Select dispatch center</Label>
+              <select
+                id="dispatch-center-select"
+                :value="selectedDispatchCenterId"
+                @change="onDispatchCenterChange(Number(($event.target as HTMLSelectElement).value))"
+                class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option v-for="dc in dispatchCenters" :key="dc.id" :value="dc.id">
+                  {{ dc.name }}{{ dc.address ? ' — ' + dc.address : '' }}
+                </option>
+              </select>
+            </div>
+
+            <!-- Dispatch center info card -->
+            <div v-if="activeDispatchCenter" class="rounded-md border border-blue-200 bg-blue-50 p-3">
+              <p class="font-semibold text-blue-900">{{ activeDispatchCenter.name }}</p>
+              <p v-if="activeDispatchCenter.address" class="text-sm text-blue-700">{{ activeDispatchCenter.address }}</p>
+              <p v-if="activeDispatchCenter.location" class="text-xs text-blue-600">{{ activeDispatchCenter.location }}</p>
+            </div>
+            <div v-else-if="dispatchCenters.length === 0" class="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              No dispatch centers are currently available. Contact the administrator.
+            </div>
+
+            <div class="flex justify-end gap-2">
+              <Button variant="outline" @click="showDispatchModal = false">Cancel</Button>
+              <Button
+                :disabled="!activeDispatchCenter"
+                @click="confirmDispatch"
+              >
+                Confirm Dispatch
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <!-- Standalone Map Modal — vendors can view dispatch center location at any time -->
+      <Dialog v-model:open="showMapModal">
+        <DialogContent class="max-w-4xl w-full">
+          <DialogHeader>
+            <DialogTitle>Dispatch Center Location</DialogTitle>
+          </DialogHeader>
+          <div class="space-y-3">
+            <!-- Center info card -->
+            <div v-if="mapModalCenter" class="rounded-md border border-green-200 bg-green-50 p-3">
+              <p class="font-semibold text-green-900">{{ mapModalCenter.name }}</p>
+              <p v-if="mapModalCenter.address" class="text-sm text-green-700">{{ mapModalCenter.address }}</p>
+              <p v-if="mapModalCenter.location" class="text-xs text-green-600">{{ mapModalCenter.location }}</p>
+            </div>
+            <!-- Map container always present so geocoder can render even without stored coordinates -->
+            <div
+              ref="mapModalContainer"
+              class="h-[480px] w-full rounded border bg-muted"
+            ></div>
+            <div class="flex justify-end">
+              <Button variant="outline" @click="showMapModal = false">Close</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <!-- Decline Dispatch Modal -->
+      <Dialog v-model:open="showDeclineModal">
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Decline Dispatch</DialogTitle>
+          </DialogHeader>
+          <div class="space-y-4">
+            <div class="space-y-2">
+              <Label for="customer-decline-reason">Reason for declining</Label>
+              <select
+                id="customer-decline-reason"
+                v-model="reason"
+                class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="" disabled>Select a reason...</option>
+                <option v-for="r in declineReasons" :key="r.id" :value="r.id">
+                  {{ r.name }}
+                </option>
+              </select>
+            </div>
+            <div v-if="reason === 'other'" class="space-y-2">
+              <Label for="customer-decline-other-reason">Please specify</Label>
+              <textarea
+                id="customer-decline-other-reason"
+                v-model="otherReason"
+                class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                placeholder="Enter other reason..."
+              ></textarea>
+            </div>
+            <div class="flex justify-end gap-2">
+              <Button variant="outline" @click="showDeclineModal = false">Cancel</Button>
+              <Button variant="destructive" :disabled="!reason || (reason === 'other' && !otherReason)" @click="confirmDecline">Decline Dispatch</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   </AppLayout>
 </template>

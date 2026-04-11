@@ -64,15 +64,14 @@ class Cart extends Model
 
         foreach ($items as $item) {
             $qty = (int) $item->quantity;
-            $marked = (float) ($item->marked_price ?? $item->unit_price);
-            $lineSubtotal = $marked * $qty;
+            $unitPrice = (float) ($item->unit_price ?? 0);
+            $lineTotal = (float) ($item->total_price ?? ($unitPrice * $qty));
 
-            $lineTotal = (float) ($item->total_price ?? ($item->unit_price * $qty));
-
-            $subtotal += $lineSubtotal;
+            $subtotal += $lineTotal;
             $grandTotal += $lineTotal;
             $totalQty += $qty;
-            $totalDiscount += max(0, $lineSubtotal - $lineTotal);
+            // Discount is handled elsewhere or implicitly in unit_price
+            $totalDiscount += 0;
         }
 
         return [

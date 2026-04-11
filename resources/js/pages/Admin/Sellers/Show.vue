@@ -15,7 +15,6 @@ interface Seller {
 
 interface Business {
   company_legal_name?: string | null;
-  business_name?: string | null;
   business_type?: string | null;
   primary_product_category?: string | null;
   contact_email?: string | null;
@@ -68,8 +67,8 @@ const statusBadge = computed(() => ({
         <div class="rounded-lg bg-white p-4 shadow lg:col-span-2">
           <div class="mb-4 flex items-start justify-between gap-4">
             <div>
-              <div class="text-sm text-gray-500">Business Name</div>
-              <div class="text-lg font-semibold text-gray-900">{{ business?.company_legal_name || business?.business_name || seller.display_name || ('Vendor #' + seller.id) }}</div>
+              <div class="text-sm text-gray-500">Company Legal Name</div>
+              <div class="text-lg font-semibold text-gray-900">{{ business?.company_legal_name || seller.display_name || ('Vendor #' + seller.id) }}</div>
               <div class="mt-1 text-xs text-gray-500" v-if="business?.business_type">Type: {{ business?.business_type }}</div>
             </div>
             <component :is="statusBadge.icon" :class="statusBadge.class" class="h-5 w-5">
@@ -134,7 +133,7 @@ const statusBadge = computed(() => ({
           <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <div class="text-xs text-gray-500">Company</div>
-              <div class="font-medium">{{ business?.company_legal_name || business?.business_name || '-' }}</div>
+              <div class="font-medium">{{ business?.company_legal_name || '-' }}</div>
             </div>
             <div>
               <div class="text-xs text-gray-500">Business Type</div>

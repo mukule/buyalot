@@ -333,7 +333,8 @@ class Order extends Model
         $lines[] = 'Method of payment: ' . ucfirst($method);
         $lines[] = '';
         $lines[] = 'Items:';
-        foreach ($this->orderItems as $item) {
+        $deliverableItems = $this->orderItems->whereNotIn('dispatch_status', ['declined', 'rejected']);
+        foreach ($deliverableItems as $item) {
             $name = $item->product_snapshot['name'] ?? $item->productVariant?->product?->name ?? 'Item';
             $variantStr = '';
             if ($item->productVariant && $item->productVariant->relationLoaded('values')) {
@@ -416,7 +417,7 @@ class Order extends Model
         $existingQuery->delete();
 
         $note = 'Order #' . $this->order_code;
-        foreach ($this->orderItems as $item) {
+        foreach ($this->orderItems->whereNotIn('dispatch_status', ['declined', 'rejected']) as $item) {
             WarehouseReceivable::create([
                 'warehouse_id' => $warehouseId,
                 'order_id' => $this->id,

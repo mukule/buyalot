@@ -19,8 +19,9 @@ class ShippingRate extends Model
         'door_fallback_price',
         'door_fallback_min_km',
         'door_extra_km_cost',
-        'cod_min_amount',
+        'cod_max_amount',
         'free_shipping_min_amount',
+        'max_shipping_fee',
     ];
 
     protected $casts = [
@@ -29,8 +30,9 @@ class ShippingRate extends Model
         'door_fallback_price' => 'float',
         'door_fallback_min_km' => 'float',
         'door_extra_km_cost' => 'float',
-        'cod_min_amount' => 'float',
+        'cod_max_amount' => 'float',
         'free_shipping_min_amount' => 'float',
+        'max_shipping_fee' => 'float',
     ];
 
     public function zone()
@@ -103,5 +105,34 @@ class ShippingRate extends Model
         $baseDays = (int) env('DOOR_DELIVERY_DEFAULT_DAYS', 2);
         $increment = (int) env('DOOR_DELIVERY_DAYS_INCREMENT', 1);
         return $baseDays + (($tier - 1) * $increment);
+    }
+
+    /**
+     * Apply the max_shipping_fee cap to a computed cost.
+     * Returns the cost unchanged when no cap is configured.
+     */
+    public function applyCap(float $cost): float
+    {
+        if ($this->max_shipping_fee !== null && $this->max_shipping_fee > 0) {
+            return min($cost, $this->max_shipping_fee);
+        }
+        return $cost;
+    }
+
+    /**
+     * Apply the max_shipping_fee cap for home delivery.
+     *
+     * The effective cap is max(max_shipping_fee, door_fallback_price) so the
+     * configured cap can never undercut the minimum fallback amount for door
+     * delivery. If the calculated cost exceeds the cap it falls back to the
+     * cap value; if the cap itself is below the fallback, the fallback is used.
+     */
+    public function applyHomeDeliveryCap(float $cost): float
+    {
+        if ($this->max_shipping_fee !== null && $this->max_shipping_fee > 0) {
+            $effectiveCap = max((float) $this->max_shipping_fee, $this->doorMinimumCost());
+            return min($cost, $effectiveCap);
+        }
+        return $cost;
     }
 }

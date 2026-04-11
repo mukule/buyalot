@@ -73,35 +73,49 @@ class PaymentService
 }
 
 
-public function getOrCreateMpesaRequest($payable, PaymentRequest $request)
-{
-    // Only consider records that can still be updated
-    $updatableStatuses = [
-        PaymentStatus::INITIALIZED->value,
-        PaymentStatus::PROCESSING->value,
-        PaymentStatus::FAILED->value,
-        PaymentStatus::EXPIRED->value,
-    ];
-
-    // Get the latest updatable payment request for this payable
-    $mpesaLog = MpesaRequest::where('payable_type', get_class($payable))
-        ->where('payable_id', $payable->id)
-        ->whereIn('status', $updatableStatuses)
-        ->latest('created_at')
-        ->first();
-
-    if ($mpesaLog) {
-        // Update the existing one
-        $mpesaLog->update([
-            'amount'           => $request->amount,
-            'currency'         => $request->currency,
-            'phone'            => $request->phone,
-            'provider_request' => $request->toArray(),
-            'updated_at'       => now(),
-        ]);
-
-        return $mpesaLog;
+/**
+     * Used by the controller to initiate or retry an M-Pesa payment request.
+     * Delegates to getOrCreateMpesaRequest so retries reuse the existing record.
+     */
+    public function createMpesaRequest($payable, PaymentRequest $request): MpesaRequest
+    {
+        return $this->getOrCreateMpesaRequest($payable, $request);
     }
+
+    public function getOrCreateMpesaRequest($payable, PaymentRequest $request)
+    {
+        // Only consider records that can still be updated
+        $updatableStatuses = [
+            PaymentStatus::INITIALIZED->value,
+            PaymentStatus::PROCESSING->value,
+            PaymentStatus::FAILED->value,
+            PaymentStatus::EXPIRED->value,
+        ];
+
+        // Get the latest updatable payment request for this payable
+        $mpesaLog = MpesaRequest::where('payable_type', get_class($payable))
+            ->where('payable_id', $payable->id)
+            ->whereIn('status', $updatableStatuses)
+            ->latest('created_at')
+            ->first();
+
+        if ($mpesaLog) {
+            // Reset STK state so the retry initiates a fresh push
+            $mpesaLog->update([
+                'amount'              => $request->amount,
+                'currency'            => $request->currency,
+                'phone'               => $request->phone,
+                'provider_request'    => $request->toArray(),
+                'status'              => PaymentStatus::INITIALIZED->value,
+                'checkout_request_id' => null,
+                'merchant_request_id' => null,
+                'result_code'         => null,
+                'result_desc'         => null,
+                'updated_at'          => now(),
+            ]);
+
+            return $mpesaLog;
+        }
 
     // No updatable record found — create a new one
     $reference = $payable->ref_num ?? $payable->ulid ?? $payable->order_code ?? 'REF_' . $payable->id;

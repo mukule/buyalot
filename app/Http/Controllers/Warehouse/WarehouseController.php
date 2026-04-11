@@ -22,6 +22,7 @@ use App\Models\Payment\Payment;
 use App\Models\Payment\PaymentStatus;
 use App\Models\Warehouse\WarehouseReceivable;
 use App\Models\Warehouse\WarehouseRejectionReason;
+use App\Notifications\OrderReadyForPickupNotification;
 use App\Traits\HasPermissionCheck;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -1235,7 +1236,7 @@ class WarehouseController extends Controller
                         ]);
                     }
                 }
-                // Order delivery receivables: when all receivables for this order at this warehouse are received, mark order shipped and notify customer
+                // Order delivery receivables: when all receivables for this order at this warehouse are received, mark order delivered and notify customer
                 if ($receivable->order_id && ! $receivable->order_return_id) {
                     $pendingAtWarehouse = WarehouseReceivable::where('order_id', $receivable->order_id)
                         ->where('warehouse_id', $warehouse->id)
@@ -1243,20 +1244,24 @@ class WarehouseController extends Controller
                         ->where('status', '!=', 'received')
                         ->count();
                     if ($pendingAtWarehouse === 0) {
-                        $order = Order::with('delivery.pickupWarehouse', 'customer')->find($receivable->order_id);
+                        $order = Order::with('delivery.pickupWarehouse', 'customer.user')->find($receivable->order_id);
                         if ($order) {
                             $order->update([
-                                'status' => 'shipped',
+                                'status' => 'delivered',
                                 'shipped_at' => $order->shipped_at ?? now(),
+                                'delivered_at' => now(),
                             ]);
                             $delivery = $order->delivery;
                             $customer = $order->customer;
-                            if ($customer && $customer->email && $delivery && (int) $delivery->pickup_warehouse_id === (int) $warehouse->id) {
+                            if ($customer && $delivery && (int) $delivery->pickup_warehouse_id === (int) $warehouse->id) {
                                 $pickupWarehouse = $delivery->pickupWarehouse;
                                 $pickupName = $pickupWarehouse ? $pickupWarehouse->name : 'Pick up point';
                                 $pickupAddress = $pickupWarehouse ? ($pickupWarehouse->address ?? $pickupWarehouse->location) : null;
                                 $pickupDetail = $pickupWarehouse && $pickupWarehouse->location ? $pickupWarehouse->location : null;
-                                Mail::to($customer->email)->send(new OrderReadyForPickup($order, $pickupName, $pickupAddress, $pickupDetail));
+                                if ($customer->email) {
+                                    Mail::to($customer->email)->send(new OrderReadyForPickup($order, $pickupName, $pickupAddress, $pickupDetail));
+                                }
+                                $customer->user?->notify(new OrderReadyForPickupNotification($order, $pickupName, $pickupAddress));
                             }
                         }
                     }

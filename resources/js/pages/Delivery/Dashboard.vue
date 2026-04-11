@@ -92,8 +92,8 @@ function money(amount: number, currency: string) {
 
 /** Build Google Maps URL for directions to delivery location */
 function getDirectionsUrl(order: DeliveryOrder): string | null {
-    // Home delivery: use shipping address
-    if (order.delivery_type === 'customer_address' && order.shipping_address) {
+    // Home delivery (customer_address or unset delivery_type): use shipping address
+    if (order.delivery_type !== 'pickup_point' && order.shipping_address) {
         const addr = order.shipping_address;
         if (addr.latitude != null && addr.longitude != null) {
             return `https://www.google.com/maps/dir/?api=1&destination=${addr.latitude},${addr.longitude}`;
@@ -548,7 +548,7 @@ onBeforeUnmount(() => stopLocationWatch());
                             <span class="text-sm text-muted-foreground">{{ order.created_at }}</span>
                         </div>
                         <pre class="mb-3 whitespace-pre-wrap rounded bg-muted p-2 text-xs">{{ order.delivery_note_summary }}</pre>
-                        <p v-if="order.shipping_address" class="mb-2 text-sm">
+                        <p v-if="order.delivery_type !== 'pickup_point' && order.shipping_address" class="mb-2 text-sm">
                             {{ order.shipping_address.address_line_1 }}, {{ order.shipping_address.city }}
                             <span v-if="order.shipping_address.phone"> · {{ order.shipping_address.phone }}</span>
                         </p>
@@ -592,7 +592,7 @@ onBeforeUnmount(() => stopLocationWatch());
                             <p class="text-xs text-muted-foreground">Admin will allocate this order for pickup; then you can confirm items and mark as picked for delivery.</p>
                         </div>
                         <pre class="mt-2 whitespace-pre-wrap rounded bg-muted p-2 text-xs">{{ order.delivery_note_summary }}</pre>
-                        <p v-if="order.shipping_address" class="mt-2 text-sm">
+                        <p v-if="order.delivery_type !== 'pickup_point' && order.shipping_address" class="mt-2 text-sm">
                             {{ order.shipping_address.address_line_1 }}, {{ order.shipping_address.city }}
                             <span v-if="order.shipping_address.phone"> · {{ order.shipping_address.phone }}</span>
                         </p>
@@ -618,6 +618,7 @@ onBeforeUnmount(() => stopLocationWatch());
                                 v-if="!order.picked_at"
                                 size="sm"
                                 @click="openConfirmPick(order)"
+                                class="text-white"
                             >
                                 Confirm items & mark as picked for delivery
                             </Button>
@@ -845,7 +846,7 @@ onBeforeUnmount(() => stopLocationWatch());
                 </div>
                 <DialogFooter>
                     <Button type="button" variant="outline" @click="closeConfirmPick">Cancel</Button>
-                    <Button @click="confirmPickedForDelivery">Items match – mark as picked for delivery</Button>
+                    <Button @click="confirmPickedForDelivery" class="text-white">Items match – mark as picked for delivery</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

@@ -45,6 +45,7 @@ class Product extends Model
         'unit_id',
         'max_step_completed',
         'status_id',
+        'package_size',  
         'stock',
         'buying_price',
         'marked_price',
@@ -80,11 +81,35 @@ class Product extends Model
     // Attributes
     // ----------------------
 
+    
     protected static function booted(): void
-    {
-        static::addGlobalScope(new SellerProductScope);
+{
+    static::addGlobalScope(new SellerProductScope);
 
-   }
+    static::saving(function ($product) {
+        $fields = [
+            'name', 'description', 'features', 'specifications',
+            'whats_in_the_box', 'meta_title', 'meta_keywords', 'meta_description',
+        ];
+
+        $replacements = [
+            "\xe2\x80\x91" => '-', 
+            "\xe2\x80\x92" => '-', 
+            "\xe2\x80\x93" => '-',
+            "\xe2\x80\x94" => '-', 
+            "\xe2\x80\x98" => "'", 
+            "\xe2\x80\x99" => "'", 
+            "\xe2\x80\x9c" => '"', 
+            "\xe2\x80\x9d" => '"', 
+        ];
+
+        foreach ($fields as $field) {
+            if (!empty($product->$field)) {
+                $product->$field = strtr($product->$field, $replacements);
+            }
+        }
+    });
+}
 
 
 

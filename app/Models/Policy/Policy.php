@@ -39,11 +39,11 @@ class Policy extends Model
 
         
         static::saved(function () {
-            Cache::tags(['policies'])->flush();
+            Cache::forget('customer_policies');
         });
 
         static::deleted(function () {
-            Cache::tags(['policies'])->flush();
+            Cache::forget('customer_policies');
         });
     }
 

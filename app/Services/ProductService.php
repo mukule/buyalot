@@ -121,6 +121,7 @@ protected function handleStep1(array $data, ?User $user, ?array $images, ?Produc
         $product->update(Arr::only($data, [
             'product_code',
             'name',
+            'package_size',
             'brand_id',
             'category_id',
             'unit_id',
@@ -388,7 +389,7 @@ protected function handleStep4(
 
     DB::transaction(function () use ($product, $imagesData) {
 
-       // Log::info('Processing images', ['images' => $imagesData]);
+      
 
         $existingIds = [];
         $primaryFound = false;
@@ -400,12 +401,7 @@ protected function handleStep4(
             $isPrimary = !empty($img['is_primary']);
             $sortOrder = $index;
 
-            // Log::info('Processing image row', [
-            //     'index' => $index,
-            //     'id' => $id,
-            //     'has_file' => $file instanceof \Illuminate\Http\UploadedFile,
-            //     'is_primary' => $isPrimary,
-            // ]);
+           
 
             // --- EXISTING IMAGE WITHOUT NEW FILE ---
             if ($id && !$file) {
@@ -419,13 +415,14 @@ protected function handleStep4(
 
                 if ($isPrimary) $primaryFound = true;
 
-                Log::info('Updated existing image', ['image_id' => $id]);
+                
             }
 
             // --- NEW UPLOADED IMAGE (or existing with new file) ---
             if ($file instanceof \Illuminate\Http\UploadedFile) {
 
-                $path = $file->store('products', 'public');
+               // $path = $file->store('products', 'public');
+               $path = $this->storeUploadedFile($file, 'products');
 
                 $created = $product->images()->create([
                     'image_path' => $path,
@@ -434,10 +431,7 @@ protected function handleStep4(
                     'alt_text'   => substr($product->name, 0, 15),
                 ]);
 
-                Log::info('New image stored', [
-                    'image_id' => $created->id,
-                    'path' => $path,
-                ]);
+              
 
                 $existingIds[] = $created->id; // keep it to prevent deletion
                 if ($isPrimary) $primaryFound = true;
@@ -492,12 +486,6 @@ protected function handleStep5(
 ) {
     $variantImagesData = $variantImages ?? [];
 
-    // \Log::info('STEP 5 START', [
-    //     'product_id' => $product?->id,
-    //     'user_id'    => $user?->id,
-    //     'variant_images_count' => count($variantImagesData),
-    // ]);
-
     if (!$product || !$product->exists) {
        // \Log::error('Step 5 failed: Product does not exist.');
         throw new \LogicException("Product must exist before step 5.");
@@ -509,10 +497,7 @@ protected function handleStep5(
             ->filter(fn($img) => !empty($img['variant_id']))
             ->groupBy('variant_id');
 
-        // \Log::info('Images grouped by variant', [
-        //     'grouped' => $imagesByVariant->map(fn($v) => count($v))->toArray()
-        // ]);
-
+       
         foreach ($imagesByVariant as $variantId => $imagesData) {
 
             $variant = \App\Models\Products\ProductVariant::with(['product', 'images'])
@@ -538,22 +523,14 @@ protected function handleStep5(
                 $sortOrder = $img['sort_order'] ?? $index;
                 $preview   = $img['preview'] ?? null; // new: handle blob URLs
 
-                // \Log::info('Processing image row', [
-                //     'variant_id' => $variantId,
-                //     'image_id'   => $id,
-                //     'has_file'   => $file instanceof \Illuminate\Http\UploadedFile,
-                //     'is_primary' => $isPrimary,
-                //     'sort_order' => $sortOrder,
-                //     'preview'    => $preview,
-                // ]);
-
                 // UPDATE EXISTING IMAGE
                 if ($id) {
                     $variantImage = $variant->images->firstWhere('id', $id);
                     if ($variantImage) {
                         if ($file instanceof \Illuminate\Http\UploadedFile) {
                             \Storage::disk('public')->delete($variantImage->image_path);
-                            $path = $file->store('product_variants', 'public');
+                          //  $path = $file->store('product_variants', 'public');
+                          $path = $this->storeUploadedFile($file, 'product_variants');
                             $variantImage->image_path = $path;
                         }
                         $variantImage->update([
@@ -569,7 +546,8 @@ protected function handleStep5(
 
                 // CREATE NEW IMAGE
                 if ($file instanceof \Illuminate\Http\UploadedFile) {
-                    $path = $file->store('product_variants', 'public');
+                   // $path = $file->store('product_variants', 'public');
+                   $path = $this->storeUploadedFile($file, 'product_variants');
                 } elseif ($preview && preg_match('/^blob:|^http/', $preview)) {
                     // fallback: save existing image URL as path (you might copy it to storage if needed)
                     $path = $preview;
@@ -587,10 +565,7 @@ protected function handleStep5(
                 $keptImageIds[] = $created->id;
                 if ($isPrimary) $primaryFound = true;
 
-                // \Log::info('Stored new variant image', [
-                //     'image_id' => $created->id,
-                //     'path'     => $path
-                // ]);
+              
             }
 
             // DELETE REMOVED IMAGES
@@ -631,6 +606,14 @@ protected function handleStep5(
     return $product->fresh('variants.images');
 }
 
+
+protected function storeUploadedFile(UploadedFile $file, string $directory): string
+{
+    $extension = $file->getClientOriginalExtension();
+    $safeName  = uniqid() . '.' . $extension; // ignore original name entirely
+    
+    return $file->storeAs($directory, $safeName, 'public');
+}
 
 
     protected function createBaseProduct(array $data, ?User $user = null): Product
@@ -741,5 +724,6 @@ protected function handleStep5(
         $data['owner_id']   = $data['owner_id'] ?? null;
     }
 }
+
 
 }

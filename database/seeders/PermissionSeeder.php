@@ -280,6 +280,12 @@ class PermissionSeeder extends Seeder
                 'edit-regions',
                 'delete-regions',
             ],
+             'promotions' => [
+                'view-promotions',
+                'create-promotions',
+                'edit-promotions',
+                'delete-promotions',
+            ],
 
             'zones' => [
                 'view-zones',
@@ -302,7 +308,8 @@ class PermissionSeeder extends Seeder
                 'download-invoices',
                 'view-invoice-reports',
                 'manage-invoice-settings',
-            ]
+            ],
+            
 
         ];
 

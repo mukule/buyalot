@@ -25,7 +25,7 @@ class AppServiceProvider extends ServiceProvider
         'appName' => config('app.name'),
 
         'customerPolicies' => function () {
-            $policies = Cache::tags(['policies'])->rememberForever('customer_policies', function () {
+            $policies = Cache::rememberForever('customer_policies', function () {
                 return Policy::active()
                     ->customer()
                     ->orderBy('title')

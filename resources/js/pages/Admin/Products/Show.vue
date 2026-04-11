@@ -28,6 +28,20 @@ interface Variant {
     images: VariantImage[];
 }
 
+interface VariantAttribute {
+    name: string;
+    options: string[];
+}
+
+interface VariantMapEntry {
+    id: number;
+    marked_price: number;
+    buying_price: number;
+    stock: number;
+    sku: string;
+    images: { id: number; url: string; is_primary: boolean; sort_order: number }[];
+}
+
 interface Product {
     id: number;
     hashid: string;
@@ -39,6 +53,8 @@ interface Product {
     brand?: { name: string };
     owner?: { name: string; roles: string[] };
     variants?: Variant[];
+    variant_attributes?: VariantAttribute[];
+    variant_map?: Record<string, VariantMapEntry>;
     description?: string;
     features?: string;
     specifications?: string;
@@ -51,16 +67,51 @@ const props = defineProps<{ product: Product }>();
 // Active tab state
 const activeTab = ref<'description' | 'features' | 'specifications'>('description');
 
-// Selected variant state
-const selectedVariant = ref<Variant | null>(props.product.variants?.[0] || null);
+// Selected attribute values by name e.g. { Color: 'Red', Size: 'M' }
+const selectedAttributes = ref<Record<string, string>>({});
 
-// Current images - combines product and variant images
+// Initialize selections from the first key in variant_map
+const initializeSelections = () => {
+    const firstKey = Object.keys(props.product.variant_map || {})[0];
+    if (!firstKey) return;
+    const parts = firstKey.split('|');
+    const attrs = props.product.variant_attributes || [];
+    attrs.forEach((attr, i) => {
+        selectedAttributes.value[attr.name] = parts[i] ?? '';
+    });
+};
+initializeSelections();
+
+// Build the lookup key from current selections
+const currentKey = computed(() => {
+    const attrs = props.product.variant_attributes || [];
+    return attrs.map((attr) => selectedAttributes.value[attr.name] ?? '').join('|');
+});
+
+// Active variant from map
+const activeVariant = computed<VariantMapEntry | null>(() => {
+    return props.product.variant_map?.[currentKey.value] ?? null;
+});
+
+// Price formatting
+const formatPrice = (amount?: number | null) => (amount != null ? `KSh ${amount.toLocaleString()}` : '-');
+
+// Calculate discount %
+const calcDiscount = (regular: number, selling: number) => {
+    if (!regular || !selling || selling >= regular) return null;
+    return Math.round(((regular - selling) / regular) * 100);
+};
+
+// Prices and stock from active variant
+const currentPrice = computed(() => activeVariant.value?.buying_price ?? 0);
+const markedPrice = computed(() => activeVariant.value?.marked_price ?? 0);
+const currentStock = computed(() => activeVariant.value?.stock ?? 0);
+const discount = computed(() => calcDiscount(markedPrice.value, currentPrice.value));
+
+// Current images from active variant or fall back to product images
 const currentImages = computed(() => {
-    if (selectedVariant.value?.images?.length) {
-        // If variant has images, show those
-        return selectedVariant.value.images.map((img) => img.url);
-    }
-    // Otherwise show product images
+    const imgs = activeVariant.value?.images ?? [];
+    if (imgs.length) return imgs.map((i) => i.url);
     return props.product.image_urls || [];
 });
 
@@ -68,8 +119,8 @@ const currentImages = computed(() => {
 const mainImageIndex = ref(0);
 const mainImage = computed(() => currentImages.value[mainImageIndex.value] || props.product.primary_image_url || '');
 
-// Watch for variant changes to reset image index
-watch(selectedVariant, () => {
+// Reset image index when variant changes
+watch(activeVariant, () => {
     mainImageIndex.value = 0;
 });
 
@@ -81,90 +132,47 @@ const selectImage = (index: number) => (mainImageIndex.value = index);
 
 // Navigate images
 const nextImage = () => {
-    if (mainImageIndex.value < currentImages.value.length - 1) {
-        mainImageIndex.value++;
-    }
+    if (mainImageIndex.value < currentImages.value.length - 1) mainImageIndex.value++;
 };
 const prevImage = () => {
-    if (mainImageIndex.value > 0) {
-        mainImageIndex.value--;
-    }
+    if (mainImageIndex.value > 0) mainImageIndex.value--;
 };
 
-// Price formatting
-const formatPrice = (amount?: number) => (amount != null ? `KSh ${amount.toLocaleString()}` : '-');
+// Select an attribute — if the new combo doesn't exist, auto-switch other attributes to a valid combo
+const selectAttribute = (attrName: string, value: string) => {
+    selectedAttributes.value[attrName] = value;
 
-// Calculate discount %
-const calcDiscount = (regular: number, selling: number) => {
-    if (!regular || !selling || selling >= regular) return null;
-    return Math.round(((regular - selling) / regular) * 100);
-};
+    // If the current key no longer maps to a valid variant, find the nearest valid one
+    if (!props.product.variant_map?.[currentKey.value]) {
+        const attrs = props.product.variant_attributes || [];
+        const map = props.product.variant_map || {};
+        const attrIndex = attrs.findIndex((a) => a.name === attrName);
 
-// Current prices based on selected variant
-const currentPrice = computed(() => selectedVariant.value?.buying_price || 0);
-const markedPrice = computed(() => selectedVariant.value?.marked_price || 0);
-const discount = computed(() => calcDiscount(markedPrice.value, currentPrice.value));
-const currentStock = computed(() => selectedVariant.value?.stock || 0);
-
-// Get unique variant attributes (e.g., Color, Size)
-const variantAttributes = computed(() => {
-    if (!props.product.variants?.length) return [];
-
-    const attributesMap = new Map<number, { id: number; values: Set<string> }>();
-
-    props.product.variants.forEach((variant) => {
-        variant.values.forEach((val) => {
-            if (!attributesMap.has(val.variant_category_id)) {
-                attributesMap.set(val.variant_category_id, {
-                    id: val.variant_category_id,
-                    values: new Set(),
-                });
-            }
-            attributesMap.get(val.variant_category_id)?.values.add(val.value);
+        const fallbackKey = Object.keys(map).find((key) => {
+            const parts = key.split('|');
+            return parts[attrIndex] === value;
         });
-    });
 
-    return Array.from(attributesMap.values()).map((attr) => ({
-        id: attr.id,
-        values: Array.from(attr.values),
-    }));
-});
-
-// Selected attribute values
-const selectedAttributes = ref<Record<number, string>>({});
-
-// Initialize selected attributes with first variant
-if (selectedVariant.value) {
-    selectedVariant.value.values.forEach((val) => {
-        selectedAttributes.value[val.variant_category_id] = val.value;
-    });
-}
-
-// Update variant when attributes change
-const selectAttribute = (categoryId: number, value: string) => {
-    selectedAttributes.value[categoryId] = value;
-
-    // Find matching variant
-    const matchingVariant = props.product.variants?.find((variant) => {
-        return variant.values.every((val) => selectedAttributes.value[val.variant_category_id] === val.value);
-    });
-
-    if (matchingVariant) {
-        selectedVariant.value = matchingVariant;
+        if (fallbackKey) {
+            const parts = fallbackKey.split('|');
+            attrs.forEach((attr, i) => {
+                selectedAttributes.value[attr.name] = parts[i];
+            });
+        }
     }
 };
 
-// Check if attribute option is available
-const isAttributeAvailable = (categoryId: number, value: string) => {
-    return (
-        props.product.variants?.some((variant) => {
-            const hasValue = variant.values.some((v) => v.variant_category_id === categoryId && v.value === value);
-            const matchesOthers = variant.values.every(
-                (v) => v.variant_category_id === categoryId || selectedAttributes.value[v.variant_category_id] === v.value,
-            );
-            return hasValue && matchesOthers && variant.stock > 0;
-        }) || false
-    );
+// An option is available if any map entry with stock > 0 contains it,
+// regardless of other current selections (since combos may be linked)
+const isOptionAvailable = (attrName: string, value: string): boolean => {
+    const map = props.product.variant_map || {};
+    const attrs = props.product.variant_attributes || [];
+    const attrIndex = attrs.findIndex((a) => a.name === attrName);
+
+    return Object.entries(map).some(([key, variant]) => {
+        const parts = key.split('|');
+        return parts[attrIndex] === value && variant.stock > 0;
+    });
 };
 
 // Button handlers
@@ -176,6 +184,9 @@ const backToProducts = () => {
     router.get('/admin/products');
 };
 </script>
+
+
+
 
 <template>
     <AppLayout
@@ -233,7 +244,6 @@ const backToProducts = () => {
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                                     </svg>
                                 </button>
-
                                 <button
                                     v-if="currentImages.length > 1 && mainImageIndex < currentImages.length - 1"
                                     @click="nextImage"
@@ -332,20 +342,23 @@ const backToProducts = () => {
                             </div>
 
                             <!-- Variant Selection -->
-                            <div v-if="props.product.variants && props.product.variants.length > 1" class="mb-6 space-y-4">
-                                <div v-for="attribute in variantAttributes" :key="attribute.id" class="space-y-2">
-                                    <label class="block text-sm font-medium text-gray-700"> Select Option </label>
+                            <div v-if="(props.product.variant_attributes?.length ?? 0) > 0" class="mb-6 space-y-4">
+                                <div v-for="attribute in props.product.variant_attributes" :key="attribute.name" class="space-y-2">
+                                    <label class="block text-sm font-medium text-gray-700">
+                                        {{ attribute.name }}:
+                                        <span class="font-semibold text-gray-900">{{ selectedAttributes[attribute.name] }}</span>
+                                    </label>
                                     <div class="flex flex-wrap gap-2">
                                         <button
-                                            v-for="value in attribute.values"
+                                            v-for="value in attribute.options"
                                             :key="value"
-                                            @click="selectAttribute(attribute.id, value)"
-                                            :disabled="!isAttributeAvailable(attribute.id, value)"
+                                            @click="selectAttribute(attribute.name, value)"
+                                            :disabled="!isOptionAvailable(attribute.name, value)"
                                             :class="[
                                                 'rounded-lg border-2 px-4 py-2 text-sm font-medium transition',
-                                                selectedAttributes[attribute.id] === value
+                                                selectedAttributes[attribute.name] === value
                                                     ? 'border-primary bg-primary text-white'
-                                                    : isAttributeAvailable(attribute.id, value)
+                                                    : isOptionAvailable(attribute.name, value)
                                                       ? 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
                                                       : 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 line-through',
                                             ]"
@@ -356,33 +369,32 @@ const backToProducts = () => {
                                 </div>
                             </div>
 
-                            <!-- Selected Variant Details -->
-                            <div v-if="selectedVariant" class="mb-6 rounded-lg border border-gray-200 p-4">
+                            <!-- Active Variant Details -->
+                            <div v-if="activeVariant" class="mb-6 rounded-lg border border-gray-200 p-4">
                                 <h3 class="mb-3 text-sm font-semibold text-gray-700">Selected Variant Details</h3>
                                 <div class="space-y-2 text-sm">
                                     <div class="flex justify-between">
                                         <span class="text-gray-600">SKU:</span>
-                                        <span class="font-mono font-medium">{{ selectedVariant.sku }}</span>
+                                        <span class="font-mono font-medium">{{ activeVariant.sku }}</span>
                                     </div>
                                     <div class="flex justify-between">
                                         <span class="text-gray-600">Stock:</span>
-                                        <span class="font-medium">{{ selectedVariant.stock }} units</span>
+                                        <span class="font-medium">{{ activeVariant.stock }} units</span>
                                     </div>
-                                    <div v-if="selectedVariant.values.length" class="flex justify-between">
+                                    <div class="flex justify-between">
                                         <span class="text-gray-600">Variant:</span>
-                                        <span class="font-medium">
-                                            {{ selectedVariant.values.map((v) => v.value).join(', ') }}
-                                        </span>
+                                        <span class="font-medium">{{ currentKey.replace(/\|/g, ', ') }}</span>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Owner Info (Admin) -->
+                            <!-- Owner Info -->
                             <div v-if="props.product.owner" class="rounded-lg border border-gray-200 bg-gray-50 p-4">
                                 <h3 class="mb-2 text-sm font-semibold text-gray-700">Owner Information</h3>
                                 <div class="space-y-1 text-sm">
                                     <p>
-                                        <span class="text-gray-600">Name:</span> <span class="font-medium">{{ props.product.owner.name }}</span>
+                                        <span class="text-gray-600">Name:</span>
+                                        <span class="font-medium">{{ props.product.owner.name }}</span>
                                     </p>
                                     <p v-if="props.product.owner.roles?.length">
                                         <span class="text-gray-600">Roles:</span>
@@ -443,22 +455,17 @@ const backToProducts = () => {
                     </div>
 
                     <div class="p-6">
-                        <!-- Description Tab -->
                         <div v-show="activeTab === 'description'">
                             <div v-if="props.product.description" class="prose max-w-none">
                                 <div v-html="props.product.description"></div>
                             </div>
                             <div v-else class="text-gray-500">No description available.</div>
                         </div>
-
-                        <!-- Features Tab -->
                         <div v-show="activeTab === 'features'" v-if="props.product.features">
                             <div class="prose max-w-none">
                                 <div v-html="props.product.features"></div>
                             </div>
                         </div>
-
-                        <!-- Specifications Tab -->
                         <div v-show="activeTab === 'specifications'" v-if="props.product.specifications">
                             <div class="prose max-w-none">
                                 <div v-html="props.product.specifications"></div>
@@ -495,21 +502,17 @@ const backToProducts = () => {
 </template>
 
 <style scoped>
-/* Custom scrollbar for thumbnail gallery */
 .overflow-x-auto::-webkit-scrollbar {
     height: 6px;
 }
-
 .overflow-x-auto::-webkit-scrollbar-track {
     background: #f1f1f1;
     border-radius: 3px;
 }
-
 .overflow-x-auto::-webkit-scrollbar-thumb {
     background: #888;
     border-radius: 3px;
 }
-
 .overflow-x-auto::-webkit-scrollbar-thumb:hover {
     background: #555;
 }

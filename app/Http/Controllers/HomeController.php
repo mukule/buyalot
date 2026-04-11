@@ -42,7 +42,7 @@ class HomeController extends Controller
 
     public function index()
 {
-    // 1. Light queries (Fast, no need to cache these specifically)
+    // 1. Light queries
     $categories = \App\Models\Category::query()
         ->select('id', 'name', 'slug')
         ->with(['children:id,parent_id,name,slug'])
@@ -56,23 +56,35 @@ class HomeController extends Controller
         ->orderBy('name')
         ->get();
 
-    // 2. Heavy logic (The Service handles its own Redis caching internally)
+    // 2. Promotions (cached)
+    $promotions = Cache::remember('promotions:homepage:category', now()->addMinutes(30), function () {
+        return \App\Models\Promotion::active()
+            ->where('link_type', 'category')
+            ->with(['category:id,slug'])
+            ->orderBy('priority')
+            ->get()
+            ->map(fn($promotion) => [
+                'image_url'     => $promotion->image_url,
+                'category_slug' => $promotion->category?->slug,
+            ]);
+    });
+
+    // 3. Heavy logic
     $productsByCategory = $this->productService->getProductsGroupedByCategory($categories);
 
     return Inertia::render('Frontend/Index', [
-        'title' => 'Online Shopping Store',
-        'categories' => $categories,
-        'brands' => $brands->map(fn($brand) => [
-            'id' => $brand->id,
-            'name' => $brand->name,
-            'slug' => $brand->slug,
+        'title'              => 'Online Shopping Store',
+        'categories'         => $categories,
+        'brands'             => $brands->map(fn($brand) => [
+            'id'       => $brand->id,
+            'name'     => $brand->name,
+            'slug'     => $brand->slug,
             'logo_url' => $brand->logo_url,
         ]),
+        'promotions'         => $promotions,
         'productsByCategory' => $productsByCategory,
     ]);
 }
-
-
 
 public function productDetails(string $slug)
 {
@@ -80,7 +92,7 @@ public function productDetails(string $slug)
         'brand',
         'primaryImage',
         'images',
-        'productVariants.values.variant',
+        'productVariants.values.variant.category', // added .category
         'productVariants.images',
         'category.parent',
         'warranties',
@@ -105,7 +117,7 @@ public function productDetails(string $slug)
                 'variant_category_id' => $v->variant->variant_category_id,
                 'value'               => $v->variant->value,
             ]),
-            'images'           => $variant->images->sortBy('sort_order')->map(fn ($img) => [
+            'images' => $variant->images->sortBy('sort_order')->map(fn ($img) => [
                 'id'         => $img->id,
                 'url'        => $img->url,
                 'is_primary' => $img->is_primary,
@@ -113,6 +125,42 @@ public function productDetails(string $slug)
             ])->values(),
         ];
     });
+
+    // Variant attributes for selector UI
+    $variantAttributes = $product->productVariants
+        ->flatMap(fn ($variant) => $variant->values)
+        ->groupBy(fn ($v) => $v->variant->category->name)
+        ->map(fn ($group, $categoryName) => [
+            'name'    => $categoryName,
+            'options' => $group->map(fn ($v) => $v->variant->value)->unique()->values(),
+        ])
+        ->values();
+
+    // Variant map keyed by "Red|M|Cotton" for instant frontend lookup
+    $variantMap = $product->productVariants
+        ->keyBy(fn ($variant) => $variant->values
+            ->sortBy(fn ($v) => $v->variant->variant_category_id)
+            ->map(fn ($v) => $v->variant->value)
+            ->join('|')
+        )
+        ->map(fn ($variant) => [
+            'id'          => $variant->id,
+            'marked_price' => $variant->marked_price,
+            'buying_price' => $variant->selling_price,
+            'stock'       => $variant->stock,
+            'sku'         => $variant->sku,
+            'has_discount'     => $variant->discount > 0,
+            'discount'         => $variant->discount,
+            'discount_percent' => $variant->marked_price > 0 && $variant->discount > 0
+                ? round(($variant->discount / $variant->marked_price) * 100, 2)
+                : 0,
+            'images' => $variant->images->sortBy('sort_order')->map(fn ($img) => [
+                'id'         => $img->id,
+                'url'        => $img->url,
+                'is_primary' => $img->is_primary,
+                'sort_order' => $img->sort_order,
+            ])->values(),
+        ]);
 
     // Determine selected variant
     $selectedVariant = $product->productVariants->first();
@@ -128,7 +176,6 @@ public function productDetails(string $slug)
     $ownerInfo = $selectedVariant?->getOwnerInfo();
     $activeWarranty = $selectedVariant?->getActiveWarranty();
 
-    // Use selected variant's primary image if available, else fall back to product primary image
     $selectedVariantPrimaryImage = $selectedVariant?->images->firstWhere('is_primary', true);
     $primaryImageUrl = $selectedVariantPrimaryImage?->url ?? $product->primary_image_url;
 
@@ -149,6 +196,8 @@ public function productDetails(string $slug)
         'whats_in_the_box'   => $product->whats_in_the_box,
         'images'             => $product->image_urls,
         'variants'           => $variants,
+        'variant_attributes' => $variantAttributes,
+        'variant_map'        => $variantMap,
         'owner'              => $ownerInfo ? [
             'type' => $ownerInfo['type'],
             'name' => $ownerInfo['name'],
@@ -211,7 +260,6 @@ public function productDetails(string $slug)
         'title'            => $product->name,
     ]);
 }
-
 
 
 public function category(string $slug)

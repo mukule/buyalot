@@ -3,6 +3,7 @@ import AppContent from '@/components/AppContent.vue';
 import AppShell from '@/components/AppShell.vue';
 import FlashMessage from '@/components/FlashMessage.vue';
 import AppLogo from '@/components/AppLogo.vue';
+import NotificationBell from '@/components/NotificationBell.vue';
 import {
     Sidebar,
     SidebarContent,
@@ -11,6 +12,7 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
+    SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { Link, usePage } from '@inertiajs/vue3';
 import {
@@ -89,6 +91,14 @@ const menuItems = [
         </Sidebar>
 
         <AppContent variant="sidebar" class="flex flex-col">
+            <!-- Header bar with sidebar trigger and notification bell -->
+            <header class="flex h-16 shrink-0 items-center justify-between border-b border-sidebar-border/70 px-4">
+                <div class="flex items-center gap-2">
+                    <SidebarTrigger class="-ml-1" />
+                </div>
+                <NotificationBell />
+            </header>
+
             <FlashMessage />
             <slot />
         </AppContent>

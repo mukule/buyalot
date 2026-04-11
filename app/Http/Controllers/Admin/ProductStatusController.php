@@ -61,6 +61,14 @@ class ProductStatusController extends Controller
     }
 
     /**
+     * Display the specified product status (redirects to edit).
+     */
+    public function show(ProductStatus $productStatus)
+    {
+        return redirect()->route('admin.product-statuses.edit', $productStatus);
+    }
+
+    /**
      * Show the form for editing the specified product status.
      */
     public function edit(ProductStatus $productStatus)

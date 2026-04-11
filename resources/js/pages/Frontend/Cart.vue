@@ -30,6 +30,7 @@ interface CartItem {
     discount_amount?: number;
     discount_percentage?: number;
     product_image_url?: string | null;
+    available_stock?: number;
 }
 
 interface Cart {
@@ -68,6 +69,8 @@ const simplifiedRelatedProducts = computed<SimplifiedProduct[]>(() =>
 
 // ---------------- CART ACTIONS ----------------
 const increaseQty = (item: CartItem) => {
+    const maxStock = item.available_stock ?? Infinity;
+    if (item.quantity >= maxStock) return; // already at stock limit
     router.post(
         route('cart.store'),
         { product_variant_id: item.product_variant.id, quantity: item.quantity + 1 },
@@ -83,6 +86,14 @@ const decreaseQty = (item: CartItem) => {
         { onSuccess: () => window.location.reload() },
     );
 };
+
+// Returns true when the item's cart quantity exceeds currently available stock
+const isOverStock = (item: CartItem) =>
+    item.available_stock !== undefined && item.quantity > item.available_stock;
+
+// Returns true when + should be disabled (at or over stock limit)
+const canIncrease = (item: CartItem) =>
+    item.available_stock === undefined || item.quantity < item.available_stock;
 
 // ---------------- FORMATTERS ----------------
 const formatPrice = (amount: number | string) =>
@@ -149,11 +160,22 @@ const goToProduct = (product: SimplifiedProduct) => {
                                             </span>
                                             <button
                                                 @click="increaseQty(item)"
-                                                class="flex h-6 w-6 items-center justify-center rounded bg-gray-200 hover:bg-gray-300"
+                                                :disabled="!canIncrease(item)"
+                                                :class="[
+                                                    'flex h-6 w-6 items-center justify-center rounded',
+                                                    canIncrease(item)
+                                                        ? 'bg-gray-200 hover:bg-gray-300'
+                                                        : 'cursor-not-allowed bg-gray-100 text-gray-400',
+                                                ]"
                                             >
                                                 +
                                             </button>
                                         </div>
+
+                                        <!-- Low / out-of-stock warning -->
+<!--                                        <p v-if="isOverStock(item)" class="mt-1 text-xs text-red-500">-->
+<!--                                            Only {{ item.available_stock }} left in stock — quantity will be adjusted at checkout.-->
+<!--                                        </p>-->
                                     </div>
                                 </div>
 

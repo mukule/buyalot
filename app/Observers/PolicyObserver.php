@@ -9,11 +9,11 @@ class PolicyObserver
 {
     public function saved(Policy $policy): void
     {
-        Cache::tags(['policies'])->flush();
+        Cache::forget('customer_policies');
     }
 
     public function deleted(Policy $policy): void
     {
-        Cache::tags(['policies'])->flush();
+        Cache::forget('customer_policies');
     }
 }

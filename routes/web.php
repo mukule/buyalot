@@ -32,6 +32,7 @@ use App\Http\Controllers\SellController;
 use App\Http\Controllers\SellerAccountController;
 use App\Http\Controllers\Seller\UserManagementController as SellerUserManagementController;
 use App\Http\Controllers\Admin\PolicyController;
+use App\Http\Controllers\Admin\PromotionController;
 use App\Http\Controllers\Warehouse\WarehouseController;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken as VerifyCsrfTokenMiddleware;
 use Illuminate\Support\Facades\Route;
@@ -158,6 +159,13 @@ Route::middleware(['auth','role:admin|seller|vendor|super-admin','check_permissi
 
 });
 
+// Internal notification endpoints — available to any authenticated user
+Route::middleware('auth')->prefix('notifications')->name('notifications.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\NotificationController::class, 'index'])->name('index');
+    Route::post('/read-all', [\App\Http\Controllers\NotificationController::class, 'markAllRead'])->name('readAll');
+    Route::post('/{id}/read', [\App\Http\Controllers\NotificationController::class, 'markRead'])->name('read');
+});
+
 // Allow non-admin users with specific permissions to access listing pages
 Route::middleware(['auth','role_or_permission:admin|view-orders'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/orders', [\App\Http\Controllers\Orders\OrderController::class, 'index'])->name('orders.index');
@@ -165,6 +173,16 @@ Route::middleware(['auth','role_or_permission:admin|view-orders'])->prefix('admi
         ->name('orders.show');
     Route::post('/orders/{order}/assign-delivery', [\App\Http\Controllers\Admin\OrderController::class, 'assignDelivery'])
         ->name('orders.assign-delivery');
+    Route::post('/orders/{order}/items/{item}/receive', [\App\Http\Controllers\Admin\OrderController::class, 'receiveItem'])
+        ->name('orders.items.receive');
+    Route::post('/orders/{order}/items/{item}/reject', [\App\Http\Controllers\Admin\OrderController::class, 'rejectItem'])
+        ->name('orders.items.reject');
+    Route::post('/orders/{order}/items/{item}/confirm-available', [\App\Http\Controllers\Admin\OrderController::class, 'confirmItemAvailable'])
+        ->name('orders.items.confirm-available');
+    Route::post('/orders/{order}/items/{item}/dispatch', [\App\Http\Controllers\Orders\OrderController::class, 'dispatchItem'])
+        ->name('orders.items.dispatch');
+    Route::post('/orders/{order}/items/{item}/decline', [\App\Http\Controllers\Orders\OrderController::class, 'declineDispatch'])
+        ->name('orders.items.decline');
     Route::post('/orders/{order}/change-delivery', [\App\Http\Controllers\Admin\OrderController::class, 'changeDelivery'])
         ->name('orders.change-delivery');
     Route::get('/orders/{order}/delivery-note', [\App\Http\Controllers\Admin\OrderController::class, 'deliveryNote'])
@@ -311,6 +329,16 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::resource('subregions', RegionController::class);
     Route::resource('areas', RegionController::class);
     Route::resource('routes', RegionController::class);
+    
+
+   Route::prefix('promotions')->name('promotions.')->group(function () {
+    Route::get('/', [PromotionController::class, 'index'])->name('index');
+    Route::post('/save', [PromotionController::class, 'save'])->name('save');
+    Route::delete('/{promotion}', [PromotionController::class, 'destroy'])->name('destroy');
+    Route::get('/search-categories', [PromotionController::class, 'searchCategories'])->name('searchCategories');
+    Route::get('/search-products', [PromotionController::class, 'searchProducts'])->name('searchProducts');
+});
+    
 
     // Brands management (create/edit/delete)
     // Note: index is defined under a separate middleware group for users with view-brands permission
@@ -395,6 +423,11 @@ Route::get('/checkout/summary', [CartController::class, 'checkout'])
 // Checkout Payment page
 Route::get('/checkout/payment', [CartController::class, 'payment'])
     ->name('checkout.payment');
+
+// On-demand re-reservation: called by the payment page countdown timer
+// when the reservation window expires but the customer still wants to pay.
+Route::post('/checkout/re-reserve', [CartController::class, 'reReserve'])
+    ->name('checkout.re-reserve');
 
 // Terms & Conditions
 Route::get('/terms', function () {

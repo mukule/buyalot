@@ -23,6 +23,6 @@ class Receipt extends Model
 
     public function seller(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\Seller\SellerAccount::class, 'seller_id');
+        return $this->belongsTo(\App\Models\Seller\Seller::class, 'seller_id');
     }
 }

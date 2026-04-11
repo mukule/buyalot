@@ -27,6 +27,12 @@ class CartController extends Controller
     // Load primary image for products
     $cart->load('items.productVariant.product.primaryImage');
 
+    // Attach current available stock to each item so the frontend can cap the + button
+    // and show low-stock warnings without an extra round-trip.
+    $cart->items->each(function ($item) use ($cartService) {
+        $item->setAttribute('available_stock', $cartService->availableForCart($item->product_variant_id));
+    });
+
     // Totals
     $totalAmount = 0;
     $totalDiscount = 0;
@@ -253,15 +259,15 @@ public function store(Request $request, CartReservationService $cartService)
         return redirect()->back()->with('success', "{$variant->product->name} removed from cart!");
     }
 
-    // Check availability considering other reservations
-    $available = $reservationService->availableForCart($variantId, $cart->id);
-
-    // With immediate stock deduction on reservation, $available is already the net stock.
-    // However, during "add to cart" phase, we aren't reserving yet, so $available is correct.
-    // In current implementation, reservations ONLY happen at payment initialization.
-
-    if ($quantity > $available) {
-        return redirect()->back()->with('error', "Only {$available} unit(s) are currently available. Please try again later.");
+    // Only check stock availability when the customer is requesting MORE than they already have in cart.
+    // Reducing or keeping the same quantity should always be allowed — stock was already "consumed"
+    // from the customer's perspective when they originally added items.
+    $existingQty = $cartItem ? $cartItem->quantity : 0;
+    if ($quantity > $existingQty) {
+        $available = $reservationService->availableForCart($variantId, $cart->id);
+        if ($quantity > $available) {
+            return redirect()->back()->with('error', "Only {$available} unit(s) are currently available. Please try again later.");
+        }
     }
 
     // Get price info from DiscountService
@@ -352,11 +358,13 @@ public function store(Request $request, CartReservationService $cartService)
         if ($quantity === 0) {
             $item->delete();
         } else {
-            // Check availability considering other reservations
-            $available = $reservationService->availableForCart($item->product_variant_id, $cart->id);
-
-            if ($quantity > $available) {
-                return redirect()->back()->with('error', "Only {$available} unit(s) are currently available. Please try again later.");
+            // Only check stock when increasing beyond the current cart quantity.
+            // Reducing is always allowed — the customer is not requesting additional stock.
+            if ($quantity > $item->quantity) {
+                $available = $reservationService->availableForCart($item->product_variant_id, $cart->id);
+                if ($quantity > $available) {
+                    return redirect()->back()->with('error', "Only {$available} unit(s) are currently available. Please try again later.");
+                }
             }
 
             $item->update([
@@ -399,13 +407,15 @@ public function store(Request $request, CartReservationService $cartService)
         }
 
         $distanceKm = $shippingService->distanceKm($lat, $lng, $center['lat'], $center['lng']);
-        $shippingCost = $shippingService->calculateHomeDeliveryCost($distanceKm);
 
-        // Nairobi: free shipping when order total >= KSh 50,000
+        // Resolve zone-aware options (handles free shipping threshold and max_shipping_fee cap)
         $options = $shippingService->getOptionsByRegion($region->id, $orderTotalBeforeShipping);
-        if (($options['door']['cost'] ?? $shippingCost) === 0) {
-            $shippingCost = 0;
-        }
+        $isFreeShipping = ($options['door']['cost'] ?? 1) === 0;
+
+        // Use the zone-specific rate for distance-based calculation; cap applied inside
+        $shippingCost = $isFreeShipping
+            ? 0
+            : $shippingService->calculateHomeDeliveryCost($distanceKm, $region);
 
         $days = $options['door']['days'] ?? 2;
 
@@ -435,6 +445,32 @@ public function store(Request $request, CartReservationService $cartService)
         return redirect()->back()->with('success', 'Item removed from cart.');
     }
 
+    /**
+     * On-demand re-reservation endpoint called from the payment page when the
+     * countdown timer reaches zero. Checks stock availability and re-reserves
+     * with a fresh TTL_INITIAL window if items are still available.
+     */
+    public function reReserve(Request $request, CartReservationService $cartService)
+    {
+        $cart = $cartService->getCart($request);
+        $cart->load('items.productVariant.product');
+
+        $result = $cartService->ensureReservedForCheckout($cart);
+
+        if (!$result['ok']) {
+            return response()->json([
+                'ok'      => false,
+                'message' => $result['message'],
+            ], 409);
+        }
+
+        return response()->json([
+            'ok'         => true,
+            'expires_at' => $result['expires_at']?->toIso8601String(),
+            'refreshed'  => $result['refreshed'] ?? false,
+        ]);
+    }
+
     public function clear(Request $request, CartReservationService $cartService)
     {
         $cart = $this->getCart($request);
@@ -455,12 +491,13 @@ public function store(Request $request, CartReservationService $cartService)
     $cart = $cartService->getCart($request);
     $cart->load('items.productVariant.product.primaryImage', 'items.productVariant.product.images');
 
-    foreach ($cart->items as $item) {
-        $available = $cartService->availableForCart($item->product_variant_id, $cart->id);
-        if ($item->quantity > $available) {
-            return redirect()->route('cart.index')->with('error', "Sorry, some items in your cart became unavailable.");
-        }
+    // Attempt to ensure stock is reserved for checkout. Re-reserves on demand
+    // if a previous reservation expired but stock is still available.
+    $reservationResult = $cartService->ensureReservedForCheckout($cart);
+    if (!$reservationResult['ok']) {
+        return redirect()->route('cart.index')->with('error', $reservationResult['message']);
     }
+    $reservationExpiresAt = $reservationResult['expires_at'] ?? null;
 
     // Map cart items
     $presentedItems = $cart->items->map(function ($it) {
@@ -541,11 +578,22 @@ public function store(Request $request, CartReservationService $cartService)
 
     if ($customer && $addressIdFromSummary && $shippingCostFromSummary !== null && $deliveryMethodFromSummary) {
         $address = $customer->addresses()
-            ->with(['pickupPoint.region', 'region', 'pickupWarehouse' => fn ($q) => $q->withoutGlobalScopes()->with('region')])
+            ->with(['pickupPoint.region', 'region.zone', 'pickupWarehouse' => fn ($q) => $q->withoutGlobalScopes()->with('region')])
             ->find($addressIdFromSummary);
         if ($address) {
             $defaultAddress = $address;
             $shippingCost = max(0, (int) round((float) $shippingCostFromSummary));
+
+            // For home delivery, enforce max_shipping_fee cap — but the cap must not
+            // undercut the fallback price, so applyHomeDeliveryCap() is used.
+            if ($shippingCost > 0 && $deliveryMethodFromSummary === 'door') {
+                $zoneId = $address->region?->zone_id ?? $address->region?->zone?->id;
+                $rate = $shippingService->getRateForZone($zoneId);
+                if ($rate) {
+                    $shippingCost = (int) round($rate->applyHomeDeliveryCap($shippingCost));
+                }
+            }
+
             $selectedShipping = [
                 'method'       => $deliveryMethodFromSummary === 'door' ? 'door' : 'pickup',
                 'cost'         => $shippingCost,
@@ -606,12 +654,12 @@ public function store(Request $request, CartReservationService $cartService)
     $grandTotal = (int) round($cartTotal + $shippingCost - $couponAmount);
 
     // COD min amount from shipping rate – applies to both pickup and home delivery
-    $codMinAmount = null;
+    $codMaxAmount = null;
     if ($defaultAddress) {
         $defaultAddress->loadMissing('region.zone');
         $zoneId = $defaultAddress->region?->zone_id ?? $defaultAddress->region?->zone?->id;
         $rate = $zoneId ? $shippingService->getRateForZone($zoneId) : null;
-        $codMinAmount = $rate?->cod_min_amount;
+        $codMaxAmount = $rate?->cod_max_amount;
     }
 
     // Related products
@@ -642,10 +690,11 @@ public function store(Request $request, CartReservationService $cartService)
         'customer_addresses' => $defaultAddress ? collect([$defaultAddress]) : collect(),
         'shipping_address_id' => $defaultAddressId,
         'billing_address_id'  => $defaultAddressId,
-        'default_phone'       => $defaultPhone,
-        'cod_min_amount'      => $codMinAmount,
-        'relatedProducts'     => $relatedProducts,
-        'googleMapsApiKey'    => config('services.google.maps_api_key', ''),
+        'default_phone'            => $defaultPhone,
+        'cod_max_amount'           => $codMaxAmount,
+        'relatedProducts'          => $relatedProducts,
+        'googleMapsApiKey'         => config('services.google.maps_api_key', ''),
+        'reservation_expires_at'   => $reservationExpiresAt?->toIso8601String(),
     ]);
 }
 

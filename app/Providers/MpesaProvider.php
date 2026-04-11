@@ -194,7 +194,14 @@ class MpesaProvider implements PaymentProviderInterface
             if ($checkoutSession) {
                 try {
                     $order = app(\App\Services\OrderPlacementService::class)
-                        ->placeOrder($checkoutSession->id,$requestAmountPaid,$metadata['mpesareceiptnumber'],'MPESA');
+                        ->placeOrder(
+                            $checkoutSession->id,
+                            $requestAmountPaid,
+                            $metadata['mpesareceiptnumber'],
+                            'MPESA',
+                            $checkoutSession->shipping_address_id ?? null,
+                            $checkoutSession->billing_address_id  ?? null
+                        );
 
                     Log::info('Order successfully created from checkout session', [
                         'checkout_session_id' => $checkoutSession->id,
@@ -283,7 +290,7 @@ class MpesaProvider implements PaymentProviderInterface
     $payment->save();
 
     // Log payload after saving
-    info('STK push payload', $payment->request_payload['payload']);
+//    info('STK push payload', $payment->request_payload['payload']);
 
     try {
         $response = Http::withToken($this->accessToken)
@@ -291,10 +298,10 @@ class MpesaProvider implements PaymentProviderInterface
             ->post($this->config['stk_push_url'], $payment->request_payload['payload']);
 
         // Log raw response
-        info('STK push response', [
-            'status' => $response->status(),
-            'body' => $response->body()
-        ]);
+//        info('STK push response', [
+//            'status' => $response->status(),
+//            'body' => $response->body()
+//        ]);
 
         $data = $response->json() ?? [];
 

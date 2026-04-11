@@ -15,6 +15,29 @@ class OrderItem extends Model
 {
     use HasFactory;
 
+    public const DISPATCH_STATUS_PENDING = 'pending';
+    public const DISPATCH_STATUS_DISPATCHED = 'dispatched';
+    public const DISPATCH_STATUS_DECLINED = 'declined';
+    public const DISPATCH_STATUS_RECEIVED = 'received';
+    public const DISPATCH_STATUS_REJECTED = 'rejected';
+
+    public const DECLINE_REASONS = [
+        'out_of_stock' => 'Out of stock',
+        'price_changed' => 'Price changed',
+        'dispatch_center_too_far' => 'Dispatch center is too far',
+        'store_temporarily_closed' => 'Store temporarily closed',
+        'other' => 'Other',
+    ];
+
+    public const REJECTION_REASONS = [
+        'spoiled' => 'Spoiled',
+        'substandard' => 'Substandard',
+        'wrong_item' => 'Not the ordered item',
+        'damaged_packaging' => 'Damaged packaging',
+        'expired' => 'Expired',
+        'other' => 'Other',
+    ];
+
     protected $fillable = [
         'ulid',
         'order_id',
@@ -31,6 +54,15 @@ class OrderItem extends Model
         'quantity_returned',
         'product_snapshot',
         'metadata',
+        'dispatch_status',
+        'dispatched_at',
+        'dispatch_center_id',
+        'dispatch_decline_reason',
+        'received_at',
+        'received_by',
+        'rejection_reason',
+        'rejected_at',
+        'rejected_by',
     ];
 
     protected $casts = [
@@ -45,6 +77,9 @@ class OrderItem extends Model
         'quantity_returned' => 'integer',
         'product_snapshot' => 'json',
         'metadata' => 'json',
+        'dispatched_at' => 'datetime',
+        'received_at' => 'datetime',
+        'rejected_at' => 'datetime',
     ];
 
     // Relationships
@@ -56,6 +91,21 @@ class OrderItem extends Model
     public function productVariant(): BelongsTo
     {
         return $this->belongsTo(ProductVariant::class, 'product_variant_id');
+    }
+
+    public function dispatchCenter(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Warehouse\Warehouse::class, 'dispatch_center_id');
+    }
+
+    public function receiver(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'received_by');
+    }
+
+    public function rejector(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'rejected_by');
     }
     public function product(): BelongsTo
     {
@@ -70,7 +120,7 @@ class OrderItem extends Model
 
     public function seller(): BelongsTo
     {
-        return $this->belongsTo(SellerAccount::class, 'seller_id');
+        return $this->belongsTo(\App\Models\Seller\Seller::class, 'seller_id');
     }
 
     // Scopes
@@ -173,6 +223,15 @@ class OrderItem extends Model
     public function getRouteKeyName(): string
     {
         return 'ulid';
+    }
+
+    public function resolveRouteBinding($value, $field = null)
+    {
+        if (is_numeric($value)) {
+            return static::where('id', (int) $value)->first();
+        }
+
+        return static::where($field ?? $this->getRouteKeyName(), $value)->first();
     }
 
     // Boot method for model events

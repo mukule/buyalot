@@ -66,7 +66,7 @@ const page = usePage<
 // Compute products so pagination updates automatically
 const products = computed(() => page.props.products.data);
 const paginationLinks = computed(() => page.props.products.links);
-const paginationMeta = computed(() => page.props.products.meta);
+computed(() => page.props.products.meta);
 const statuses = computed(() => page.props.productStatuses ?? []);
 
 // Breadcrumbs

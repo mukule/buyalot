@@ -28,8 +28,9 @@ const form = useForm({
     door_fallback_price: 250,
     door_fallback_min_km: 10,
     door_extra_km_cost: 20,
-    cod_min_amount: null as number | null,
+    cod_max_amount: null as number | null,
     free_shipping_min_amount: null as number | null,
+    max_shipping_fee: null as number | null,
 });
 
 function submitRate() {
@@ -160,18 +161,18 @@ function submitRate() {
                         <p class="mb-3 text-xs text-amber-700">When this rate is assigned to a zone, these amounts apply to regions in that zone.</p>
                         <div class="grid gap-3 sm:grid-cols-2">
                             <div>
-                                <label for="cod_min_amount" class="mb-1 block text-sm font-medium text-gray-700">Pay on Delivery min (KSh)</label>
+                                <label for="cod_max_amount" class="mb-1 block text-sm font-medium text-gray-700">Pay on Delivery max (KSh)</label>
                                 <input
-                                    v-model.number="form.cod_min_amount"
-                                    id="cod_min_amount"
+                                    v-model.number="form.cod_max_amount"
+                                    id="cod_max_amount"
                                     type="number"
                                     min="0"
                                     step="1"
                                     placeholder="e.g. 50000"
                                     class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:ring-2 focus:ring-[color:var(--primary)] focus:outline-none"
                                 />
-                                <p class="mt-1 text-xs text-gray-500">Min order total for Pay on Delivery. Leave empty for no restriction.</p>
-                                <div v-if="form.errors.cod_min_amount" class="mt-1 text-sm text-red-600">{{ form.errors.cod_min_amount }}</div>
+                                <p class="mt-1 text-xs text-gray-500">Max order total for Pay on Delivery. Leave empty for no restriction.</p>
+                                <div v-if="form.errors.cod_max_amount" class="mt-1 text-sm text-red-600">{{ form.errors.cod_max_amount }}</div>
                             </div>
                             <div>
                                 <label for="free_shipping_min_amount" class="mb-1 block text-sm font-medium text-gray-700">Free shipping min (KSh)</label>
@@ -186,6 +187,20 @@ function submitRate() {
                                 />
                                 <p class="mt-1 text-xs text-gray-500">Min order total for free shipping. Leave empty for no free shipping.</p>
                                 <div v-if="form.errors.free_shipping_min_amount" class="mt-1 text-sm text-red-600">{{ form.errors.free_shipping_min_amount }}</div>
+                            </div>
+                            <div>
+                                <label for="max_shipping_fee" class="mb-1 block text-sm font-medium text-gray-700">Max shipping fee (KSh)</label>
+                                <input
+                                    v-model.number="form.max_shipping_fee"
+                                    id="max_shipping_fee"
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    placeholder="e.g. 1000"
+                                    class="w-full rounded border border-[color:var(--border)] px-3 py-2 focus:ring-2 focus:ring-[color:var(--primary)] focus:outline-none"
+                                />
+                                <p class="mt-1 text-xs text-gray-500">Shipping will never exceed this amount. Leave empty for no cap.</p>
+                                <div v-if="form.errors.max_shipping_fee" class="mt-1 text-sm text-red-600">{{ form.errors.max_shipping_fee }}</div>
                             </div>
                         </div>
                     </div>
