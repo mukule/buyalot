@@ -100,7 +100,7 @@ public function index(Request $request)
 
     $statuses = $statusesQuery->get(['id', 'name', 'label', 'color_class'])
         ->map(fn($status) => [
-            'id' => $status->id,
+            'id' => (int) $status->id,
             'name' => $status->name,
             'label' => $status->label,
             'color_class' => $status->color_class,
@@ -108,11 +108,12 @@ public function index(Request $request)
 
     // Include current product statuses if missing
     foreach ($products as $product) {
-        if ($product['status_id'] && !isset($statuses[$product['status_id']])) {
-            $currentStatus = ProductStatus::find($product['status_id']);
+        $sid = (int) ($product['status_id'] ?? 0);
+        if ($sid && !isset($statuses[$sid])) {
+            $currentStatus = ProductStatus::find($sid);
             if ($currentStatus) {
                 $statuses[$currentStatus->id] = [
-                    'id' => $currentStatus->id,
+                    'id' => (int) $currentStatus->id,
                     'name' => $currentStatus->name,
                     'label' => $currentStatus->label,
                     'color_class' => $currentStatus->color_class,

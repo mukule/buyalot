@@ -240,9 +240,9 @@ function openRestockHistory(product: ProductWithRelations) {
                                 </td>
                                 <td class="border px-4 py-2">
                                     <select
-                                        v-model="product.status_id"
-                                        @change="updateStatus(product.hashid, Number(product.status_id))"
-                                        :class="[statuses.find((s) => s.id === product.status_id)?.color_class || 'bg-gray-100 text-gray-800']"
+                                        :value="Number(product.status_id)"
+                                        @change="(e) => { product.status_id = Number((e.target as HTMLSelectElement).value); updateStatus(product.hashid, Number(product.status_id)); }"
+                                        :class="[statuses.find((s) => s.id === Number(product.status_id))?.color_class || 'bg-gray-100 text-gray-800']"
                                     >
                                         <option
                                             v-for="status in statuses"

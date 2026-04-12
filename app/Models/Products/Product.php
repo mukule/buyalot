@@ -68,7 +68,8 @@ class Product extends Model
     ];
 
     protected $casts = [
-        'status' => 'integer',
+        'status'    => 'integer',
+        'status_id' => 'integer',
     ];
 
 
