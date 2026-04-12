@@ -19,9 +19,12 @@ class FrontendProductService
      * HOMEPAGE — High Performance with Redis
      */
 
+    const HOMEPAGE_VERSION_KEY = 'homepage_cache_version';
+
     public function getProductsGroupedByCategory($categories, int $limit = 12)
 {
-    $cacheKey = 'home_grouped_v10_' . $categories->pluck('id')->implode('_');
+    $version = Cache::get(self::HOMEPAGE_VERSION_KEY, 1);
+    $cacheKey = "home_grouped_v{$version}_" . $categories->pluck('id')->implode('_');
     $lockKey = $cacheKey . '_lock';
 
     $cache = Cache::supportsTags()
@@ -80,6 +83,13 @@ class FrontendProductService
         });
 
         $cache->put($cacheKey, $result, now()->addHours(12));
+
+        // Register key so ProductObserver can clear it on product save
+        $registeredKeys = Cache::get('homepage_cache_keys', []);
+        if (!in_array($cacheKey, $registeredKeys)) {
+            $registeredKeys[] = $cacheKey;
+            Cache::put('homepage_cache_keys', $registeredKeys, now()->addDays(2));
+        }
 
         return $result;
     });

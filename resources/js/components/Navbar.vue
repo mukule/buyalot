@@ -117,9 +117,17 @@ function onSearchInput() {
 }
 
 function submitSearch(selected: any = null) {
+    showSuggestions.value = false;
+
+    // If a product was selected, navigate to it directly
+    if (selected?.product_slug) {
+        router.visit(`/products/${selected.product_slug}${selected.id ? '?v=' + selected.id : ''}`);
+        return;
+    }
+
+    // Otherwise, perform a search
     const q = selected?.name || searchQuery.value.trim();
     if (!q) return;
-    showSuggestions.value = false;
     router.get('/search', { q }, { preserveScroll: true });
 }
 

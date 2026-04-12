@@ -109,7 +109,7 @@ Route::middleware(['auth','role:admin|seller|vendor|super-admin','check_permissi
     Route::resource('products.warranties', WarrantyController::class)->except(['index']);
 
     // Update product status
-    Route::match(['patch', 'post'], 'products/{product}/status', [ProductController::class, 'updateStatus'])
+    Route::patch('products/{product}/status', [ProductController::class, 'updateStatus'])
         ->name('products.updateStatus');
 
     Route::patch('warranties/{warranty}/toggle-active', [WarrantyController::class, 'toggleActive'])
