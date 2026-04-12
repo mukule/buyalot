@@ -48,8 +48,8 @@ class SearchCacheService
             'brands' => Brand::select('id', 'name')->get()->toArray(),
         ];
 
-        // Save in Redis cache
-        Cache::store('redis')->put(self::CACHE_KEY, $data, self::CACHE_TTL);
+        // Save in file cache (cPanel compatible)
+        Cache::put(self::CACHE_KEY, $data, self::CACHE_TTL);
     }
 
     /**
@@ -132,7 +132,7 @@ class SearchCacheService
             }
         }
 
-        Cache::store('redis')->put(self::CACHE_KEY, $cache, self::CACHE_TTL);
+        Cache::put(self::CACHE_KEY, $cache, self::CACHE_TTL);
     }
 
     /**
@@ -191,8 +191,8 @@ class SearchCacheService
             }
         }
 
-        Cache::store('redis')->put(self::CACHE_KEY, $cache, self::CACHE_TTL);
-        Log::info('Product refreshed in Redis cache: '.$product->id);
+        Cache::put(self::CACHE_KEY, $cache, self::CACHE_TTL);
+        Log::info('Product refreshed in cache: '.$product->id);
     }
 
 
@@ -201,7 +201,7 @@ class SearchCacheService
      */
     public static function get(): ?array
     {
-        return Cache::store('redis')->get(self::CACHE_KEY);
+        return Cache::get(self::CACHE_KEY);
     }
 
     public static function forget(): void

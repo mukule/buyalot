@@ -102,7 +102,7 @@ function truncateName(name: string, length: number) {
     return name.length <= length ? name : name.slice(0, length - 3) + '...';
 }
 function updateStatus(productHashid: string, statusId: number) {
-    router.patch(route('admin.products.updateStatus', { product: productHashid }), { status_id: statusId });
+    router.post(route('admin.products.updateStatus', { product: productHashid }), { status_id: statusId });
 }
 
 // Warranty modal

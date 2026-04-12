@@ -109,7 +109,7 @@ Route::middleware(['auth','role:admin|seller|vendor|super-admin','check_permissi
     Route::resource('products.warranties', WarrantyController::class)->except(['index']);
 
     // Update product status
-    Route::patch('products/{product}/status', [ProductController::class, 'updateStatus'])
+    Route::match(['patch', 'post'], 'products/{product}/status', [ProductController::class, 'updateStatus'])
         ->name('products.updateStatus');
 
     Route::patch('warranties/{warranty}/toggle-active', [WarrantyController::class, 'toggleActive'])
@@ -329,7 +329,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::resource('subregions', RegionController::class);
     Route::resource('areas', RegionController::class);
     Route::resource('routes', RegionController::class);
-    
+
 
    Route::prefix('promotions')->name('promotions.')->group(function () {
     Route::get('/', [PromotionController::class, 'index'])->name('index');
@@ -338,7 +338,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::get('/search-categories', [PromotionController::class, 'searchCategories'])->name('searchCategories');
     Route::get('/search-products', [PromotionController::class, 'searchProducts'])->name('searchProducts');
 });
-    
+
 
     // Brands management (create/edit/delete)
     // Note: index is defined under a separate middleware group for users with view-brands permission
