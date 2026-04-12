@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Products\Product;
-use App\Models\Products\ProductStatus;
 use App\Models\Products\ProductVariant;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -18,12 +17,10 @@ class SearchCacheService
 
     public static function rebuild(): void
     {
-        // Get the published status ID
-        $publishedStatus = ProductStatus::where('name', 'published')->first()?->id;
         $data = [
             'products' => Product::select('id', 'name', 'slug', 'brand_id', 'category_id', 'status_id')
                 ->with(['brand:id,name','primaryImage:id,product_id,image_path,is_primary'])
-                ->where('status_id', $publishedStatus)
+                ->active()
                 ->get()
                 ->map(function ($p) {
                 return [
@@ -37,8 +34,8 @@ class SearchCacheService
                 ];
             })->toArray(),
 
-            'variants' => ProductVariant::whereHas('product', function ($q) use ($publishedStatus) {
-                $q->where('status_id', $publishedStatus);
+            'variants' => ProductVariant::whereHas('product', function ($q) {
+                $q->active();
             })
                 ->select('id', 'product_id', 'sku', 'regular_price', 'selling_price', 'stock')
                 ->get()
@@ -149,15 +146,25 @@ class SearchCacheService
 
         $cache['products'] = $cache['products'] ?? [];
         $cache['variants'] = $cache['variants'] ?? [];
-        //get published product status
-        $status=ProductStatus::where('name', 'published')->first();
-        if (($product->status_id ?? null) != $status->id) {
-            // If the product is not published, remove it from cache if exists
-            $cache = self::get();
+
+        // Check if the product is active/published using the same scope as the frontend queries
+        $isActive = Product::active()->where('id', $product->id)->exists();
+
+        // If not active, remove from cache
+        if (!$isActive) {
             $cache['products'] = array_filter($cache['products'] ?? [], fn($p) => $p['id'] !== $product->id);
             $cache['variants'] = array_filter($cache['variants'] ?? [], fn($v) => $v['product_id'] !== $product->id);
-            Cache::put(self::CACHE_KEY, $cache, now()->addMonths(6));
+            Cache::put(self::CACHE_KEY, $cache, self::CACHE_TTL);
+            Log::info("Product {$product->id} removed from search cache (not active)");
             return;
+        }
+
+        // Load relationships if not already loaded
+        if (!$product->relationLoaded('brand')) {
+            $product->load('brand:id,name');
+        }
+        if (!$product->relationLoaded('primaryImage')) {
+            $product->load('primaryImage:id,product_id,image_path,is_primary');
         }
 
         // Update or insert product
@@ -179,7 +186,7 @@ class SearchCacheService
         }
 
         // Update variants
-        $productVariants = $product->variants()->get(['id', 'product_id', 'sku', 'regular_price', 'selling_price', 'stock']);
+        $productVariants = $product->productVariants()->get(['id', 'product_id', 'sku', 'regular_price', 'selling_price', 'stock']);
         foreach ($productVariants as $v) {
             $vKey = array_search($v->id, array_column($cache['variants'], 'id'));
             $variantData = $v->toArray();
@@ -192,7 +199,7 @@ class SearchCacheService
         }
 
         Cache::put(self::CACHE_KEY, $cache, self::CACHE_TTL);
-        Log::info('Product refreshed in cache: '.$product->id);
+        Log::info("Product {$product->id} refreshed in search cache");
     }
 
 

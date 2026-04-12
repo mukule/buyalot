@@ -244,15 +244,12 @@ function openRestockHistory(product: ProductWithRelations) {
                                         @change="updateStatus(product.hashid, Number(product.status_id))"
                                         :class="[statuses.find((s) => s.id === product.status_id)?.color_class || 'bg-gray-100 text-gray-800']"
                                     >
-                                        <option :value="product.status_id" v-if="product.status_id" hidden>
-                                            {{ statuses.find((s) => s.id === product.status_id)?.label }}
-                                        </option>
                                         <option
-                                            v-for="status in statuses.filter((s) => s.id !== product.status_id)"
+                                            v-for="status in statuses"
                                             :key="status.id"
                                             :value="status.id"
                                         >
-                                            {{ status.name }}
+                                            {{ status.label }}
                                         </option>
                                     </select>
                                 </td>

@@ -174,7 +174,7 @@ public function scopeActive($query)
 
     protected function statusLabel(): Attribute
     {
-        return Attribute::get(fn () => match ((int) $this->status) {
+        return Attribute::get(fn () => $this->productStatus?->label ?? match ((int) $this->status) {
             self::STATUS_DRAFT    => 'Draft',
             self::STATUS_PENDING  => 'Pending Review',
             self::STATUS_APPROVED => 'Public',
@@ -285,6 +285,11 @@ public function scopeActive($query)
     public function unit(): BelongsTo
     {
         return $this->belongsTo(Unit::class);
+    }
+
+    public function productStatus(): BelongsTo
+    {
+        return $this->belongsTo(ProductStatus::class, 'status_id');
     }
 
     public function images(): HasMany
