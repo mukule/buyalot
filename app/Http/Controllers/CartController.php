@@ -659,7 +659,8 @@ public function store(Request $request, CartReservationService $cartService)
         $defaultAddress->loadMissing('region.zone');
         $zoneId = $defaultAddress->region?->zone_id ?? $defaultAddress->region?->zone?->id;
         $rate = $zoneId ? $shippingService->getRateForZone($zoneId) : null;
-        $codMaxAmount = $rate?->cod_max_amount;
+       // $codMaxAmount = $rate?->cod_max_amount;
+       $codMaxAmount = 50000;
     }
 
     // Related products
