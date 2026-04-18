@@ -65,15 +65,15 @@ const filteredCategories = categories.filter(
 <template>
     <MainLayout>
         <!-- Row 1: Sidebar + Banner -->
-        <section class="mt-4 mb-4 flex flex-col gap-4 lg:flex-row lg:items-stretch lg:h-[450px]">
+        <section class="mt-4 mb-4 flex flex-col gap-4 lg:flex-row lg:items-stretch">
 
             <!-- Categories Sidebar — hidden on mobile -->
-            <div class="w-full lg:w-2/12">
+            <div class="w-full lg:w-2/12 h-full">
                 <CategorySidebar :categories="categories" class="hidden lg:block h-full" />
             </div>
 
             <!-- Hero Banner — full width on mobile, 10/12 on desktop -->
-            <div class="w-full lg:w-10/12 h-[220px] lg:h-full">
+            <div class="w-full lg:w-10/12 h-[220px] lg:h-auto">
                 <div class="relative h-full overflow-hidden rounded-lg shadow">
                     <Hero
                         :banners="promotions.map(p => p.image_url)"
