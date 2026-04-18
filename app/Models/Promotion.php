@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
-use App\Models\Products\Product; // <-- correct namespace
+use App\Models\Products\Product; 
 use App\Models\Category;
 use App\Models\Traits\HasHashid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Casts\Attribute; // <-- import this
+use Illuminate\Database\Eloquent\Casts\Attribute; 
+use Illuminate\Support\Facades\Storage;
 
 class Promotion extends Model
 {
@@ -31,7 +32,7 @@ class Promotion extends Model
         'is_active'  => 'boolean',
     ];
 
-    protected $appends = ['image_url']; // <-- append attribute
+    protected $appends = ['image_url'];
 
     /**
      * Scope for active promotions

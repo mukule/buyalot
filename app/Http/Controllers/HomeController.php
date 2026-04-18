@@ -40,7 +40,7 @@ class HomeController extends Controller
     }
 
 
-    public function index()
+public function index()
 {
     // 1. Light queries
     $categories = \App\Models\Category::query()
@@ -56,18 +56,19 @@ class HomeController extends Controller
         ->orderBy('name')
         ->get();
 
-    // 2. Promotions (cached)
-    $promotions = Cache::remember('promotions:homepage:category', now()->addMinutes(30), function () {
-        return \App\Models\Promotion::active()
-            ->where('link_type', 'category')
-            ->with(['category:id,slug'])
-            ->orderBy('priority')
-            ->get()
-            ->map(fn($promotion) => [
-                'image_url'     => $promotion->image_url,
-                'category_slug' => $promotion->category?->slug,
-            ]);
-    });
+    // 2. Promotions (cached with tags so flush works correctly)
+    $promotions = Cache::tags(['frontend_promotions', 'homepage'])
+        ->remember('promotions:homepage:category', now()->addMinutes(30), function () {
+            return \App\Models\Promotion::active()
+                ->where('link_type', 'category')
+                ->with(['category:id,slug'])
+                ->orderBy('priority')
+                ->get()
+                ->map(fn($promotion) => [
+                    'image_url'     => $promotion->image_url,
+                    'category_slug' => $promotion->category?->slug,
+                ]);
+        });
 
     // 3. Heavy logic
     $productsByCategory = $this->productService->getProductsGroupedByCategory($categories);
@@ -85,6 +86,7 @@ class HomeController extends Controller
         'productsByCategory' => $productsByCategory,
     ]);
 }
+
 
 public function productDetails(string $slug)
 {
