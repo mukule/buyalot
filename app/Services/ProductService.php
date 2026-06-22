@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\Products\Product;
-use App\Models\Products\ProductStatus;
 use App\Models\User;
 use App\Models\Variant;
 use App\Models\Products\ProductVariant;
@@ -276,12 +275,6 @@ protected function handleStep3(array $data, ?User $user, ?array $images, ?Produc
                     $variant->delete();
                 }
             });
-
-        // 5. Auto-publish if applicable
-        $publishedStatus = ProductStatus::where('name', 'published')->first();
-        if ($publishedStatus) {
-            $product->updateStatus($publishedStatus->id);
-        }
 
         return $product;
     });

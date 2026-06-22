@@ -49,10 +49,13 @@ class FrontendProductService
             ->toArray();
 
         // Fetch variants
+        // withoutGlobalScopes() inside whereHas prevents SellerProductScope from
+        // filtering this public-cache query by the currently authenticated user.
         $allVariants = ProductVariant::query()
             ->with(['product.brand', 'product.primaryImage', 'product.category'])
             ->whereHas('product', function ($q) use ($allCategoryIds) {
-                $q->whereIn('category_id', $allCategoryIds)
+                $q->withoutGlobalScopes()
+                  ->whereIn('category_id', $allCategoryIds)
                   ->where('status_id', 2)
                   ->whereNotNull('slug')
                   ->where('slug', '!=', '');
@@ -105,7 +108,8 @@ class FrontendProductService
         $query = ProductVariant::query()
             ->with(['product.brand', 'product.primaryImage', 'product.category'])
             ->whereHas('product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds)
+                $q->withoutGlobalScopes()
+                  ->whereIn('category_id', $categoryIds)
                   ->where('status_id', 2)
                   ->whereNotNull('slug')
                   ->where('slug', '!=', '');
@@ -139,7 +143,8 @@ class FrontendProductService
     $cheapestVariantIds = ProductVariant::query()
         ->selectRaw('MIN(id) as id')
         ->whereHas('product', function ($q) use ($categoryIds, $brandIds) {
-            $q->whereIn('category_id', $categoryIds)
+            $q->withoutGlobalScopes()
+              ->whereIn('category_id', $categoryIds)
               ->where('status_id', 2);
             if (!empty($brandIds)) {
                 $q->whereIn('brand_id', $brandIds);
@@ -184,7 +189,8 @@ class FrontendProductService
         ->with(['product.brand', 'product.primaryImage', 'product.category'])
         ->where('id', '!=', $variant->id)
         ->whereHas('product', function ($q) use ($categoryIds) {
-            $q->whereIn('category_id', $categoryIds)
+            $q->withoutGlobalScopes()
+              ->whereIn('category_id', $categoryIds)
               ->where('status_id', 2)
               ->whereNotNull('slug')
               ->where('slug', '!=', '');

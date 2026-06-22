@@ -18,9 +18,12 @@ class SearchCacheService
     public static function rebuild(): void
     {
         $data = [
-            'products' => Product::select('id', 'name', 'slug', 'brand_id', 'category_id', 'status_id')
+            'products' => Product::withoutGlobalScopes()
+                ->select('id', 'name', 'slug', 'brand_id', 'category_id', 'status_id')
                 ->with(['brand:id,name','primaryImage:id,product_id,image_path,is_primary'])
-                ->active()
+                ->where('status_id', 2)
+                ->whereNotNull('slug')
+                ->where('slug', '!=', '')
                 ->get()
                 ->map(function ($p) {
                 return [
@@ -35,7 +38,7 @@ class SearchCacheService
             })->toArray(),
 
             'variants' => ProductVariant::whereHas('product', function ($q) {
-                $q->active();
+                $q->withoutGlobalScopes()->where('status_id', 2)->whereNotNull('slug')->where('slug', '!=', '');
             })
                 ->select('id', 'product_id', 'sku', 'regular_price', 'selling_price', 'stock')
                 ->get()
@@ -66,7 +69,7 @@ class SearchCacheService
         $cache['brands'][] = ['id' => $brand->id, 'name' => $brand->name];
 
         // Update related products
-        $brandProducts = Product::where('brand_id', $brand->id)->with(['brand:id,name','primaryImage:id,product_id,image_path,is_primary'])->get();
+        $brandProducts = Product::withoutGlobalScopes()->where('brand_id', $brand->id)->with(['brand:id,name','primaryImage:id,product_id,image_path,is_primary'])->get();
         foreach ($brandProducts as $p) {
             //get primary image url
             $cache['products'] = $cache['products'] ?? [];
@@ -109,7 +112,7 @@ class SearchCacheService
         ];
 
         // Update products for this category
-        $categoryProducts = Product::where('category_id', $category->id)->with(['brand:id,name','primaryImage:id,product_id,image_path,is_primary'])->get();
+        $categoryProducts = Product::withoutGlobalScopes()->where('category_id', $category->id)->with(['brand:id,name','primaryImage:id,product_id,image_path,is_primary'])->get();
         foreach ($categoryProducts as $p) {
             $key = array_search($p->id, array_column($cache['products'], 'id'));
             $productData = [
@@ -147,8 +150,14 @@ class SearchCacheService
         $cache['products'] = $cache['products'] ?? [];
         $cache['variants'] = $cache['variants'] ?? [];
 
-        // Check if the product is active/published using the same scope as the frontend queries
-        $isActive = Product::active()->where('id', $product->id)->exists();
+        // Check if the product is active/published using withoutGlobalScopes to avoid
+        // SellerProductScope filtering out products when called in a seller auth context.
+        $isActive = Product::withoutGlobalScopes()
+            ->where('id', $product->id)
+            ->where('status_id', 2)
+            ->whereNotNull('slug')
+            ->where('slug', '!=', '')
+            ->exists();
 
         // If not active, remove from cache
         if (!$isActive) {
