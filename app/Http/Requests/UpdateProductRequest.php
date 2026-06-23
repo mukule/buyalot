@@ -9,7 +9,26 @@ class UpdateProductRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true; // adjust if needed based on roles/permissions
+        $user = $this->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        $isPrivileged = $user->hasRole(['admin', 'super-admin']);
+
+        if (! $isPrivileged && ! $user->can('edit-products')) {
+            return false;
+        }
+
+        // Sellers may only edit products they own.
+        $product = $this->route('product');
+
+        if (! $isPrivileged && $product && $user->user_type === 'seller') {
+            return (int) $product->owner_id === (int) $user->id;
+        }
+
+        return true;
     }
 
     protected function prepareForValidation(): void

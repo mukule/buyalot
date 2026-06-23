@@ -48,18 +48,42 @@ class SearchController extends Controller
 
         /**
          * 2. Optimized Search Query
-         * query() allows us to eager load relations on the Eloquent models 
-         * returned by Scout. This prevents the N+1 problem in the map() below.
+         *
+         * On hosts with a real search engine (Meilisearch on a VPS) we use Scout.
+         * On shared cPanel hosting there is no Meilisearch server, so we fall back
+         * to a lightweight database query against real product columns. Both paths
+         * return an Eloquent paginator of Product models so the mapping below is
+         * identical. query()/with() eager-loads relations to avoid N+1.
          */
-        $paginator = Product::search($q)
-            ->where('status_id', 2)
-            ->query(fn($query) => $query->with([
-                'productVariants', 
-                'brand', 
-                'category', 
-                'primaryImage'
-            ]))
-            ->paginate($perPage);
+        if (config('scout.driver') === 'meilisearch') {
+            $paginator = Product::search($q)
+                ->where('status_id', 2)
+                ->query(fn($query) => $query->with([
+                    'productVariants',
+                    'brand',
+                    'category',
+                    'primaryImage'
+                ]))
+                ->paginate($perPage);
+        } else {
+            $term = '%' . $q . '%';
+
+            $paginator = Product::query()
+                ->where('status_id', 2)
+                ->where(function ($query) use ($term) {
+                    $query->where('name', 'like', $term)
+                        ->orWhere('slug', 'like', $term)
+                        ->orWhereHas('productVariants', fn($v) => $v->where('sku', 'like', $term));
+                })
+                ->with([
+                    'productVariants',
+                    'brand',
+                    'category',
+                    'primaryImage'
+                ])
+                ->paginate($perPage)
+                ->withQueryString();
+        }
 
         /**
          * 3. Map results using Service

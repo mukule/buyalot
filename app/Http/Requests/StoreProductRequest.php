@@ -8,7 +8,14 @@ class StoreProductRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        $user = $this->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        // Admins/super-admins always allowed; everyone else needs the granular permission.
+        return $user->hasRole(['admin', 'super-admin']) || $user->can('create-products');
     }
 
     protected function prepareForValidation(): void

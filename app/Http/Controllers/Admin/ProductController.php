@@ -456,7 +456,15 @@ public function store(Request $request, ProductService $productService)
     $step = (int) $request->input('step');
     $data = $request->all();
 
-    
+    // --- AUTHORIZATION: require the granular product-write permission ---
+    // Step 1 creates a new product; subsequent steps edit the in-progress product.
+    // Admins/super-admins bypass; everyone else needs create-/edit-products.
+    $authUser = $request->user();
+    $requiredPermission = $step <= 1 ? 'create-products' : 'edit-products';
+
+    if (! $authUser || (! $authUser->hasRole(['admin', 'super-admin']) && ! $authUser->can($requiredPermission))) {
+        abort(403, 'You do not have permission to manage products.');
+    }
 
     // --- MERGE FILES AND INPUT INTO CONSISTENT STRUCTURE FOR PRODUCT IMAGES ---
     $imagesInput = $request->input('images', []);

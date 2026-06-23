@@ -30,3 +30,6 @@ package-lock.json
 /logs
 .junie
 laravel_vue_deploy_steps
+# Build artifacts and crash dumps (do not commit)
+/public/build.zip
+hs_err_pid*.log
