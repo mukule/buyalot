@@ -20,6 +20,8 @@ class DatabaseSeeder extends Seeder
 //            CommissionPlanSeeder::class,
             CountrySeeder::class,
             CustomerSeeder::class,
+            CarMakeSeeder::class,
+            MarketplaceDemoSeeder::class,
             // Optionally create more seeders here, e.g.
             // TestUserSeeder::class,
         ]);

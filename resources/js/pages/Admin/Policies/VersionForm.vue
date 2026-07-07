@@ -2,9 +2,11 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { AppPageProps, BreadcrumbItem } from '@/types';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { QuillEditor } from '@vueup/vue-quill';
-import '@vueup/vue-quill/dist/vue-quill.snow.css';
 import { ArrowLeft, Save } from 'lucide-vue-next';
+import { defineAsyncComponent } from 'vue';
+
+// Lazy-loaded so the CKEditor bundle stays out of the main chunk.
+const RichTextEditor = defineAsyncComponent(() => import('@/components/RichTextEditor.vue'));
 
 // -------------------- Types --------------------
 interface PolicyVersion {
@@ -93,10 +95,8 @@ function goBack() {
                     <!-- Content -->
                     <div>
                         <label class="mb-1 block font-semibold">Content</label>
-                        <QuillEditor
-                            v-model:content="form.content"
-                            theme="snow"
-                            content-type="html"
+                        <RichTextEditor
+                            v-model="form.content"
                             placeholder="Enter version content..."
                             class="min-h-[200px] rounded-md border border-[color:var(--border)] bg-white"
                         />

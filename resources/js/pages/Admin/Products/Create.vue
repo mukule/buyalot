@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import CategoryDropdown from '@/components/CategoryDropdown.vue';
+import MarketplaceListingFields from '@/components/marketplace/MarketplaceListingFields.vue';
 import ProductImageUploader from '@/components/ProductImageUploader.vue';
 import ProductVariantCreator from '@/components/ProductVariantCreator.vue';
 import SearchableSelect from '@/components/SearchableSelect.vue';
@@ -7,10 +8,10 @@ import VariantImages from '@/components/VariantImages.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { ImageItem, VariantRow } from '@/types/product';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { QuillEditor } from '@vueup/vue-quill';
-import '@vueup/vue-quill/dist/vue-quill.snow.css';
+import { computed, defineAsyncComponent, onMounted, reactive, ref, watch } from 'vue';
 
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+// Lazy-loaded so the CKEditor bundle stays out of the main chunk.
+const RichTextEditor = defineAsyncComponent(() => import('@/components/RichTextEditor.vue'));
 
 // ------------------ Types ------------------
 interface OptionItem {
@@ -47,6 +48,8 @@ interface ProductFormBase {
     images: ImageItem[];
     video_url?: string | null;
     package_size: string;
+    marketplaces: string[];
+    attributes: Record<string, any>;
 }
 
 interface ProductFormEditorFields {
@@ -66,6 +69,8 @@ const categories = (page.props as any).categories ?? [];
 const brands = (page.props as any).brands ?? [];
 const units = (page.props as any).units ?? [];
 const variantCategories = (page.props as any).variantCategories ?? [];
+const availableMarketplaces = (page.props as any).availableMarketplaces ?? [];
+const carMakes = (page.props as any).carMakes ?? [];
 const product = (page.props as any).product ?? null;
 
 // Options
@@ -139,6 +144,8 @@ const form = useForm<ProductForm>({
     package_size: product?.package_size ?? 'small',
     video_url: product?.video_url ?? null,
     variant_images: [],
+    marketplaces: product?.marketplaces ?? [],
+    attributes: product?.attributes ?? {},
 });
 
 // ------------------ Video Preview ------------------
@@ -495,6 +502,15 @@ function handleSuccess(pageResponse: any) {
                                 <CategoryDropdown v-model="form.category_id" :categories="categories" label="Category*" />
                             </div>
                         </div>
+
+                        <!-- Marketplaces + vertical listing details (post a car / item) -->
+                        <MarketplaceListingFields
+                            v-if="availableMarketplaces.length"
+                            :available="availableMarketplaces"
+                            :car-makes="carMakes"
+                            :marketplaces="form.marketplaces"
+                            :attributes="form.attributes"
+                        />
                     </div>
 
                     <!-- Step 2: Content -->
@@ -503,10 +519,8 @@ function handleSuccess(pageResponse: any) {
                             <label class="block text-sm font-medium text-gray-700">{{
                                 field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
                             }}</label>
-                            <QuillEditor
-                                v-model:content="form[field]"
-                                contentType="html"
-                                theme="snow"
+                            <RichTextEditor
+                                v-model="form[field]"
                                 placeholder="Write here..."
                                 class="min-h-[200px] rounded-md border border-gray-200"
                             />

@@ -2,9 +2,9 @@
 
 namespace App\Observers;
 
+use App\Jobs\RefreshProductCache;
 use App\Models\Products\Product;
 use App\Services\FrontendProductService;
-use App\Services\SearchCacheService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
@@ -55,12 +55,14 @@ class ProductObserver
             Log::info("Homepage cache version bumped to " . ($version + 1) . " (Tags not supported).");
         }
 
-        // 3. Update SearchCacheService (for cPanel compatibility)
+        // 3. Update SearchCacheService (for cPanel compatibility) — dispatched so
+        // it leaves the save request once a real queue driver is configured.
+        // Under the sync driver this still runs inline (no behavioural change).
         try {
-            SearchCacheService::refreshProduct($product);
-            Log::info("SearchCacheService refreshed for Product ID: {$product->id}");
+            RefreshProductCache::dispatch($product);
+            Log::info("SearchCacheService refresh dispatched for Product ID: {$product->id}");
         } catch (\Exception $e) {
-            Log::error("SearchCacheService refresh FAILED for Product ID: {$product->id}", ['error' => $e->getMessage()]);
+            Log::error("SearchCacheService refresh dispatch FAILED for Product ID: {$product->id}", ['error' => $e->getMessage()]);
         }
     }
 

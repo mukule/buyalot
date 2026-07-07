@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import MapLocationModal from '@/components/MapLocationModal.vue';
 import ProductCarouselSection from '@/components/ProductCarouselSection.vue';
+import Car360Viewer from '@/components/marketplace/Car360Viewer.vue';
+import QuoteRequestModal from '@/components/marketplace/QuoteRequestModal.vue';
 import MainLayout from '@/layouts/MainLayout.vue';
 import type { SimplifiedProduct } from '@/types';
 import { router, usePage } from '@inertiajs/vue3';
-import { Expand, Info, Minus, Plus, ShoppingCart, Star } from 'lucide-vue-next';
+import { Expand, Info, Minus, Plus, Rotate3d, ShoppingCart, Star } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 
 // --- Types ---
@@ -60,6 +62,8 @@ const props = defineProps<{
         features?: string;
         specifications?: string;
         whats_in_the_box?: string;
+        attributes?: Record<string, any>;
+        marketplaces?: string[];
         primary_image_url?: string | null;
         video_url?: string | null;
         images: string[];
@@ -220,6 +224,65 @@ const ownerInfo = computed(() => {
 
 // --- WARRANTY ---
 const warrantyInfo = computed(() => props.product.warranty ?? null);
+
+// --- VERTICAL SPEC SHEET (cars / construction attributes) ---
+const ATTR_LABELS: Record<string, string> = {
+    make: 'Make', model: 'Model', year: 'Year', mileage: 'Mileage', fuel: 'Fuel',
+    transmission: 'Transmission', body_type: 'Body type', drive_type: 'Drive',
+    steering: 'Steering', color: 'Colour', engine_cc: 'Engine', condition: 'Condition',
+    location: 'Location', material: 'Material', type: 'Type', unit: 'Sold per',
+};
+
+const humanize = (k: string) => k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+const formatAttr = (key: string, val: any): string => {
+    if (key === 'mileage') return `${Number(val).toLocaleString()} km`;
+    if (key === 'engine_cc') return `${Number(val).toLocaleString()} cc`;
+    if (key === 'steering') return `${val} hand drive`;
+    return String(val);
+};
+
+const specEntries = computed(() =>
+    Object.entries(props.product.attributes ?? {})
+        .filter(([, v]) => v !== null && v !== '' && v !== undefined)
+        .map(([k, v]) => ({ key: k, label: ATTR_LABELS[k] ?? humanize(k), value: formatAttr(k, v) })),
+);
+
+const specTitle = computed(() =>
+    (props.product.marketplaces ?? []).includes('cars')
+        ? 'Vehicle details'
+        : (props.product.marketplaces ?? []).includes('construction')
+          ? 'Product specifications'
+          : 'Specifications',
+);
+
+// --- CONSTRUCTION: unit pricing, coverage estimator, bulk quote ---
+const detailAttrs = computed<Record<string, any>>(() => props.product.attributes ?? {});
+const isConstruction = computed(() => (props.product.marketplaces ?? []).includes('construction'));
+const unitLabel = computed(() => detailAttrs.value.unit ?? 'unit');
+const unitPrice = computed(() => Number(activeVariant.value?.buying_price ?? 0));
+const coveragePerUnit = computed(() => Number(detailAttrs.value.coverage) || 0);
+const coverageUnit = computed(() => detailAttrs.value.coverage_unit ?? 'sq metre');
+
+const requiredArea = ref<number | null>(null);
+const estimatedUnits = computed(() => {
+    if (!coveragePerUnit.value || !requiredArea.value) return 0;
+    return Math.ceil(requiredArea.value / coveragePerUnit.value);
+});
+const estimatedTotal = computed(() => estimatedUnits.value * unitPrice.value);
+
+// --- CARS: 360° / 3D spin viewer ---
+const isCar = computed(() => (props.product.marketplaces ?? []).includes('cars'));
+const show360 = ref(false);
+const has360 = computed(() => isCar.value && currentImages.value.length >= 2);
+
+const showQuote = ref(false);
+const quoteTarget = computed(() => ({
+    id: props.product.id,
+    name: props.product.name,
+    vertical: isConstruction.value ? 'construction' : 'cars',
+    unit: detailAttrs.value.unit ?? null,
+}));
 
 // --- RELATED PRODUCTS ---
 const simplifiedRelatedProducts = computed<SimplifiedProduct[]>(() =>
@@ -399,6 +462,13 @@ const videoEmbedUrl = computed<string | null>(() => {
                                     >
                                         <Expand class="h-4 w-4" />
                                     </button>
+                                    <button
+                                        v-if="has360"
+                                        @click="show360 = true"
+                                        class="absolute top-2 left-2 flex items-center gap-1 rounded bg-primary px-3 py-1 text-sm font-semibold text-white shadow hover:bg-primary/90"
+                                    >
+                                        <Rotate3d class="h-4 w-4" /> 360° View
+                                    </button>
                                 </div>
 
                                 <!-- Thumbnails -->
@@ -557,6 +627,71 @@ const videoEmbedUrl = computed<string | null>(() => {
                         />
                     </div>
 
+                    <!-- Vertical spec sheet (cars / construction) -->
+                    <div v-if="specEntries.length" class="rounded-xl bg-white p-4 shadow">
+                        <h3 class="mb-3 font-semibold text-gray-800">{{ specTitle }}</h3>
+                        <dl class="grid grid-cols-1 gap-x-6 gap-y-0 sm:grid-cols-2">
+                            <div
+                                v-for="entry in specEntries"
+                                :key="entry.key"
+                                class="flex items-center justify-between border-b border-gray-100 py-2 text-sm last:border-0"
+                            >
+                                <dt class="text-gray-500">{{ entry.label }}</dt>
+                                <dd class="font-medium text-gray-800">{{ entry.value }}</dd>
+                            </div>
+                        </dl>
+                    </div>
+
+                    <!-- Construction: unit pricing, coverage estimator, bulk quote -->
+                    <div v-if="isConstruction" class="rounded-xl bg-white p-4 shadow">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <p class="text-lg font-bold text-primary">
+                                    {{ formatPrice(unitPrice) }}
+                                    <span class="text-sm font-normal text-gray-500">/ {{ unitLabel }}</span>
+                                </p>
+                                <p v-if="detailAttrs.min_order" class="text-xs text-gray-500">
+                                    Minimum order: {{ detailAttrs.min_order }} {{ unitLabel }}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                class="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary/90"
+                                @click="showQuote = true"
+                            >
+                                <Info class="h-4 w-4" /> Request bulk quote
+                            </button>
+                        </div>
+
+                        <!-- Coverage / quantity estimator -->
+                        <div v-if="coveragePerUnit > 0" class="mt-4 rounded-lg border border-gray-200 p-3">
+                            <h4 class="text-sm font-semibold text-gray-700">Quantity estimator</h4>
+                            <p class="mb-2 text-xs text-gray-500">
+                                Each {{ unitLabel }} covers {{ coveragePerUnit }} {{ coverageUnit }}. Enter your total area to estimate what you need.
+                            </p>
+                            <div class="flex flex-wrap items-end gap-3">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600">Area ({{ coverageUnit }})</label>
+                                    <input
+                                        v-model.number="requiredArea"
+                                        type="number"
+                                        min="0"
+                                        placeholder="e.g. 120"
+                                        class="w-32 rounded-md border px-3 py-2 text-sm focus:border-primary focus:ring-0"
+                                    />
+                                </div>
+                                <div v-if="estimatedUnits > 0" class="text-sm">
+                                    <p class="text-gray-600">
+                                        You need approx. <span class="font-bold text-gray-900">{{ estimatedUnits }} {{ unitLabel }}(s)</span>
+                                    </p>
+                                    <p class="text-gray-600">
+                                        Estimated total: <span class="font-bold text-primary">{{ formatPrice(estimatedTotal) }}</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Description -->
                     <div v-if="product.description" class="rounded-xl bg-white p-4 text-sm leading-relaxed shadow">
                         <h3 class="mb-2 font-semibold text-gray-800">Product Description</h3>
@@ -691,6 +826,12 @@ const videoEmbedUrl = computed<string | null>(() => {
                     </div>
                 </div>
             </div>
+
+            <!-- 360° car viewer -->
+            <Car360Viewer :open="show360" :images="currentImages" :title="product.name" @close="show360 = false" />
+
+            <!-- Bulk quote modal -->
+            <QuoteRequestModal :open="showQuote" :product="quoteTarget" @close="showQuote = false" />
 
             <!-- Home delivery map modal -->
             <MapLocationModal

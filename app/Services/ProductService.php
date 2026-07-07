@@ -13,6 +13,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Services\ImageService;
+use App\Services\ImageOptimizationService;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Category;
 use Illuminate\Validation\ValidationException;
@@ -115,16 +116,25 @@ protected function handleStep1(array $data, ?User $user, ?array $images, ?Produc
 
     }
 
+    // Marketplace verticals + their flexible attributes ("post a car" fields).
+    [$marketplaces, $attributes] = $this->extractVerticalData($data);
+
     // Update existing product
     if ($product) {
-        $product->update(Arr::only($data, [
-            'product_code',
-            'name',
-            'package_size',
-            'brand_id',
-            'category_id',
-            'unit_id',
-        ]));
+        $product->update(array_merge(
+            Arr::only($data, [
+                'product_code',
+                'name',
+                'package_size',
+                'brand_id',
+                'category_id',
+                'unit_id',
+            ]),
+            [
+                'marketplaces' => $marketplaces,
+                'attributes'   => $attributes,
+            ],
+        ));
 
 
         return $product;
@@ -133,6 +143,8 @@ protected function handleStep1(array $data, ?User $user, ?array $images, ?Produc
     // Create new product
     $this->setOwnership($data, $user);
     $data['product_code'] = $data['product_code'] ?? $this->generateProductCode();
+    $data['marketplaces'] = $marketplaces;
+    $data['attributes']   = $attributes;
     $product = $this->createBaseProduct($data, $user);
 
     Log::info('Base product created', ['product_id' => $product->id]);
@@ -602,10 +614,9 @@ protected function handleStep5(
 
 protected function storeUploadedFile(UploadedFile $file, string $directory): string
 {
-    $extension = $file->getClientOriginalExtension();
-    $safeName  = uniqid() . '.' . $extension; // ignore original name entirely
-    
-    return $file->storeAs($directory, $safeName, 'public');
+    // Compress + resize + convert to WebP (also strips metadata). The service
+    // falls back to storing the original file if optimization is not possible.
+    return app(ImageOptimizationService::class)->optimizeAndStore($file, $directory);
 }
 
 
@@ -617,12 +628,83 @@ protected function storeUploadedFile(UploadedFile $file, string $directory): str
             'brand_id'           => $data['brand_id'] ?? null,
             'category_id'     => $data['category_id'] ?? null,
             'unit_id'            => $data['unit_id'] ?? null,
+            'marketplaces'       => $data['marketplaces'] ?? [],
+            'attributes'         => $data['attributes'] ?? [],
             'owner_type'         => $data['owner_type'] ?? ($user ? 'seller' : 'admin'),
             'owner_id'           => $data['owner_id'] ?? ($user ? $user->id : null),
             'status'             => $data['status'] ?? 0,
             'current_step'       => 1,
             'max_step_completed' => 0,
         ]);
+    }
+
+    /**
+     * Sanitize the marketplace selection and vertical attributes coming from the
+     * "post a car / post an item" form.
+     *
+     * - marketplaces: kept only if they are real non-ecommerce vertical keys.
+     * - attributes: kept only for fields declared by the selected verticals'
+     *   form_fields, with numeric fields cast to numbers and empties dropped.
+     *
+     * Empty selection => general "all products" (empty arrays).
+     *
+     * @return array{0: array, 1: array}  [marketplaces, attributes]
+     */
+    protected function extractVerticalData(array $data): array
+    {
+        $verticals = config('marketplace.verticals', []);
+
+        // Valid, selectable (non-ecommerce) vertical keys.
+        $selectable = collect($verticals)
+            ->reject(fn ($v) => ($v['type'] ?? 'ecommerce') === 'ecommerce')
+            ->keys()
+            ->all();
+
+        $requested = $data['marketplaces'] ?? [];
+        if (! is_array($requested)) {
+            $requested = array_filter(array_map('trim', explode(',', (string) $requested)));
+        }
+
+        $marketplaces = array_values(array_intersect(
+            array_map('strval', $requested),
+            $selectable,
+        ));
+
+        // Collect allowed attribute fields (+types) across the selected verticals.
+        $allowed = [];
+        foreach ($marketplaces as $key) {
+            foreach ($verticals[$key]['form_fields'] ?? [] as $field) {
+                $allowed[$field['key']] = $field['type'] ?? 'text';
+            }
+        }
+
+        $rawAttributes = $data['attributes'] ?? [];
+        if (! is_array($rawAttributes)) {
+            $rawAttributes = [];
+        }
+
+        $attributes = [];
+        foreach ($allowed as $attrKey => $type) {
+            $value = $rawAttributes[$attrKey] ?? null;
+
+            // Multi-select feature lists are stored as a clean array of strings.
+            if ($type === 'checklist') {
+                $list = is_array($value)
+                    ? array_values(array_filter(array_map(fn ($v) => trim((string) $v), $value), fn ($v) => $v !== ''))
+                    : [];
+                if ($list) {
+                    $attributes[$attrKey] = $list;
+                }
+                continue;
+            }
+
+            if ($value === null || $value === '') {
+                continue;
+            }
+            $attributes[$attrKey] = $type === 'number' ? (int) $value : trim((string) $value);
+        }
+
+        return [$marketplaces, $attributes];
     }
 
     protected function processProductVariants(Product $product, array $variantRows): void

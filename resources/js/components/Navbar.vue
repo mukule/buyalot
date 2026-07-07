@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import logo from '@/assets/images/logo.png';
+import MarketplaceSwitcher from '@/components/MarketplaceSwitcher.vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { ChevronDown, ChevronUp, Heart, Menu, Search, ShoppingCart, X } from 'lucide-vue-next';
 import { computed, inject, ref } from 'vue';
@@ -180,6 +181,9 @@ function toggleCategory(catId: number) {
                         <span v-if="index < topLinks.length - 1" class="text-gray-400">|</span>
                     </template>
                 </nav>
+
+                <!-- Marketplace vertical switcher (desktop) -->
+                <MarketplaceSwitcher class="hidden md:block" />
             </div>
 
             <!-- Desktop Nav -->
@@ -258,6 +262,11 @@ function toggleCategory(catId: number) {
         <transition name="fade">
             <nav v-show="mobileMenuOpen" class="max-h-[80vh] overflow-y-auto border-t border-gray-200 bg-white shadow-md md:hidden">
                 <div class="space-y-3 px-4 py-4">
+                    <!-- Marketplace switcher (mobile) -->
+                    <div class="border-b border-gray-200 pb-3">
+                        <MarketplaceSwitcher variant="list" @selected="mobileMenuOpen = false" />
+                    </div>
+
                     <!-- Top Links -->
                     <div class="flex flex-col space-y-2 border-b border-gray-200 pb-3">
                         <template v-for="link in topLinks" :key="'mobile-top-' + link.name">

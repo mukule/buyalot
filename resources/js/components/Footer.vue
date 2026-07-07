@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { usePage } from '@inertiajs/vue3';
+import { ChevronDown, ChevronUp } from 'lucide-vue-next';
+import { ref } from 'vue';
 
 // Type for customer policies
 interface CustomerPolicy {
@@ -13,11 +15,32 @@ const page = usePage();
 const customerPolicies = (page.props.customerPolicies as CustomerPolicy[]) ?? [];
 
 const appName = page.props.appName || 'Bianlina';
+
+// On mobile the footer links are collapsed by default and can be toggled.
+// On md+ screens the footer is always fully visible (button hidden).
+const showFooter = ref(false);
 </script>
 
 <template>
-    <footer class="border-t border-white/20 bg-[color:var(--primary)] px-4 pt-12 pb-6 text-[color:var(--primary-foreground)] sm:px-6 md:px-8">
-        <div class="mx-auto grid max-w-7xl grid-cols-2 gap-8 sm:grid-cols-3 md:grid-cols-5">
+    <footer class="border-t border-white/20 bg-[color:var(--primary)] px-4 pt-6 pb-6 text-[color:var(--primary-foreground)] sm:px-6 md:px-8 md:pt-12">
+        <!-- Mobile toggle: show/hide the footer links -->
+        <button
+            type="button"
+            class="mx-auto mb-2 flex w-full max-w-7xl items-center justify-between text-white md:hidden"
+            :aria-expanded="showFooter"
+            aria-controls="footer-links"
+            @click="showFooter = !showFooter"
+        >
+            <span class="font-semibold">Footer &amp; info</span>
+            <ChevronUp v-if="showFooter" class="h-5 w-5" />
+            <ChevronDown v-else class="h-5 w-5" />
+        </button>
+
+        <div
+            id="footer-links"
+            class="mx-auto max-w-7xl grid-cols-2 gap-8 sm:grid-cols-3 md:grid md:grid-cols-5"
+            :class="showFooter ? 'grid' : 'hidden'"
+        >
             <!-- Shop -->
             <div>
                 <h4 class="mb-3 font-semibold text-white">Shop</h4>
@@ -82,7 +105,7 @@ const appName = page.props.appName || 'Bianlina';
         </div>
 
         <!-- Footer bottom -->
-        <div class="mt-10 border-t border-white/20 pt-6 text-center text-sm text-white">
+        <div class="mt-4 border-t border-white/20 pt-6 text-center text-sm text-white md:mt-10">
             &copy; {{ new Date().getFullYear() }} {{ appName }}. All rights reserved.
         </div>
     </footer>

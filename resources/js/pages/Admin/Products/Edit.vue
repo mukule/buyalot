@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import CategoryDropdown from '@/components/CategoryDropdown.vue';
+import MarketplaceListingFields from '@/components/marketplace/MarketplaceListingFields.vue';
 import ProductImageUploader from '@/components/ProductImageUploader.vue';
 import ProductVariantCreator from '@/components/ProductVariantCreator.vue';
 import SearchableSelect from '@/components/SearchableSelect.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
-import ClassicEditor from '@ckeditor/ckeditor5-build-classic';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
-import { onMounted, ref } from 'vue';
+import { defineAsyncComponent, onMounted, ref } from 'vue';
 
 // Types
 interface OptionItem {
@@ -23,6 +23,8 @@ const categories = page.categories ?? [];
 const brands = page.brands ?? [];
 const units = page.units ?? [];
 const variantCategories = page.variantCategories ?? [];
+const availableMarketplaces = page.availableMarketplaces ?? [];
+const carMakes = page.carMakes ?? [];
 const productData = page.product ?? null;
 
 // Mapped options
@@ -48,10 +50,12 @@ const form = useForm({
     whats_in_the_box: productData?.whats_in_the_box ?? '',
     variant_rows: productData?.variant_rows ?? [],
     images: productData?.images ?? [],
+    marketplaces: productData?.marketplaces ?? [],
+    attributes: productData?.attributes ?? {},
 });
 
-// Editor
-const editor = ClassicEditor;
+// Editor — lazy-loaded so the CKEditor bundle stays out of the main chunk.
+const RichTextEditor = defineAsyncComponent(() => import('@/components/RichTextEditor.vue'));
 const editorFields = ['description', 'features', 'specifications', 'whats_in_the_box'];
 
 // Variants & Images
@@ -183,6 +187,15 @@ const submitStep = async () => {
                                 </select>
                             </div>
                         </div>
+
+                        <!-- Marketplaces + vertical listing details (post a car / item) -->
+                        <MarketplaceListingFields
+                            v-if="availableMarketplaces.length"
+                            :available="availableMarketplaces"
+                            :car-makes="carMakes"
+                            :marketplaces="form.marketplaces"
+                            :attributes="form.attributes"
+                        />
                     </div>
 
                     <!-- Step 2: Content -->
@@ -190,11 +203,7 @@ const submitStep = async () => {
                         <div class="space-y-6 rounded-lg border border-gray-200 p-6 shadow-sm">
                             <div v-for="field in editorFields" :key="field">
                                 <label>{{ field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) }}</label>
-                                <CKEditor
-                                    :editor="editor"
-                                    v-model="form[field as keyof typeof form]"
-                                    :config="{ toolbar: ['bold', 'italic', 'link', 'bulletedList', 'numberedList', 'undo', 'redo'] }"
-                                />
+                                <RichTextEditor v-model="form[field as keyof typeof form]" />
                             </div>
                         </div>
                     </div>

@@ -155,3 +155,12 @@
     width: 18px;
     height: 18px;
 }
+
+/* Hide scrollbar utility (used by horizontally-scrollable rows e.g. marketplace quick tags) */
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}

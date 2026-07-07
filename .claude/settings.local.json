@@ -13,7 +13,29 @@
       "Bash(php -l routes/console.php)",
       "Bash(php -l app/Http/Controllers/CartController.php)",
       "Bash(php -l \"d:/Newfolder/buyalot/app/Services/CartReservationService.php\")",
-      "Bash(find d:Newfolderbuyalot/app/Mail -name OrderReady* -o -name *Pickup*)"
+      "Bash(find d:Newfolderbuyalot/app/Mail -name OrderReady* -o -name *Pickup*)",
+      "Bash(grep -E \"^\\\\.env$|^\\\\.env\\\\.\")",
+      "Bash(grep -iE \"hs_err|\\\\.log$|POS/|brands/\")",
+      "Bash(grep -iE \"build.zip|\\\\.zip$|hs_err\")",
+      "Bash(git rm *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(echo \"---exit:$?---\")",
+      "Bash(npm run *)",
+      "Bash(php -l app/Services/ShippingService.php)",
+      "Bash(npx vue-tsc *)",
+      "PowerShell(php artisan migrate --path=database/migrations/2026_07_02_000005_create_car_makes_and_models_tables.php 2>&1; php artisan db:seed --class=CarMakeSeeder 2>&1)",
+      "PowerShell(php artisan tinker \"C:\\\\Users\\\\smaina\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--Newfolder-buyalot\\\\aee731a2-ec8d-43d3-bd54-8635cea99ff5\\\\scratchpad\\\\test_filters.php\")",
+      "PowerShell(php artisan tinker \"C:\\\\Users\\\\smaina\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--Newfolder-buyalot\\\\aee731a2-ec8d-43d3-bd54-8635cea99ff5\\\\scratchpad\\\\test_listing.php\")",
+      "PowerShell(php artisan tinker \"C:\\\\Users\\\\smaina\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--Newfolder-buyalot\\\\aee731a2-ec8d-43d3-bd54-8635cea99ff5\\\\scratchpad\\\\test_parse.php\")",
+      "PowerShell(php artisan tinker \"C:\\\\Users\\\\smaina\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--Newfolder-buyalot\\\\aee731a2-ec8d-43d3-bd54-8635cea99ff5\\\\scratchpad\\\\test_string_attr.php\")",
+      "PowerShell(php artisan config:clear 2>&1; php -r \"require 'vendor/autoload.php'; \\\\$c = require 'config/marketplace.php'; echo 'cars form fields: '.count\\(\\\\$c['verticals']['cars']['form_fields']\\).PHP_EOL; echo 'year ui: '.\\(\\\\$c['verticals']['cars']['filters'][11]['ui'] ?? 'n/a'\\).PHP_EOL;\")",
+      "PowerShell(php artisan tinker \"C:\\\\Users\\\\smaina\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--Newfolder-buyalot\\\\aee731a2-ec8d-43d3-bd54-8635cea99ff5\\\\scratchpad\\\\check_config.php\")",
+      "PowerShell(pnpm run *)",
+      "PowerShell(php artisan db:seed --class=MarketplaceDemoSeeder 2>&1 | Select-Object -Last 5)",
+      "PowerShell(php artisan tinker \"C:\\\\Users\\\\smaina\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--Newfolder-buyalot\\\\aee731a2-ec8d-43d3-bd54-8635cea99ff5\\\\scratchpad\\\\verify_final.php\")",
+      "PowerShell(php artisan tinker \"C:\\\\Users\\\\smaina\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--Newfolder-buyalot\\\\aee731a2-ec8d-43d3-bd54-8635cea99ff5\\\\scratchpad\\\\test_extract.php\")",
+      "PowerShell(php artisan tinker \"C:\\\\Users\\\\smaina\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--Newfolder-buyalot\\\\aee731a2-ec8d-43d3-bd54-8635cea99ff5\\\\scratchpad\\\\test_makes.php\")"
     ]
   }
 }

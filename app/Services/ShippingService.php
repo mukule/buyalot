@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Region;
 use App\Models\ShippingRate;
 use App\Models\Warehouse\Warehouse;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 class ShippingService
@@ -163,16 +164,22 @@ class ShippingService
         }
 
         try {
-            $response = Http::get('https://maps.googleapis.com/maps/api/geocode/json', [
-                'latlng' => "{$lat},{$lng}",
-                'key' => $apiKey,
-            ]);
+            // Cache the geocode response per ~100m grid cell (3-decimal rounding)
+            // for an hour so the Google Maps API stays off the checkout hot path.
+            $cacheKey = sprintf('geocode:%.3f,%.3f', $lat, $lng);
+            $data = Cache::remember($cacheKey, now()->addHour(), function () use ($lat, $lng, $apiKey) {
+                $response = Http::get('https://maps.googleapis.com/maps/api/geocode/json', [
+                    'latlng' => "{$lat},{$lng}",
+                    'key' => $apiKey,
+                ]);
 
-            if (! $response->successful()) {
+                return $response->successful() ? $response->json() : null;
+            });
+
+            if (empty($data)) {
                 return null;
             }
 
-            $data = $response->json();
             $results = $data['results'] ?? [];
             if (empty($results)) {
                 return null;
@@ -215,14 +222,18 @@ class ShippingService
      */
     public function getRegionsWithPickup()
     {
-        return Region::active()
-            ->level('region')
-            ->where(function ($q) {
-                $q->whereHas('pickupPoints')
-                    ->orWhereHas('warehouses', fn ($w) => $w->withoutGlobalScopes()->where('active', true));
-            })
-            ->orderBy('name')
-            ->get();
+        // Pickup-eligible regions change rarely; cache for 10 minutes to avoid
+        // re-running this whereHas query on every shipping/geocode lookup.
+        return Cache::remember('shipping:regions_with_pickup', now()->addMinutes(10), function () {
+            return Region::active()
+                ->level('region')
+                ->where(function ($q) {
+                    $q->whereHas('pickupPoints')
+                        ->orWhereHas('warehouses', fn ($w) => $w->withoutGlobalScopes()->where('active', true));
+                })
+                ->orderBy('name')
+                ->get();
+        });
     }
 
     /**

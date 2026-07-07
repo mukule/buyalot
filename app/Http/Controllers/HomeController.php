@@ -69,8 +69,21 @@ class HomeController extends Controller
             ]);
     });
 
+    // Category slugs owned by dedicated marketplace verticals (Cars & Motors,
+    // Building & Construction, …). While "All Products" is selected these get
+    // their own browsing experience via the marketplace switcher, so they must
+    // not appear as home-page carousels here.
+    $verticalSlugs = collect(config('marketplace.verticals', []))
+        ->reject(fn ($v) => ($v['type'] ?? 'ecommerce') === 'ecommerce')
+        ->flatMap(fn ($v) => $v['category_slugs'] ?? [])
+        ->all();
+
+    $carouselCategories = $categories
+        ->reject(fn ($category) => in_array($category->slug, $verticalSlugs, true))
+        ->values();
+
     // 3. Heavy logic
-    $productsByCategory = $this->productService->getProductsGroupedByCategory($categories);
+    $productsByCategory = $this->productService->getProductsGroupedByCategory($carouselCategories);
 
     return Inertia::render('Frontend/Index', [
         'title'              => 'Online Shopping Store',
@@ -194,6 +207,8 @@ public function productDetails(string $slug)
         'description'        => $product->description,
         'specifications'     => $product->specifications,
         'whats_in_the_box'   => $product->whats_in_the_box,
+        'attributes'         => $product->attributes ?? [],
+        'marketplaces'       => $product->marketplaces ?? [],
         'images'             => $product->image_urls,
         'variants'           => $variants,
         'variant_attributes' => $variantAttributes,

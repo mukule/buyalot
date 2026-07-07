@@ -23,6 +23,7 @@ use App\Http\Controllers\Commission\CommissionPlanController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\Customer\CustomerController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\MarketplaceController;
 use App\Http\Controllers\Payments\MpesaPaymentController;
 use App\Http\Controllers\Payments\MpesaRequestController;
 use App\Http\Controllers\Payments\PaymentController;
@@ -408,8 +409,9 @@ Route::get('products/{slug}', [HomeController::class, 'productDetails'])->name('
 Route::prefix('cart')->name('cart.')->group(function () {
 
     Route::get('/', [CartController::class, 'index'])->name('index');
-    Route::post('/', [CartController::class, 'store'])->name('store');
-    Route::delete('', [CartController::class, 'clear'])->name('clear');
+    // Throttle cart mutations per user/IP to prevent add/clear spam.
+    Route::post('/', [CartController::class, 'store'])->middleware('throttle:60,1')->name('store');
+    Route::delete('', [CartController::class, 'clear'])->middleware('throttle:60,1')->name('clear');
 });
 
 // Checkout Summary (similar to Jumia)
@@ -446,6 +448,28 @@ Route::post('/shipping/calculate-home-delivery', [CartController::class, 'calcul
 // Coupon validation endpoint
 Route::post('/coupons/validate', [CouponController::class, 'validateCode'])
     ->name('coupons.validate');
+
+// Marketplace verticals (Cars & Motors, Building & Construction, …).
+// MUST be registered before the catch-all `/{slug}` category route below,
+// otherwise `/marketplace` is treated as a category slug lookup.
+Route::prefix('marketplace')->name('marketplace.')->group(function () {
+    Route::get('/', [MarketplaceController::class, 'index'])->name('index');
+    Route::post('/select', [MarketplaceController::class, 'select'])->name('select');
+
+    // Bulk quote / inquiry (RFQ) — open to guests (throttled).
+    Route::post('/quote', [MarketplaceController::class, 'quote'])->middleware('throttle:20,1')->name('quote');
+
+    // Reservation management (view/remove reserved cars). Auth-gated.
+    Route::middleware('auth')->group(function () {
+        Route::post('/reserve/{product}', [MarketplaceController::class, 'reserve'])->name('reserve');
+        Route::post('/unreserve/{product}', [MarketplaceController::class, 'unreserve'])->name('unreserve');
+        // ANPR plate detection for the blur editor (used in the product form).
+        Route::post('/detect-plates', [MarketplaceController::class, 'detectPlates'])
+            ->middleware('throttle:30,1')->name('detect-plates');
+    });
+
+    Route::get('/{vertical}', [MarketplaceController::class, 'show'])->name('show');
+});
 
 Route::get('/{slug}', [HomeController::class, 'category'])->name('category.show');
 

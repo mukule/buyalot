@@ -31,6 +31,9 @@ class Product extends Model
         'product_code',
         'features',
         'specifications',
+        'attributes',
+        'marketplaces',
+        'reserved_at',
         'whats_in_the_box',
         'meta_title',
         'meta_keywords',
@@ -68,8 +71,11 @@ class Product extends Model
     ];
 
     protected $casts = [
-        'status'    => 'integer',
-        'status_id' => 'integer',
+        'status'       => 'integer',
+        'status_id'    => 'integer',
+        'attributes'   => 'array',
+        'marketplaces' => 'array',
+        'reserved_at'  => 'datetime',
     ];
 
 
@@ -221,6 +227,11 @@ public function scopeActive($query)
     public function getInStockAttribute(): bool
     {
         return $this->productVariants()->sum('stock') > 0;
+    }
+
+    public function getIsReservedAttribute(): bool
+    {
+        return $this->reserved_at !== null;
     }
 
     protected function pricing(): Attribute

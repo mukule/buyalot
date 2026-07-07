@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Products\Product;
 use App\Models\Products\ProductVariant;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
@@ -275,5 +276,177 @@ class FrontendProductService
                 ],
             ];
         })->toArray();
+    }
+
+    /**
+     * MARKETPLACE VERTICAL LISTING
+     *
+     * One cheapest variant per matching product, filtered by the vertical's
+     * flexible `attributes` (equality selects + numeric ranges) and by variant
+     * price. Sorting is done in PHP so it stays portable across DB drivers and
+     * can order on JSON attributes (year/mileage) without driver-specific SQL.
+     *
+     * @param  array  $filters  [
+     *     'selects'   => ['make' => 'Toyota', ...],       // attribute equality
+     *     'ranges'    => ['year' => ['min'=>?, 'max'=>?]] // numeric attribute ranges
+     *     'min_price' => ?float, 'max_price' => ?float,   // variant selling_price
+     *     'sort'      => 'newest'|'price_asc'|'price_desc'|'year_desc'|'mileage_asc',
+     * ]
+     */
+    public function getVerticalListing(string $verticalKey, array $filters = [], int $perPage = 24): LengthAwarePaginator
+    {
+        $page = \Illuminate\Pagination\Paginator::resolveCurrentPage('page');
+        $path = \Illuminate\Pagination\Paginator::resolveCurrentPath();
+
+        if ($verticalKey === '') {
+            return new \Illuminate\Pagination\LengthAwarePaginator([], 0, $perPage, $page, ['path' => $path]);
+        }
+
+        $selects      = $filters['selects'] ?? [];
+        $ranges       = $filters['ranges'] ?? [];
+        $minPrice     = $filters['min_price'] ?? null;
+        $maxPrice     = $filters['max_price'] ?? null;
+        $availability = $filters['availability'] ?? null; // 'available' | 'reserved'
+        $stockId      = $filters['stock_id'] ?? null;
+
+        $applyProductFilters = function ($q) use ($verticalKey, $selects, $ranges, $availability, $stockId) {
+            $q->withoutGlobalScopes()
+              ->whereJsonContains('marketplaces', $verticalKey)
+              ->where('status_id', 2)
+              ->whereNotNull('slug')
+              ->where('slug', '!=', '');
+
+            foreach ($selects as $key => $value) {
+                if ($value !== null && $value !== '') {
+                    $q->where("attributes->{$key}", $value);
+                }
+            }
+            foreach ($ranges as $key => $range) {
+                // Attribute values live in a JSON column and are frequently stored
+                // as strings (the product form submits them as strings). A plain
+                // `attributes->key >= ?` comparison then binds as text and MySQL
+                // compares lexicographically — e.g. "9000" > "50000" — which breaks
+                // numeric range filters. Cast the extracted value to a number so the
+                // comparison is always numeric regardless of how it was stored.
+                // $key comes from the trusted marketplace config, so it is safe to
+                // interpolate; we still guard against anything unexpected.
+                if (! preg_match('/^[A-Za-z0-9_]+$/', $key)) {
+                    continue;
+                }
+                $numeric = "CAST(JSON_UNQUOTE(JSON_EXTRACT(`attributes`, '$.\"{$key}\"')) AS DECIMAL(20,4))";
+
+                if (($range['min'] ?? null) !== null) {
+                    $q->whereRaw("{$numeric} >= ?", [$range['min']]);
+                }
+                if (($range['max'] ?? null) !== null) {
+                    $q->whereRaw("{$numeric} <= ?", [$range['max']]);
+                }
+            }
+
+            // Reservation status (a listing is reserved when reserved_at is set).
+            if ($availability === 'available') {
+                $q->whereNull('reserved_at');
+            } elseif ($availability === 'reserved') {
+                $q->whereNotNull('reserved_at');
+            }
+
+            // Stock ID search matches the product_code.
+            if ($stockId !== null && $stockId !== '') {
+                $q->where('product_code', 'like', '%' . $stockId . '%');
+            }
+        };
+
+        $inStock = $availability === 'in_stock';
+
+        // Cheapest variant id per matching product (mirrors getPaginatedProductsByCategoryIds).
+        $cheapestVariantIds = ProductVariant::query()
+            ->selectRaw('MIN(id) as id')
+            ->whereHas('product', $applyProductFilters)
+            ->when(! is_null($minPrice), fn ($q) => $q->where('selling_price', '>=', $minPrice))
+            ->when(! is_null($maxPrice), fn ($q) => $q->where('selling_price', '<=', $maxPrice))
+            ->when($inStock, fn ($q) => $q->where('stock', '>', 0))
+            ->groupBy('product_id');
+
+        $variants = ProductVariant::query()
+            ->with(['product.brand', 'product.primaryImage', 'product.category', 'images'])
+            ->whereIn('id', $cheapestVariantIds)
+            ->when(! is_null($minPrice), fn ($q) => $q->where('selling_price', '>=', $minPrice))
+            ->when(! is_null($maxPrice), fn ($q) => $q->where('selling_price', '<=', $maxPrice))
+            ->get();
+
+        $priceData = $this->getPriceForVariants($variants);
+
+        $items = $variants
+            ->map(fn ($variant) => $this->normalizeVerticalVariant($variant, $priceData));
+
+        $items = $this->sortVerticalItems($items, $filters['sort'] ?? 'newest')->values();
+
+        $slice = $items->forPage($page, $perPage)->values();
+
+        return new \Illuminate\Pagination\LengthAwarePaginator(
+            $slice,
+            $items->count(),
+            $perPage,
+            $page,
+            ['path' => $path]
+        );
+    }
+
+    protected function sortVerticalItems($items, string $sort)
+    {
+        return match ($sort) {
+            'price_asc'   => $items->sortBy('final_price'),
+            'price_desc'  => $items->sortByDesc('final_price'),
+            'year_desc'   => $items->sortByDesc(fn ($i) => (int) ($i['attributes']['year'] ?? 0)),
+            'mileage_asc' => $items->sortBy(fn ($i) => (int) ($i['attributes']['mileage'] ?? PHP_INT_MAX)),
+            default       => $items->sortByDesc('id'), // newest first (variant id proxy)
+        };
+    }
+
+    /**
+     * Card shape for a vertical listing = the standard card + the product's
+     * flexible attributes (make/year/mileage/material/etc.) for chip display.
+     */
+    public function normalizeVerticalVariant(ProductVariant $variant, array $priceData = []): array
+    {
+        $base = $this->normalizeVariant($variant, $priceData);
+        $product = $variant->product;
+        $attributes = $product?->attributes ?? [];
+
+        $base['attributes'] = $attributes;
+        $base['location']   = $attributes['location'] ?? null;
+        $base['stock_id']   = $product?->product_code;
+        $base['reserved']   = $product?->reserved_at !== null;
+
+        return $base;
+    }
+
+    /**
+     * Distinct values per attribute key, for populating the vertical's select
+     * filter dropdowns.
+     */
+    public function getVerticalFilterOptions(string $verticalKey, array $selectKeys): array
+    {
+        $options = [];
+        if ($verticalKey === '' || empty($selectKeys)) {
+            return $options;
+        }
+
+        $products = Product::withoutGlobalScopes()
+            ->whereJsonContains('marketplaces', $verticalKey)
+            ->where('status_id', 2)
+            ->get(['id', 'attributes']);
+
+        foreach ($selectKeys as $key) {
+            $options[$key] = $products
+                ->map(fn ($p) => $p->attributes[$key] ?? null)
+                ->filter(fn ($v) => $v !== null && $v !== '')
+                ->unique()
+                ->sort(SORT_NATURAL | SORT_FLAG_CASE)
+                ->values()
+                ->all();
+        }
+
+        return $options;
     }
 }

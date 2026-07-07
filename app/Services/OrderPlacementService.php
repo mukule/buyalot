@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\SendOrderPlacedNotifications;
 use App\Mail\AdminOrderNotification;
 use App\Mail\CustomerOrderConfirmation;
 use App\Models\CheckoutSession;
@@ -10,14 +11,9 @@ use App\Models\Orders\Delivery;
 use App\Models\Orders\Order;
 use App\Models\Orders\OrderItem;
 use App\Models\Payment\Payment;
-use App\Models\Seller\Seller;
-use App\Models\User;
-use App\Notifications\NewOrderPlacedNotification;
-use App\Notifications\OrderItemsDispatchRequiredNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 
 class OrderPlacementService
@@ -254,31 +250,9 @@ class OrderPlacementService
             }
 
             // ------------------- In-app notifications -------------------
-            try {
-                // Notify all admin/super-admin users
-                $adminUsers = User::role(['admin', 'super-admin'])->get();
-                if ($adminUsers->isNotEmpty()) {
-                    Notification::send($adminUsers, new NewOrderPlacedNotification($order));
-                }
-
-                // Notify each seller whose items are in this order
-                foreach ($sellerItemCounts as $sellerId => $itemCount) {
-                    $seller = Seller::find($sellerId);
-                    if (!$seller) {
-                        continue;
-                    }
-                    $sellerUsers = $seller->users;
-                    if ($sellerUsers->isNotEmpty()) {
-                        Notification::send($sellerUsers, new OrderItemsDispatchRequiredNotification($order, $itemCount));
-                    }
-                }
-            } catch (\Throwable $e) {
-                Log::error('Failed to send in-app notifications', [
-                    'order_id' => $order->id,
-                    'error'    => $e->getMessage(),
-                    'stack'    => $e->getTraceAsString(),
-                ]);
-            }
+            // Fan-out (admin + per-seller lookups and sends) is queued so it
+            // stays off the request once a real queue driver is configured.
+            SendOrderPlacedNotifications::dispatch($order, $sellerItemCounts);
 
             return $order;
 

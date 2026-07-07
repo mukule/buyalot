@@ -42,4 +42,12 @@ return [
         'maps_api_key' => env('GOOGLE_MAPS_API_KEY'),
     ],
 
+    // ANPR / license-plate detection model (Plate Recognizer by default).
+    // Used to auto-suggest the blur region on car photos. Optional: if no token
+    // is set, the blur editor falls back to manual selection only.
+    'plate_recognizer' => [
+        'token' => env('PLATE_RECOGNIZER_TOKEN'),
+        'url'   => env('PLATE_RECOGNIZER_URL', 'https://api.platerecognizer.com/v1/plate-reader/'),
+    ],
+
 ];

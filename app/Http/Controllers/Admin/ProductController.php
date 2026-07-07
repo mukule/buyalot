@@ -251,6 +251,8 @@ public function create()
         'whats_in_the_box' => $draftProduct->whats_in_the_box,
         'video_url' => $draftProduct->video_url,
         'package_size' => $draftProduct->package_size,
+        'marketplaces' => $draftProduct->marketplaces ?? [],
+        'attributes' => $draftProduct->attributes ?? [],
         'variant_rows' => $variantRows,
         'images' => $draftProduct->images ?? [],
     ] : null;
@@ -260,8 +262,45 @@ public function create()
         'categories' => $categories,
         'units' => $units,
         'variantCategories' => $variantCategories,
+        'availableMarketplaces' => $this->marketplaceOptions(),
+        'carMakes' => $this->carMakeOptions(),
         'product' => $productData,
     ]);
+}
+
+/**
+ * Selectable marketplace verticals (+ their post-form field schema) for the
+ * product create/edit form. Ecommerce is the implicit default and excluded.
+ */
+private function marketplaceOptions(): array
+{
+    return collect(config('marketplace.verticals', []))
+        ->reject(fn ($v) => ($v['type'] ?? 'ecommerce') === 'ecommerce')
+        ->map(fn ($v) => [
+            'key'         => $v['key'],
+            'label'       => $v['label'],
+            'form_fields' => $v['form_fields'] ?? [],
+        ])
+        ->values()
+        ->all();
+}
+
+/**
+ * Vehicle makes with their models, for the cascading make/model selects on the
+ * "post a car" form. Shape: [{ name, models: string[] }].
+ */
+private function carMakeOptions(): array
+{
+    return \App\Models\CarMake::query()
+        ->where('active', true)
+        ->with(['models' => fn ($q) => $q->where('active', true)->orderBy('name')])
+        ->orderBy('name')
+        ->get()
+        ->map(fn ($make) => [
+            'name'   => $make->name,
+            'models' => $make->models->pluck('name')->values()->all(),
+        ])
+        ->all();
 }
 
 
@@ -432,6 +471,8 @@ public function edit(Product $product)
         'specifications' => $product->specifications,
         'whats_in_the_box' => $product->whats_in_the_box,
         'video_url' => $product->video_url,
+        'marketplaces' => $product->marketplaces ?? [],
+        'attributes' => $product->attributes ?? [],
         'variant_rows' => $variantRows,
         'images' => $images,
     ];
@@ -441,6 +482,8 @@ public function edit(Product $product)
         'categories' => $categories,
         'units' => $units,
         'variantCategories' => $variantCategories,
+        'availableMarketplaces' => $this->marketplaceOptions(),
+        'carMakes' => $this->carMakeOptions(),
         'product' => $productData,
         'title' => 'Edit Product',
         'breadcrumbs' => [

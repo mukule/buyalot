@@ -3,11 +3,10 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import type { Brand, BreadcrumbItem, Category, Product, Subcategory, Unit, Variant, VariantCategory } from '@/types';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { computed, onBeforeUnmount, reactive, ref, watch, type Ref } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, reactive, ref, watch, type Ref } from 'vue';
 
-import ClassicEditor from '@ckeditor/ckeditor5-build-classic';
-
-const editor = ClassicEditor;
+// Lazy-loaded so the CKEditor bundle stays out of the main chunk.
+const RichTextEditor = defineAsyncComponent(() => import('@/components/RichTextEditor.vue'));
 
 type ProductWithExtras = Product & {
     images: { id: number; hashid: string; image_path: string; is_primary: boolean }[];
@@ -469,10 +468,9 @@ onBeforeUnmount(() => {
                         <div class="space-y-6">
                             <div>
                                 <label class="mb-1 block text-sm font-medium text-gray-700" for="description">Description</label>
-                                <CKEditor
+                                <RichTextEditor
                                     id="description"
                                     v-model="form.description"
-                                    :editor="editor"
                                     :disabled="isSubmitting"
                                     class="min-h-[150px] rounded-md border border-gray-300 bg-white"
                                 />
@@ -480,10 +478,9 @@ onBeforeUnmount(() => {
 
                             <div>
                                 <label class="mb-1 block text-sm font-medium text-gray-700" for="features">Features</label>
-                                <CKEditor
+                                <RichTextEditor
                                     id="features"
                                     v-model="form.features"
-                                    :editor="editor"
                                     :disabled="isSubmitting"
                                     class="min-h-[150px] rounded-md border border-gray-300 bg-white"
                                 />
@@ -491,10 +488,9 @@ onBeforeUnmount(() => {
 
                             <div>
                                 <label class="mb-1 block text-sm font-medium text-gray-700" for="specifications">Specifications</label>
-                                <CKEditor
+                                <RichTextEditor
                                     id="specifications"
                                     v-model="form.specifications"
-                                    :editor="editor"
                                     :disabled="isSubmitting"
                                     class="min-h-[150px] rounded-md border border-gray-300 bg-white"
                                 />
@@ -502,10 +498,9 @@ onBeforeUnmount(() => {
 
                             <div>
                                 <label class="mb-1 block text-sm font-medium text-gray-700" for="whats-in-the-box">What's in the Box</label>
-                                <CKEditor
+                                <RichTextEditor
                                     id="whats-in-the-box"
                                     v-model="form.whats_in_the_box"
-                                    :editor="editor"
                                     :disabled="isSubmitting"
                                     class="min-h-[150px] rounded-md border border-gray-300 bg-white"
                                 />

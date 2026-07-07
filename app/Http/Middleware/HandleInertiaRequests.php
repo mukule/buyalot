@@ -85,6 +85,21 @@ class HandleInertiaRequests extends Middleware
 
             'appName' => config('app.name'),
 
+            // Marketplace verticals: the active vertical (cookie-persisted, defaults
+            // to ecommerce) plus the public list of verticals for the switcher/picker.
+            'marketplace' => [
+                'active'    => $request->cookie('marketplace_vertical', config('marketplace.default')),
+                'verticals' => collect(config('marketplace.verticals', []))
+                    ->map(fn ($v) => [
+                        'key'     => $v['key'],
+                        'label'   => $v['label'],
+                        'tagline' => $v['tagline'] ?? '',
+                        'type'    => $v['type'],
+                        'icon'    => $v['icon'] ?? 'ShoppingBag',
+                    ])
+                    ->values(),
+            ],
+
             // 🔑 Full cart shared globally - but only evaluated if used
             'cart' => fn () => app(CartService::class)
                 ->getCart($request)

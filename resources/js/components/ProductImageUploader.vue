@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import CarImageBlurEditor from '@/components/marketplace/CarImageBlurEditor.vue';
+import { ShieldAlert } from 'lucide-vue-next';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 interface ImageItem {
@@ -111,6 +113,35 @@ function removeGalleryImage(index: number) {
     galleryImages.value.splice(index, 1);
 }
 
+// --- Privacy blur editor (number plate / sensitive areas) ---
+const editorOpen = ref(false);
+const editorSrc = ref('');
+const editorFilename = ref('image');
+const editorTarget = ref<{ kind: 'primary' | 'gallery'; index: number }>({ kind: 'primary', index: -1 });
+
+function openBlurEditor(kind: 'primary' | 'gallery', index = -1) {
+    const img = kind === 'primary' ? primaryImage.value : galleryImages.value[index];
+    if (!img) return;
+    editorSrc.value = img.preview || img.url || '';
+    editorFilename.value = img.file?.name ?? 'car-image';
+    editorTarget.value = { kind, index };
+    editorOpen.value = true;
+}
+
+function onBlurSave(file: File) {
+    const preview = URL.createObjectURL(file);
+    if (editorTarget.value.kind === 'primary' && primaryImage.value) {
+        revokeHelper(primaryImage.value);
+        primaryImage.value = { ...primaryImage.value, file, preview };
+    } else {
+        const img = galleryImages.value[editorTarget.value.index];
+        if (img) {
+            revokeHelper(img);
+            galleryImages.value[editorTarget.value.index] = { ...img, file, preview };
+        }
+    }
+}
+
 // --- Event Handlers ---
 function onPrimaryChange(event: Event) {
     const target = event.target as HTMLInputElement;
@@ -151,8 +182,15 @@ onBeforeUnmount(() => {
             <div v-else class="group relative w-full max-w-xs">
                 <img :src="primaryImage.preview" class="h-48 w-full rounded-md border border-gray-200 object-cover" />
                 <div
-                    class="absolute inset-0 flex items-center justify-center rounded-md bg-black/40 opacity-0 transition-opacity group-hover:opacity-100"
+                    class="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-md bg-black/40 opacity-0 transition-opacity group-hover:opacity-100"
                 >
+                    <button
+                        type="button"
+                        @click="openBlurEditor('primary')"
+                        class="flex items-center gap-1 rounded bg-white px-3 py-1 text-xs font-semibold text-gray-800 hover:bg-gray-100"
+                    >
+                        <ShieldAlert class="h-3.5 w-3.5" /> Blur plate
+                    </button>
                     <button type="button" @click="removePrimaryImage" class="rounded bg-red-600 px-3 py-1 text-xs text-white hover:bg-red-700">
                         Remove & Replace
                     </button>
@@ -202,6 +240,13 @@ onBeforeUnmount(() => {
                         </button>
                         <button
                             type="button"
+                            @click="openBlurEditor('gallery', index)"
+                            class="flex items-center gap-1 rounded bg-white px-2 py-1 text-[10px] font-bold text-gray-800 hover:bg-gray-100"
+                        >
+                            <ShieldAlert class="h-3 w-3" /> BLUR PLATE
+                        </button>
+                        <button
+                            type="button"
                             @click="removeGalleryImage(index)"
                             class="rounded bg-red-600 px-2 py-1 text-[10px] text-white hover:bg-red-700"
                         >
@@ -211,5 +256,13 @@ onBeforeUnmount(() => {
                 </div>
             </div>
         </div>
+
+        <CarImageBlurEditor
+            :open="editorOpen"
+            :src="editorSrc"
+            :filename="editorFilename"
+            @close="editorOpen = false"
+            @save="onBlurSave"
+        />
     </div>
 </template>
