@@ -33,3 +33,7 @@ laravel_vue_deploy_steps
 # Build artifacts and crash dumps (do not commit)
 /public/build.zip
 hs_err_pid*.log
+
+# Generated sitemaps (php artisan sitemap:generate)
+/public/sitemap.xml
+/public/sitemap-*.xml

@@ -23,6 +23,7 @@ use App\Http\Controllers\Commission\CommissionPlanController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\Customer\CustomerController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\MarketplaceController;
 use App\Http\Controllers\Payments\MpesaPaymentController;
 use App\Http\Controllers\Payments\MpesaRequestController;
@@ -47,6 +48,13 @@ require __DIR__.'/customer.php';
 
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
+
+// SEO: robots.txt + sitemaps. Sitemaps are served dynamically (cached 1h);
+// `php artisan sitemap:generate` also writes static copies into public/.
+Route::get('/robots.txt', [SitemapController::class, 'robots'])->name('robots');
+Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap.index');
+Route::get('/sitemap-{section}.xml', [SitemapController::class, 'section'])
+    ->where('section', '[a-z]+(-[0-9]+)?')->name('sitemap.section');
 
 // Distributor portal: login at /distributor/login or switch from customer/seller
 Route::middleware(['auth', 'ensure.portal.role:distributor'])->prefix('distributor')->name('distributor.')->group(function () {

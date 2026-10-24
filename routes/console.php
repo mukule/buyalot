@@ -15,3 +15,9 @@ Schedule::command('reservations:release-expired')
     ->everyMinute()
     ->withoutOverlapping()
     ->runInBackground();
+
+// Regenerate the static sitemap files in public/ once a day (off-peak).
+Schedule::command('sitemap:generate')
+    ->dailyAt('03:00')
+    ->withoutOverlapping()
+    ->runInBackground();
