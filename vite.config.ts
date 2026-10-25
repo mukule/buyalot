@@ -4,7 +4,8 @@ import laravel from 'laravel-vite-plugin';
 import path from 'path';
 import { defineConfig } from 'vite';
 
-export default defineConfig({
+// manualChunks only applies to the browser build; the SSR bundle treats node deps as external.
+export default defineConfig(({ isSsrBuild }) => ({
     plugins: [
         laravel({
             input: ['resources/js/app.ts'],
@@ -29,17 +30,19 @@ export default defineConfig({
     build: {
         sourcemap: false,
         chunkSizeWarningLimit: 600,
-        rollupOptions: {
-            output: {
-                manualChunks: {
-                    'vendor-editor': ['@ckeditor/ckeditor5-build-classic', '@ckeditor/ckeditor5-vue'],
-                    'vendor-charts': ['chart.js', 'vue-chartjs'],
-                    'vendor-ui': ['reka-ui', 'lucide-vue-next'],
-                },
-            },
-        },
+        rollupOptions: isSsrBuild
+            ? {}
+            : {
+                  output: {
+                      manualChunks: {
+                          'vendor-editor': ['@ckeditor/ckeditor5-build-classic', '@ckeditor/ckeditor5-vue'],
+                          'vendor-charts': ['chart.js', 'vue-chartjs'],
+                          'vendor-ui': ['reka-ui', 'lucide-vue-next'],
+                      },
+                  },
+              },
     },
     server: {
         allowedHosts: ['localhost', '127.0.0.1', '[::1]', '0.0.0.0'],
     },
-});
+}));

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import MainLayout from '@/layouts/MainLayout.vue';
+import SeoHead from '@/components/SeoHead.vue';
 import { usePage } from '@inertiajs/vue3';
 
 interface Policy {
@@ -15,6 +16,7 @@ const policy = page.props.policy as Policy;
 
 <template>
     <MainLayout>
+        <SeoHead :seo="($page.props as any).seo" />
         <section class="mx-auto my-4 w-full max-w-5xl px-4">
             <div class="rounded-lg bg-white p-8 shadow">
                 <!-- Header -->

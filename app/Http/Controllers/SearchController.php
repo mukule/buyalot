@@ -41,6 +41,7 @@ class SearchController extends Controller
 
             return Inertia::render('Frontend/SearchResults', [
                 'q' => $q,
+                'seo' => \App\Services\Seo\SeoMeta::search($q),
                 'results' => $emptyResults,
                 'message' => 'Please enter at least 2 characters to search.',
             ]);
@@ -126,6 +127,7 @@ class SearchController extends Controller
         // 5. Standard Search Page Response
         return Inertia::render('Frontend/SearchResults', [
             'q'       => $q,
+            'seo'     => \App\Services\Seo\SeoMeta::search($q),
             'results' => [
                 'data'         => $mappedData,
                 'total'        => $paginator->total(),

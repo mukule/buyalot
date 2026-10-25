@@ -1,0 +1,21 @@
+# /etc/systemd/system/inertia-ssr.service
+# Keeps the Inertia SSR node server alive so crawlers receive fully rendered HTML.
+#   sudo systemctl daemon-reload && sudo systemctl enable --now inertia-ssr
+#   After every deploy that rebuilds assets: sudo systemctl restart inertia-ssr
+
+[Unit]
+Description=Inertia.js SSR server for buyalot
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/buyalot
+ExecStart=/usr/bin/php /var/www/buyalot/artisan inertia:start-ssr
+Restart=always
+RestartSec=3
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

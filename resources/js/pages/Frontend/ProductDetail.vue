@@ -4,6 +4,7 @@ import ProductCarouselSection from '@/components/ProductCarouselSection.vue';
 import Car360Viewer from '@/components/marketplace/Car360Viewer.vue';
 import QuoteRequestModal from '@/components/marketplace/QuoteRequestModal.vue';
 import MainLayout from '@/layouts/MainLayout.vue';
+import SeoHead from '@/components/SeoHead.vue';
 import type { SimplifiedProduct } from '@/types';
 import { router, usePage } from '@inertiajs/vue3';
 import { Expand, Info, Minus, Plus, Rotate3d, ShoppingCart, Star } from 'lucide-vue-next';
@@ -426,6 +427,7 @@ const videoEmbedUrl = computed<string | null>(() => {
 
 <template>
     <MainLayout>
+        <SeoHead :seo="($page.props as any).seo" />
         <section class="mx-auto mt-4 mb-4 flex flex-col overflow-x-hidden">
             <!-- Breadcrumb -->
             <nav class="p-4 text-sm text-gray-600" aria-label="Breadcrumb">

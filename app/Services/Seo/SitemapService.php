@@ -130,10 +130,22 @@ class SitemapService
     public function productUrls(int $page = 1): array
     {
         return Product::active()
+            ->with('primaryImage:id,product_id,image_path')
             ->orderBy('id')
             ->forPage($page, self::PRODUCTS_PER_FILE)
-            ->get(['slug', 'updated_at'])
-            ->map(fn (Product $p) => $this->url("/products/{$p->slug}", $p->updated_at, 'weekly', '0.9'))
+            ->get(['id', 'slug', 'name', 'updated_at'])
+            ->map(function (Product $p) {
+                $url = $this->url("/products/{$p->slug}", $p->updated_at, 'weekly', '0.9');
+                if ($p->primaryImage) {
+                    // Image sitemap extension: lets Google Images index product photos.
+                    $url['images'] = [[
+                        'loc'   => $this->baseUrl . '/storage/' . ltrim($p->primaryImage->image_path, '/'),
+                        'title' => $p->name,
+                    ]];
+                }
+
+                return $url;
+            })
             ->all();
     }
 
@@ -165,7 +177,8 @@ class SitemapService
     private function urlset(array $urls): string
     {
         $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
-            . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
+            . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"'
+            . ' xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">' . "\n";
 
         foreach ($urls as $u) {
             $xml .= "  <url>\n    <loc>" . $this->esc($u['loc']) . "</loc>\n";
@@ -173,7 +186,12 @@ class SitemapService
                 $xml .= "    <lastmod>{$u['lastmod']}</lastmod>\n";
             }
             $xml .= "    <changefreq>{$u['changefreq']}</changefreq>\n"
-                 .  "    <priority>{$u['priority']}</priority>\n  </url>\n";
+                 .  "    <priority>{$u['priority']}</priority>\n";
+            foreach ($u['images'] ?? [] as $img) {
+                $xml .= "    <image:image>\n      <image:loc>" . $this->esc($img['loc']) . "</image:loc>\n"
+                     .  "      <image:title>" . $this->esc($img['title']) . "</image:title>\n    </image:image>\n";
+            }
+            $xml .= "  </url>\n";
         }
 
         return $xml . '</urlset>';

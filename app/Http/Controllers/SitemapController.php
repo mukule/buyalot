@@ -59,8 +59,7 @@ class SitemapController extends Controller
             '',
         ];
 
-        return response(implode("
-", $lines), 200, [
+        return response(implode(PHP_EOL, $lines), 200, [
             'Content-Type'  => 'text/plain; charset=UTF-8',
             'Cache-Control' => 'public, max-age=86400',
         ]);
