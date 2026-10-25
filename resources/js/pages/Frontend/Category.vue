@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import MainLayout from '@/layouts/MainLayout.vue';
+import SeoHead from '@/components/SeoHead.vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import debounce from 'lodash/debounce';
 import { Filter, Heart, ShoppingCart, Star, XCircle } from 'lucide-vue-next';
@@ -74,8 +75,10 @@ const addToCart = (variantId: number) => {
 // ==========================
 // Filters
 // ==========================
-const minPrice = ref<number | null>(Number(new URLSearchParams(window.location.search).get('min_price')) || null);
-const maxPrice = ref<number | null>(Number(new URLSearchParams(window.location.search).get('max_price')) || null);
+// Read filters from the Inertia page URL (available during SSR; `window` is not).
+const initialQuery = new URLSearchParams((usePage().url.split('?')[1] ?? ''));
+const minPrice = ref<number | null>(Number(initialQuery.get('min_price')) || null);
+const maxPrice = ref<number | null>(Number(initialQuery.get('max_price')) || null);
 
 const selectedBrands = ref<number[]>((props.selectedBrands ?? []).map((b) => Number(b)));
 const brandSearch = ref('');
@@ -130,6 +133,7 @@ const paginationLinks = computed(() => props.products?.links ?? []);
 
 <template>
     <MainLayout>
+        <SeoHead :seo="($page.props as any).seo" />
         <section class="mt-4 mb-4 flex flex-col gap-6">
             <!-- Banner -->
             <div class="relative w-full overflow-hidden rounded-sm">

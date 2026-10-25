@@ -24,6 +24,7 @@ use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use App\Models\Policy\Policy;
+use App\Services\Seo\SeoMeta;
 
 
 
@@ -87,6 +88,7 @@ class HomeController extends Controller
 
     return Inertia::render('Frontend/Index', [
         'title'              => 'Online Shopping Store',
+        'seo'                => SeoMeta::home(),
         'categories'         => $categories,
         'brands'             => $brands->map(fn($brand) => [
             'id'       => $brand->id,
@@ -271,6 +273,7 @@ public function productDetails(string $slug)
         'relatedProducts'  => $relatedProducts,
         'cartVariantIds'   => $cartVariantIds,
         'regions'          => $regions,
+        'seo'              => SeoMeta::product($product, $productData),
         'googleMapsApiKey' => $googleMapsApiKey,
         'title'            => $product->name,
     ]);
@@ -332,6 +335,7 @@ public function category(string $slug)
         'maxPrice' => $maxPrice,
         'breadcrumbs' => $category->getHierarchy(),
         'title' => $category->name,
+        'seo'   => SeoMeta::category($category, $category->getHierarchy(), collect(request()->query())->except('page')->isNotEmpty()),
     ]);
 }
 
@@ -689,7 +693,8 @@ public function show($slug)
             'content' => '<p>This policy is currently unavailable.</p>',
             'version' => null,
             'effective_from' => null,
-        ]
+        ],
+        'seo' => SeoMeta::policy($policy->title, $slug),
     ]);
 }
 
@@ -700,7 +705,8 @@ public function show($slug)
             'content' => $version->content,
             'version' => $version->version_number,
             'effective_from' => $version->effective_from_local,
-        ]
+        ],
+        'seo' => SeoMeta::policy($policy->title, $slug, $version->content),
     ]);
 }
 

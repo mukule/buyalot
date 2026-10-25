@@ -4,6 +4,7 @@ import FeaturedBrands from '@/components/FeaturedBrands.vue';
 import Hero from '@/components/Hero.vue';
 import ProductCarouselSection from '@/components/ProductCarouselSection.vue';
 import MainLayout from '@/layouts/MainLayout.vue';
+import SeoHead from '@/components/SeoHead.vue';
 import type { PageProps as InertiaPageProps } from '@inertiajs/core';
 import { usePage } from '@inertiajs/vue3';
 import type { Brand, Category, SimplifiedProduct } from '@/types';
@@ -64,6 +65,7 @@ const filteredCategories = categories.filter(
 
 <template>
     <MainLayout>
+        <SeoHead :seo="($page.props as any).seo" />
         <!-- Row 1: Sidebar + Banner -->
         <section class="mt-4 mb-4 flex flex-col gap-4 lg:flex-row lg:items-stretch lg:h-[450px]">
 

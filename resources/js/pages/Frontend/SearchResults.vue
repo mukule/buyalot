@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import MainLayout from '@/layouts/MainLayout.vue';
+import SeoHead from '@/components/SeoHead.vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
@@ -38,6 +39,7 @@ function goToPage(p: number) {
 
 <template>
   <MainLayout>
+        <SeoHead :seo="($page.props as any).seo" />
     <section class="container mx-auto px-4 py-6">
       <h1 class="mb-4 text-2xl font-semibold">Search results for "{{ q }}"</h1>
       <p v-if="results.total === 0" class="text-gray-600">No products found. Try different keywords.</p>
