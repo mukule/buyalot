@@ -255,7 +255,7 @@ watch(search, (val) => {
                                         goToSellerVerification(currentApp.hashid);
                                         closeDropdown();
                                     "
-                                    class="w-full px-4 py-2 text-left text-blue-700 hover:bg-blue-100"
+                                    class="w-full px-4 py-2 text-left text-primary hover:bg-primary/10"
                                 >
                                     Verify
                                 </button>

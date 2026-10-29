@@ -253,9 +253,9 @@ function statusBadgeClass(status?: string) {
     case 'pending': return 'bg-yellow-100 text-yellow-800';
     case 'processing':
     case 'on_hold': return 'bg-blue-100 text-blue-800';
-    case 'confirmed': return 'bg-indigo-100 text-indigo-800';
+    case 'confirmed': return 'bg-primary/10 text-primary';
     case 'shipped':
-    case 'out_for_delivery': return 'bg-purple-100 text-purple-800';
+    case 'out_for_delivery': return 'bg-primary/10 text-primary';
     case 'delivered': return 'bg-green-100 text-green-800';
     case 'returned':
     case 'partially_returned':
@@ -380,7 +380,7 @@ function statusBadgeClass(status?: string) {
                   <Button
                     v-if="['pending', 'declined'].includes(item.dispatch_status)"
                     size="sm"
-                    class="bg-blue-600 text-white hover:bg-blue-700"
+                    class="bg-primary text-white hover:bg-primary/90"
                     @click="dispatchItem(item.id)"
                   >
                     Dispatch
@@ -499,10 +499,10 @@ function statusBadgeClass(status?: string) {
             </div>
 
             <!-- Dispatch center info card -->
-            <div v-if="activeDispatchCenter" class="rounded-md border border-blue-200 bg-blue-50 p-3">
-              <p class="font-semibold text-blue-900">{{ activeDispatchCenter.name }}</p>
-              <p v-if="activeDispatchCenter.address" class="text-sm text-blue-700">{{ activeDispatchCenter.address }}</p>
-              <p v-if="activeDispatchCenter.location" class="text-xs text-blue-600">{{ activeDispatchCenter.location }}</p>
+            <div v-if="activeDispatchCenter" class="rounded-md border border-primary/20 bg-primary/5 p-3">
+              <p class="font-semibold text-primary">{{ activeDispatchCenter.name }}</p>
+              <p v-if="activeDispatchCenter.address" class="text-sm text-primary">{{ activeDispatchCenter.address }}</p>
+              <p v-if="activeDispatchCenter.location" class="text-xs text-primary">{{ activeDispatchCenter.location }}</p>
             </div>
             <div v-else-if="dispatchCenters.length === 0" class="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
               No dispatch centers are currently available. Contact the administrator.

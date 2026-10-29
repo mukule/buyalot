@@ -84,7 +84,7 @@ function deleteUnit(unitHashid: string) {
                                     </span>
                                 </td>
                                 <td class="px-4 py-4 text-right text-sm">
-                                    <button @click.stop="editUnit(unit.hashid)" class="mr-3 text-blue-600 hover:underline">Edit</button>
+                                    <button @click.stop="editUnit(unit.hashid)" class="mr-3 text-primary hover:underline">Edit</button>
                                     <button @click.stop="deleteUnit(unit.hashid)" class="text-red-600 hover:underline">Delete</button>
                                 </td>
                             </tr>

@@ -32,7 +32,7 @@
                                             v-model="form.first_name"
                                             type="text"
                                             id="first_name"
-                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
                                             :class="{ 'border-red-300': $page.props.errors?.first_name }"
                                         />
                                         <p v-if="$page.props.errors?.first_name" class="mt-1 text-sm text-red-600">
@@ -47,7 +47,7 @@
                                             v-model="form.last_name"
                                             type="text"
                                             id="last_name"
-                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
                                             :class="{ 'border-red-300': $page.props.errors?.last_name }"
                                         />
                                         <p v-if="$page.props.errors?.last_name" class="mt-1 text-sm text-red-600">
@@ -62,7 +62,7 @@
                                             v-model="form.email"
                                             type="email"
                                             id="email"
-                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
                                             :class="{ 'border-red-300': $page.props.errors?.email }"
                                         />
                                         <p v-if="$page.props.errors?.email" class="mt-1 text-sm text-red-600">
@@ -77,7 +77,7 @@
                                             v-model="form.phone"
                                             type="text"
                                             id="phone"
-                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
                                             :class="{ 'border-red-300': $page.props.errors?.phone }"
                                         />
                                         <p v-if="$page.props.errors?.phone" class="mt-1 text-sm text-red-600">
@@ -92,7 +92,7 @@
                                             v-model="form.date_of_birth"
                                             type="date"
                                             id="date_of_birth"
-                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
                                             :class="{ 'border-red-300': $page.props.errors?.date_of_birth }"
                                         />
                                         <p v-if="$page.props.errors?.date_of_birth" class="mt-1 text-sm text-red-600">
@@ -106,7 +106,7 @@
                                         <select
                                             v-model="form.gender"
                                             id="gender"
-                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
                                             :class="{ 'border-red-300': $page.props.errors?.gender }"
                                         >
                                             <option value="">Select Gender</option>
@@ -128,7 +128,7 @@
                                             type="file"
                                             id="avatar"
                                             accept="image/*"
-                                            class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:rounded-full file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
+                                            class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:rounded-full file:border-0 file:bg-primary/5 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-primary hover:file:bg-primary/10"
                                         />
                                         <p v-if="$page.props.errors?.avatar" class="mt-1 text-sm text-red-600">
                                             {{ $page.props.errors.avatar }}
@@ -145,7 +145,7 @@
                                     <button
                                         type="submit"
                                         :disabled="processing"
-                                        class="rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50"
+                                        class="rounded-md bg-primary px-4 py-2 font-medium text-white hover:bg-primary/90 focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:outline-none disabled:opacity-50"
                                     >
                                         <span v-if="processing">Updating...</span>
                                         <span v-else>Update Profile</span>
@@ -201,7 +201,7 @@
                                 @click="showPasswordForm = !showPasswordForm"
                                 class="mb-3 w-full rounded-md px-4 py-2 font-medium"
                                 :class="
-                                    customer.has_password ? 'bg-gray-600 text-white hover:bg-gray-700' : 'bg-blue-600 text-white hover:bg-blue-700'
+                                    customer.has_password ? 'bg-gray-600 text-white hover:bg-gray-700' : 'bg-primary text-white hover:bg-primary/90'
                                 "
                             >
                                 {{ customer.has_password ? 'Change Password' : 'Set Password' }}
@@ -217,7 +217,7 @@
                                             type="password"
                                             id="current_password"
                                             required
-                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
                                             :class="{ 'border-red-300': $page.props.errors?.current_password }"
                                         />
                                         <p v-if="$page.props.errors?.current_password" class="mt-1 text-sm text-red-600">
@@ -232,7 +232,7 @@
                                             type="password"
                                             id="password"
                                             required
-                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
                                             :class="{ 'border-red-300': $page.props.errors?.password }"
                                         />
                                         <p v-if="$page.props.errors?.password" class="mt-1 text-sm text-red-600">
@@ -247,14 +247,14 @@
                                             type="password"
                                             id="password_confirmation"
                                             required
-                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
                                         />
                                     </div>
 
                                     <button
                                         type="submit"
                                         :disabled="passwordProcessing"
-                                        class="w-full rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                                        class="w-full rounded-md bg-primary px-4 py-2 font-medium text-white hover:bg-primary/90 disabled:opacity-50"
                                     >
                                         <span v-if="passwordProcessing">Updating...</span>
                                         <span v-else>{{ customer.has_password ? 'Update Password' : 'Set Password' }}</span>

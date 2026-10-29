@@ -59,7 +59,7 @@ function backToProducts() {
                     </button>
                     <a
                         :href="route('admin.products.show', { product: product.hashid })"
-                        class="text-sm text-blue-600 hover:underline"
+                        class="text-sm text-primary hover:underline"
                     >
                         View product
                     </a>

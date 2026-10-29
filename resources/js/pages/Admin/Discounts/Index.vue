@@ -83,7 +83,7 @@ const deleteItem = (d: Discount) => {
                                     <span :class="d.is_active ? 'text-green-700' : 'text-gray-500'">{{ d.is_active ? 'Yes' : 'No' }}</span>
                                 </td>
                                 <td class="px-4 py-2 text-right">
-                                    <button @click="editItem(d)" class="mr-2 rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700">Edit</button>
+                                    <button @click="editItem(d)" class="mr-2 rounded bg-primary px-3 py-1 text-white hover:bg-primary/90">Edit</button>
                                     <button @click="deleteItem(d)" class="rounded bg-red-600 px-3 py-1 text-white hover:bg-red-700">Delete</button>
                                 </td>
                             </tr>

@@ -157,7 +157,7 @@ function formatDate(dateString: string): string {
                         </button>
                         <button
                             @click="router.get(route('admin.users.edit', user.id))"
-                            class="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+                            class="rounded-lg bg-primary px-4 py-2 text-white hover:bg-primary/90"
                         >
                             Edit User
                         </button>
@@ -215,7 +215,7 @@ function formatDate(dateString: string): string {
                             <span
                                 v-for="permission in user.permissions"
                                 :key="permission.id"
-                                class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700"
+                                class="inline-flex items-center rounded-md bg-primary/5 px-2 py-1 text-xs font-medium text-primary"
                             >
                                 {{ permission.name.replace('-', ' ') }}
                             </span>

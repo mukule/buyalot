@@ -73,9 +73,9 @@ function viewOrder(ulid: string) {
 
 const statusClasses = (status: string) => ({
     'bg-yellow-100 text-yellow-800': status === 'pending',
-    'bg-indigo-100 text-indigo-800': status === 'confirmed',
+    'bg-primary/10 text-primary': status === 'confirmed',
     'bg-blue-100 text-blue-800': status === 'processing',
-    'bg-purple-100 text-purple-800': status === 'shipped',
+    'bg-primary/10 text-primary': status === 'shipped',
     'bg-green-100 text-green-800': status === 'delivered' || status === 'completed',
     'bg-red-100 text-red-800': status === 'cancelled',
 });
@@ -274,7 +274,7 @@ async function initiatePayment(order: OrderItem, phone: string) {
                                     >
                                         {{ payingOrderId === order.id ? 'Processing…' : 'Pay Now' }}
                                     </button>
-                                    <button @click="viewOrder(order.ulid)" aria-label="View Order" class="text-blue-600 transition hover:text-blue-800">
+                                    <button @click="viewOrder(order.ulid)" aria-label="View Order" class="text-primary transition hover:text-primary/80">
                                         <Eye class="h-5 w-5" />
                                     </button>
                                 </td>

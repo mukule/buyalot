@@ -47,7 +47,7 @@ const roleLabel = (role: string) => {
         <SidebarMenuItem v-if="hasSwitchableAccount && otherRoles.length === 1" class="mb-2 px-2">
             <button
                 type="button"
-                class="flex w-full items-center gap-3 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-indigo-700 transition-all hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300"
+                class="flex w-full items-center gap-3 rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-white transition-all hover:bg-white/20"
                 @click="switchToRole(switchTarget!)"
             >
                 <ArrowLeftRight class="size-4 shrink-0" />
@@ -63,7 +63,7 @@ const roleLabel = (role: string) => {
                 <DropdownMenuTrigger as-child>
                     <button
                         type="button"
-                        class="flex w-full items-center gap-3 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-indigo-700 transition-all hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300"
+                        class="flex w-full items-center gap-3 rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-white transition-all hover:bg-white/20"
                     >
                         <ArrowLeftRight class="size-4 shrink-0" />
                         <div class="flex flex-col items-start text-[10px] leading-tight">
@@ -93,7 +93,7 @@ const roleLabel = (role: string) => {
         <SidebarMenuItem>
             <DropdownMenu>
                 <DropdownMenuTrigger as-child>
-                    <SidebarMenuButton size="lg" class="data-[state=open]:bg-primary data-[state=open]:text-white">
+                    <SidebarMenuButton size="lg" class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-white">
                         <UserInfo :user="user" />
                         <ChevronsUpDown class="ml-auto size-4" />
                     </SidebarMenuButton>

@@ -151,7 +151,7 @@ onUnmounted(() => {
                         v-if="hasUnread"
                         type="button"
                         @click="markAllRead"
-                        class="text-xs text-blue-600 hover:underline"
+                        class="text-xs text-primary hover:underline"
                     >
                         Mark all read
                     </button>
@@ -166,14 +166,14 @@ onUnmounted(() => {
                         v-for="n in notifications"
                         :key="n.id"
                         class="flex cursor-pointer gap-3 px-4 py-3 transition-colors hover:bg-gray-50"
-                        :class="{ 'bg-blue-50/60': !n.read_at }"
+                        :class="{ 'bg-primary/5': !n.read_at }"
                         @click="handleNotificationClick(n)"
                     >
                         <!-- Unread dot -->
                         <span class="mt-1.5 flex-shrink-0">
                             <span
                                 class="block h-2 w-2 rounded-full"
-                                :class="n.read_at ? 'bg-transparent' : 'bg-blue-500'"
+                                :class="n.read_at ? 'bg-transparent' : 'bg-primary'"
                             ></span>
                         </span>
 

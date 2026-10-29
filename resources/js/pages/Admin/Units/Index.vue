@@ -117,7 +117,7 @@ function deleteUnitType(hashid: string) {
                                 </td>
 
                                 <td class="px-4 py-4 text-right text-sm">
-                                    <button @click.stop="editUnitType(unitType.hashid)" class="mr-3 text-blue-600 hover:underline">Edit</button>
+                                    <button @click.stop="editUnitType(unitType.hashid)" class="mr-3 text-primary hover:underline">Edit</button>
                                     <button @click.stop="deleteUnitType(unitType.hashid)" class="text-red-600 hover:underline">Delete</button>
                                 </td>
                             </tr>

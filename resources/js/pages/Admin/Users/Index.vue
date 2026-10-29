@@ -293,11 +293,11 @@ watch(
                 </div>
 
                 <!-- Bulk Actions -->
-                <div v-if="showBulkActions" class="flex items-center gap-4 rounded-lg bg-blue-50 p-4">
-                    <span class="text-sm text-blue-800">{{ selectedUsers.length }} users selected</span>
-                    <button class="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700">Bulk Edit Roles</button>
+                <div v-if="showBulkActions" class="flex items-center gap-4 rounded-lg bg-primary/5 p-4">
+                    <span class="text-sm text-primary">{{ selectedUsers.length }} users selected</span>
+                    <button class="rounded bg-primary px-3 py-1 text-sm text-white hover:bg-primary/90">Bulk Edit Roles</button>
                     <button class="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700">Bulk Delete</button>
-                    <button @click="selectedUsers = []" class="text-sm text-blue-600 hover:text-blue-800">Clear Selection</button>
+                    <button @click="selectedUsers = []" class="text-sm text-primary hover:text-primary/80">Clear Selection</button>
                 </div>
 
                 <!-- Users Table -->
@@ -376,9 +376,9 @@ watch(
                                 </td>
                                 <td class="px-4 py-3">
                                     <div class="flex items-center gap-3">
-                                        <button @click="openViewModal(user)" class="text-sm text-blue-600 hover:underline">View</button>
+                                        <button @click="openViewModal(user)" class="text-sm text-primary hover:underline">View</button>
                                         <button @click="openEditModal(user)" class="text-sm text-yellow-600 hover:underline">Edit</button>
-                                        <button @click="openRoleModal(user)" class="text-sm text-purple-600 hover:underline">Roles</button>
+                                        <button @click="openRoleModal(user)" class="text-sm text-primary hover:underline">Roles</button>
                                         <button @click="deleteUser(user.id.toString())" class="text-sm text-red-600 hover:underline">Delete</button>
                                     </div>
                                 </td>

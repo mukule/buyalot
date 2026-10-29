@@ -55,13 +55,30 @@ public function index(Request $request)
         });
     }
 
+    // 🔹 Marketplace filter. Vertical keys (cars, construction, …) match the
+    // `marketplaces` JSON column; the ecommerce key means general products
+    // that aren't listed in any vertical.
+    $verticals = config('marketplace.verticals', []);
+    $marketplace = $request->input('marketplace');
+    if ($marketplace && isset($verticals[$marketplace])) {
+        if (($verticals[$marketplace]['type'] ?? 'ecommerce') === 'ecommerce') {
+            $query->where(function ($q) {
+                $q->whereNull('marketplaces')->orWhereJsonLength('marketplaces', 0);
+            });
+        } else {
+            $query->whereJsonContains('marketplaces', $marketplace);
+        }
+    }
+
     $products = $query->paginate(15)
+        ->withQueryString()
         ->through(function ($product) {
             return [
                 'id' => $product->id,
                 'name' => $product->name,
                 'product_code' => $product->product_code,
                 'primary_image_url' => $product->primary_image_url,
+                'marketplaces' => $product->marketplaces ?? [],
                 'stock' => $product->productVariants->sum('stock'),
                 'hashid' => $product->hashid,
                 'status_id' => $product->status_id ?? null,
@@ -127,7 +144,10 @@ public function index(Request $request)
     return Inertia::render('Admin/Products/Index', [
         'products' => $products,
         'productStatuses' => $statuses,
-        'filters' => $request->only('search'), // pass search back to Vue
+        'filters' => $request->only('search', 'marketplace'), // pass filters back to Vue
+        'marketplaces' => collect($verticals)
+            ->map(fn ($v) => ['key' => $v['key'], 'label' => $v['label']])
+            ->values(),
     ]);
 }
 

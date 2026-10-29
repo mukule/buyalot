@@ -49,7 +49,7 @@ const isLeaf = computed(() => {
     <li class="px-3 py-1">
         <div
             class="flex cursor-pointer items-center justify-between rounded-md px-2 py-1 transition"
-            :class="[isLeaf ? 'hover:bg-gray-100' : 'hover:bg-blue-50', selected === category.id ? 'bg-primary/10 font-medium text-primary' : '']"
+            :class="[isLeaf ? 'hover:bg-gray-100' : 'hover:bg-primary/5', selected === category.id ? 'bg-primary/10 font-medium text-primary' : '']"
             @click="handleSelect"
         >
             <div class="flex items-center gap-2">

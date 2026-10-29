@@ -99,7 +99,7 @@ function deleteVariantCategory(hashid: string) {
                                     {{ category.name }}
                                 </td>
                                 <td class="px-4 py-4 text-right text-sm">
-                                    <button @click.stop="editVariantCategory(category.hashid)" class="mr-3 text-blue-600 hover:underline">
+                                    <button @click.stop="editVariantCategory(category.hashid)" class="mr-3 text-primary hover:underline">
                                         Edit
                                     </button>
                                     <button @click.stop="deleteVariantCategory(category.hashid)" class="text-red-600 hover:underline">Delete</button>

@@ -41,7 +41,7 @@ function goBackInventory() {
       <div class="mb-3 flex justify-between items-center">
         <h1 class="text-2xl font-semibold">Rejected Transfers</h1>
         <div class="flex items-center gap-2">
-          <button @click="goToPending" class="inline-flex items-center gap-2 text-sm bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-500">View Pending Receivables</button>
+          <button @click="goToPending" class="inline-flex items-center gap-2 text-sm bg-primary text-white px-3 py-2 rounded-md hover:bg-primary">View Pending Receivables</button>
           <button @click="goBackInventory" class="inline-flex items-center gap-2 text-sm bg-orange-600 text-white px-3 py-2 rounded-md hover:bg-orange-500">Back to Inventory</button>
         </div>
       </div>

@@ -162,7 +162,7 @@ function goToPage(url: string | null) {
                                     </span>
                                 </td>
                                 <td class="px-4 py-4 text-right text-sm">
-                                    <button @click.stop="editBrand(brand.hashid)" class="mr-3 text-blue-600 hover:underline">Edit</button>
+                                    <button @click.stop="editBrand(brand.hashid)" class="mr-3 text-primary hover:underline">Edit</button>
                                     <button @click.stop="deleteBrand(brand.hashid)" class="text-red-600 hover:underline">Delete</button>
                                 </td>
                             </tr>

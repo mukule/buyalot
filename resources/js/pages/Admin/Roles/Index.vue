@@ -232,8 +232,8 @@ function bulkDeleteRoles() {
                 </div>
 
                 <!-- Bulk Actions -->
-                <div v-if="showBulkActions" class="flex items-center gap-4 rounded-lg bg-blue-50 p-4">
-                    <span class="text-sm text-blue-800">{{ selectedRoles.length }} roles selected</span>
+                <div v-if="showBulkActions" class="flex items-center gap-4 rounded-lg bg-primary/5 p-4">
+                    <span class="text-sm text-primary">{{ selectedRoles.length }} roles selected</span>
                     <button
                         v-if="hasPermission('delete-roles')"
                         @click="bulkDeleteRoles"
@@ -241,7 +241,7 @@ function bulkDeleteRoles() {
                     >
                         Delete Selected
                     </button>
-                    <button @click="selectedRoles = []" class="text-sm text-blue-600 hover:text-blue-800">Clear Selection</button>
+                    <button @click="selectedRoles = []" class="text-sm text-primary hover:text-primary/80">Clear Selection</button>
                 </div>
 
                 <!-- Roles Grid -->
@@ -302,7 +302,7 @@ function bulkDeleteRoles() {
                         <!-- Actions -->
                         <div class="flex items-center justify-between border-t border-gray-100 pt-4">
                             <div class="flex items-center gap-2">
-                                <button @click="goToRoleShow(role.hashid)" class="text-sm text-blue-600 hover:underline">View</button>
+                                <button @click="goToRoleShow(role.hashid)" class="text-sm text-primary hover:underline">View</button>
                                 <button
                                     v-if="hasPermission('edit-roles')"
                                     @click="goToRoleEdit(role.hashid)"
@@ -410,8 +410,8 @@ function bulkDeleteRoles() {
                                         </div>
                                     </div>
 
-                                    <div class="mt-4 rounded-lg bg-blue-50 p-3">
-                                        <p class="text-sm text-blue-800">
+                                    <div class="mt-4 rounded-lg bg-primary/5 p-3">
+                                        <p class="text-sm text-primary">
                                             <strong>{{ permissionForm.permissions.length }}</strong> permissions selected
                                         </p>
                                     </div>

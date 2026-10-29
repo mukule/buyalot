@@ -289,7 +289,7 @@ const breadcrumbs = [
                   </span>
                 </td>
                 <td class="px-4 py-4 text-right text-sm">
-                  <button @click="openModal(promotion)" class="mr-3 text-blue-600 hover:underline">Edit</button>
+                  <button @click="openModal(promotion)" class="mr-3 text-primary hover:underline">Edit</button>
                   <button @click="deletePromotion(promotion.id)" class="text-red-600 hover:underline">Delete</button>
                 </td>
               </tr>
@@ -377,9 +377,9 @@ const breadcrumbs = [
             <!-- Linked Item Search -->
             <div class="col-span-1 md:col-span-2">
               <label class="mb-1 block text-xs text-gray-500">Linked Item</label>
-              <div v-if="form.link_id" class="flex items-center gap-2 rounded bg-blue-50 px-3 py-1.5 text-sm text-blue-700">
+              <div v-if="form.link_id" class="flex items-center gap-2 rounded bg-primary/5 px-3 py-1.5 text-sm text-primary">
                 <span>{{ selectedLabel }}</span>
-                <button type="button" @click="clearLink" class="ml-auto text-blue-400 hover:text-blue-600">
+                <button type="button" @click="clearLink" class="ml-auto text-blue-400 hover:text-primary">
                   <XIcon class="h-4 w-4" />
                 </button>
               </div>

@@ -311,7 +311,7 @@ onBeforeUnmount(() => {
                     v-if="!row.primaryImage"
                     :class="[
                         'relative cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors',
-                        isDragging[rowIndex] ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-gray-50 hover:border-gray-400',
+                        isDragging[rowIndex] ? 'border-primary bg-primary/5' : 'border-gray-300 bg-gray-50 hover:border-gray-400',
                     ]"
                     @dragover.prevent
                     @dragenter.prevent="handleDragEnter(rowIndex)"
@@ -347,7 +347,7 @@ onBeforeUnmount(() => {
                     <div
                         class="absolute inset-0 flex items-center justify-center gap-2 rounded-md bg-black/40 opacity-0 transition-opacity group-hover:opacity-100"
                     >
-                        <label class="cursor-pointer rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700">
+                        <label class="cursor-pointer rounded bg-primary px-3 py-1 text-xs text-white hover:bg-primary/90">
                             Replace
                             <input
                                 type="file"
@@ -367,7 +367,7 @@ onBeforeUnmount(() => {
                         </button>
                     </div>
 
-                    <div class="mt-1 text-xs font-semibold text-blue-600 uppercase">Primary Image</div>
+                    <div class="mt-1 text-xs font-semibold text-primary uppercase">Primary Image</div>
                 </div>
             </div>
 
@@ -382,7 +382,7 @@ onBeforeUnmount(() => {
                     v-if="(row.galleryImages?.length ?? 0) < MAX_GALLERY_IMAGES"
                     :class="[
                         'relative cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-colors',
-                        isDragging[rowIndex] ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-gray-50 hover:border-gray-400',
+                        isDragging[rowIndex] ? 'border-primary bg-primary/5' : 'border-gray-300 bg-gray-50 hover:border-gray-400',
                     ]"
                     @dragover.prevent
                     @dragenter.prevent="handleDragEnter(rowIndex)"

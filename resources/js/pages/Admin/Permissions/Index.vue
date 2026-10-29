@@ -183,12 +183,12 @@ watch(
                 </div>
 
                 <!-- Bulk Actions -->
-                <div v-if="showBulkActions" class="flex items-center gap-4 rounded-lg bg-blue-50 p-4">
-                    <span class="text-sm text-blue-800">{{ selectedPermissions.length }} permissions selected</span>
+                <div v-if="showBulkActions" class="flex items-center gap-4 rounded-lg bg-primary/5 p-4">
+                    <span class="text-sm text-primary">{{ selectedPermissions.length }} permissions selected</span>
                     <button @click="bulkDeletePermissions" class="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700">
                         Delete Selected
                     </button>
-                    <button @click="selectedPermissions = []" class="text-sm text-blue-600 hover:text-blue-800">Clear Selection</button>
+                    <button @click="selectedPermissions = []" class="text-sm text-primary hover:text-primary/80">Clear Selection</button>
                 </div>
 
                 <!-- Grouped View -->
@@ -237,7 +237,7 @@ watch(
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-2">
-                                    <button @click="goToPermissionShow(permission.hashid)" class="text-sm text-blue-600 hover:underline">View</button>
+                                    <button @click="goToPermissionShow(permission.hashid)" class="text-sm text-primary hover:underline">View</button>
                                     <button @click="goToPermissionEdit(permission.hashid)" class="text-sm text-primary hover:underline">Edit</button>
                                     <button @click="deletePermission(permission.hashid)" class="text-sm text-red-600 hover:underline">Delete</button>
                                 </div>
@@ -292,7 +292,7 @@ watch(
                                 </td>
                                 <td class="px-4 py-3">
                                     <div class="flex items-center gap-2">
-                                        <button @click="goToPermissionShow(permission.hashid)" class="text-sm text-blue-600 hover:underline">
+                                        <button @click="goToPermissionShow(permission.hashid)" class="text-sm text-primary hover:underline">
                                             View
                                         </button>
                                         <button @click="goToPermissionEdit(permission.hashid)" class="text-sm text-primary hover:underline">

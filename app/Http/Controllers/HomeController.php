@@ -35,14 +35,40 @@ class HomeController extends Controller
 {
     protected FrontendProductService $productService;
 
+    /**
+     * True when the visitor is opening the site rather than navigating within it.
+     */
+    protected function isFreshEntry(Request $request): bool
+    {
+        if ($request->header('X-Inertia')) {
+            return false;
+        }
+
+        $refererHost = parse_url((string) $request->headers->get('referer'), PHP_URL_HOST);
+
+        return ! $refererHost || $refererHost !== $request->getHost();
+    }
+
     public function __construct(FrontendProductService $productService)
     {
         $this->productService = $productService;
     }
 
 
-    public function index()
+    public function index(Request $request)
 {
+    // Returning visitor whose last session was on a non-ecommerce marketplace
+    // (Cars & Motors, Building & Construction, …): land them back there.
+    // Only on a fresh entry (typed URL, bookmark, external link) — in-app
+    // navigation to home (Inertia visits / same-site links) is left alone so
+    // users can still reach "All Products".
+    $vertical = $request->cookie('marketplace_vertical');
+    $config   = $vertical ? config("marketplace.verticals.$vertical") : null;
+
+    if ($config && ($config['type'] ?? 'ecommerce') !== 'ecommerce' && $this->isFreshEntry($request)) {
+        return redirect()->route('marketplace.show', $vertical);
+    }
+
     // 1. Light queries
     $categories = \App\Models\Category::query()
         ->select('id', 'name', 'slug')

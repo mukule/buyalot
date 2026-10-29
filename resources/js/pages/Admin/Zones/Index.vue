@@ -118,7 +118,7 @@ function deleteZone(id: number) {
 
                                 <!-- Actions -->
                                 <td class="flex justify-end gap-3 px-4 py-4 text-right text-sm">
-                                    <button @click.stop="editZone(zone.id)" class="text-blue-600 hover:underline">Edit</button>
+                                    <button @click.stop="editZone(zone.id)" class="text-primary hover:underline">Edit</button>
                                     <button @click.stop="deleteZone(zone.id)" class="text-red-600 hover:underline">Delete</button>
                                 </td>
                             </tr>

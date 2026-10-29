@@ -132,7 +132,7 @@ const statusClasses = (active: boolean) => ({
 
                                 <!-- Actions -->
                                 <td class="flex justify-end gap-3 px-4 py-4 text-right text-sm">
-                                    <button @click.stop="editRegion(region.hashid)" class="text-blue-600 hover:underline">Edit</button>
+                                    <button @click.stop="editRegion(region.hashid)" class="text-primary hover:underline">Edit</button>
                                     <button @click.stop="deleteRegion(region.hashid)" class="text-red-600 hover:underline">Delete</button>
                                 </td>
                             </tr>

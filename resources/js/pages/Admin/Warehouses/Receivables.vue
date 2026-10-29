@@ -95,7 +95,7 @@ function submitReject() {
       <div class="mb-3 flex justify-between items-center">
         <h1 class="text-2xl font-semibold">Receivables</h1>
         <div class="flex items-center gap-2">
-          <button @click="goToRejected" class="inline-flex items-center gap-2 text-sm bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-500">View Rejected Transfers</button>
+          <button @click="goToRejected" class="inline-flex items-center gap-2 text-sm bg-primary text-white px-3 py-2 rounded-md hover:bg-primary">View Rejected Transfers</button>
           <button @click="goBack" class="inline-flex items-center gap-2 text-sm bg-orange-600 text-white px-3 py-2 rounded-md hover:bg-primary/80">Back to Inventory</button>
         </div>
       </div>

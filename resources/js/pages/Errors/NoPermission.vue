@@ -71,20 +71,20 @@ function contactSupport() {
                     <h3 class="mb-3 text-lg font-medium text-gray-900">What can you do?</h3>
                     <ul class="space-y-3">
                         <li class="flex items-start space-x-3">
-                            <div class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-100">
-                                <span class="text-sm font-medium text-blue-600">1</span>
+                            <div class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
+                                <span class="text-sm font-medium text-primary">1</span>
                             </div>
                             <p class="text-sm text-gray-600">Contact your administrator to request access to this resource</p>
                         </li>
                         <li class="flex items-start space-x-3">
-                            <div class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-100">
-                                <span class="text-sm font-medium text-blue-600">2</span>
+                            <div class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
+                                <span class="text-sm font-medium text-primary">2</span>
                             </div>
                             <p class="text-sm text-gray-600">Verify you are logged in with the correct account</p>
                         </li>
                         <li class="flex items-start space-x-3">
-                            <div class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-100">
-                                <span class="text-sm font-medium text-blue-600">3</span>
+                            <div class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
+                                <span class="text-sm font-medium text-primary">3</span>
                             </div>
                             <p class="text-sm text-gray-600">Navigate to a different section you have access to</p>
                         </li>
@@ -97,7 +97,7 @@ function contactSupport() {
                     <div class="space-y-2">
                         <button
                             @click="goBack"
-                            class="group relative flex w-full items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 transition-colors duration-200 hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+                            class="group relative flex w-full items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 transition-colors duration-200 hover:bg-gray-50 focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:outline-none"
                         >
                             <ArrowLeft class="mr-2 h-4 w-4" />
                             Go Back
@@ -105,7 +105,7 @@ function contactSupport() {
 
                         <Link
                             href="/admin/dashboard"
-                            class="group relative flex w-full items-center justify-center rounded-md border border-transparent bg-blue-600 px-4 py-3 text-sm font-medium text-white transition-colors duration-200 hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+                            class="group relative flex w-full items-center justify-center rounded-md border border-transparent bg-primary px-4 py-3 text-sm font-medium text-white transition-colors duration-200 hover:bg-primary/90 focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:outline-none"
                         >
                             <Home class="mr-2 h-4 w-4" />
                             Go to Dashboard
@@ -116,7 +116,7 @@ function contactSupport() {
                     <div class="border-t border-gray-200 pt-4">
                         <button
                             @click="contactSupport"
-                            class="group relative flex w-full items-center justify-center px-4 py-2 text-sm font-medium text-blue-600 transition-colors duration-200 hover:text-blue-500"
+                            class="group relative flex w-full items-center justify-center px-4 py-2 text-sm font-medium text-primary transition-colors duration-200 hover:text-primary"
                         >
                             <Mail class="mr-2 h-4 w-4" />
                             Request Access
@@ -131,7 +131,7 @@ function contactSupport() {
                                 v-for="action in suggestedActions"
                                 :key="action.title"
                                 :href="action.href"
-                                class="block w-full rounded-md px-3 py-2 text-left text-sm text-blue-600 transition-colors duration-200 hover:bg-blue-50 hover:text-blue-500"
+                                class="block w-full rounded-md px-3 py-2 text-left text-sm text-primary transition-colors duration-200 hover:bg-primary/5 hover:text-primary"
                             >
                                 <div class="font-medium">{{ action.title }}</div>
                                 <div v-if="action.description" class="mt-1 text-xs text-gray-500">

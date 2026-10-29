@@ -92,7 +92,7 @@ const menuItems = [
 
         <AppContent variant="sidebar" class="flex flex-col">
             <!-- Header bar with sidebar trigger and notification bell -->
-            <header class="flex h-16 shrink-0 items-center justify-between border-b border-sidebar-border/70 px-4">
+            <header class="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
                 <div class="flex items-center gap-2">
                     <SidebarTrigger class="-ml-1" />
                 </div>

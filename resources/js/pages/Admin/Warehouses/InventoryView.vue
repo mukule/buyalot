@@ -435,8 +435,8 @@ function confirmPublish() {
                         <td class="px-4 py-2">KES {{ inv.selling_price?.toLocaleString?.() ?? (inv.selling_price ?? '—') }}</td>
                         <td class="px-4 py-2">KES {{ inv.cost_price?.toLocaleString?.() ?? (inv.cost_price ?? '—') }}</td>
                         <td class="px-4 py-2 flex gap-2">
-                            <button @click="openTransferModal(inv)" class="text-blue-600 hover:underline text-xs">Transfer</button>
-                            <button @click="openEditModal(inv)" class="text-indigo-600 hover:underline text-xs">Edit</button>
+                            <button @click="openTransferModal(inv)" class="text-primary hover:underline text-xs">Transfer</button>
+                            <button @click="openEditModal(inv)" class="text-primary hover:underline text-xs">Edit</button>
                             <button @click="openPublishModal(inv)" class="text-green-700 hover:underline text-xs">Publish</button>
                         </td>
                     </tr>
@@ -445,7 +445,7 @@ function confirmPublish() {
             </div>
 
 <!--            <div class="mt-4 flex gap-2">-->
-<!--                <button @click="addInventoryRow" class="flex items-center gap-1 text-blue-600 hover:underline">-->
+<!--                <button @click="addInventoryRow" class="flex items-center gap-1 text-primary hover:underline">-->
 <!--                    <PlusIcon class="h-4 w-4" /> Add Row-->
 <!--                </button>-->
 

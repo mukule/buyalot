@@ -39,12 +39,12 @@ export const useConfirm = () => {
             text: options.text,
             icon: options.icon || 'question',
             showCancelButton: true,
-            confirmButtonColor: options.confirmButtonColor || '#3b82f6', // Tailwind blue-500
+            confirmButtonColor: options.confirmButtonColor || '#6C3BAA', // brand primary
             cancelButtonColor: '#6b7280',
             confirmButtonText: options.confirmButtonText || 'Confirm',
             reverseButtons: true,
             customClass: {
-                confirmButton: 'rounded-lg px-4 py-2 bg-blue-600 text-white font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2',
+                confirmButton: 'rounded-lg px-4 py-2 bg-primary text-white font-medium hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
                 cancelButton: 'rounded-lg px-4 py-2 bg-gray-500 text-white font-medium hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 mr-3'
             },
             buttonsStyling: false

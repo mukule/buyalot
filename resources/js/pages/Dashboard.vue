@@ -217,7 +217,7 @@ const getGradient = (key) => {
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <!-- Orders Chart -->
                 <div class="rounded-lg bg-white shadow p-6">
-                    <h2 class="text-lg font-semibold text-green-400 mb-4">
+                    <h2 class="text-lg font-semibold text-primary mb-4">
                         Orders by Status (This Month)
                     </h2>
                     <div class="h-[350px]">
@@ -227,7 +227,7 @@ const getGradient = (key) => {
 
                 <!-- Pie Chart -->
                 <div class="rounded-lg bg-white shadow p-6">
-                    <h2 class="text-lg font-semibold text-green-400 mb-4">
+                    <h2 class="text-lg font-semibold text-primary mb-4">
                         Product Variant Performance
                     </h2>
                     <div class="h-[350px]">
@@ -238,7 +238,7 @@ const getGradient = (key) => {
 
             <!-- Returns list (below orders chart section) -->
             <div class="rounded-lg bg-white shadow p-6">
-                <h2 class="text-lg font-semibold text-green-400 mb-4">
+                <h2 class="text-lg font-semibold text-primary mb-4">
                     Recent Returns
                 </h2>
                 <div v-if="props.returns && props.returns.length" class="overflow-x-auto">
