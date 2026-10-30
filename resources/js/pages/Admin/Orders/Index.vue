@@ -62,7 +62,7 @@ const form = useForm({
                 <input v-model="form.date_to" type="date" class="mt-1 w-full rounded border-gray-300" />
             </div>
             <div class="col-span-2 md:col-span-4 flex justify-end">
-                <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded shadow">Filter</button>
+                <button type="submit" class="px-4 py-2 bg-primary text-white rounded shadow">Filter</button>
             </div>
         </form>
 
@@ -92,7 +92,7 @@ const form = useForm({
 
                     <td class="px-4 py-2">{{ new Date(order.created_at).toLocaleDateString() }}</td>
                     <td class="px-4 py-2 text-right">
-                        <Link :href="route('admin.orders.show', (order as any).ulid ?? order.id)" class="text-indigo-600 hover:underline">View</Link>
+                        <Link :href="route('admin.orders.show', (order as any).ulid ?? order.id)" class="text-primary hover:underline">View</Link>
                     </td>
                 </tr>
                 </tbody>

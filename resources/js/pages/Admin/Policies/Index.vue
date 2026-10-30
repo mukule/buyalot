@@ -173,7 +173,7 @@ function goToPage(pageNumber: number) {
                                 </td>
                                 <td class="border px-4 py-2">{{ policy.latest_version ?? '-' }}</td>
                                 <td class="flex gap-2 border px-4 py-2">
-                                    <button @click="viewVersions(policy)" class="text-sm text-blue-600 hover:underline">View Versions</button>
+                                    <button @click="viewVersions(policy)" class="text-sm text-primary hover:underline">View Versions</button>
                                     <button @click="editPolicy(policy)" class="text-sm text-green-600 hover:underline">Edit</button>
                                 </td>
                             </tr>

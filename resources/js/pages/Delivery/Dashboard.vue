@@ -767,9 +767,9 @@ onBeforeUnmount(() => stopLocationWatch());
                                 Confirm cash received
                             </Button>
                         </div>
-                        <div class="rounded border border-blue-200 bg-blue-50 p-3">
-                            <p class="mb-2 text-sm font-medium text-blue-800">Customer paying via M-Pesa?</p>
-                            <p class="mb-2 text-xs text-blue-700">Enter customer's phone to send M-Pesa prompt to their phone.</p>
+                        <div class="rounded border border-primary/20 bg-primary/5 p-3">
+                            <p class="mb-2 text-sm font-medium text-primary">Customer paying via M-Pesa?</p>
+                            <p class="mb-2 text-xs text-primary">Enter customer's phone to send M-Pesa prompt to their phone.</p>
                             <div class="flex gap-2">
                                 <input
                                     v-model="collectPhone"
@@ -785,7 +785,7 @@ onBeforeUnmount(() => stopLocationWatch());
                                     {{ collectMpesaStatus === 'sending' ? 'Sending…' : collectMpesaStatus === 'polling' ? 'Waiting…' : 'Send M-Pesa prompt' }}
                                 </Button>
                             </div>
-                            <p v-if="collectMpesaMessage" class="mt-2 text-sm" :class="collectMpesaStatus === 'failed' ? 'text-red-600' : 'text-blue-700'">
+                            <p v-if="collectMpesaMessage" class="mt-2 text-sm" :class="collectMpesaStatus === 'failed' ? 'text-red-600' : 'text-primary'">
                                 {{ collectMpesaMessage }}
                             </p>
                         </div>

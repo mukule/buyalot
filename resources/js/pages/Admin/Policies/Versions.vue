@@ -114,7 +114,7 @@ function formatDate(date?: string | null) {
                                 <td class="border px-4 py-2">{{ version.status ? 'Active' : 'Inactive' }}</td>
                                 <td class="border px-4 py-2">{{ formatDate(version.updated_at) }}</td>
                                 <td class="flex items-center gap-2 border px-4 py-2">
-                                    <button @click="openVersion(version)" class="text-sm text-blue-600 hover:underline">View Content</button>
+                                    <button @click="openVersion(version)" class="text-sm text-primary hover:underline">View Content</button>
                                     <button @click="editVersion(version)" class="text-sm text-green-600 hover:underline">Edit</button>
                                     <button @click="deleteVersion(version)" class="flex items-center gap-1 text-sm text-red-600 hover:underline">
                                         <Trash2 class="h-4 w-4" /> Delete

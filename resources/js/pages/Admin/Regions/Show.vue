@@ -92,7 +92,7 @@ function editPickupPoint(pickupId: number) {
                                     </span>
                                 </td>
                                 <td class="px-4 py-2 text-right text-sm">
-                                    <button @click.stop="editPickupPoint(pp.id)" class="mr-3 cursor-pointer text-blue-600 hover:underline">
+                                    <button @click.stop="editPickupPoint(pp.id)" class="mr-3 cursor-pointer text-primary hover:underline">
                                         Edit
                                     </button>
                                 </td>

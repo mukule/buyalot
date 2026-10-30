@@ -131,7 +131,7 @@ function deleteRate(id: number) {
                                     {{ rate.created_at ? new Date(rate.created_at).toLocaleDateString() : '-' }}
                                 </td>
                                 <td class="px-4 py-4 text-right text-sm">
-                                    <button @click.stop="editRate(rate.id)" class="mr-3 cursor-pointer text-blue-600 hover:underline">Edit</button>
+                                    <button @click.stop="editRate(rate.id)" class="mr-3 cursor-pointer text-primary hover:underline">Edit</button>
                                     <button @click.stop="deleteRate(rate.id)" class="cursor-pointer text-red-600 hover:underline">Delete</button>
                                 </td>
                             </tr>

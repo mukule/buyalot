@@ -624,7 +624,7 @@ function allocateForPickup() {
                         v-if="['pending', 'declined'].includes(item.dispatch_status)"
                         size="sm"
                         variant="default"
-                        class="bg-blue-600 text-white hover:bg-blue-700"
+                        class="bg-primary text-white hover:bg-primary/90"
                         @click="dispatchItem(item.id)"
                       >
                         Dispatch
@@ -654,7 +654,7 @@ function allocateForPickup() {
                         v-if="(!item.seller || item.seller.id === 0) && item.dispatch_status === 'pending'"
                         size="sm"
                         variant="default"
-                        class="bg-indigo-600 text-white hover:bg-indigo-700"
+                        class="bg-primary text-white hover:bg-primary/90"
                         @click="confirmAvailable(item.id)"
                       >
                         Confirm Available
@@ -728,10 +728,10 @@ function allocateForPickup() {
             </div>
 
             <!-- Dispatch center info card -->
-            <div v-if="activeDispatchCenter" class="rounded-md border border-blue-200 bg-blue-50 p-3">
-              <p class="font-semibold text-blue-900">{{ activeDispatchCenter.name }}</p>
-              <p v-if="activeDispatchCenter.address" class="text-sm text-blue-700">{{ activeDispatchCenter.address }}</p>
-              <p v-if="activeDispatchCenter.location" class="text-xs text-blue-600">{{ activeDispatchCenter.location }}</p>
+            <div v-if="activeDispatchCenter" class="rounded-md border border-primary/20 bg-primary/5 p-3">
+              <p class="font-semibold text-primary">{{ activeDispatchCenter.name }}</p>
+              <p v-if="activeDispatchCenter.address" class="text-sm text-primary">{{ activeDispatchCenter.address }}</p>
+              <p v-if="activeDispatchCenter.location" class="text-xs text-primary">{{ activeDispatchCenter.location }}</p>
             </div>
             <div v-else-if="!(dispatch_centers ?? []).length" class="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
               No dispatch centers are currently available. Contact the administrator.

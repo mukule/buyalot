@@ -177,10 +177,10 @@ watch(
                 </div>
 
                 <!-- Bulk Actions -->
-                <div v-if="showBulkActions" class="flex items-center gap-4 rounded-lg bg-blue-50 p-4">
-                    <span class="text-sm text-blue-800">{{ selectedOrders.length }} orders selected</span>
+                <div v-if="showBulkActions" class="flex items-center gap-4 rounded-lg bg-primary/5 p-4">
+                    <span class="text-sm text-primary">{{ selectedOrders.length }} orders selected</span>
                     <button class="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700">Bulk Delete</button>
-                    <button @click="selectedOrders = []" class="text-sm text-blue-600 hover:text-blue-800">Clear Selection</button>
+                    <button @click="selectedOrders = []" class="text-sm text-primary hover:text-primary/80">Clear Selection</button>
                 </div>
 
                 <!-- Orders Table -->
@@ -225,7 +225,7 @@ watch(
                             </td>
                             <td class="px-4 py-3">{{ order.created_at ? new Date(order.created_at).toLocaleDateString() : '-' }}</td>
                             <td class="px-4 py-3">
-                                <Link :href="route('admin.orders.show', order.ulid ?? order.id)" class="text-sm text-blue-600 hover:underline">View</Link>
+                                <Link :href="route('admin.orders.show', order.ulid ?? order.id)" class="text-sm text-primary hover:underline">View</Link>
                             </td>
                         </tr>
                         </tbody>

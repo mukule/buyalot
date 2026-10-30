@@ -112,7 +112,7 @@ function viewPayment(ulid: string) {
                                 </td>
                                 <td class="px-4 py-4 text-sm text-gray-500">{{ new Date(payment.created_at).toLocaleString() }}</td>
                                 <td class="px-4 py-4 text-right">
-                                    <button @click="viewPayment(payment.ulid)" class="text-blue-600 hover:text-blue-800">
+                                    <button @click="viewPayment(payment.ulid)" class="text-primary hover:text-primary/80">
                                         <Eye class="h-5 w-5" />
                                     </button>
                                 </td>

@@ -23,6 +23,7 @@ interface ProductWithRelations {
     hashid: string;
     status_label: string;
     status_id?: number | null;
+    marketplaces?: string[];
     owner?: { id: number; name: string } | null;
     warranties?: { id: number; hashid: string; product_hashid: string; duration: number; description?: string; active: boolean }[];
     product_variants?: ProductVariantForRestock[];
@@ -59,7 +60,8 @@ const page = usePage<
     AppPageProps<{
         products: PaginatedResponse<ProductWithRelations>;
         productStatuses: ProductStatusWithHashid[];
-        filters: { search?: string };
+        filters: { search?: string; marketplace?: string };
+        marketplaces: { key: string; label: string }[];
     }>
 >();
 
@@ -75,14 +77,22 @@ const breadcrumbs = [
     { title: 'Products', href: route('admin.products.index') },
 ];
 
-// Search
+// Search & marketplace filter
 const searchQuery = ref(page.props.filters.search ?? '');
-watch(
-    searchQuery,
-    debounce((val: string) => {
-        router.get(route('admin.products.index'), { search: val }, { preserveState: true, preserveScroll: true });
-    }, 300),
-);
+const marketplaceFilter = ref(page.props.filters.marketplace ?? '');
+const marketplaceOptions = computed(() => page.props.marketplaces ?? []);
+function applyFilters() {
+    const params: Record<string, string> = {};
+    if (searchQuery.value) params.search = searchQuery.value;
+    if (marketplaceFilter.value) params.marketplace = marketplaceFilter.value;
+    router.get(route('admin.products.index'), params, { preserveState: true, preserveScroll: true });
+}
+watch(searchQuery, debounce(applyFilters, 300));
+watch(marketplaceFilter, applyFilters);
+function marketplaceLabels(product: ProductWithRelations) {
+    const keys = product.marketplaces?.length ? product.marketplaces : ['ecommerce'];
+    return keys.map((k) => marketplaceOptions.value.find((m) => m.key === k)?.label ?? k);
+}
 
 // Actions
 function createProduct() {
@@ -193,9 +203,13 @@ function openRestockHistory(product: ProductWithRelations) {
                         />
                         <SearchIcon class="absolute top-2.5 left-3 h-5 w-5 text-gray-400" />
                     </div>
-                    <button class="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm hover:bg-gray-50">
-                        <FilterIcon class="h-4 w-4" /> Filters
-                    </button>
+                    <div class="relative">
+                        <FilterIcon class="pointer-events-none absolute top-2.5 left-3 h-4 w-4 text-gray-400" />
+                        <select v-model="marketplaceFilter" class="rounded-md border py-2 pr-8 pl-9 text-sm">
+                            <option value="">All marketplaces</option>
+                            <option v-for="m in marketplaceOptions" :key="m.key" :value="m.key">{{ m.label }}</option>
+                        </select>
+                    </div>
                 </div>
 
                 <!-- Products Table -->
@@ -206,6 +220,7 @@ function openRestockHistory(product: ProductWithRelations) {
                                 <th class="border px-2 py-1 text-left">#</th>
                                 <th class="border px-4 py-2 text-left">Image</th>
                                 <th class="border px-4 py-2 text-left">Name</th>
+                                <th class="border px-4 py-2 text-left">Marketplace</th>
                                 <th class="border px-4 py-2 text-left">Stock</th>
                                 <th class="border px-4 py-2 text-left">Store</th>
                                 <th class="border px-4 py-2 text-left">Warranty</th>
@@ -226,15 +241,24 @@ function openRestockHistory(product: ProductWithRelations) {
                                     <div v-else class="flex h-12 w-12 items-center justify-center rounded bg-gray-200 text-gray-400">No Image</div>
                                 </td>
                                 <td class="border px-4 py-2">
-                                    <a :href="route('admin.products.show', { product: product.hashid })" class="text-blue-600 hover:underline">
+                                    <a :href="route('admin.products.show', { product: product.hashid })" class="text-primary hover:underline">
                                         {{ truncateName(product.name, 30) }}
                                     </a>
                                 </td>
 
+                                <td class="border px-4 py-2">
+                                    <span
+                                        v-for="label in marketplaceLabels(product)"
+                                        :key="label"
+                                        class="mr-1 inline-block rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+                                    >
+                                        {{ label }}
+                                    </span>
+                                </td>
                                 <td class="border px-4 py-2">{{ product.stock ?? 0 }}</td>
                                 <td class="border px-4 py-2">{{ product.owner?.name ?? '-' }}</td>
                                 <td class="border px-4 py-2">
-                                    <button @click="openWarrantyModal(product)" class="text-sm text-blue-600 hover:underline">
+                                    <button @click="openWarrantyModal(product)" class="text-sm text-primary hover:underline">
                                         {{ product.warranties?.length ? `View (${product.warranties.length})` : 'Click to Add' }}
                                     </button>
                                 </td>
@@ -254,7 +278,7 @@ function openRestockHistory(product: ProductWithRelations) {
                                     </select>
                                 </td>
                                 <td class="flex gap-2 border px-4 py-2">
-                                    <button @click="editProduct(product.hashid)" class="text-sm text-blue-600 hover:underline">Edit</button>
+                                    <button @click="editProduct(product.hashid)" class="text-sm text-primary hover:underline">Edit</button>
                                     <button
                                         v-if="canRestock"
                                         @click="openRestock(product)"
@@ -293,7 +317,7 @@ function openRestockHistory(product: ProductWithRelations) {
                     <PlusIcon class="mx-auto h-12 w-12 text-gray-400" />
                     <h3 class="mt-2 text-sm font-medium text-gray-900">No products found</h3>
                     <p class="mt-1 text-sm text-gray-500">
-                        {{ searchQuery ? 'Try adjusting your search' : 'Get started by creating a new product.' }}
+                        {{ searchQuery || marketplaceFilter ? 'Try adjusting your search or filters' : 'Get started by creating a new product.' }}
                     </p>
                     <button @click="createProduct" class="hover:bg-primary-dark mt-4 rounded-xl bg-primary px-4 py-2 text-white">
                         + New Product
@@ -336,7 +360,7 @@ function openRestockHistory(product: ProductWithRelations) {
                                     <div class="flex gap-2">
                                         <button
                                             @click="toggleWarrantyActive(warranty)"
-                                            class="rounded bg-blue-500 px-2 py-1 text-xs text-white hover:bg-blue-600"
+                                            class="rounded bg-primary px-2 py-1 text-xs text-white hover:bg-primary"
                                         >
                                             {{ warranty.active ? 'Deactivate' : 'Activate' }}
                                         </button>

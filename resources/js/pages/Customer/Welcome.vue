@@ -1,6 +1,6 @@
 <template>
     <AppLayout title="Welcome">
-        <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div class="min-h-screen bg-gradient-to-br from-primary/5 to-primary/15">
             <div class="container mx-auto px-4 py-16">
                 <div class="mx-auto max-w-4xl">
                     <!-- Welcome Header -->
@@ -26,8 +26,8 @@
                     <div class="mb-12 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                         <!-- Get Started -->
                         <div class="rounded-lg bg-white p-6 text-center shadow-md transition-shadow hover:shadow-lg">
-                            <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
-                                <svg class="h-8 w-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                                <svg class="h-8 w-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                                 </svg>
                             </div>
@@ -35,7 +35,7 @@
                             <p class="mb-4 text-gray-600">Complete your profile and explore our features to get the most out of your experience.</p>
                             <Link
                                 :href="route('customer.profile.show')"
-                                class="inline-flex items-center font-medium text-blue-600 hover:text-blue-700"
+                                class="inline-flex items-center font-medium text-primary hover:text-primary/80"
                             >
                                 Complete Profile
                                 <svg class="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -68,8 +68,8 @@
 
                         <!-- Get Help -->
                         <div class="rounded-lg bg-white p-6 text-center shadow-md transition-shadow hover:shadow-lg">
-                            <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-purple-100">
-                                <svg class="h-8 w-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                                <svg class="h-8 w-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path
                                         stroke-linecap="round"
                                         stroke-linejoin="round"
@@ -83,7 +83,7 @@
                             <a
                                 href="#"
                                 @click.prevent="openSupport"
-                                class="inline-flex cursor-pointer items-center font-medium text-purple-600 hover:text-purple-700"
+                                class="inline-flex cursor-pointer items-center font-medium text-primary hover:text-primary/80"
                             >
                                 Contact Support
                                 <svg class="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -119,9 +119,9 @@
                             </div>
                         </div>
 
-                        <div v-if="customer.provider" class="mt-6 rounded-lg bg-blue-50 p-4">
+                        <div v-if="customer.provider" class="mt-6 rounded-lg bg-primary/5 p-4">
                             <div class="flex items-center">
-                                <svg class="mr-2 h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg class="mr-2 h-5 w-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path
                                         stroke-linecap="round"
                                         stroke-linejoin="round"
@@ -129,29 +129,29 @@
                                         d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                                     ></path>
                                 </svg>
-                                <span class="text-blue-800"> Connected via {{ providerName }} </span>
+                                <span class="text-primary"> Connected via {{ providerName }} </span>
                             </div>
                         </div>
                     </div>
 
                     <!-- Next Steps -->
-                    <div class="rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 p-8 text-center text-white shadow-lg">
+                    <div class="rounded-lg bg-gradient-to-r from-primary to-primary/80 p-8 text-center text-white shadow-lg">
                         <h2 class="mb-4 text-2xl font-bold">Ready to Get Started?</h2>
-                        <p class="mb-6 text-blue-100">
+                        <p class="mb-6 text-white/80">
                             Take the next step and make the most of your {{ $page.props.appName || 'platform' }} experience.
                         </p>
 
                         <div class="flex flex-col justify-center gap-4 sm:flex-row">
                             <Link
                                 :href="route('customer.profile.show')"
-                                class="rounded-lg bg-white px-6 py-3 font-semibold text-blue-600 transition-colors hover:bg-blue-50"
+                                class="rounded-lg bg-white px-6 py-3 font-semibold text-primary transition-colors hover:bg-primary/5"
                             >
                                 Complete Your Profile
                             </Link>
 
                             <Link
                                 :href="route('home')"
-                                class="rounded-lg bg-blue-500 px-6 py-3 font-semibold text-white transition-colors hover:bg-blue-400"
+                                class="rounded-lg bg-secondary px-6 py-3 font-semibold text-white transition-colors hover:bg-secondary/90"
                             >
                                 Start Exploring
                             </Link>

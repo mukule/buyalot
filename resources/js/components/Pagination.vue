@@ -36,7 +36,7 @@ const normalizedLinks = computed(() => {
           class="relative inline-flex select-none items-center border px-3 py-1 text-sm"
           :class="[
             link.active
-              ? 'z-10 border-green-400 bg-indigo-50 text-green-600'
+              ? 'z-10 border-primary bg-primary text-white'
               : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50',
             !link.url && !link.active ? 'cursor-default opacity-50' : ''
           ]"

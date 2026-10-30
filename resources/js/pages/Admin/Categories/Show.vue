@@ -98,7 +98,7 @@ function showCategory(categoryHashid: string) {
                                     {{ child.name }}
                                 </td>
                                 <td class="px-4 py-4 text-right align-top text-sm">
-                                    <button @click.stop="editChild(child.hashid)" class="mr-3 text-blue-600 hover:underline">Edit</button>
+                                    <button @click.stop="editChild(child.hashid)" class="mr-3 text-primary hover:underline">Edit</button>
                                     <button @click.stop="deleteChild(child.hashid)" class="text-red-600 hover:underline">Delete</button>
                                 </td>
                             </tr>

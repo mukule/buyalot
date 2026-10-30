@@ -160,7 +160,7 @@ function submitDocument(documentTypeId: number, event: Event) {
                         <a
                             v-if="app.product_website"
                             :href="app.product_website"
-                            class="text-indigo-600 hover:underline"
+                            class="text-primary hover:underline"
                             target="_blank"
                             rel="noopener"
                         >
@@ -223,7 +223,7 @@ function submitDocument(documentTypeId: number, event: Event) {
                             :href="sellerDocuments[selectedDocType.id]?.file_path"
                             target="_blank"
                             rel="noopener"
-                            class="text-indigo-600 hover:underline"
+                            class="text-primary hover:underline"
                         >
                             View File
                         </a>

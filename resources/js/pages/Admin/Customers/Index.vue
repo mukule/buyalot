@@ -180,9 +180,9 @@ watch(
                 </div>
 
                 <!-- Bulk Actions -->
-                <div v-if="showBulkActions" class="flex items-center gap-4 rounded-lg bg-blue-50 p-4">
-                    <span class="text-sm text-blue-800">{{ selectedCustomers.length }} customers selected</span>
-                    <button @click="selectedCustomers = []" class="text-sm text-blue-600 hover:text-blue-800">Clear Selection</button>
+                <div v-if="showBulkActions" class="flex items-center gap-4 rounded-lg bg-primary/5 p-4">
+                    <span class="text-sm text-primary">{{ selectedCustomers.length }} customers selected</span>
+                    <button @click="selectedCustomers = []" class="text-sm text-primary hover:text-primary/80">Clear Selection</button>
                 </div>
 
                 <!-- Customers Table -->
@@ -262,7 +262,7 @@ watch(
                                 </td>
                                 <td class="px-4 py-3">
                                     <div class="flex items-center gap-3">
-                                        <button @click="openViewModal(customer)" class="rounded bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-100">View</button>
+                                        <button @click="openViewModal(customer)" class="rounded bg-primary/5 px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/10">View</button>
                                         <button @click="openEditModal(customer)" class="rounded bg-yellow-50 px-2 py-1 text-xs font-semibold text-yellow-600 hover:bg-yellow-100">Edit</button>
                                     </div>
                                 </td>
@@ -318,7 +318,7 @@ watch(
                                 </div>
                             </div>
                             <div class="flex items-start gap-3">
-                                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/5 text-primary">
                                     <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                     </svg>

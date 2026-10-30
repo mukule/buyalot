@@ -179,7 +179,7 @@ const deleteItem = (item: DiscountType) => {
                                 <td class="flex justify-end gap-2 px-4 py-2 text-right">
                                     <button
                                         @click="openEditModal(d)"
-                                        class="rounded border border-blue-500 p-2 text-blue-500 hover:bg-blue-50"
+                                        class="rounded border border-primary p-2 text-primary hover:bg-primary/5"
                                         title="Edit"
                                     >
                                         <Pencil class="h-4 w-4" />

@@ -79,7 +79,7 @@ const toggleRole = (userId: number, role: string) => {
                                         />
 
                                         <div
-                                            class="relative h-6 w-11 rounded-full bg-gray-200 transition-colors duration-200 peer-checked:bg-blue-600 peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800"
+                                            class="relative h-6 w-11 rounded-full bg-gray-200 transition-colors duration-200 peer-checked:bg-primary peer-focus:ring-4 peer-focus:ring-primary/30 dark:peer-focus:ring-blue-800"
                                         >
                                             <span
                                                 class="absolute top-1 left-1 h-4 w-4 rounded-full bg-white transition-transform duration-200 peer-checked:translate-x-5"

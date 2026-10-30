@@ -173,7 +173,7 @@ onBeforeUnmount(() => {
             <label class="block text-sm font-medium text-gray-700">Primary Image (Main Display)</label>
             <div
                 v-if="!primaryImage"
-                class="relative cursor-pointer rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-8 text-center transition hover:border-blue-500 hover:bg-gray-100"
+                class="relative cursor-pointer rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-8 text-center transition hover:border-primary hover:bg-gray-100"
             >
                 <p class="text-sm text-gray-600">Click or drag to upload the primary image</p>
                 <input type="file" accept="image/*" class="absolute inset-0 h-full w-full cursor-pointer opacity-0" @change="onPrimaryChange" />
@@ -195,7 +195,7 @@ onBeforeUnmount(() => {
                         Remove & Replace
                     </button>
                 </div>
-                <div class="mt-1 text-xs font-semibold text-blue-600 uppercase">Primary Image</div>
+                <div class="mt-1 text-xs font-semibold text-primary uppercase">Primary Image</div>
             </div>
         </div>
 
@@ -205,7 +205,7 @@ onBeforeUnmount(() => {
         <div class="space-y-2">
             <label class="block text-sm font-medium text-gray-700">Gallery Images</label>
             <div
-                class="relative cursor-pointer rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-6 text-center transition hover:border-blue-500 hover:bg-gray-100"
+                class="relative cursor-pointer rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-6 text-center transition hover:border-primary hover:bg-gray-100"
                 @dragover.prevent
                 @dragenter.prevent
                 @drop.prevent="onGalleryDrop"

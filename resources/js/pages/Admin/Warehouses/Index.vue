@@ -254,7 +254,7 @@ function saveManagers() {
 <!--                                    </div>-->
 <!--                                    <button-->
 <!--                                        @click.stop="openManagerModal(warehouse)"-->
-<!--                                        class="mt-1 text-blue-600 hover:underline text-xs"-->
+<!--                                        class="mt-1 text-primary hover:underline text-xs"-->
 <!--                                    >-->
 <!--                                        Manage Staff-->
 <!--                                    </button>-->
@@ -433,7 +433,7 @@ function saveManagers() {
                                 <button
                                     type="button"
                                     @click="addManager"
-                                    class="text-sm text-blue-600 hover:underline"
+                                    class="text-sm text-primary hover:underline"
                                 >
                                     + Add Another Manager
                                 </button>
@@ -602,7 +602,7 @@ function saveManagers() {
 <!--                                    </span>-->
 <!--                                </td>-->
 <!--                                <td class="px-4 py-4 text-right text-sm">-->
-<!--                                    <button @click.stop="editWarehouse(warehouse.hashid)" class="mr-3 text-blue-600 hover:underline">Edit</button>-->
+<!--                                    <button @click.stop="editWarehouse(warehouse.hashid)" class="mr-3 text-primary hover:underline">Edit</button>-->
 <!--                                    <button @click.stop="deleteWarehouse(warehouse.hashid)" class="text-red-600 hover:underline">Delete</button>-->
 <!--                                </td>-->
 <!--                            </tr>-->

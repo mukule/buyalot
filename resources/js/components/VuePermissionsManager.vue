@@ -11,7 +11,7 @@
                     :class="[
             'py-2 px-1 border-b-2 font-medium text-sm',
             activeTab === tab.id
-              ? 'border-indigo-500 text-indigo-600'
+              ? 'border-primary text-primary'
               : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
           ]"
                 >
@@ -26,7 +26,7 @@
                 <h2 class="text-xl font-semibold text-gray-900">Permissions Management</h2>
                 <button
                     @click="showCreatePermissionModal = true"
-                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary/90"
                 >
                     Add Permission
                 </button>
@@ -38,8 +38,8 @@
                         <div class="flex items-center justify-between">
                             <div class="flex items-center">
                                 <div class="flex-shrink-0">
-                                    <div class="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                                        <svg class="h-4 w-4 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
+                                    <div class="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                        <svg class="h-4 w-4 text-primary" fill="currentColor" viewBox="0 0 20 20">
                                             <path fill-rule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z" clip-rule="evenodd"></path>
                                         </svg>
                                     </div>
@@ -52,7 +52,7 @@
                             <div class="flex items-center space-x-2">
                                 <button
                                     @click="editPermission(permission)"
-                                    class="text-indigo-600 hover:text-indigo-900 text-sm font-medium"
+                                    class="text-primary hover:text-primary/80 text-sm font-medium"
                                 >
                                     Edit
                                 </button>
@@ -75,7 +75,7 @@
                 <h2 class="text-xl font-semibold text-gray-900">Roles Management</h2>
                 <button
                     @click="showCreateRoleModal = true"
-                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary/90"
                 >
                     Add Role
                 </button>
@@ -95,7 +95,7 @@
                                         v-model="roleForm.name"
                                         type="text"
                                         required
-                                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
                                         placeholder="e.g., admin"
                                     >
                                 </div>
@@ -104,7 +104,7 @@
                                     <input
                                         v-model="roleForm.guard_name"
                                         type="text"
-                                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
                                         placeholder="web"
                                     >
                                 </div>
@@ -117,7 +117,7 @@
                                                 type="checkbox"
                                                 :value="permission.id"
                                                 v-model="roleForm.permissions"
-                                                class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                                                class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
                                             >
                                             <label :for="`permission-${permission.id}`" class="ml-2 block text-sm text-gray-900">
                                                 {{ permission.name }}
@@ -135,7 +135,7 @@
                                     </button>
                                     <button
                                         type="submit"
-                                        class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                                        class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary/90"
                                     >
                                         {{ isEditingRole ? 'Update' : 'Create' }}
                                     </button>
@@ -161,7 +161,7 @@
                                                 type="checkbox"
                                                 :value="permission.id"
                                                 v-model="selectedRolePermissions"
-                                                class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                                                class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
                                             >
                                             <label :for="`role-permission-${permission.id}`" class="ml-2 block text-sm text-gray-900">
                                                 {{ permission.name }}
@@ -179,7 +179,7 @@
                                     </button>
                                     <button
                                         type="submit"
-                                        class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                                        class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary/90"
                                     >
                                         Update Permissions
                                     </button>
@@ -205,7 +205,7 @@
                                                 type="checkbox"
                                                 :value="role.id"
                                                 v-model="selectedUserRoles"
-                                                class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                                                class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
                                             >
                                             <label :for="`user-role-${role.id}`" class="ml-2 block text-sm text-gray-900">
                                                 {{ role.name }}
@@ -226,7 +226,7 @@
                                     </button>
                                     <button
                                         type="submit"
-                                        class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                                        class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary/90"
                                     >
                                         Update Roles
                                     </button>
@@ -240,7 +240,7 @@
                 <div v-if="loading" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
                     <div class="bg-white p-6 rounded-lg shadow-lg">
                         <div class="flex items-center">
-                            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
+                            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
                             <span class="ml-3 text-gray-700">Loading...</span>
                         </div>
                     </div>
@@ -547,7 +547,7 @@ function closeUserRolesModal() {
 <div class="flex space-x-2">
 <button
     @click="editRole(role)"
-    class="text-indigo-600 hover:text-indigo-900 text-sm"
+    class="text-primary hover:text-primary/80 text-sm"
 >
     Edit
 </button>
@@ -567,7 +567,7 @@ function closeUserRolesModal() {
                 <span
                     v-for="permission in (role.permissions || []).slice(0, 3)"
                     :key="permission.id"
-                    class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800"
+                    class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary"
                 >
                   {{ permission.name }}
                 </span>
@@ -581,7 +581,7 @@ function closeUserRolesModal() {
 </div>
 <button
     @click="manageRolePermissions(role)"
-    class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-indigo-700 bg-indigo-100 hover:bg-indigo-200"
+    class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-primary bg-primary/10 hover:bg-primary/20"
 >
 Manage Permissions
 </button>
@@ -631,7 +631,7 @@ Manage Permissions
                     </div>
                     <button
                         @click="manageUserRoles(user)"
-                        class="text-indigo-600 hover:text-indigo-900 text-sm font-medium"
+                        class="text-primary hover:text-primary/80 text-sm font-medium"
                     >
                         Manage Roles
                     </button>
@@ -656,7 +656,7 @@ Manage Permissions
                     v-model="permissionForm.name"
                     type="text"
                     required
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
                     placeholder="e.g., manage users"
                 >
             </div>
@@ -665,7 +665,7 @@ Manage Permissions
                 <input
                     v-model="permissionForm.guard_name"
                     type="text"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
                     placeholder="web"
                 >
             </div>
@@ -679,7 +679,7 @@ Manage Permissions
                 </button>
                 <button
                     type="submit"
-                    class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                    class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary/90"
                 >
                     {{ isEditingPermission ? 'Update' : 'Create' }}
                 </button>

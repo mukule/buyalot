@@ -255,8 +255,8 @@ function togglePasswordSection() {
                     </div>
 
                     <!-- Current Role Preview -->
-                    <div v-if="roleSingle" class="rounded-lg bg-blue-50 p-4">
-                        <h3 class="mb-2 text-sm font-medium text-blue-900">Selected Role Preview</h3>
+                    <div v-if="roleSingle" class="rounded-lg bg-primary/5 p-4">
+                        <h3 class="mb-2 text-sm font-medium text-primary">Selected Role Preview</h3>
                         <div class="flex flex-wrap gap-2">
                             <span
                                 :class="['inline-flex items-center rounded-full px-3 py-1 text-xs font-medium', getRoleColor(roleSingle)]"

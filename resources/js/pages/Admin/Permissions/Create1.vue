@@ -89,18 +89,18 @@ function generatePermissionName() {
 
                 <form @submit.prevent="submit" class="space-y-6">
                     <!-- Permission Templates (only for create) -->
-                    <div v-if="!isEditing" class="rounded-lg bg-blue-50 p-4">
-                        <h3 class="mb-3 text-sm font-medium text-blue-900">Quick Templates</h3>
+                    <div v-if="!isEditing" class="rounded-lg bg-primary/5 p-4">
+                        <h3 class="mb-3 text-sm font-medium text-primary">Quick Templates</h3>
                         <div class="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
                             <button
                                 v-for="template in commonPermissionTemplates"
                                 :key="template.name"
                                 type="button"
                                 @click="useTemplate(template)"
-                                class="rounded border border-blue-200 p-2 text-left transition-colors hover:border-blue-300 hover:bg-blue-100"
+                                class="rounded border border-primary/20 p-2 text-left transition-colors hover:border-primary/40 hover:bg-primary/10"
                             >
-                                <div class="text-sm font-medium text-blue-900">{{ template.name }}</div>
-                                <div class="text-xs text-blue-700">{{ template.description }}</div>
+                                <div class="text-sm font-medium text-primary">{{ template.name }}</div>
+                                <div class="text-xs text-primary">{{ template.description }}</div>
                             </button>
                         </div>
                     </div>

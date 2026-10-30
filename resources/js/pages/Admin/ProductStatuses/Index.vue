@@ -109,7 +109,7 @@ function editStatus(hashid: string) {
                                     <span v-else class="text-gray-400">—</span>
                                 </td>
                                 <td class="px-4 py-4 text-right text-sm">
-                                    <button @click.stop="editStatus(status.hashid)" class="text-blue-600 hover:underline">Edit</button>
+                                    <button @click.stop="editStatus(status.hashid)" class="text-primary hover:underline">Edit</button>
                                 </td>
                             </tr>
                         </tbody>
