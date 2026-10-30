@@ -116,6 +116,8 @@ class UserManagementController extends Controller
      */
     public function update(Request $request, User $user)
     {
+        \App\Support\ProtectedRoles::authorizeUser($user);
+
         $authUser = Auth::user();
         $sellerId = $authUser->sellers()->value('seller_id');
         abort_if(!$sellerId, 403, 'Not associated with a seller account.');
@@ -159,6 +161,8 @@ class UserManagementController extends Controller
      */
     public function destroy(User $user)
     {
+        \App\Support\ProtectedRoles::authorizeUser($user);
+
         $authUser = Auth::user();
         $sellerId = $authUser->sellers()->value('seller_id');
         abort_if(!$sellerId, 403, 'Not associated with a seller account.');

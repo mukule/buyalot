@@ -13,9 +13,9 @@ use Illuminate\Support\Facades\Route;
         Route::get('/roles/create', [RoleController::class, 'create'])->name('roles.create');
         Route::get('/roles/{role}', [RoleController::class, 'show'])->name('roles.show');
     });
-//    Route::middleware(['check_permission:create-roles'])->group(function () {
+    Route::middleware(['check_permission:create-roles'])->group(function () {
         Route::post('/roles', [RoleController::class, 'store'])->name('roles.store');
-//    });
+    });
     Route::middleware(['check_permission:edit-roles'])->group(function () {
         Route::get('/roles/{role}/edit', [RoleController::class, 'edit'])->name('roles.edit');
         Route::put('/roles/{role}', [RoleController::class, 'update'])->name('roles.update');

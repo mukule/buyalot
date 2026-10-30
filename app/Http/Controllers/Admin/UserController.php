@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use App\Models\Role;
+use App\Support\ProtectedRoles;
 use App\Models\Seller\Seller;
 use App\Models\Seller\SellerUser;
 use Illuminate\Support\Str;
@@ -24,6 +25,7 @@ class UserController extends Controller
     {
         $query = User::query()->with('roles')->whereNot('user_type', 'customer')
             ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'delivery'));
+        ProtectedRoles::scopeVisibleUsers($query);
 
         if ($request->filled('search')) {
             $query->where(function ($searchQuery) use ($request) {
@@ -124,7 +126,7 @@ class UserController extends Controller
     //API to get all users
     public function allUsers(Request $request): JsonResponse
     {
-        $users = User::with('roles', 'permissions')->get()->map(function($user) {
+        $users = ProtectedRoles::scopeVisibleUsers(User::with('roles', 'permissions'))->get()->map(function($user) {
             return [
                 'id' => $user->id,
                 'name' => $user->name,
@@ -153,6 +155,8 @@ class UserController extends Controller
 
     public function show(Request $request, User $user)
     {
+        ProtectedRoles::authorizeUser($user);
+
         $user->load('roles', 'permissions');
         $user_details=UserDetail::where('user_id', $user->id)->first();
         info($user_details->gender);
@@ -195,6 +199,8 @@ class UserController extends Controller
 
     public function edit(Request $request, User $user)
     {
+        ProtectedRoles::authorizeUser($user);
+
         $user->load('roles');
 
         $userData = [
@@ -220,6 +226,8 @@ class UserController extends Controller
 
     public function updateRoles(Request $request, User $user): RedirectResponse
     {
+        ProtectedRoles::authorizeUser($user);
+
         $roleNames = Role::allowedForSeller()->pluck('name')->all();
 
         $validated = $request->validate([
@@ -238,6 +246,8 @@ class UserController extends Controller
 
     public function update(Request $request, User $user)
     {
+        ProtectedRoles::authorizeUser($user);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
@@ -278,6 +288,8 @@ class UserController extends Controller
 
     public function updateStatus(Request $request, User $user): JsonResponse
     {
+        ProtectedRoles::authorizeUser($user);
+
         $validated = $request->validate([
             'status' => 'required|boolean',
         ]);
@@ -383,6 +395,8 @@ class UserController extends Controller
 
     public function destroy(Request $request, User $user)
     {
+        ProtectedRoles::authorizeUser($user);
+
         // Prevent deletion of super admin users
         if ($user->hasRole('super-admin')) {
             if ($request->wantsJson() || $request->is('api/*')) {
@@ -403,12 +417,15 @@ class UserController extends Controller
     // API role assignment by ID
     public function assignRoles(Request $request, User $user): JsonResponse
     {
+        ProtectedRoles::authorizeUser($user);
+
         $validated = $request->validate([
             'roles' => 'required|array',
             'roles.*' => 'exists:roles,id'
         ]);
 
         $roles = Role::whereIn('id', $validated['roles'])->get();
+        ProtectedRoles::authorizeAssignment($roles);
         $rolesToKeep = $user->hasRole('user') ? Role::where('name', 'user')->get() : collect();
 
         $allRoles = $rolesToKeep->merge($roles);
@@ -439,11 +456,14 @@ class UserController extends Controller
 
     public function removeRole(Request $request, User $user): JsonResponse
     {
+        ProtectedRoles::authorizeUser($user);
+
         $validated = $request->validate([
             'role_id' => 'required|exists:roles,id'
         ]);
 
         $role = Role::findById($validated['role_id']);
+        ProtectedRoles::authorizeAssignment([$role]);
 
         // Don't remove 'user' role if it exists
         if ($role->name !== 'user') {

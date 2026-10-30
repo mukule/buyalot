@@ -75,7 +75,16 @@ class Role extends SpatieRole
             return $query->whereIn('name', self::SELLER_ALLOWED);
         }
 
-        // Non-sellers get the full role list for the guard
-        return $query;
+        // Non-sellers get the full role list for the guard, minus the
+        // super-admin/admin roles unless the viewer is a super-admin.
+        return \App\Support\ProtectedRoles::scopeVisible($query, $user);
+    }
+
+    /**
+     * Scope: roles the current user is allowed to see (hides super-admin/admin from non-super-admins).
+     */
+    public function scopeVisibleToViewer(Builder $query): Builder
+    {
+        return \App\Support\ProtectedRoles::scopeVisible($query);
     }
 }

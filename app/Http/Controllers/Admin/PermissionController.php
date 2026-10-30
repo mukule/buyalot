@@ -105,7 +105,10 @@ class PermissionController extends Controller
         $permission->hashid = $permission->getRouteKey();
 
         // Get roles that have this permission
-        $rolesWithPermission = $permission->roles()->get()->map(function ($role) {
+        // (super-admin/admin roles are only shown to super-admins)
+        $rolesWithPermission = $permission->roles()
+            ->when(! \App\Support\ProtectedRoles::viewerIsSuperAdmin(), fn ($q) => $q->whereNotIn('name', \App\Support\ProtectedRoles::NAMES))
+            ->get()->map(function ($role) {
             $role->hashid = $role->getRouteKey();
             return $role;
         });

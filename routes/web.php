@@ -282,7 +282,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             Route::get('/{user}', [UserController::class, 'show'])->name('users.show');
             Route::get('/', [UserController::class, 'index'])->name('users.index');
         });
-        Route::post('/', [UserController::class, 'store'])->name('users.store');
+        Route::post('/', [UserController::class, 'store'])->middleware('check_permission:create-users')->name('users.store');
         Route::middleware(['check_permission:manage-user-roles'])->group(function () {
             Route::post('/{user}/assign-roles', [UserController::class, 'assignRoles'])->name('users.assign-roles');
             Route::delete('/{user}/remove-role', [UserController::class, 'removeRole'])->name('users.remove-role');
@@ -297,7 +297,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::middleware(['check_permission:activate-deactivate-users'])->group(function () {
             Route::post('/{user}/update-status', [UserController::class, 'updateStatus'])->name('users.update-status');
         });
-        Route::put('/{user}/roles', [UserController::class, 'updateRoles'])->name('user.roles.update');
+        // NOTE: PUT /{user}/roles (admin.user.roles.update) lives in roles_permissions.php behind
+        // check_permission:manage-user-roles — redefining it here would override that guard.
 
         Route::middleware(['check_permission:view-seller-applications'])->group(function () {
             Route::get('/{sellerApplication}', [SellerApplicationController::class, 'show'])->name('seller-applications.show');
