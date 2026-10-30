@@ -242,6 +242,20 @@ Route::middleware(['auth', 'role_or_permission:admin|view-policies'])
 });
 
 
+// Cars & Motors reference data: vehicle makes and their models
+Route::middleware(['auth', 'role_or_permission:admin|super-admin|manage-car-makes'])
+    ->prefix('admin/car-makes')->name('admin.car-makes.')
+    ->controller(\App\Http\Controllers\Admin\CarMakeController::class)
+    ->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/', 'storeMake')->name('store');
+        Route::patch('/{carMake}', 'updateMake')->name('update');
+        Route::delete('/{carMake}', 'destroyMake')->name('destroy');
+        Route::post('/{carMake}/models', 'storeModels')->name('models.store');
+        Route::patch('/{carMake}/models/{carModel}', 'updateModel')->name('models.update');
+        Route::delete('/{carMake}/models/{carModel}', 'destroyModel')->name('models.destroy');
+    });
+
 // Campaigns: Today's Deals, Offers, Seasonal promotions and their products
 Route::middleware(['auth', 'role_or_permission:admin|super-admin|manage-campaigns'])
     ->prefix('admin/campaigns')->name('admin.campaigns.')

@@ -9,6 +9,7 @@ import {
     BadgePercent,
     Banknote,
     BookUserIcon,
+    Car,
     ClipboardList,
     FileCheck,
     FileText,
@@ -125,6 +126,12 @@ const allNavItems: NavItem[] = [
                 href: '/admin/brands',
                 icon: Tag,
                 permissions: ['view-brands'],
+            },
+            {
+                title: 'Car Makes & Models',
+                href: '/admin/car-makes',
+                icon: Car,
+                permissions: ['manage-car-makes'],
             },
             {
                 title: 'Units',

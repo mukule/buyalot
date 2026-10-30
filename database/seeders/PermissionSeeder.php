@@ -290,6 +290,10 @@ class PermissionSeeder extends Seeder
             'campaigns' => [
                 'manage-campaigns',
             ],
+            // Cars & Motors makes and models
+            'car_makes' => [
+                'manage-car-makes',
+            ],
 
             'zones' => [
                 'view-zones',
