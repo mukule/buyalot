@@ -71,7 +71,27 @@ class MarketplaceController extends Controller
         // Keep the cookie in sync when a vertical page is opened directly.
         Cookie::queue('marketplace_vertical', $vertical, 525600);
 
+        // Verticals with listing types (Cars & Motors: vehicles / spare parts) show
+        // one type at a time; filters, sorts and quick tags are narrowed to it.
+        $listingTypes = $config['listing_types'] ?? [];
+        $listingType  = null;
+        if ($listingTypes) {
+            $requested   = (string) $request->query('listing_type', '');
+            $listingType = array_key_exists($requested, $listingTypes)
+                ? $requested
+                : ($config['default_listing_type'] ?? array_key_first($listingTypes));
+
+            $forType = fn ($items) => collect($items)
+                ->filter(fn ($i) => ! isset($i['for']) || $i['for'] === $listingType)
+                ->values()
+                ->all();
+            $config['filters']    = $forType($config['filters'] ?? []);
+            $config['sorts']      = $forType($config['sorts'] ?? []);
+            $config['quick_tags'] = $forType($config['quick_tags'] ?? []);
+        }
+
         [$filters, $activeFilters] = $this->parseFilters($request, $config);
+        $filters['listing_type'] = $listingType;
 
         $products = $this->productService->getVerticalListing($config['key'], $filters, 24)
             ->withQueryString();
@@ -84,7 +104,14 @@ class MarketplaceController extends Controller
             ->pluck('key')
             ->all();
 
-        $filterOptions = $this->productService->getVerticalFilterOptions($config['key'], $selectKeys);
+        $filterOptions = $this->productService->getVerticalFilterOptions($config['key'], $selectKeys, $listingType);
+
+        // Part types only for the chosen part of the car.
+        if ($listingType === 'spare_part' && ! empty($activeFilters['part_group'])) {
+            $filterOptions = array_merge($filterOptions, $this->productService->getVerticalFilterOptions(
+                $config['key'], ['part_type'], $listingType, ['part_group' => $activeFilters['part_group']],
+            ));
+        }
 
         $component = $config['type'] === 'automotive'
             ? 'Frontend/Marketplace/Automotive'
@@ -104,6 +131,12 @@ class MarketplaceController extends Controller
             'filterOptions' => $filterOptions,
             'activeFilters' => $activeFilters,
             'products'      => $products,
+            'listingTypes'  => collect($listingTypes)->map(fn ($t, $key) => ['key' => $key] + $t)->values(),
+            'listingType'   => $listingType,
+            // Spare parts are browsed by the part of the car they belong to.
+            'partGroups'    => $listingType === 'spare_part'
+                ? $this->productService->getVerticalPartGroups($config['key'])
+                : [],
             'title'         => $config['label'],
         ]);
     }
@@ -272,7 +305,7 @@ class MarketplaceController extends Controller
             $active['max_price'] = $maxPrice;
         }
 
-        $sort = $request->query('sort', 'newest');
+        $sort = $request->query('sort', $config['sorts'][0]['key'] ?? 'newest');
         $active['sort'] = $sort;
 
         $filters = [

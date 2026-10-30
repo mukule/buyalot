@@ -2,10 +2,14 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\DetectsAutomotiveListing;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreProductRequest extends FormRequest
 {
+    use DetectsAutomotiveListing;
+
     public function authorize(): bool
     {
         $user = $this->user();
@@ -49,7 +53,7 @@ class StoreProductRequest extends FormRequest
             1 => [
                 'product_code' => 'nullable|string|max:100|unique:products,product_code',
                 'name' => 'required|string|max:255',
-                'brand_id' => 'required|exists:brands,id',
+                'brand_id' => [Rule::requiredIf(! $this->isAutomotiveListing()), 'nullable', 'exists:brands,id'],
                 'category_id' => 'required|exists:categories,id',
                 'unit_id' => 'required|exists:units,id',
             ],

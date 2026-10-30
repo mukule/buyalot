@@ -299,7 +299,12 @@ private function marketplaceOptions(): array
         ->map(fn ($v) => [
             'key'         => $v['key'],
             'label'       => $v['label'],
+            'type'        => $v['type'] ?? 'ecommerce',
             'form_fields' => $v['form_fields'] ?? [],
+            // Cars & Motors: vehicle vs spare part, and part groups => part types.
+            'listing_types'        => $v['listing_types'] ?? null,
+            'default_listing_type' => $v['default_listing_type'] ?? null,
+            'part_groups'          => $v['part_groups'] ?? null,
         ])
         ->values()
         ->all();

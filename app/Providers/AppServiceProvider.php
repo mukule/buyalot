@@ -13,7 +13,8 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        // One instance per request so live campaign deals are resolved once.
+        $this->app->scoped(\App\Services\DealPricingService::class);
     }
 
 

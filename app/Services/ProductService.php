@@ -670,18 +670,42 @@ protected function storeUploadedFile(UploadedFile $file, string $directory): str
             $selectable,
         ));
 
-        // Collect allowed attribute fields (+types) across the selected verticals.
-        $allowed = [];
-        foreach ($marketplaces as $key) {
-            foreach ($verticals[$key]['form_fields'] ?? [] as $field) {
-                $allowed[$field['key']] = $field['type'] ?? 'text';
-            }
-        }
-
         $rawAttributes = $data['attributes'] ?? [];
         if (! is_array($rawAttributes)) {
             $rawAttributes = [];
         }
+
+        // Collect allowed attribute fields (+types) across the selected verticals.
+        // Verticals with listing types (Cars & Motors: vehicle / spare part) only
+        // keep the fields that apply to the chosen type.
+        $allowed = [];
+        $forcedValues = [];
+        foreach ($marketplaces as $key) {
+            $vertical = $verticals[$key];
+            $listingType = null;
+
+            if (! empty($vertical['listing_types'])) {
+                $requestedType = (string) ($rawAttributes['listing_type'] ?? '');
+                $listingType = array_key_exists($requestedType, $vertical['listing_types'])
+                    ? $requestedType
+                    : ($vertical['default_listing_type'] ?? array_key_first($vertical['listing_types']));
+                $forcedValues['listing_type'] = $listingType;
+            }
+
+            foreach ($vertical['form_fields'] ?? [] as $field) {
+                if (isset($field['for']) && $field['for'] !== $listingType) {
+                    continue;
+                }
+                $allowed[$field['key']] = $field['type'] ?? 'text';
+            }
+
+            // Part group must be one of the configured groups.
+            $group = $rawAttributes['part_group'] ?? null;
+            if ($group !== null && isset($vertical['part_groups']) && ! array_key_exists($group, $vertical['part_groups'])) {
+                unset($rawAttributes['part_group']);
+            }
+        }
+        $rawAttributes = array_merge($rawAttributes, $forcedValues);
 
         $attributes = [];
         foreach ($allowed as $attrKey => $type) {

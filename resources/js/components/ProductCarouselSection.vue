@@ -1,10 +1,13 @@
 <template>
     <div class="relative rounded-lg bg-white p-4 shadow-sm">
         <!-- Header -->
-        <div class="mb-4 flex items-center justify-between px-2">
-            <h2 class="text-xl font-bold text-gray-800">{{ title }}</h2>
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-2 px-2">
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+                <h2 class="text-xl font-bold text-gray-800">{{ title }}</h2>
+                <slot name="header-extra" />
+            </div>
             <a
-                :href="`/${slug}`"
+                :href="href ?? `/${slug}`"
                 class="flex items-center rounded-md border border-primary bg-transparent px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary hover:text-white"
             >
                 View all
@@ -49,6 +52,8 @@ const props = defineProps<{
     title: string;
     slug: string;
     products: SimplifiedProduct[];
+    /** "View all" target; defaults to the category page /{slug} */
+    href?: string;
 }>();
 
 const container = ref<HTMLElement | null>(null);

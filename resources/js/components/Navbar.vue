@@ -48,6 +48,8 @@ const mobileCategories = computed(() => categories.value.slice(0, 10));
 
 // Top links
 const topLinks = [
+    { name: "Today's Deals", href: '/deals/today' },
+    { name: 'Offers', href: '/deals' },
     { name: 'Help Center', href: '/help' },
     // { name: 'Sell on Buyalot', href: '/sell' },
     // { name: 'Vendor Login', href: '/vendor/login' },

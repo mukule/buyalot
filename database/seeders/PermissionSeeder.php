@@ -286,6 +286,10 @@ class PermissionSeeder extends Seeder
                 'edit-promotions',
                 'delete-promotions',
             ],
+            // Today's Deals / Offers / Seasonal campaigns
+            'campaigns' => [
+                'manage-campaigns',
+            ],
 
             'zones' => [
                 'view-zones',

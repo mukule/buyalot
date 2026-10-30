@@ -217,6 +217,18 @@ class SeoMeta
         ]);
     }
 
+    public static function deals(string $title, string $path, ?string $description = null, ?string $image = null): array
+    {
+        return self::make([
+            'title'       => $title,
+            'description' => $description
+                ? Str::limit(trim(strip_tags($description)), 155, '')
+                : "{$title} — limited-time prices at " . self::siteName() . '.',
+            'canonical'   => self::base() . $path,
+            'image'       => $image,
+        ]);
+    }
+
     // ------------------------------------------------------------------ helpers
 
     public static function breadcrumbs(array $crumbs): array

@@ -242,6 +242,22 @@ Route::middleware(['auth', 'role_or_permission:admin|view-policies'])
 });
 
 
+// Campaigns: Today's Deals, Offers, Seasonal promotions and their products
+Route::middleware(['auth', 'role_or_permission:admin|super-admin|manage-campaigns'])
+    ->prefix('admin/campaigns')->name('admin.campaigns.')
+    ->controller(\App\Http\Controllers\Admin\CampaignController::class)
+    ->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/', 'store')->name('store');
+        Route::get('/{campaign}', 'show')->name('show');
+        Route::post('/{campaign}', 'update')->name('update');
+        Route::delete('/{campaign}', 'destroy')->name('destroy');
+        Route::get('/{campaign}/search-products', 'searchProducts')->name('search-products');
+        Route::post('/{campaign}/products', 'addProducts')->name('products.add');
+        Route::patch('/{campaign}/products/{productId}', 'updateProduct')->whereNumber('productId')->name('products.update');
+        Route::delete('/{campaign}/products', 'removeProducts')->name('products.remove');
+    });
+
 Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
     require __DIR__ . '/roles_permissions.php';
     Route::resource('customers', CustomerController::class);
@@ -477,6 +493,13 @@ Route::prefix('marketplace')->name('marketplace.')->group(function () {
     });
 
     Route::get('/{vertical}', [MarketplaceController::class, 'show'])->name('show');
+});
+
+// Today's Deals / Offers / Seasonal promotions (must be above the /{slug} catch-all)
+Route::prefix('deals')->name('deals.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\DealsController::class, 'index'])->name('index');
+    Route::get('/today', [\App\Http\Controllers\DealsController::class, 'today'])->name('today');
+    Route::get('/{slug}', [\App\Http\Controllers\DealsController::class, 'show'])->name('show');
 });
 
 Route::get('/{slug}', [HomeController::class, 'category'])->name('category.show');

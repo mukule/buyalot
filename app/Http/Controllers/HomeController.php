@@ -124,6 +124,8 @@ class HomeController extends Controller
         ]),
         'promotions'         => $promotions,
         'productsByCategory' => $productsByCategory,
+        // Today's Deals / Offers / Seasonal sections + shortcut tiles
+        'campaignSections'   => app(\App\Services\CampaignService::class)->homeSections(),
     ]);
 }
 
@@ -139,69 +141,82 @@ public function productDetails(string $slug)
         'warranties',
     ])->where('slug', $slug)->firstOrFail();
 
-    $variants = $product->productVariants->map(function ($variant) {
+    // Live campaign deal (Today's Deals / Offers / Seasonal) for this product, if any.
+    $dealPricing = app(\App\Services\DealPricingService::class);
+    $dealPrice = fn ($variant) => $dealPricing->priceFor(
+        $product->id,
+        (float) $variant->selling_price,
+        (float) $variant->marked_price,
+    );
+
+    $variants = $product->productVariants->map(function ($variant) use ($dealPrice) {
         $discountPercent = 0;
         if ($variant->marked_price > 0 && $variant->discount > 0) {
             $discountPercent = round(($variant->discount / $variant->marked_price) * 100, 2);
         }
+        $deal = $dealPrice($variant);
 
         return [
-            'id'               => $variant->id,
-            'marked_price'     => $variant->marked_price,
-            'final_price'      => $variant->selling_price,
-            'discount'         => $variant->discount,
-            'discount_percent' => $discountPercent,
-            'has_discount'     => $variant->discount > 0,
-            'stock'            => $variant->stock,
-            'sku'              => $variant->sku,
-            'values'           => $variant->values->map(fn ($v) => [
-                'variant_category_id' => $v->variant->variant_category_id,
-                'value'               => $v->variant->value,
-            ]),
-            'images' => $variant->images->sortBy('sort_order')->map(fn ($img) => [
-                'id'         => $img->id,
-                'url'        => $img->url,
-                'is_primary' => $img->is_primary,
-                'sort_order' => $img->sort_order,
-            ])->values(),
-        ];
-    });
-
-    // Variant attributes for selector UI
-    $variantAttributes = $product->productVariants
-        ->flatMap(fn ($variant) => $variant->values)
-        ->groupBy(fn ($v) => $v->variant->category->name)
-        ->map(fn ($group, $categoryName) => [
-            'name'    => $categoryName,
-            'options' => $group->map(fn ($v) => $v->variant->value)->unique()->values(),
-        ])
-        ->values();
-
-    // Variant map keyed by "Red|M|Cotton" for instant frontend lookup
-    $variantMap = $product->productVariants
-        ->keyBy(fn ($variant) => $variant->values
-            ->sortBy(fn ($v) => $v->variant->variant_category_id)
-            ->map(fn ($v) => $v->variant->value)
-            ->join('|')
-        )
-        ->map(fn ($variant) => [
-            'id'          => $variant->id,
-            'marked_price' => $variant->marked_price,
-            'buying_price' => $variant->selling_price,
-            'stock'       => $variant->stock,
-            'sku'         => $variant->sku,
-            'has_discount'     => $variant->discount > 0,
-            'discount'         => $variant->discount,
-            'discount_percent' => $variant->marked_price > 0 && $variant->discount > 0
-                ? round(($variant->discount / $variant->marked_price) * 100, 2)
-                : 0,
-            'images' => $variant->images->sortBy('sort_order')->map(fn ($img) => [
-                'id'         => $img->id,
-                'url'        => $img->url,
-                'is_primary' => $img->is_primary,
-                'sort_order' => $img->sort_order,
-            ])->values(),
-        ]);
+                'id'               => $variant->id,
+                'marked_price'     => $deal['marked_price'] ?? $variant->marked_price,
+                'final_price'      => $deal['final_price'] ?? $variant->selling_price,
+                'discount'         => $deal['total_discount'] ?? $variant->discount,
+                'discount_percent' => $deal['discount_percent'] ?? $discountPercent,
+                'has_discount'     => $deal ? $deal['total_discount'] > 0 : $variant->discount > 0,
+                'stock'            => $variant->stock,
+                'sku'              => $variant->sku,
+                'values'           => $variant->values->map(fn ($v) => [
+                    'variant_category_id' => $v->variant->variant_category_id,
+                    'value'               => $v->variant->value,
+                ]),
+                'images' => $variant->images->sortBy('sort_order')->map(fn ($img) => [
+                    'id'         => $img->id,
+                    'url'        => $img->url,
+                    'is_primary' => $img->is_primary,
+                    'sort_order' => $img->sort_order,
+                ])->values(),
+            ];
+        });
+    
+        // Variant attributes for selector UI
+        $variantAttributes = $product->productVariants
+            ->flatMap(fn ($variant) => $variant->values)
+            ->groupBy(fn ($v) => $v->variant->category->name)
+            ->map(fn ($group, $categoryName) => [
+                'name'    => $categoryName,
+                'options' => $group->map(fn ($v) => $v->variant->value)->unique()->values(),
+            ])
+            ->values();
+    
+        // Variant map keyed by "Red|M|Cotton" for instant frontend lookup
+        $variantMap = $product->productVariants
+            ->keyBy(fn ($variant) => $variant->values
+                ->sortBy(fn ($v) => $v->variant->variant_category_id)
+                ->map(fn ($v) => $v->variant->value)
+                ->join('|')
+            )
+            ->map(function ($variant) use ($dealPrice) {
+                $deal = $dealPrice($variant);
+    
+                return [
+                'id'          => $variant->id,
+                'marked_price' => $deal['marked_price'] ?? $variant->marked_price,
+                'buying_price' => $deal['final_price'] ?? $variant->selling_price,
+                'stock'       => $variant->stock,
+                'sku'         => $variant->sku,
+                'has_discount'     => $deal ? $deal['total_discount'] > 0 : $variant->discount > 0,
+                'discount'         => $deal['total_discount'] ?? $variant->discount,
+                'discount_percent' => $deal['discount_percent'] ?? ($variant->marked_price > 0 && $variant->discount > 0
+                    ? round(($variant->discount / $variant->marked_price) * 100, 2)
+                    : 0),
+                'images' => $variant->images->sortBy('sort_order')->map(fn ($img) => [
+                    'id'         => $img->id,
+                    'url'        => $img->url,
+                    'is_primary' => $img->is_primary,
+                    'sort_order' => $img->sort_order,
+                ])->values(),
+            ];
+        });
 
     // Determine selected variant
     $selectedVariant = $product->productVariants->first();

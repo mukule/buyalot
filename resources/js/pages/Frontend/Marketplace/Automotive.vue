@@ -11,6 +11,9 @@ const props = defineProps<{
     filterOptions: Record<string, (string | number)[]>;
     activeFilters: Record<string, any>;
     products: any;
+    listingTypes?: { key: string; label: string; icon?: string }[];
+    listingType?: string | null;
+    partGroups?: { name: string; count: number; types: { name: string; count: number }[] }[];
     title?: string;
 }>();
 </script>
@@ -26,6 +29,9 @@ const props = defineProps<{
             :filter-options="filterOptions"
             :active-filters="activeFilters"
             :products="products"
+            :listing-types="listingTypes"
+            :listing-type="listingType"
+            :part-groups="partGroups"
         />
     </MainLayout>
 </template>

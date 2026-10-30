@@ -437,6 +437,8 @@ export interface SimplifiedProduct {
     final_price: number;
     discount_percent: number;
     has_discount: boolean;
+    /** % off from a live Today's Deals / Offers / Seasonal campaign */
+    deal_percent?: number | null;
     rating?: number;
     category_slug?: string;
     brand?: string | null;

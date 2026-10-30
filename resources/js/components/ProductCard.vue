@@ -6,6 +6,8 @@ import { computed, ref } from 'vue';
 
 const props = defineProps<{
     product: SimplifiedProduct;
+    /** Fill a grid cell instead of using carousel widths */
+    grid?: boolean;
 }>();
 
 const page = usePage();
@@ -62,12 +64,21 @@ const addToCart = () => {
 
 <template>
     <div
-        class="relative flex h-full w-[calc(50%-0.5rem)] shrink-0 snap-start flex-col rounded-lg border bg-white p-3 shadow-sm transition-transform duration-300 hover:scale-105 hover:shadow-md sm:w-[calc(33%-0.5rem)] md:w-[calc(25%-0.5rem)] lg:w-[calc(16.66%-0.5rem)]"
+        class="relative flex h-full flex-col rounded-lg border bg-white p-3 shadow-sm transition-transform duration-300 hover:scale-105 hover:shadow-md"
+        :class="grid ? 'w-full' : 'w-[calc(50%-0.5rem)] shrink-0 snap-start sm:w-[calc(33%-0.5rem)] md:w-[calc(25%-0.5rem)] lg:w-[calc(16.66%-0.5rem)]'"
     >
         <!-- Loading Overlay -->
         <div v-if="isAddingWishlist || isAddingToCart" class="absolute inset-0 z-20 flex items-center justify-center rounded-lg bg-white/60">
             <span class="loader"></span>
         </div>
+
+        <!-- Deal Badge -->
+        <span
+            v-if="product.deal_percent"
+            class="absolute top-2 left-2 z-10 rounded bg-red-600 px-2 py-1 text-[10px] font-bold tracking-wide text-white uppercase"
+        >
+            Deal
+        </span>
 
         <!-- Discount Badge -->
         <span
@@ -105,9 +116,12 @@ const addToCart = () => {
                 </div>
 
                 <!-- Price -->
-                <div class="mt-2 text-sm">
+                <div class="mt-2 flex flex-wrap items-baseline gap-x-2 text-sm">
                     <span class="font-semibold text-primary">
                         {{ formatPrice(product.final_price) }}
+                    </span>
+                    <span v-if="product.has_discount && product.marked_price > product.final_price" class="text-xs text-gray-400 line-through">
+                        {{ formatPrice(product.marked_price) }}
                     </span>
                 </div>
 

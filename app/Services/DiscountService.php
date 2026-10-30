@@ -14,6 +14,7 @@ class DiscountService
         }
 
         $variants = ProductVariant::whereIn('id', $variantIds)->get();
+        $dealPricing = app(DealPricingService::class);
 
         $results = [];
 
@@ -21,6 +22,12 @@ class DiscountService
 
             $markedPrice  = (float) ($variant->marked_price ?? 0);
             $sellingPrice = (float) ($variant->selling_price ?? 0);
+
+            // Live campaign deal takes precedence over the regular selling price.
+            if ($deal = $dealPricing->priceFor($variant->product_id, $sellingPrice, $markedPrice)) {
+                $markedPrice  = $deal['marked_price'];
+                $sellingPrice = $deal['final_price'];
+            }
 
             // Discount derived from prices
             $totalDiscount = max($markedPrice - $sellingPrice, 0);

@@ -75,6 +75,11 @@ const product = (page.props as any).product ?? null;
 
 // Options
 const brandOptions: OptionItem[] = brands.map((b: any) => ({ id: b.id, name: b.name }));
+
+// Cars & Motors listings are described by make/model, so brand and package size don't apply.
+const isAutomotive = computed(() =>
+    availableMarketplaces.some((m: any) => m.type === 'automotive' && form.marketplaces.includes(m.key)),
+);
 const unitOptions: OptionItem[] = units.map((u: any) => ({ id: u.id, name: u.name }));
 
 // Steps
@@ -486,7 +491,7 @@ function handleSuccess(pageResponse: any) {
                                 </select>
                             </div>
 
-                            <div>
+                            <div v-if="!isAutomotive">
                             <label class="block text-sm font-medium text-gray-700">Package Size*</label>
                             <select v-model="form.package_size" class="w-full rounded-md border px-3 py-2">
                                 <option value="small">Small</option>
@@ -495,7 +500,7 @@ function handleSuccess(pageResponse: any) {
                             </select>
                         </div>
 
-                            <div>
+                            <div v-if="!isAutomotive">
                                 <SearchableSelect v-model="form.brand_id" :options="brandOptions" label="Brand*" placeholder="Select Brand" />
                             </div>
                             <div class="md:col-span-2">

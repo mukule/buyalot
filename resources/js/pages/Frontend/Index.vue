@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import CategorySidebar from '@/components/CategorySidebar.vue';
+import CountdownTimer from '@/components/CountdownTimer.vue';
+import DealsShortcuts from '@/components/DealsShortcuts.vue';
 import FeaturedBrands from '@/components/FeaturedBrands.vue';
 import Hero from '@/components/Hero.vue';
 import ProductCarouselSection from '@/components/ProductCarouselSection.vue';
 import MainLayout from '@/layouts/MainLayout.vue';
 import SeoHead from '@/components/SeoHead.vue';
+import { campaignHref, toSimplifiedProduct, type CampaignSummary } from '@/lib/products';
 import type { PageProps as InertiaPageProps } from '@inertiajs/core';
 import { usePage } from '@inertiajs/vue3';
 import type { Brand, Category, SimplifiedProduct } from '@/types';
@@ -20,6 +23,7 @@ interface PageProps extends InertiaPageProps {
     brands?:             Brand[];
     promotions?:         Promotion[];
     productsByCategory?: Record<number, any[]>;
+    campaignSections?:   CampaignSummary[];
 }
 
 // ─── Fallback ─────────────────────────────────────────────────────────────────
@@ -33,6 +37,7 @@ const page = usePage<PageProps>();
 const categories         = page.props.categories         ?? [];
 const brands             = page.props.brands             ?? [];
 const productsByCategory = page.props.productsByCategory ?? {};
+const campaignSections   = page.props.campaignSections   ?? [];
 
 const promotions = (page.props.promotions?.length ?? 0) > 0
     ? page.props.promotions!
@@ -42,19 +47,7 @@ const promotions = (page.props.promotions?.length ?? 0) > 0
 const simplifiedProductsByCategory: Record<number, SimplifiedProduct[]> = Object.fromEntries(
     Object.entries(productsByCategory).map(([categoryId, products]) => [
         Number(categoryId),
-        (products as any[]).map((p) => ({
-            id:               p.id,
-            hashid:           p.variant_hashid,
-            product_slug:     p.product_slug,
-            name:             p.name,
-            brand:            p.brand ?? null,
-            image:            p.primary_image_url || '/fallback-image.png',
-            marked_price:     p.marked_price      ?? 0,
-            final_price:      p.final_price       ?? 0,
-            discount_percent: p.discount_percent  ?? 0,
-            has_discount:     p.has_discount      ?? false,
-            rating:           3,
-        })),
+        (products as any[]).map(toSimplifiedProduct),
     ]),
 );
 
@@ -87,6 +80,38 @@ const filteredCategories = categories.filter(
                 </div>
             </div>
 
+        </section>
+
+        <!-- Deals shortcuts: Today's Deals / Offers / Seasonal -->
+        <section class="mb-4">
+            <DealsShortcuts :campaigns="campaignSections" />
+        </section>
+
+        <!-- Live campaigns (Today's Deals first) -->
+        <section v-if="campaignSections.length" class="mb-4 space-y-6">
+            <div
+                v-for="campaign in campaignSections"
+                :key="campaign.slug"
+                class="overflow-hidden rounded-lg"
+                :style="campaign.theme_color ? { borderTop: `4px solid ${campaign.theme_color}` } : undefined"
+            >
+                <ProductCarouselSection
+                    :title="campaign.title"
+                    :slug="campaign.slug"
+                    :href="campaign.type === 'daily_deal' ? '/deals/today' : campaignHref(campaign)"
+                    :products="(campaign.products ?? []).map(toSimplifiedProduct)"
+                >
+                    <template #header-extra>
+                        <span v-if="campaign.subtitle" class="text-sm text-gray-500">{{ campaign.subtitle }}</span>
+                        <CountdownTimer
+                            v-if="campaign.ends_at"
+                            :ends-at="campaign.ends_at"
+                            :label="campaign.type === 'daily_deal' ? 'Ends in' : 'Offer ends in'"
+                            class="text-red-600"
+                        />
+                    </template>
+                </ProductCarouselSection>
+            </div>
         </section>
 
         <!-- Featured Brands -->

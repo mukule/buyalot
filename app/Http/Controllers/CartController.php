@@ -504,14 +504,16 @@ public function store(Request $request, CartReservationService $cartService)
         $variant = $it->productVariant;
         $product = $variant?->product;
 
-        $unitPrice = $variant?->marked_price ?? 0;
+        // Show the price stored on the cart item (incl. any deal applied when it was added) —
+        // the same figures Cart::calculateTotals() and order placement use.
+        $unitPrice = (float) ($it->unit_price ?? $variant?->selling_price ?? 0);
         $ownerInfo = $variant?->getOwnerInfo();
 
         return [
             'id'          => $it->id,
             'quantity'    => $it->quantity,
             'unit_price'  => $unitPrice,
-            'total_price' => $unitPrice * $it->quantity,
+            'total_price' => (float) ($it->total_price ?? $unitPrice * $it->quantity),
             'product'     => [
                 'id'                => $product?->id,
                 'name'              => $product?->name ?? '',

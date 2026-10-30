@@ -9,21 +9,27 @@
  * `marketplaces` (array) and `attributes` (object) are the reactive references
  * from the parent useForm and are mutated in place so they submit with the form.
  */
-import { Car, ChevronDown, HardHat, Store } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { Car, ChevronDown, HardHat, Store, Wrench } from 'lucide-vue-next';
+import { computed, ref, watchEffect } from 'vue';
 
 interface FormField {
     key: string;
     label: string;
-    type: 'text' | 'number' | 'select' | 'checklist' | 'make' | 'model';
+    type: 'text' | 'number' | 'select' | 'checklist' | 'make' | 'model' | 'listing_type' | 'part_group' | 'part_type';
     options?: string[];
     required?: boolean;
     advanced?: boolean;
+    /** Only shown for this listing type (e.g. 'vehicle' | 'spare_part') */
+    for?: string;
 }
 interface VerticalOption {
     key: string;
     label: string;
+    type?: string;
     form_fields: FormField[];
+    listing_types?: Record<string, { label: string; icon?: string }> | null;
+    default_listing_type?: string | null;
+    part_groups?: Record<string, string[]> | null;
 }
 interface CarMake {
     name: string;
@@ -50,13 +56,50 @@ const toggle = (key: string) => {
     else props.marketplaces.splice(i, 1);
 };
 
-// Distinct fields across the selected verticals (deduped by key).
+// ── Listing type (Cars & Motors: vehicle or spare part) ───────────────────
+const typedVertical = computed(() => props.available.find((v) => isSelected(v.key) && v.listing_types));
+const listingTypes = computed(() => Object.entries(typedVertical.value?.listing_types ?? {}).map(([key, t]) => ({ key, ...t })));
+
+// Default the listing type once a typed vertical is selected (legacy listings = vehicle).
+watchEffect(() => {
+    const v = typedVertical.value;
+    if (v && !props.attributes.listing_type) {
+        props.attributes.listing_type = v.default_listing_type ?? Object.keys(v.listing_types ?? {})[0];
+    }
+});
+
+const setListingType = (key: string) => {
+    if (props.attributes.listing_type === key) return;
+    props.attributes.listing_type = key;
+    // Make/model mean different things for a car vs. a part it fits; start clean.
+    props.attributes.make = undefined;
+    props.attributes.model = undefined;
+    props.attributes.condition = undefined;
+};
+
+// ── Spare part group → part type ───────────────────────────────────────────
+const partGroups = computed(() => typedVertical.value?.part_groups ?? {});
+const partGroupNames = computed(() => Object.keys(partGroups.value));
+const partTypeOptions = computed(() => {
+    const list = [...(partGroups.value[props.attributes.part_group] ?? [])];
+    const current = props.attributes.part_type;
+    if (current && !list.includes(current)) list.unshift(current);
+    return list;
+});
+const onPartGroupChange = () => {
+    if (!partTypeOptions.value.includes(props.attributes.part_type)) props.attributes.part_type = undefined;
+};
+
+// Distinct fields across the selected verticals (deduped by key), limited to
+// those that apply to the chosen listing type.
 const activeFields = computed<FormField[]>(() => {
     const seen = new Set<string>();
     const fields: FormField[] = [];
     for (const v of props.available) {
         if (!isSelected(v.key)) continue;
+        const listingType = v.listing_types ? props.attributes.listing_type : undefined;
         for (const f of v.form_fields ?? []) {
+            if (f.for && f.for !== listingType) continue;
             if (seen.has(f.key)) continue;
             seen.add(f.key);
             fields.push(f);
@@ -65,7 +108,8 @@ const activeFields = computed<FormField[]>(() => {
     return fields;
 });
 
-const primaryFields = computed(() => activeFields.value.filter((f) => !f.advanced));
+// The listing type is rendered as a toggle above the grid, not as a grid field.
+const primaryFields = computed(() => activeFields.value.filter((f) => !f.advanced && f.type !== 'listing_type'));
 const advancedFields = computed(() => activeFields.value.filter((f) => f.advanced));
 
 const showAdvanced = ref(false);
@@ -142,6 +186,26 @@ const toggleCheck = (key: string, opt: string) => {
 
         <!-- Dynamic vertical attribute fields -->
         <div v-if="activeFields.length" class="mt-5">
+            <!-- Vehicle or spare part -->
+            <div v-if="listingTypes.length" class="mb-4">
+                <label class="mb-1 block text-xs font-medium text-gray-600">What are you listing?<span class="text-red-500">*</span></label>
+                <div class="inline-flex rounded-lg border border-gray-200 p-1">
+                    <button
+                        v-for="t in listingTypes"
+                        :key="t.key"
+                        type="button"
+                        :class="[
+                            'flex items-center gap-2 rounded-md px-4 py-1.5 text-sm font-medium transition',
+                            attributes.listing_type === t.key ? 'bg-primary text-white' : 'text-gray-600 hover:bg-gray-50',
+                        ]"
+                        @click="setListingType(t.key)"
+                    >
+                        <component :is="t.key === 'spare_part' ? Wrench : Car" class="h-4 w-4" />
+                        {{ t.label }}
+                    </button>
+                </div>
+            </div>
+
             <h4 class="mb-2 text-sm font-semibold text-gray-700">Listing details</h4>
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
                 <div v-for="field in primaryFields" :key="field.key">
@@ -169,6 +233,28 @@ const toggleCheck = (key: string, opt: string) => {
                     >
                         <option :value="undefined">{{ attributes.make ? 'Select model' : 'Select a make first' }}</option>
                         <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
+                    </select>
+
+                    <!-- Part of the car (spare parts are grouped by this) -->
+                    <select
+                        v-else-if="field.type === 'part_group'"
+                        v-model="attributes.part_group"
+                        class="w-full rounded-md border px-3 py-2 text-sm"
+                        @change="onPartGroupChange"
+                    >
+                        <option :value="undefined">Select part of the car</option>
+                        <option v-for="g in partGroupNames" :key="g" :value="g">{{ g }}</option>
+                    </select>
+
+                    <!-- Part (depends on the selected group) -->
+                    <select
+                        v-else-if="field.type === 'part_type'"
+                        v-model="attributes.part_type"
+                        :disabled="!attributes.part_group"
+                        class="w-full rounded-md border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-gray-100"
+                    >
+                        <option :value="undefined">{{ attributes.part_group ? 'Select part' : 'Select part of the car first' }}</option>
+                        <option v-for="t in partTypeOptions" :key="t" :value="t">{{ t }}</option>
                     </select>
 
                     <select

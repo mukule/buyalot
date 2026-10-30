@@ -23,6 +23,21 @@ class FrontendProductService
     const HOMEPAGE_VERSION_KEY = 'homepage_cache_version';
 
     public function getProductsGroupedByCategory($categories, int $limit = 12)
+    {
+        // Deals are applied after the (12h) cache so campaign prices are never stale.
+        return collect($this->getCachedProductsGroupedByCategory($categories, $limit))
+            ->map(fn ($items) => $this->applyDeals($items));
+    }
+
+    /**
+     * Apply live campaign deals to normalized storefront items.
+     */
+    public function applyDeals($items)
+    {
+        return app(DealPricingService::class)->applyToItems($items);
+    }
+
+    protected function getCachedProductsGroupedByCategory($categories, int $limit = 12)
 {
     $version = Cache::get(self::HOMEPAGE_VERSION_KEY, 1);
     $cacheKey = "home_grouped_v{$version}_" . $categories->pluck('id')->implode('_');
@@ -166,9 +181,9 @@ class FrontendProductService
     $priceData = $this->getPriceForVariants($paginator->getCollection());
 
     $paginator->setCollection(
-        $paginator->getCollection()->map(
+        $this->applyDeals($paginator->getCollection()->map(
             fn ($variant) => $this->normalizeVariant($variant, $priceData)
-        )
+        ))
     );
 
     return $paginator;
@@ -204,10 +219,38 @@ class FrontendProductService
 
     $priceData = $this->getPriceForVariants($variants);
 
-    return $variants->map(
+    return $this->applyDeals($variants->map(
         fn ($v) => $this->normalizeVariant($v, $priceData)
-    );
+    ));
 }
+
+    /**
+     * CAMPAIGN PRODUCTS — cheapest variant of each published product, deals applied,
+     * returned in the same order as $productIds (missing/unpublished ones skipped).
+     */
+    public function getItemsForProductIds(array $productIds)
+    {
+        if (empty($productIds)) return collect();
+
+        $variants = ProductVariant::query()
+            ->with(['product.brand', 'product.primaryImage', 'product.category'])
+            ->whereHas('product', function ($q) use ($productIds) {
+                $q->withoutGlobalScopes()
+                  ->whereIn('id', $productIds)
+                  ->where('status_id', 2)
+                  ->whereNotNull('slug')
+                  ->where('slug', '!=', '');
+            })
+            ->orderBy('selling_price')
+            ->get()
+            ->unique('product_id')
+            ->keyBy('product_id');
+
+        $ordered = collect($productIds)->map(fn ($id) => $variants->get($id))->filter()->values();
+        $priceData = $this->getPriceForVariants($ordered);
+
+        return $this->applyDeals($ordered->map(fn ($v) => $this->normalizeVariant($v, $priceData)));
+    }
 
     /**
      * NORMALIZER — strictly using your original fields
@@ -258,8 +301,32 @@ class FrontendProductService
     {
         if ($variants->isEmpty()) return [];
 
-        return $variants->mapWithKeys(function ($variant) {
+        $dealPricing = app(DealPricingService::class);
+
+        return $variants->mapWithKeys(function ($variant) use ($dealPricing) {
             $markedPrice = (float) ($variant->marked_price ?? 0);
+
+            // Live campaign deal (Today's Deals / Offers / Seasonal) overrides the
+            // regular price — this map feeds cart add + checkout, so it is charged.
+            $deal = $dealPricing->priceFor(
+                $variant->product_id,
+                (float) ($variant->selling_price ?? 0),
+                $markedPrice,
+            );
+            if ($deal) {
+                return [
+                    $variant->id => [
+                        'product_variant_id'  => $variant->id,
+                        'marked_price'        => $deal['marked_price'],
+                        'discounts'           => [],
+                        'total_discount'      => $deal['total_discount'],
+                        'discount_percentage' => (int) round($deal['discount_percent']),
+                        'final_price'         => $deal['final_price'],
+                        'has_discount'        => $deal['total_discount'] > 0,
+                    ],
+                ];
+            }
+
             $discountPercentage = $markedPrice > 0
                 ? (int) round(($variant->discount / $markedPrice) * 100)
                 : 0;
@@ -308,13 +375,16 @@ class FrontendProductService
         $maxPrice     = $filters['max_price'] ?? null;
         $availability = $filters['availability'] ?? null; // 'available' | 'reserved'
         $stockId      = $filters['stock_id'] ?? null;
+        $listingType  = $filters['listing_type'] ?? null;  // e.g. 'vehicle' | 'spare_part'
 
-        $applyProductFilters = function ($q) use ($verticalKey, $selects, $ranges, $availability, $stockId) {
+        $applyProductFilters = function ($q) use ($verticalKey, $selects, $ranges, $availability, $stockId, $listingType) {
             $q->withoutGlobalScopes()
               ->whereJsonContains('marketplaces', $verticalKey)
               ->where('status_id', 2)
               ->whereNotNull('slug')
               ->where('slug', '!=', '');
+
+            $this->applyListingTypeFilter($q, $verticalKey, $listingType);
 
             foreach ($selects as $key => $value) {
                 if ($value !== null && $value !== '') {
@@ -398,6 +468,11 @@ class FrontendProductService
             'price_asc'   => $items->sortBy('final_price'),
             'price_desc'  => $items->sortByDesc('final_price'),
             'year_desc'   => $items->sortByDesc(fn ($i) => (int) ($i['attributes']['year'] ?? 0)),
+            // Spare parts: keep each part of the car together, newest first within a group.
+            'part_group'  => $items->sortBy([
+                fn ($a, $b) => strnatcasecmp($a['attributes']['part_group'] ?? '~', $b['attributes']['part_group'] ?? '~'),
+                fn ($a, $b) => $b['id'] <=> $a['id'],
+            ]),
             'mileage_asc' => $items->sortBy(fn ($i) => (int) ($i['attributes']['mileage'] ?? PHP_INT_MAX)),
             default       => $items->sortByDesc('id'), // newest first (variant id proxy)
         };
@@ -425,7 +500,7 @@ class FrontendProductService
      * Distinct values per attribute key, for populating the vertical's select
      * filter dropdowns.
      */
-    public function getVerticalFilterOptions(string $verticalKey, array $selectKeys): array
+    public function getVerticalFilterOptions(string $verticalKey, array $selectKeys, ?string $listingType = null, array $where = []): array
     {
         $options = [];
         if ($verticalKey === '' || empty($selectKeys)) {
@@ -435,7 +510,13 @@ class FrontendProductService
         $products = Product::withoutGlobalScopes()
             ->whereJsonContains('marketplaces', $verticalKey)
             ->where('status_id', 2)
+            ->tap(fn ($q) => $this->applyListingTypeFilter($q, $verticalKey, $listingType))
             ->get(['id', 'attributes']);
+
+        // Option lists that depend on another selection, e.g. part types of the chosen part group.
+        foreach ($where as $attrKey => $value) {
+            $products = $products->filter(fn ($p) => ($p->attributes[$attrKey] ?? null) === $value);
+        }
 
         foreach ($selectKeys as $key) {
             $options[$key] = $products
@@ -448,5 +529,58 @@ class FrontendProductService
         }
 
         return $options;
+    }
+
+    /**
+     * Spare-part groups for a vertical with how many published listings each has,
+     * in config order: [['name' => 'Brakes', 'count' => 12, 'types' => [['name' => 'Brake pads', 'count' => 5], ...]], ...]
+     */
+    public function getVerticalPartGroups(string $verticalKey): array
+    {
+        $groups = config("marketplace.verticals.$verticalKey.part_groups", []);
+        if (empty($groups)) {
+            return [];
+        }
+
+        $parts = Product::withoutGlobalScopes()
+            ->whereJsonContains('marketplaces', $verticalKey)
+            ->where('status_id', 2)
+            ->tap(fn ($q) => $this->applyListingTypeFilter($q, $verticalKey, 'spare_part'))
+            ->get(['id', 'attributes']);
+
+        $byGroup = $parts->groupBy(fn ($p) => $p->attributes['part_group'] ?? '');
+
+        return collect($groups)->map(function ($types, $name) use ($byGroup) {
+            $inGroup = $byGroup->get($name, collect());
+            $typeCounts = $inGroup->countBy(fn ($p) => $p->attributes['part_type'] ?? '');
+
+            return [
+                'name'  => $name,
+                'count' => $inGroup->count(),
+                'types' => collect($types)
+                    ->map(fn ($t) => ['name' => $t, 'count' => $typeCounts->get($t, 0)])
+                    ->values()
+                    ->all(),
+            ];
+        })->values()->all();
+    }
+
+    /**
+     * Restrict a product query to one listing type of a vertical (Cars & Motors:
+     * vehicle / spare_part). Listings saved before listing types existed have no
+     * listing_type and belong to the vertical's default type.
+     */
+    protected function applyListingTypeFilter($query, string $verticalKey, ?string $listingType): void
+    {
+        $types = config("marketplace.verticals.$verticalKey.listing_types");
+        if (! $listingType || empty($types) || ! array_key_exists($listingType, $types)) {
+            return;
+        }
+
+        if ($listingType === config("marketplace.verticals.$verticalKey.default_listing_type")) {
+            $query->where(fn ($q) => $q->whereNull('attributes->listing_type')->orWhere('attributes->listing_type', $listingType));
+        } else {
+            $query->where('attributes->listing_type', $listingType);
+        }
     }
 }

@@ -6,7 +6,7 @@ import ProductVariantCreator from '@/components/ProductVariantCreator.vue';
 import SearchableSelect from '@/components/SearchableSelect.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
-import { defineAsyncComponent, onMounted, ref } from 'vue';
+import { computed, defineAsyncComponent, onMounted, ref } from 'vue';
 
 // Types
 interface OptionItem {
@@ -53,6 +53,11 @@ const form = useForm({
     marketplaces: productData?.marketplaces ?? [],
     attributes: productData?.attributes ?? {},
 });
+
+// Cars & Motors listings are described by make/model, so brand doesn't apply.
+const isAutomotive = computed(() =>
+    availableMarketplaces.some((m: any) => m.type === 'automotive' && form.marketplaces.includes(m.key)),
+);
 
 // Editor — lazy-loaded so the CKEditor bundle stays out of the main chunk.
 const RichTextEditor = defineAsyncComponent(() => import('@/components/RichTextEditor.vue'));
@@ -174,7 +179,7 @@ const submitStep = async () => {
 
                             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <CategoryDropdown v-model="form.category_id" :categories="categories" label="Category*" />
-                                <div>
+                                <div v-if="!isAutomotive">
                                     <SearchableSelect v-model="form.brand_id" :options="brandOptions" label="Brand*" placeholder="Select Brand" />
                                 </div>
                             </div>

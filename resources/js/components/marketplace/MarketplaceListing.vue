@@ -4,7 +4,28 @@ import VerticalFilters from '@/components/marketplace/VerticalFilters.vue';
 import VerticalProductCard from '@/components/marketplace/VerticalProductCard.vue';
 import { router } from '@inertiajs/vue3';
 import debounce from 'lodash/debounce';
-import { ArrowLeftRight, Filter, LayoutGrid, List, SlidersHorizontal, X } from 'lucide-vue-next';
+import {
+    Armchair,
+    ArrowLeftRight,
+    Car,
+    CarFront,
+    ChevronLeft,
+    Cog,
+    Disc,
+    Filter,
+    Fuel,
+    LayoutGrid,
+    LifeBuoy,
+    List,
+    Package,
+    Settings2,
+    SlidersHorizontal,
+    Snowflake,
+    Wind,
+    Wrench,
+    X,
+    Zap,
+} from 'lucide-vue-next';
 import { computed, reactive, ref } from 'vue';
 
 const props = withDefaults(
@@ -16,8 +37,13 @@ const props = withDefaults(
         activeFilters: Record<string, any>;
         products: any;
         quickTags?: { label: string; params: Record<string, any> }[];
+        /** Cars & Motors: vehicles vs spare parts */
+        listingTypes?: { key: string; label: string; icon?: string }[];
+        listingType?: string | null;
+        /** Spare-part groups (part of the car) with listing counts */
+        partGroups?: { name: string; count: number; types: { name: string; count: number }[] }[];
     }>(),
-    { quickTags: () => [] },
+    { quickTags: () => [], listingTypes: () => [], listingType: null, partGroups: () => [] },
 );
 
 const showFilters = ref(false);
@@ -51,6 +77,7 @@ const apply = (opts: { preserveState?: boolean } = {}) => {
             params[key] = value;
         }
     }
+    if (props.listingType) params.listing_type = props.listingType;
     showFilters.value = false;
     router.get(route('marketplace.show', props.vertical.key), params, {
         preserveScroll: true,
@@ -60,6 +87,57 @@ const apply = (opts: { preserveState?: boolean } = {}) => {
         replace: true,
     });
 };
+
+// ── Vehicles / spare parts ─────────────────────────────────────────────────
+const isSpareParts = computed(() => props.listingType === 'spare_part');
+
+// Switching listing type starts from a clean filter set (the filters differ).
+const switchListingType = (key: string) => {
+    if (key === props.listingType) return;
+    router.get(route('marketplace.show', props.vertical.key), { listing_type: key }, { preserveScroll: true });
+};
+
+const partGroupIcons: Record<string, any> = {
+    Engine: Cog,
+    'Ignition & Fuel System': Fuel,
+    'Transmission & Drivetrain': Settings2,
+    Brakes: Disc,
+    'Suspension & Steering': Wrench,
+    'Cooling & Air Conditioning': Snowflake,
+    'Electrical & Lighting': Zap,
+    Exhaust: Wind,
+    'Body & Exterior': CarFront,
+    Interior: Armchair,
+    'Wheels & Tyres': LifeBuoy,
+    'Filters & Service Parts': Filter,
+    Accessories: Package,
+};
+const partIcon = (group: string) => partGroupIcons[group] ?? Wrench;
+
+const activeGroup = computed(() => (isSpareParts.value ? (form.part_group as string | null) : null));
+const activeGroupTypes = computed(() => props.partGroups.find((g) => g.name === activeGroup.value)?.types.filter((t) => t.count > 0) ?? []);
+
+const selectPartGroup = (group: string | null) => {
+    form.part_group = group;
+    form.part_type = null;
+    apply();
+};
+const selectPartType = (type: string | null) => {
+    form.part_type = form.part_type === type ? null : type;
+    apply();
+};
+
+// Without a chosen group, show this page's parts in sections per part of the car.
+const groupedParts = computed(() => {
+    if (!isSpareParts.value || activeGroup.value || form.sort !== 'part_group') return null;
+    const sections = new Map<string, any[]>();
+    for (const p of productList.value) {
+        const g = p.attributes?.part_group ?? 'Other parts';
+        if (!sections.has(g)) sections.set(g, []);
+        sections.get(g)!.push(p);
+    }
+    return [...sections.entries()].map(([name, items]) => ({ name, items }));
+});
 
 // While typing a range, preserve state so the input keeps focus and its value.
 const applyDebounced = debounce(() => apply({ preserveState: true }), 500);
@@ -92,6 +170,73 @@ const toggleTag = (tag: { params: Record<string, any> }) => {
             >
                 <ArrowLeftRight class="h-4 w-4" /> Change marketplace
             </a>
+        </div>
+
+        <!-- Vehicles / Spare parts -->
+        <div v-if="listingTypes.length" class="mb-4 inline-flex rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+            <button
+                v-for="t in listingTypes"
+                :key="t.key"
+                type="button"
+                :class="[
+                    'flex items-center gap-2 rounded-md px-4 py-1.5 text-sm font-medium transition',
+                    listingType === t.key ? 'bg-primary text-white' : 'text-gray-600 hover:bg-gray-50',
+                ]"
+                @click="switchListingType(t.key)"
+            >
+                <component :is="t.key === 'spare_part' ? Wrench : Car" class="h-4 w-4" />
+                {{ t.label }}
+            </button>
+        </div>
+
+        <!-- Spare parts: shop by part of the car -->
+        <div v-if="isSpareParts && partGroups.length" class="mb-5">
+            <template v-if="!activeGroup">
+                <h2 class="mb-2 text-sm font-semibold text-gray-700">Shop by part of the car</h2>
+                <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-7">
+                    <button
+                        v-for="g in partGroups"
+                        :key="g.name"
+                        type="button"
+                        class="flex flex-col items-center gap-1.5 rounded-lg border bg-white p-3 text-center transition hover:border-primary hover:shadow-sm disabled:opacity-50"
+                        :disabled="g.count === 0"
+                        @click="selectPartGroup(g.name)"
+                    >
+                        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                            <component :is="partIcon(g.name)" class="h-5 w-5" />
+                        </span>
+                        <span class="text-xs leading-tight font-medium text-gray-800">{{ g.name }}</span>
+                        <span class="text-[11px] text-gray-500">{{ g.count }} part{{ g.count === 1 ? '' : 's' }}</span>
+                    </button>
+                </div>
+            </template>
+            <template v-else>
+                <div class="mb-2 flex items-center gap-2">
+                    <button type="button" class="inline-flex items-center text-sm text-gray-500 hover:text-primary" @click="selectPartGroup(null)">
+                        <ChevronLeft class="h-4 w-4" /> All parts
+                    </button>
+                    <span class="text-gray-300">/</span>
+                    <span class="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-800">
+                        <component :is="partIcon(activeGroup)" class="h-4 w-4 text-primary" /> {{ activeGroup }}
+                    </span>
+                </div>
+                <div v-if="activeGroupTypes.length" class="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:flex-wrap">
+                    <button
+                        v-for="t in activeGroupTypes"
+                        :key="t.name"
+                        type="button"
+                        :class="[
+                            'shrink-0 rounded-full border px-3 py-1 text-xs font-medium whitespace-nowrap transition',
+                            form.part_type === t.name
+                                ? 'border-primary bg-primary text-white'
+                                : 'border-gray-300 bg-white text-gray-600 hover:border-primary/60 hover:text-primary',
+                        ]"
+                        @click="selectPartType(t.name)"
+                    >
+                        {{ t.name }} <span class="opacity-70">({{ t.count }})</span>
+                    </button>
+                </div>
+            </template>
         </div>
 
         <!-- Quick tags (horizontally scrollable on mobile) -->
@@ -171,8 +316,31 @@ const toggleTag = (tag: { params: Record<string, any> }) => {
 
             <!-- Products -->
             <div class="col-span-12 md:col-span-8 lg:col-span-9">
+                <!-- Spare parts grouped by part of the car -->
+                <div v-if="groupedParts && productList.length" class="space-y-6">
+                    <section v-for="section in groupedParts" :key="section.name">
+                        <button
+                            type="button"
+                            class="mb-2 flex items-center gap-2 text-base font-semibold text-gray-800 hover:text-primary"
+                            @click="section.name !== 'Other parts' && selectPartGroup(section.name)"
+                        >
+                            <component :is="partIcon(section.name)" class="h-4 w-4 text-primary" />
+                            {{ section.name }}
+                        </button>
+                        <div class="grid gap-3" :class="view === 'list' ? 'grid-cols-1' : 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4'">
+                            <VerticalProductCard
+                                v-for="product in section.items"
+                                :key="product.id"
+                                :product="product"
+                                :type="vertical.type"
+                                :layout="view"
+                            />
+                        </div>
+                    </section>
+                </div>
+
                 <div
-                    v-if="productList.length"
+                    v-else-if="productList.length"
                     class="grid gap-3"
                     :class="view === 'list' ? 'grid-cols-1' : 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4'"
                 >

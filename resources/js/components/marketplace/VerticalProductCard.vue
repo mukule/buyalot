@@ -19,6 +19,8 @@ import {
     ShieldCheck,
     ShoppingCart,
     SlidersHorizontal,
+    Tag,
+    Wrench,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
@@ -37,6 +39,9 @@ const attrs = computed(() => props.product.attributes ?? {});
 const isReserved = computed(() => !!props.product.reserved);
 const isAutomotive = computed(() => props.type === 'automotive');
 const isConstruction = computed(() => props.type === 'construction');
+// Cars & Motors spare part (listings without a listing_type are vehicles).
+const isSparePart = computed(() => isAutomotive.value && attrs.value.listing_type === 'spare_part');
+const isVehicle = computed(() => isAutomotive.value && !isSparePart.value);
 const isAuthed = computed(() => !!(page.props as any).auth?.user);
 
 // Quote request (construction)
@@ -49,7 +54,7 @@ const quoteTarget = computed(() => ({
 }));
 
 const title = computed(() => {
-    if (isAutomotive.value) {
+    if (isVehicle.value) {
         const parts = [attrs.value.year, attrs.value.make, attrs.value.model].filter(Boolean);
         if (parts.length) return parts.join(' ');
     }
@@ -58,6 +63,16 @@ const title = computed(() => {
 
 const chips = computed(() => {
     const a = attrs.value;
+    if (isSparePart.value) {
+        const fits = [a.make, a.model].filter(Boolean).join(' ');
+        const years = a.year_from || a.year_to ? `${a.year_from ?? ''}–${a.year_to ?? ''}` : '';
+        return [
+            a.part_type ? { icon: Wrench, text: a.part_type } : null,
+            fits ? { icon: Car, text: `Fits ${fits}${years ? ` ${years}` : ''}` } : null,
+            a.part_origin ? { icon: ShieldCheck, text: a.part_origin } : null,
+            a.part_number ? { icon: Tag, text: `#${a.part_number}` } : null,
+        ].filter(Boolean);
+    }
     if (isAutomotive.value) {
         return [
             a.mileage != null ? { icon: Gauge, text: `${Number(a.mileage).toLocaleString()} km` } : null,
@@ -76,7 +91,7 @@ const chips = computed(() => {
     ].filter(Boolean);
 });
 
-const placeholderIcon = computed(() => (isAutomotive.value ? Car : HardHat));
+const placeholderIcon = computed(() => (isSparePart.value ? Wrench : isAutomotive.value ? Car : HardHat));
 
 const imgError = ref(false);
 const hasImage = computed(
@@ -201,6 +216,9 @@ const toggleReservation = () => {
         <div class="flex flex-1 flex-col gap-2 p-3">
             <div class="flex items-start justify-between gap-2">
                 <Link :href="`/products/${product.product_slug}?v=${product.id}`" class="block">
+                    <p v-if="isSparePart && attrs.part_group" class="text-[11px] font-semibold tracking-wide text-primary uppercase">
+                        {{ attrs.part_group }}
+                    </p>
                     <h3 class="line-clamp-2 text-sm font-semibold text-gray-800">{{ title }}</h3>
                 </Link>
             </div>
@@ -313,7 +331,7 @@ const toggleReservation = () => {
 
             <!-- Reservation controls (cars, authenticated users) -->
             <button
-                v-if="isAutomotive && isAuthed"
+                v-if="isVehicle && isAuthed"
                 type="button"
                 :disabled="isReserving"
                 :class="[
