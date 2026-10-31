@@ -10,6 +10,8 @@ import { LoaderCircle } from 'lucide-vue-next';
 interface Props {
     token: string;
     email: string;
+    /** Portal-specific submit URL (e.g. /admin/reset-password); storefront default otherwise */
+    submitUrl?: string;
 }
 
 const props = defineProps<Props>();
@@ -22,7 +24,7 @@ const form = useForm({
 });
 
 const submit = () => {
-    form.post(route('password.store'), {
+    form.post(props.submitUrl ?? route('password.store'), {
         onFinish: () => {
             form.reset('password', 'password_confirmation');
         },

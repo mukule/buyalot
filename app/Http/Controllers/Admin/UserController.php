@@ -365,7 +365,8 @@ class UserController extends Controller
         // Email the generated password to the user with the login URL
         $emailWarning = null;
         try {
-            $loginUrl = route('login');
+            // Link to the portal this account signs in through (staff → /admin/login, seller staff → /vendor/login).
+            $loginUrl = \App\Support\Portal::loginUrl(\App\Support\Portal::forUser($user));
             Mail::to($user->email)->send(new NewUserCredentialsMail($user, $generatedPassword, $loginUrl));
         } catch (\Throwable $e) {
             // Even if email fails, we keep the user creation but note the warning

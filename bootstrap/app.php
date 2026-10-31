@@ -36,6 +36,23 @@ return Application::configure(basePath: dirname(__DIR__))
             ShareSellerVerificationStatus::class,
         ]);
 
+        // Signed-out visitors go to the login page of the portal they were trying to reach
+        // (e.g. /admin/* → /admin/login), not the storefront login.
+        $middleware->redirectGuestsTo(fn (\Illuminate\Http\Request $request) => \App\Support\Portal::loginUrlForRequest($request));
+
+        // Signed-in users opening a login/forgot-password page go to their own dashboard.
+        $middleware->redirectUsersTo(function (\Illuminate\Http\Request $request) {
+            $portal = $request->session()->get('login_portal')
+                ?? \App\Support\Portal::forUser($request->user(), $request->session()->get('active_role'));
+
+            return match ($portal) {
+                \App\Support\Portal::ADMIN, \App\Support\Portal::VENDOR => route('admin.dashboard'),
+                \App\Support\Portal::DELIVERY    => route('delivery.dashboard'),
+                \App\Support\Portal::DISTRIBUTOR => route('distributor.dashboard'),
+                default                          => '/',
+            };
+        });
+
          $middleware->alias([
             'admin' => Admin::class,
             'role' => RoleMiddleware::class,

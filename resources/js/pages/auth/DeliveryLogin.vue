@@ -13,6 +13,7 @@ import AuthLayout from '@/layouts/AuthLayout.vue';
 defineProps<{
     status?: string;
     canResetPassword: boolean;
+    forgotPasswordUrl?: string;
     errors?: Record<string, string>;
 }>();
 
@@ -94,7 +95,7 @@ const submit = () => {
                             <Checkbox v-model:checked="form.remember" />
                             <span class="text-sm font-normal">Remember me</span>
                         </Label>
-                        <TextLink v-if="canResetPassword" :href="route('password.request')" class="text-sm">Forgot password?</TextLink>
+                        <TextLink v-if="canResetPassword" :href="forgotPasswordUrl ?? route('password.request')" class="text-sm">Forgot password?</TextLink>
                     </div>
 
                     <p class="text-sm text-muted-foreground">

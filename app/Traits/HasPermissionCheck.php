@@ -11,7 +11,7 @@ trait HasPermissionCheck
     {
         $user = auth()->user();
         if (!$user) {
-            return redirect()->route('login');
+            return redirect()->guest(\App\Support\Portal::loginUrlForRequest(request()));
         }
         if ($user->hasRole('super-admin') || $user->hasRole('admin')) {
             return null;

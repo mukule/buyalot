@@ -31,7 +31,7 @@ class EnsureSuperAdmin extends Command
         {--gender= : male, female or other}
         {--inactive : Create the account as inactive}
         {--reset-password : For an existing account, set and email a new random password}
-        {--login-url= : Login link for the email (defaults to route("login"), i.e. APP_URL)}';
+        {--login-url= : Login link for the email (defaults to APP_URL/admin/login)}';
 
     protected $description = 'Create or promote the first super-admin (only when none exists) and email login credentials';
 
@@ -60,7 +60,7 @@ class EnsureSuperAdmin extends Command
             return self::SUCCESS;
         }
 
-        $loginUrl = $this->option('login-url') ?: route('login');
+        $loginUrl = $this->option('login-url') ?: \App\Support\Portal::loginUrl(\App\Support\Portal::ADMIN);
         $user = User::where('email', $email)->first();
         $password = null;
 

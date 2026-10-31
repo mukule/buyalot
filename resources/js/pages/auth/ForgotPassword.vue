@@ -8,8 +8,11 @@ import AuthLayout from '@/layouts/AuthLayout.vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import { LoaderCircle } from 'lucide-vue-next';
 
-defineProps<{
+const props = defineProps<{
     status?: string;
+    /** Portal-specific URLs (e.g. /admin/forgot-password, /admin/login); storefront defaults otherwise */
+    submitUrl?: string;
+    loginUrl?: string;
 }>();
 
 const form = useForm({
@@ -17,7 +20,7 @@ const form = useForm({
 });
 
 const submit = () => {
-    form.post(route('password.email'));
+    form.post(props.submitUrl ?? route('password.email'));
 };
 </script>
 
@@ -47,7 +50,7 @@ const submit = () => {
 
             <div class="space-x-1 text-center text-sm text-muted-foreground">
                 <span>Or, return to</span>
-                <TextLink :href="route('login')">log in</TextLink>
+                <TextLink :href="loginUrl ?? route('login')">log in</TextLink>
             </div>
         </div>
     </AuthLayout>

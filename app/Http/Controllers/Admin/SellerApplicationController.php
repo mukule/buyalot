@@ -127,7 +127,8 @@ class SellerApplicationController extends Controller
             'status_reason' => 'Approved',
         ]);
 
-        $loginUrl = route('login');
+        // Approved sellers sign in through the vendor portal.
+        $loginUrl = \App\Support\Portal::loginUrl(\App\Support\Portal::VENDOR);
          DB::commit();
         try {
                 Mail::to($user->email)->send(new SellerApprovedMail($user, $password, $loginUrl));

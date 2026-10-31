@@ -12,6 +12,7 @@ use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 use App\Services\WishlistService;
+use App\Support\Portal;
 
 class AuthenticatedSessionController extends Controller
 {
@@ -21,6 +22,7 @@ class AuthenticatedSessionController extends Controller
     {
         return Inertia::render('auth/Login', [
             'canResetPassword' => Route::has('password.request'),
+            'forgotPasswordUrl' => Portal::forgotPasswordUrl(Portal::CUSTOMER),
             'status' => $request->session()->get('status'),
         ]);
     }
@@ -29,6 +31,7 @@ class AuthenticatedSessionController extends Controller
     {
         return Inertia::render('auth/SellerLogin', [
             'canResetPassword' => Route::has('password.request'),
+            'forgotPasswordUrl' => Portal::forgotPasswordUrl(Portal::VENDOR),
             'status' => $request->session()->get('status'),
         ]);
     }
@@ -37,6 +40,7 @@ class AuthenticatedSessionController extends Controller
     {
         return Inertia::render('auth/AdminLogin', [
             'canResetPassword' => Route::has('password.request'),
+            'forgotPasswordUrl' => Portal::forgotPasswordUrl(Portal::ADMIN),
             'status' => $request->session()->get('status'),
         ]);
     }
@@ -98,6 +102,7 @@ public function store(
         }
 
         session(['active_role' => 'customer', 'customer_id' => $customer->id]);
+        Portal::remember(Portal::CUSTOMER);
         $user->update(['last_login_at' => now()]);
         return redirect()->intended(route('home', ['customer' => $customer->id]))->with('success', 'Welcome back, ' . $user->name . '!');
     } else {
@@ -123,12 +128,17 @@ public function store(
 
     public function destroy(Request $request): RedirectResponse
     {
+        // Decide before the session is cleared: the portal used to sign in, else the user's usual one.
+        $portal = $request->session()->get('login_portal')
+            ?? Portal::forUser($request->user(), $request->session()->get('active_role'));
+
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        // Storefront customers go back to the shop; every other portal to its own login page.
+        return $portal === Portal::CUSTOMER ? redirect('/') : redirect(Portal::loginUrl($portal));
     }
 
     public function vendorStore(LoginRequest $request): RedirectResponse {
@@ -149,6 +159,7 @@ public function store(
 
         if ($user->hasPortalRole('seller')) {
             session(['active_role' => 'seller']);
+            Portal::remember(Portal::VENDOR);
             $user->update(['last_login_at' => now()]);
             return redirect()->intended(route('admin.dashboard'))
                 ->with('success', 'Welcome back, ' . $user->name . '!');
@@ -177,6 +188,7 @@ public function store(
         $user = Auth::user();
 
         if ($user->user_type == "user") {
+            Portal::remember(Portal::ADMIN);
             $user->update(['last_login_at' => now()]);
             return redirect()->intended(route('admin.dashboard'))
                 ->with('success', 'Welcome back, ' . $user->name . '!');
@@ -191,6 +203,7 @@ public function store(
     {
         return Inertia::render('auth/DeliveryLogin', [
             'canResetPassword' => Route::has('password.request'),
+            'forgotPasswordUrl' => Portal::forgotPasswordUrl(Portal::DELIVERY),
             'status' => $request->session()->get('status'),
         ]);
     }
@@ -199,6 +212,7 @@ public function store(
     {
         return Inertia::render('auth/DistributorLogin', [
             'canResetPassword' => Route::has('password.request'),
+            'forgotPasswordUrl' => Portal::forgotPasswordUrl(Portal::DISTRIBUTOR),
             'status' => $request->session()->get('status'),
         ]);
     }
@@ -218,6 +232,7 @@ public function store(
 
         if ($user->hasPortalRole('distributor')) {
             session(['active_role' => 'distributor']);
+            Portal::remember(Portal::DISTRIBUTOR);
             $user->update(['last_login_at' => now()]);
             return redirect()->intended(route('distributor.dashboard'))
                 ->with('success', 'Welcome back, ' . $user->name . '!');
@@ -272,6 +287,7 @@ public function store(
         $isActive = in_array($user->status, [1, true], true);
 
         if ($isDelivery && $isActive) {
+            Portal::remember(Portal::DELIVERY);
             $user->update(['last_login_at' => now()]);
             return redirect()->intended(route('delivery.dashboard'))
                 ->with('success', 'Welcome back, ' . $user->name . '!');

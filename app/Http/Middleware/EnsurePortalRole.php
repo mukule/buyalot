@@ -16,7 +16,7 @@ class EnsurePortalRole
     public function handle(Request $request, Closure $next, string ...$roles): Response
     {
         if (! Auth::check()) {
-            return redirect()->route('login');
+            return redirect()->guest(\App\Support\Portal::loginUrlForRequest($request));
         }
 
         $user = Auth::user();

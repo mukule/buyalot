@@ -13,6 +13,7 @@ import AuthLayout from '@/layouts/AuthLayout.vue';
 defineProps<{
     status?: string;
     canResetPassword: boolean;
+    forgotPasswordUrl?: string;
     errors?: Record<string, string>;
 }>();
 
@@ -109,7 +110,7 @@ const handleGoogleLogin = () => {
                             <span class="text-sm font-normal">Keep me logged in</span>
                         </Label>
 
-                        <TextLink v-if="canResetPassword" :href="route('password.request')" class="text-sm"> Forgot password? </TextLink>
+                        <TextLink v-if="canResetPassword" :href="forgotPasswordUrl ?? route('password.request')" class="text-sm"> Forgot password? </TextLink>
                     </div>
 
                     <Button type="submit" class="h-11 w-full text-white" :disabled="form.processing">

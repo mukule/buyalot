@@ -13,6 +13,7 @@ import VendorAuthLayout from '@/layouts/VendorAuthLayout.vue';
 defineProps<{
     status?: string;
     canResetPassword: boolean;
+    forgotPasswordUrl?: string;
     errors?: Record<string, string>;
 }>();
 
@@ -102,7 +103,7 @@ const submit = () => {
                             <span class="text-sm font-normal">Keep me logged in</span>
                         </Label>
 
-                        <TextLink v-if="canResetPassword" :href="route('password.request')" class="text-sm">
+                        <TextLink v-if="canResetPassword" :href="forgotPasswordUrl ?? route('password.request')" class="text-sm">
                             Forgot password?
                         </TextLink>
                     </div>

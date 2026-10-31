@@ -49,6 +49,15 @@ Route::middleware('guest')->group(function () {
 
     Route::post('reset-password', [NewPasswordController::class, 'store'])
         ->name('password.store');
+
+    // Portal-specific forgot/reset password (admin, vendor, delivery, distributor) so
+    // the emailed link, "back to login" and post-reset redirect stay on that portal.
+    Route::prefix('{portal}')->whereIn('portal', \App\Support\Portal::PREFIXED)->name('portal.')->group(function () {
+        Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
+        Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])->name('password.email');
+        Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])->name('password.reset');
+        Route::post('reset-password', [NewPasswordController::class, 'store'])->name('password.store');
+    });
 //    Route::get('login', [AuthenticatedSessionController::class, 'showLoginForm'])->name('login');
 
 });
