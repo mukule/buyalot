@@ -31,10 +31,12 @@
     "vue-tsc": "^2.2.4"
   },
   "dependencies": {
-    "@ckeditor/ckeditor5-build-classic": "^44.3.0",
-    "@ckeditor/ckeditor5-vue": "^7.3.0",
     "@inertiajs/core": "^2.2.1",
     "@inertiajs/vue3": "^2.3.4",
+    "@tiptap/extensions": "^3.32.0",
+    "@tiptap/pm": "^3.32.0",
+    "@tiptap/starter-kit": "^3.32.0",
+    "@tiptap/vue-3": "^3.32.0",
     "@vitejs/plugin-vue": "^5.2.1",
     "@vueuse/core": "^12.8.2",
     "axios": "^1.12.2",

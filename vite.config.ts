@@ -35,7 +35,7 @@ export default defineConfig(({ isSsrBuild }) => ({
             : {
                   output: {
                       manualChunks: {
-                          'vendor-editor': ['@ckeditor/ckeditor5-build-classic', '@ckeditor/ckeditor5-vue'],
+                          'vendor-editor': ['@tiptap/vue-3', '@tiptap/starter-kit', '@tiptap/extensions'],
                           'vendor-charts': ['chart.js', 'vue-chartjs'],
                           'vendor-ui': ['reka-ui', 'lucide-vue-next'],
                       },

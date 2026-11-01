@@ -5,7 +5,7 @@ import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { ArrowLeft, Save } from 'lucide-vue-next';
 import { defineAsyncComponent } from 'vue';
 
-// Lazy-loaded so the CKEditor bundle stays out of the main chunk.
+// Lazy-loaded so the rich-text editor bundle stays out of the main chunk.
 const RichTextEditor = defineAsyncComponent(() => import('@/components/RichTextEditor.vue'));
 
 // -------------------- Types --------------------

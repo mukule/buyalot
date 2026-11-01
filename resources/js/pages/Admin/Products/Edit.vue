@@ -59,7 +59,7 @@ const isAutomotive = computed(() =>
     availableMarketplaces.some((m: any) => m.type === 'automotive' && form.marketplaces.includes(m.key)),
 );
 
-// Editor — lazy-loaded so the CKEditor bundle stays out of the main chunk.
+// Editor — lazy-loaded so the rich-text editor bundle stays out of the main chunk.
 const RichTextEditor = defineAsyncComponent(() => import('@/components/RichTextEditor.vue'));
 const editorFields = ['description', 'features', 'specifications', 'whats_in_the_box'];
 

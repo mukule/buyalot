@@ -10,7 +10,7 @@ import type { ImageItem, VariantRow } from '@/types/product';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, defineAsyncComponent, onMounted, reactive, ref, watch } from 'vue';
 
-// Lazy-loaded so the CKEditor bundle stays out of the main chunk.
+// Lazy-loaded so the rich-text editor bundle stays out of the main chunk.
 const RichTextEditor = defineAsyncComponent(() => import('@/components/RichTextEditor.vue'));
 
 // ------------------ Types ------------------
@@ -568,7 +568,6 @@ function handleSuccess(pageResponse: any) {
                             <RichTextEditor
                                 v-model="form[field]"
                                 placeholder="Write here..."
-                                class="min-h-[200px] rounded-md border border-gray-200"
                             />
                         </div>
                         <div class="mt-4">
