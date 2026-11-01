@@ -72,8 +72,13 @@ class ProductService
             throw new \LogicException("Step {$step} did not return a persisted product");
         }
 
-        // Update product workflow status
-        $product->updateStatus(Product::STATUS_PENDING);
+        // Update product workflow status. An admin editing an already-published
+        // listing must not silently unpublish it; anyone else's edit goes back
+        // to review.
+        $isAdmin = $user && $user->hasRole(['admin', 'super-admin']);
+        if (! ($isAdmin && (int) $product->status_id === Product::STATUS_APPROVED)) {
+            $product->updateStatus(Product::STATUS_PENDING);
+        }
 
         $product->update([
             'current_step'       => $step + 1,
@@ -136,6 +141,7 @@ protected function handleStep1(array $data, ?User $user, ?array $images, ?Produc
             ],
         ));
 
+        $this->applyVehicleListingStatus($product, $data);
 
         return $product;
     }
@@ -146,9 +152,32 @@ protected function handleStep1(array $data, ?User $user, ?array $images, ?Produc
     $data['marketplaces'] = $marketplaces;
     $data['attributes']   = $attributes;
     $product = $this->createBaseProduct($data, $user);
+    $this->applyVehicleListingStatus($product, $data);
 
     Log::info('Base product created', ['product_id' => $product->id]);
     return $product;
+}
+
+/**
+ * Vehicles carry a listing status (available / reserved / sold) instead of
+ * stock. Maps it onto reserved_at / sold_at, keeping existing timestamps when
+ * the status hasn't changed.
+ */
+protected function applyVehicleListingStatus(Product $product, array $data): void
+{
+    if (! $product->isVehicleListing()) {
+        return;
+    }
+
+    $status = $data['listing_status'] ?? null;
+    if (! in_array($status, Product::LISTING_STATUSES, true)) {
+        return;
+    }
+
+    $product->forceFill([
+        'reserved_at' => $status === Product::LISTING_RESERVED ? ($product->reserved_at ?? now()) : null,
+        'sold_at'     => $status === Product::LISTING_SOLD ? ($product->sold_at ?? now()) : null,
+    ])->save();
 }
 
 protected function handleStep2(
@@ -186,6 +215,11 @@ protected function handleStep2(
         'video_url',
     ]);
 
+    // Vehicles have no "what's in the box".
+    if ($product->isVehicleListing()) {
+        $payload['whats_in_the_box'] = null;
+    }
+
     // 4. Update
     if (!empty($payload)) {
         $product->update($payload);
@@ -208,8 +242,14 @@ protected function handleStep3(array $data, ?User $user, ?array $images, ?Produc
             throw new \Illuminate\Auth\Access\AuthorizationException("Unauthorized.");
         }
 
+        // A vehicle is a single one-off item: stock isn't entered, it's always 1.
+        // Availability is the listing status (available / reserved / sold).
+        // It still needs one priced variant (even without colour/size values)
+        // or it can't appear in the marketplace listing.
+        $isVehicle = $product->isVehicleListing();
+
         $variantRows = collect($data['variant_rows'] ?? [])
-            ->filter(fn($row) => !empty($row['values']) && is_array($row['values']));
+            ->filter(fn($row) => is_array($row) && ($isVehicle || (!empty($row['values']) && is_array($row['values']))));
 
         if ($variantRows->isEmpty()) return $product;
 
@@ -226,7 +266,7 @@ protected function handleStep3(array $data, ?User $user, ?array $images, ?Produc
             $markedPrice  = $row['marked_price'] ?? 0;
 
             $variantData = [
-                'stock'         => $row['stock'] ?? 0,
+                'stock'         => $isVehicle ? 1 : ($row['stock'] ?? 0),
                 'buying_price'  => $markedPrice,
                 'marked_price'  => $markedPrice,
                 'regular_price' => $markedPrice,
@@ -248,7 +288,7 @@ protected function handleStep3(array $data, ?User $user, ?array $images, ?Produc
             $submittedIds[] = $productVariant->id;
 
             // 2. Map Attributes (Color, Size, etc.)
-            foreach ($row['values'] as $categoryId => $value) {
+            foreach ((is_array($row['values'] ?? null) ? $row['values'] : []) as $categoryId => $value) {
                 $value = trim((string)$value);
                 if ($value === '' || !isset($validCategories[$categoryId])) continue;
 

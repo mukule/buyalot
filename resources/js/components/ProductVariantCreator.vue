@@ -21,6 +21,8 @@ interface VariantRow {
 const props = defineProps<{
     variantCategories: VariantCategory[];
     variantRows?: VariantRow[];
+    /** Vehicles are one-off listings: no stock input (the server stores 1). */
+    hideStock?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -296,8 +298,8 @@ watch(
                     </div>
                 </fieldset>
 
-                <!-- Stock -->
-                <fieldset class="space-y-3">
+                <!-- Stock (not used for vehicles) -->
+                <fieldset v-if="!hideStock" class="space-y-3">
                     <legend class="text-sm font-semibold text-gray-700">Inventory</legend>
                     <div class="max-w-xs">
                         <label class="mb-1 block text-sm font-medium text-gray-700">Stock Quantity</label>

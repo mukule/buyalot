@@ -6,7 +6,14 @@ use App\Models\Category;
 use App\Models\Products\Product;
 use App\Models\Products\ProductQuoteRequest;
 use App\Services\FrontendProductService;
+use App\Services\MessageModerationService;
 use App\Services\PlateDetectionService;
+use App\Models\User;
+use App\Models\VehicleInquiry;
+use App\Models\ProductReport;
+use App\Notifications\ProductReportedNotification;
+use App\Notifications\VehicleInquiryNotification;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cookie;
 use Inertia\Inertia;
@@ -171,6 +178,123 @@ class MarketplaceController extends Controller
     }
 
     /**
+     * Buyer inquiry on a vehicle listing (vehicles have no cart). The message is
+     * screened for abusive language (English / Swahili / Sheng); an abusive
+     * message is not delivered and the sender is blocked from sending more.
+     */
+    public function inquire(Request $request, MessageModerationService $moderation)
+    {
+        $user = $request->user();
+
+        if ($user->inquiry_blocked_at !== null) {
+            return back(303)->withErrors([
+                'message' => 'You can no longer send messages to sellers because a previous message contained abusive language.',
+            ]);
+        }
+
+        $type = $request->input('type', VehicleInquiry::TYPE_MESSAGE);
+
+        $validated = $request->validate([
+            'type'         => ['nullable', 'in:' . implode(',', VehicleInquiry::TYPES)],
+            'product_id'   => ['required', 'integer', 'exists:products,id'],
+            'name'         => ['required', 'string', 'max:255'],
+            'email'        => ['nullable', 'email', 'max:255'],
+            // A call-back needs a number to call.
+            'phone'        => [$type === VehicleInquiry::TYPE_CALLBACK ? 'required' : 'nullable', 'string', 'max:50'],
+            // A plain inquiry needs a message; call-backs and offers may add a note.
+            'message'      => [$type === VehicleInquiry::TYPE_MESSAGE ? 'required' : 'nullable', 'string', 'min:2', 'max:2000'],
+            'offer_amount' => [$type === VehicleInquiry::TYPE_OFFER ? 'required' : 'nullable', 'numeric', 'min:1', 'max:9999999999'],
+        ]);
+        $validated['type'] = $type;
+        $validated['message'] = $validated['message'] ?? '';
+        if ($type !== VehicleInquiry::TYPE_OFFER) {
+            $validated['offer_amount'] = null;
+        }
+
+        if (empty($validated['email']) && empty($validated['phone'])) {
+            return back(303)->withErrors(['phone' => 'Provide a phone number or email so the seller can reach you.']);
+        }
+
+        $product = Product::withoutGlobalScopes()->findOrFail($validated['product_id']);
+        if (! $product->isVehicleListing()) {
+            abort(404);
+        }
+        if ($product->sold_at !== null) {
+            return back(303)->withErrors(['message' => 'This vehicle has already been sold.']);
+        }
+
+        $result = $validated['message'] !== ''
+            ? $moderation->check($validated['message'])
+            : ['abusive' => false, 'checked' => false, 'reason' => null];
+
+        $inquiry = VehicleInquiry::create([
+            ...$validated,
+            'user_id'            => $user->id,
+            'seller_id'          => $product->owner_id,
+            'status'             => $result['abusive'] ? VehicleInquiry::STATUS_BLOCKED : VehicleInquiry::STATUS_DELIVERED,
+            'moderation_checked' => $result['checked'],
+            'moderation_reason'  => $result['reason'],
+        ]);
+
+        if ($result['abusive']) {
+            $user->forceFill(['inquiry_blocked_at' => now()])->save();
+
+            return back(303)->withErrors([
+                'message' => 'Your message was not sent because it contains abusive language. Please do not use abusive words — you have been blocked from sending further messages.',
+            ]);
+        }
+
+        Notification::send($this->inquiryRecipients($product), new VehicleInquiryNotification($inquiry));
+
+        return back(303)->with('success', match ($type) {
+            VehicleInquiry::TYPE_CALLBACK => 'Call-back requested. The seller will call you shortly.',
+            VehicleInquiry::TYPE_OFFER    => 'Your offer has been sent to the seller.',
+            default                       => 'Your inquiry has been sent to the seller.',
+        });
+    }
+
+    /**
+     * Report a marketplace listing (scam, wrong info, already sold, ...) for admin review.
+     */
+    public function report(Request $request)
+    {
+        $validated = $request->validate([
+            'product_id' => ['required', 'integer', 'exists:products,id'],
+            'reason'     => ['required', 'in:' . implode(',', array_keys(ProductReport::REASONS))],
+            'comment'    => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $report = ProductReport::firstOrCreate(
+            ['product_id' => $validated['product_id'], 'user_id' => $request->user()->id],
+            ['reason' => $validated['reason'], 'comment' => $validated['comment'] ?? null],
+        );
+
+        if ($report->wasRecentlyCreated) {
+            $admins = User::role(['admin', 'super-admin'])->get();
+            if ($admins->isNotEmpty()) {
+                Notification::send($admins, new ProductReportedNotification($report));
+            }
+        }
+
+        return back(303)->with('success', 'Thanks, your report has been sent to our team for review.');
+    }
+
+    /**
+     * The listing's seller; admin-owned (or ownerless) listings go to the admins.
+     */
+    protected function inquiryRecipients(Product $product)
+    {
+        $owner = $product->owner_id ? User::find($product->owner_id) : null;
+        if ($owner && $product->owner_type !== 'admin') {
+            return collect([$owner]);
+        }
+
+        $admins = User::role(['admin', 'super-admin'])->get();
+
+        return $admins->isNotEmpty() ? $admins : collect(array_filter([$owner]));
+    }
+
+    /**
      * Auto-detect license-plate regions in an uploaded car photo (ANPR model),
      * returned as fractional bounding boxes for the client-side blur editor.
      */
@@ -195,6 +319,10 @@ class MarketplaceController extends Controller
      */
     public function reserve(Request $request, Product $product)
     {
+        if ($product->sold_at !== null) {
+            return back(303)->with('error', 'This vehicle has already been sold.');
+        }
+
         $product->forceFill(['reserved_at' => now()])->saveQuietly();
 
         return back(303)->with('success', 'Listing reserved.');

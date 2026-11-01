@@ -2,12 +2,14 @@
 import MapLocationModal from '@/components/MapLocationModal.vue';
 import ProductCarouselSection from '@/components/ProductCarouselSection.vue';
 import Car360Viewer from '@/components/marketplace/Car360Viewer.vue';
+import InquiryModal from '@/components/marketplace/InquiryModal.vue';
 import QuoteRequestModal from '@/components/marketplace/QuoteRequestModal.vue';
+import ReportListingModal from '@/components/marketplace/ReportListingModal.vue';
 import MainLayout from '@/layouts/MainLayout.vue';
 import SeoHead from '@/components/SeoHead.vue';
 import type { SimplifiedProduct } from '@/types';
 import { router, usePage } from '@inertiajs/vue3';
-import { Expand, Info, Minus, Plus, Rotate3d, ShoppingCart, Star } from 'lucide-vue-next';
+import { BadgeCheck, Expand, Flag, HandCoins, Info, MessageSquare, Minus, PhoneCall, Plus, Rotate3d, ShieldAlert, ShoppingCart, Star, Store } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 
 // --- Types ---
@@ -65,6 +67,9 @@ const props = defineProps<{
         whats_in_the_box?: string;
         attributes?: Record<string, any>;
         marketplaces?: string[];
+        is_vehicle?: boolean;
+        seller?: { name: string; is_store: boolean; verified: boolean; member_since: string | null; listings_count: number | null } | null;
+        listing_status?: 'available' | 'reserved' | 'sold';
         primary_image_url?: string | null;
         video_url?: string | null;
         images: string[];
@@ -172,7 +177,7 @@ const isOptionAvailable = (attrName: string, value: string): boolean => {
 
     return Object.entries(map).some(([key, variant]) => {
         const parts = key.split('|');
-        return parts[attrIndex] === value && variant.stock > 0;
+        return parts[attrIndex] === value && (props.product.is_vehicle || variant.stock > 0);
     });
 };
 
@@ -240,12 +245,16 @@ const formatAttr = (key: string, val: any): string => {
     if (key === 'mileage') return `${Number(val).toLocaleString()} km`;
     if (key === 'engine_cc') return `${Number(val).toLocaleString()} cc`;
     if (key === 'steering') return `${val} hand drive`;
+    if (Array.isArray(val)) return val.join(', ');
     return String(val);
 };
 
+// Shown elsewhere (contact button, chips) or internal — not in the spec table.
+const SPEC_HIDDEN = new Set(['phone', 'listing_type', 'negotiable', 'second_condition', 'features']);
+
 const specEntries = computed(() =>
     Object.entries(props.product.attributes ?? {})
-        .filter(([, v]) => v !== null && v !== '' && v !== undefined)
+        .filter(([k, v]) => !SPEC_HIDDEN.has(k) && v !== null && v !== '' && v !== undefined && !(Array.isArray(v) && !v.length))
         .map(([k, v]) => ({ key: k, label: ATTR_LABELS[k] ?? humanize(k), value: formatAttr(k, v) })),
 );
 
@@ -278,6 +287,52 @@ const show360 = ref(false);
 const has360 = computed(() => isCar.value && currentImages.value.length >= 2);
 
 const showQuote = ref(false);
+
+// --- VEHICLES: no stock / cart — a listing status and an inquiry instead ---
+const isVehicle = computed(() => !!props.product.is_vehicle);
+const listingStatus = computed(() => props.product.listing_status ?? 'available');
+const listingStatusLabel = computed(() => ({ available: 'Available', reserved: 'Reserved', sold: 'Sold' })[listingStatus.value]);
+const listingStatusClass = computed(
+    () =>
+        ({
+            available: 'bg-green-100 text-green-700',
+            reserved: 'bg-amber-100 text-amber-700',
+            sold: 'bg-gray-200 text-gray-700',
+        })[listingStatus.value],
+);
+const showInquiry = ref(false);
+const inquiryMode = ref<'message' | 'callback' | 'offer'>('message');
+const openInquiry = (mode: 'message' | 'callback' | 'offer') => {
+    inquiryMode.value = mode;
+    showInquiry.value = true;
+};
+const showReport = ref(false);
+
+// Jiji-style quick facts under the title (cars & motors listings).
+const isNegotiable = computed(() => detailAttrs.value.negotiable === 'Yes');
+const tagChips = computed<string[]>(() => {
+    if (!isCar.value) return [];
+    const a = detailAttrs.value;
+    return [
+        a.condition,
+        a.fuel,
+        a.transmission,
+        a.registered === 'Yes' ? 'Registered' : a.registered === 'No' ? 'Unregistered' : null,
+        a.exchange_possible === 'Yes' ? 'Exchange possible' : null,
+        ...(Array.isArray(a.second_condition) ? a.second_condition : []),
+    ].filter(Boolean) as string[];
+});
+
+// Seller card: "3 years on Bianlina" style tenure.
+const sellerTenure = computed(() => {
+    const since = props.product.seller?.member_since;
+    if (!since) return null;
+    const months = Math.max(0, Math.floor((Date.now() - new Date(since).getTime()) / (30.44 * 24 * 3600 * 1000)));
+    if (months < 1) return 'New seller';
+    if (months < 12) return `${months} month${months === 1 ? '' : 's'} on ${(page.props as any).appName ?? 'Bianlina'}`;
+    const years = Math.floor(months / 12);
+    return `${years}+ year${years === 1 ? '' : 's'} on ${(page.props as any).appName ?? 'Bianlina'}`;
+});
 const quoteTarget = computed(() => ({
     id: props.product.id,
     name: props.product.name,
@@ -493,7 +548,12 @@ const videoEmbedUrl = computed<string | null>(() => {
                             <!-- RIGHT: DETAILS -->
                             <div class="w-full space-y-4 md:w-1/2">
                                 <h1 class="text-2xl font-bold text-gray-800">{{ product.name }}</h1>
-                                <p class="text-sm text-secondary">Brand: {{ product.brand?.name }}</p>
+                                <p v-if="product.brand?.name" class="text-sm text-secondary">Brand: {{ product.brand?.name }}</p>
+                                <div v-if="tagChips.length" class="flex flex-wrap gap-1.5">
+                                    <span v-for="chip in tagChips" :key="chip" class="rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                                        {{ chip }}
+                                    </span>
+                                </div>
                                 <hr />
 
                                 <!-- Price -->
@@ -513,10 +573,17 @@ const videoEmbedUrl = computed<string | null>(() => {
                                     >
                                         {{ formatPrice(displayPrice.marked_price) }}
                                     </p>
+                                    <p v-if="isNegotiable" class="text-xs font-medium text-gray-500">Negotiable</p>
                                 </div>
 
+                                <!-- Vehicle status (vehicles don't track stock) -->
+                                <p v-if="isVehicle">
+                                    <span class="inline-block rounded-full px-3 py-1 text-xs font-semibold" :class="listingStatusClass">
+                                        {{ listingStatusLabel }}
+                                    </span>
+                                </p>
                                 <!-- Stock -->
-                                <p v-if="currentStock === 0" class="font-semibold text-red-600">Out of Stock</p>
+                                <p v-else-if="currentStock === 0" class="font-semibold text-red-600">Out of Stock</p>
                                 <p v-else-if="currentStock <= 5" class="text-sm font-medium text-orange-500">
                                     Only {{ currentStock }} left in stock!
                                 </p>
@@ -580,8 +647,39 @@ const videoEmbedUrl = computed<string | null>(() => {
                                     </div>
                                 </div>
 
+                                <!-- VEHICLES: inquire instead of add to cart -->
+                                <div v-if="isVehicle" class="mt-4">
+                                    <div v-if="listingStatus !== 'sold'" class="space-y-2">
+                                        <button
+                                            type="button"
+                                            class="flex w-full items-center justify-center gap-2 rounded bg-primary px-4 py-2 text-white transition hover:bg-primary/90"
+                                            @click="openInquiry('message')"
+                                        >
+                                            <MessageSquare class="h-4 w-4" />
+                                            <span>Inquire</span>
+                                        </button>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <button
+                                                type="button"
+                                                class="flex items-center justify-center gap-2 rounded border border-primary/40 px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/10"
+                                                @click="openInquiry('callback')"
+                                            >
+                                                <PhoneCall class="h-4 w-4" /> Request call back
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="flex items-center justify-center gap-2 rounded border border-primary/40 px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/10"
+                                                @click="openInquiry('offer')"
+                                            >
+                                                <HandCoins class="h-4 w-4" /> Make an offer
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <p v-else class="rounded bg-gray-100 px-4 py-2 text-center text-sm font-medium text-gray-600">This vehicle has been sold.</p>
+                                </div>
+
                                 <!-- CART CONTROLS -->
-                                <div class="mt-4">
+                                <div v-else class="mt-4">
                                     <template v-if="currentCartItem">
                                         <div class="flex items-center gap-2">
                                             <button
@@ -616,6 +714,41 @@ const videoEmbedUrl = computed<string | null>(() => {
                                         </button>
                                     </template>
                                 </div>
+
+                                <!-- Marketplace: seller card, safety tips, report -->
+                                <template v-if="isCar">
+                                    <div v-if="product.seller" class="flex items-center gap-3 rounded-lg border border-gray-200 p-3">
+                                        <span class="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-primary/10 text-primary">
+                                            <Store class="h-5 w-5" />
+                                        </span>
+                                        <div class="min-w-0 flex-1">
+                                            <p class="flex items-center gap-1 truncate text-sm font-semibold text-gray-800">
+                                                {{ product.seller.name }}
+                                                <BadgeCheck v-if="product.seller.verified" class="h-4 w-4 flex-none text-primary" aria-label="Verified seller" />
+                                            </p>
+                                            <p class="text-xs text-gray-500">
+                                                <span v-if="product.seller.verified">Verified seller</span>
+                                                <span v-if="sellerTenure"> · {{ sellerTenure }}</span>
+                                                <span v-if="product.seller.listings_count"> · {{ product.seller.listings_count }} active ads</span>
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div class="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
+                                        <p class="mb-1 flex items-center gap-1.5 font-semibold"><ShieldAlert class="h-4 w-4" /> Safety tips</p>
+                                        <ul class="list-disc space-y-0.5 pl-5">
+                                            <li>Don't send any prepayments or deposits before seeing the {{ isVehicle ? 'vehicle' : 'item' }}.</li>
+                                            <li>Meet the seller at a safe, public place.</li>
+                                            <li>Inspect the {{ isVehicle ? 'vehicle and test-drive it' : 'item' }} before you pay.</li>
+                                            <li v-if="isVehicle">Check the logbook and that the seller's ID matches the registered owner.</li>
+                                            <li>Only pay when you're satisfied.</li>
+                                        </ul>
+                                    </div>
+
+                                    <button type="button" class="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-secondary" @click="showReport = true">
+                                        <Flag class="h-3.5 w-3.5" /> Report this listing
+                                    </button>
+                                </template>
                             </div>
                         </div>
                     </div>
@@ -834,6 +967,14 @@ const videoEmbedUrl = computed<string | null>(() => {
 
             <!-- Bulk quote modal -->
             <QuoteRequestModal :open="showQuote" :product="quoteTarget" @close="showQuote = false" />
+            <InquiryModal
+                v-if="isVehicle"
+                :open="showInquiry"
+                :mode="inquiryMode"
+                :product="{ id: product.id, name: product.name, price: displayPrice?.final_price ?? null }"
+                @close="showInquiry = false"
+            />
+            <ReportListingModal v-if="isCar" :open="showReport" :product-id="product.id" @close="showReport = false" />
 
             <!-- Home delivery map modal -->
             <MapLocationModal

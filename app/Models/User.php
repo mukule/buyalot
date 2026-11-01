@@ -60,6 +60,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'provider_verified_at'=>'datetime',
             'last_login_at' => 'datetime',
+            'inquiry_blocked_at' => 'datetime',
             'suspended_at' => 'datetime',
             'google_id'=>'string',
             'provider'=>'string',

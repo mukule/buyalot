@@ -50,4 +50,11 @@ return [
         'url'   => env('PLATE_RECOGNIZER_URL', 'https://api.platerecognizer.com/v1/plate-reader/'),
     ],
 
+    // Claude — screens buyer -> seller vehicle inquiries for abusive language
+    // (English / Swahili / Sheng). Optional: without a key, messages are sent unscreened.
+    'anthropic' => [
+        'key'              => env('ANTHROPIC_API_KEY'),
+        'moderation_model' => env('ANTHROPIC_MODERATION_MODEL', 'claude-opus-5-5'),
+    ],
+
 ];

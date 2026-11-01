@@ -414,10 +414,13 @@ class FrontendProductService
             }
 
             // Reservation status (a listing is reserved when reserved_at is set).
+            // A sold listing is neither available nor reserved.
             if ($availability === 'available') {
-                $q->whereNull('reserved_at');
+                $q->whereNull('reserved_at')->whereNull('sold_at');
             } elseif ($availability === 'reserved') {
-                $q->whereNotNull('reserved_at');
+                $q->whereNotNull('reserved_at')->whereNull('sold_at');
+            } elseif ($availability === 'sold') {
+                $q->whereNotNull('sold_at');
             }
 
             // Stock ID search matches the product_code.
@@ -491,7 +494,9 @@ class FrontendProductService
         $base['attributes'] = $attributes;
         $base['location']   = $attributes['location'] ?? null;
         $base['stock_id']   = $product?->product_code;
-        $base['reserved']   = $product?->reserved_at !== null;
+        $base['reserved']   = $product?->reserved_at !== null && $product?->sold_at === null;
+        $base['sold']       = $product?->sold_at !== null;
+        $base['listing_status'] = $product?->listingStatus() ?? 'available';
 
         return $base;
     }

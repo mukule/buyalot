@@ -121,6 +121,10 @@ Route::middleware(['auth','role:admin|seller|vendor|super-admin','check_permissi
     Route::patch('products/{product}/status', [ProductController::class, 'updateStatus'])
         ->name('products.updateStatus');
 
+    // Vehicle listing status: available / reserved / sold (seller or admin)
+    Route::patch('products/{product}/listing-status', [ProductController::class, 'updateListingStatus'])
+        ->name('products.listingStatus');
+
     Route::patch('warranties/{warranty}/toggle-active', [WarrantyController::class, 'toggleActive'])
         ->name('warranties.toggleActive');
 
@@ -501,6 +505,10 @@ Route::prefix('marketplace')->name('marketplace.')->group(function () {
     // Reservation management (view/remove reserved cars). Auth-gated.
     Route::middleware('auth')->group(function () {
         Route::post('/reserve/{product}', [MarketplaceController::class, 'reserve'])->name('reserve');
+        // Vehicle inquiry (message the seller) — screened for abusive language.
+        Route::post('/inquire', [MarketplaceController::class, 'inquire'])->middleware('throttle:10,1')->name('inquire');
+        // Report a listing (scam, wrong info, ...) for admin review.
+        Route::post('/report', [MarketplaceController::class, 'report'])->middleware('throttle:10,1')->name('report');
         Route::post('/unreserve/{product}', [MarketplaceController::class, 'unreserve'])->name('unreserve');
         // ANPR plate detection for the blur editor (used in the product form).
         Route::post('/detect-plates', [MarketplaceController::class, 'detectPlates'])

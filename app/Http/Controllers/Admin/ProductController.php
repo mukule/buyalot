@@ -80,6 +80,9 @@ public function index(Request $request)
                 'primary_image_url' => $product->primary_image_url,
                 'marketplaces' => $product->marketplaces ?? [],
                 'stock' => $product->productVariants->sum('stock'),
+                // Vehicles show/edit a listing status instead of stock.
+                'is_vehicle' => $product->isVehicleListing(),
+                'listing_status' => $product->listingStatus(),
                 'hashid' => $product->hashid,
                 'status_id' => $product->status_id ?? null,
                 'status_label' => $product->status_label ?? 'Draft',
@@ -272,7 +275,10 @@ public function create()
         'video_url' => $draftProduct->video_url,
         'package_size' => $draftProduct->package_size,
         'marketplaces' => $draftProduct->marketplaces ?? [],
-        'attributes' => $draftProduct->attributes ?? [],
+        // Cast to object: an empty PHP array would reach JS as [] and the
+        // listing fields set on it would be dropped when the form is submitted.
+        'attributes' => (object) ($draftProduct->attributes ?? []),
+        'listing_status' => $draftProduct->listingStatus(),
         'variant_rows' => $variantRows,
         'images' => $draftProduct->images ?? [],
     ] : null;
@@ -497,9 +503,11 @@ public function edit(Product $product)
         'whats_in_the_box' => $product->whats_in_the_box,
         'video_url' => $product->video_url,
         'marketplaces' => $product->marketplaces ?? [],
-        'attributes' => $product->attributes ?? [],
+        'attributes' => (object) ($product->attributes ?? []),
+        'listing_status' => $product->listingStatus(),
         'variant_rows' => $variantRows,
         'images' => $images,
+        'is_edit' => true,
     ];
 
     return Inertia::render('Admin/Products/Create', [
@@ -898,6 +906,31 @@ public function updateStatus(Request $request, Product $product)
     return redirect()
         ->back()
         ->with('success', 'Product status updated successfully.');
+}
+
+
+/**
+ * Mark a vehicle Available / Reserved / Sold from the product list.
+ * Admins can change any listing; sellers only their own.
+ */
+public function updateListingStatus(Request $request, Product $product)
+{
+    $validated = $request->validate([
+        'listing_status' => ['required', 'in:' . implode(',', Product::LISTING_STATUSES)],
+    ]);
+
+    $user = $request->user();
+    $isAdmin = $user->hasRole(['admin', 'super-admin']);
+    abort_unless($isAdmin || (int) $product->owner_id === (int) $user->id, 403);
+    abort_unless($product->isVehicleListing(), 422, 'Only vehicle listings have a listing status.');
+
+    $status = $validated['listing_status'];
+    $product->forceFill([
+        'reserved_at' => $status === Product::LISTING_RESERVED ? ($product->reserved_at ?? now()) : null,
+        'sold_at'     => $status === Product::LISTING_SOLD ? ($product->sold_at ?? now()) : null,
+    ])->save();
+
+    return back()->with('success', "Marked as {$status}.");
 }
 
 

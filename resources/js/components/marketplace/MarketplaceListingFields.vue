@@ -143,6 +143,15 @@ const onMakeChange = () => {
     }
 };
 
+// Select options, keeping a saved value that's no longer in the list (e.g. a
+// legacy condition) visible so editing doesn't silently blank it.
+const selectOptions = (field: FormField): string[] => {
+    const list = [...(field.options ?? [])];
+    const current = props.attributes[field.key];
+    if (current !== undefined && current !== null && current !== '' && !list.includes(String(current))) list.unshift(String(current));
+    return list;
+};
+
 // Checklist helpers — attributes[key] is kept as a string[] of ticked options.
 const isChecked = (key: string, opt: string) => Array.isArray(props.attributes[key]) && props.attributes[key].includes(opt);
 const toggleCheck = (key: string, opt: string) => {
@@ -208,14 +217,32 @@ const toggleCheck = (key: string, opt: string) => {
 
             <h4 class="mb-2 text-sm font-semibold text-gray-700">Listing details</h4>
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
-                <div v-for="field in primaryFields" :key="field.key">
+                <div v-for="field in primaryFields" :key="field.key" :class="field.type === 'checklist' ? 'sm:col-span-2 md:col-span-3' : ''">
                     <label class="block text-xs font-medium text-gray-600">
                         {{ field.label }}<span v-if="field.required" class="text-red-500">*</span>
                     </label>
 
+                    <!-- Checklist (multi-select chips) -->
+                    <div v-if="field.type === 'checklist'" class="mt-1.5 flex flex-wrap gap-2">
+                        <button
+                            v-for="opt in field.options ?? []"
+                            :key="opt"
+                            type="button"
+                            :class="[
+                                'rounded-full border px-3 py-1 text-xs font-medium transition',
+                                isChecked(field.key, opt)
+                                    ? 'border-primary bg-primary text-white'
+                                    : 'border-gray-300 bg-white text-gray-600 hover:border-primary/60 hover:text-primary',
+                            ]"
+                            @click="toggleCheck(field.key, opt)"
+                        >
+                            {{ opt }}
+                        </button>
+                    </div>
+
                     <!-- Make (cascading) -->
                     <select
-                        v-if="field.type === 'make'"
+                        v-else-if="field.type === 'make'"
                         v-model="attributes.make"
                         class="w-full rounded-md border px-3 py-2 text-sm"
                         @change="onMakeChange"
@@ -263,7 +290,7 @@ const toggleCheck = (key: string, opt: string) => {
                         class="w-full rounded-md border px-3 py-2 text-sm"
                     >
                         <option :value="undefined">Select {{ field.label.toLowerCase() }}</option>
-                        <option v-for="opt in field.options ?? []" :key="opt" :value="opt">{{ opt }}</option>
+                        <option v-for="opt in selectOptions(field)" :key="opt" :value="opt">{{ opt }}</option>
                     </select>
 
                     <input
@@ -322,7 +349,7 @@ const toggleCheck = (key: string, opt: string) => {
                             class="w-full rounded-md border px-3 py-2 text-sm"
                         >
                             <option :value="undefined">Select {{ field.label.toLowerCase() }}</option>
-                            <option v-for="opt in field.options ?? []" :key="opt" :value="opt">{{ opt }}</option>
+                            <option v-for="opt in selectOptions(field)" :key="opt" :value="opt">{{ opt }}</option>
                         </select>
 
                         <input

@@ -24,6 +24,8 @@ interface ProductWithRelations {
     status_label: string;
     status_id?: number | null;
     marketplaces?: string[];
+    is_vehicle?: boolean;
+    listing_status?: 'available' | 'reserved' | 'sold';
     owner?: { id: number; name: string } | null;
     warranties?: { id: number; hashid: string; product_hashid: string; duration: number; description?: string; active: boolean }[];
     product_variants?: ProductVariantForRestock[];
@@ -111,6 +113,18 @@ function goToPage(url: string | null) {
 function truncateName(name: string, length: number) {
     return name.length <= length ? name : name.slice(0, length - 3) + '...';
 }
+// Vehicles: Available / Reserved / Sold instead of stock.
+const listingStatusOptions = [
+    { value: 'available', label: 'Available', cls: 'bg-green-100 text-green-800' },
+    { value: 'reserved', label: 'Reserved', cls: 'bg-amber-100 text-amber-800' },
+    { value: 'sold', label: 'Sold', cls: 'bg-gray-200 text-gray-800' },
+];
+const listingStatusClass = (status?: string) => listingStatusOptions.find((o) => o.value === status)?.cls ?? 'bg-gray-100 text-gray-800';
+function updateListingStatus(product: ProductWithRelations, status: string) {
+    product.listing_status = status as ProductWithRelations['listing_status'];
+    router.patch(route('admin.products.listingStatus', { product: product.hashid }), { listing_status: status }, { preserveScroll: true });
+}
+
 function updateStatus(productHashid: string, statusId: number) {
     router.patch(route('admin.products.updateStatus', { product: productHashid }), { status_id: statusId });
 }
@@ -221,7 +235,7 @@ function openRestockHistory(product: ProductWithRelations) {
                                 <th class="border px-4 py-2 text-left">Image</th>
                                 <th class="border px-4 py-2 text-left">Name</th>
                                 <th class="border px-4 py-2 text-left">Marketplace</th>
-                                <th class="border px-4 py-2 text-left">Stock</th>
+                                <th class="border px-4 py-2 text-left">Stock / Status</th>
                                 <th class="border px-4 py-2 text-left">Store</th>
                                 <th class="border px-4 py-2 text-left">Warranty</th>
                                 <th class="border px-4 py-2 text-left">Status</th>
@@ -255,7 +269,18 @@ function openRestockHistory(product: ProductWithRelations) {
                                         {{ label }}
                                     </span>
                                 </td>
-                                <td class="border px-4 py-2">{{ product.stock ?? 0 }}</td>
+                                <td class="border px-4 py-2">
+                                    <select
+                                        v-if="product.is_vehicle"
+                                        :value="product.listing_status"
+                                        :class="['rounded px-2 py-1 text-xs font-medium', listingStatusClass(product.listing_status)]"
+                                        aria-label="Vehicle status"
+                                        @change="(e) => updateListingStatus(product, (e.target as HTMLSelectElement).value)"
+                                    >
+                                        <option v-for="o in listingStatusOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+                                    </select>
+                                    <template v-else>{{ product.stock ?? 0 }}</template>
+                                </td>
                                 <td class="border px-4 py-2">{{ product.owner?.name ?? '-' }}</td>
                                 <td class="border px-4 py-2">
                                     <button @click="openWarrantyModal(product)" class="text-sm text-primary hover:underline">
@@ -280,7 +305,7 @@ function openRestockHistory(product: ProductWithRelations) {
                                 <td class="flex gap-2 border px-4 py-2">
                                     <button @click="editProduct(product.hashid)" class="text-sm text-primary hover:underline">Edit</button>
                                     <button
-                                        v-if="canRestock"
+                                        v-if="canRestock && !product.is_vehicle"
                                         @click="openRestock(product)"
                                         class="text-sm text-green-600 hover:underline"
                                         :disabled="!product.product_variants?.length"

@@ -34,6 +34,7 @@ class Product extends Model
         'attributes',
         'marketplaces',
         'reserved_at',
+        'sold_at',
         'whats_in_the_box',
         'meta_title',
         'meta_keywords',
@@ -76,7 +77,14 @@ class Product extends Model
         'attributes'   => 'array',
         'marketplaces' => 'array',
         'reserved_at'  => 'datetime',
+        'sold_at'      => 'datetime',
     ];
+
+    // Vehicle listing status (Cars & Motors): stock doesn't apply to a car.
+    const LISTING_AVAILABLE = 'available';
+    const LISTING_RESERVED  = 'reserved';
+    const LISTING_SOLD      = 'sold';
+    const LISTING_STATUSES  = [self::LISTING_AVAILABLE, self::LISTING_RESERVED, self::LISTING_SOLD];
 
 
     const STATUS_DRAFT    = 0;
@@ -232,6 +240,29 @@ public function scopeActive($query)
     public function getIsReservedAttribute(): bool
     {
         return $this->reserved_at !== null;
+    }
+
+    /**
+     * A whole-vehicle Cars & Motors listing (not a spare part). Listings saved
+     * before spare parts existed have no listing_type and count as vehicles.
+     * These have no stock and no "what's in the box" — only a listing status.
+     */
+    public function isVehicleListing(): bool
+    {
+        $attributes = $this->getAttribute('attributes') ?? [];
+
+        return in_array('cars', $this->marketplaces ?? [], true)
+            && ($attributes['listing_type'] ?? 'vehicle') === 'vehicle';
+    }
+
+    /** available | reserved | sold */
+    public function listingStatus(): string
+    {
+        if ($this->sold_at !== null) {
+            return self::LISTING_SOLD;
+        }
+
+        return $this->reserved_at !== null ? self::LISTING_RESERVED : self::LISTING_AVAILABLE;
     }
 
     protected function pricing(): Attribute

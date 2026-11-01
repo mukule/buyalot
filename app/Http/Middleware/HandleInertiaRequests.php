@@ -50,6 +50,8 @@ class HandleInertiaRequests extends Middleware
                     'email'          => $user->email,
                     'secondary_role' => $user->secondary_role,
                     'user_type'      => $user->user_type,
+                    // Set when the user sent an abusive vehicle inquiry; hides the inquiry form.
+                    'inquiry_blocked' => $user->inquiry_blocked_at !== null,
                 ] : null,
                 'active_role' => session('active_role', $user?->user_type),
                 'switchable_roles' => $user ? $user->getPortalRoles() : [],

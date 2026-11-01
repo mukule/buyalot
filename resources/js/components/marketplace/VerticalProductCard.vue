@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import InquiryModal from '@/components/marketplace/InquiryModal.vue';
 import QuoteRequestModal from '@/components/marketplace/QuoteRequestModal.vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import {
@@ -12,6 +13,7 @@ import {
     Heart,
     Lock,
     LockOpen,
+    MessageSquare,
     MapPin,
     Palette,
     Phone,
@@ -36,7 +38,8 @@ const props = withDefaults(
 const page = usePage();
 
 const attrs = computed(() => props.product.attributes ?? {});
-const isReserved = computed(() => !!props.product.reserved);
+const isSold = computed(() => !!props.product.sold);
+const isReserved = computed(() => !isSold.value && !!props.product.reserved);
 const isAutomotive = computed(() => props.type === 'automotive');
 const isConstruction = computed(() => props.type === 'construction');
 // Cars & Motors spare part (listings without a listing_type are vehicles).
@@ -46,6 +49,8 @@ const isAuthed = computed(() => !!(page.props as any).auth?.user);
 
 // Quote request (construction)
 const showQuote = ref(false);
+// Inquiry (vehicles): buyers message the seller instead of adding to cart.
+const showInquiry = ref(false);
 const quoteTarget = computed(() => ({
     id: props.product.product_id,
     name: props.product.product_name ?? props.product.name,
@@ -164,16 +169,22 @@ const toggleReservation = () => {
         class="relative flex overflow-hidden rounded-lg border bg-white shadow-sm transition-shadow duration-200 hover:shadow-md"
         :class="[layout === 'list' ? 'flex-col sm:flex-row' : 'flex-col', isReserved ? 'opacity-95' : '']"
     >
-        <!-- Reserved ribbon -->
+        <!-- Sold / Reserved ribbon -->
         <div
-            v-if="isReserved"
+            v-if="isSold"
+            class="absolute top-0 left-0 z-20 flex items-center gap-1 rounded-br-lg bg-gray-800 px-2 py-1 text-[11px] font-bold text-white shadow"
+        >
+            Sold
+        </div>
+        <div
+            v-else-if="isReserved"
             class="absolute top-0 left-0 z-20 flex items-center gap-1 rounded-br-lg bg-secondary px-2 py-1 text-[11px] font-bold text-white shadow"
         >
             <Lock class="h-3 w-3" /> Reserved
         </div>
 
         <span
-            v-if="!isReserved && product.discount_percent > 0"
+            v-if="!isReserved && !isSold && product.discount_percent > 0"
             class="absolute top-2 left-2 z-10 rounded bg-secondary/90 px-2 py-1 text-xs font-bold text-white"
         >
             {{ Math.round(product.discount_percent) }}% OFF
@@ -200,7 +211,7 @@ const toggleReservation = () => {
                     :alt="title"
                     loading="lazy"
                     class="h-full w-full object-cover"
-                    :class="isReserved ? 'grayscale-[35%]' : ''"
+                    :class="isReserved || isSold ? 'grayscale-[35%]' : ''"
                     @error="imgError = true"
                 />
                 <div
@@ -261,6 +272,7 @@ const toggleReservation = () => {
                     <span v-if="product.marked_price > product.final_price" class="text-xs text-gray-400 line-through">
                         {{ formatPrice(product.marked_price) }}
                     </span>
+                    <span v-if="isAutomotive && attrs.negotiable === 'Yes'" class="text-[11px] text-gray-500">Negotiable</span>
                 </div>
 
                 <div class="flex items-center gap-2">
@@ -329,9 +341,19 @@ const toggleReservation = () => {
                 <FileText class="h-3.5 w-3.5" /> Request quote
             </button>
 
+            <!-- Inquire (vehicles: no cart — message the seller) -->
+            <button
+                v-if="isVehicle && !isSold"
+                type="button"
+                class="mt-1 flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-2 py-1.5 text-xs font-semibold text-white transition hover:bg-primary/90"
+                @click.stop.prevent="showInquiry = true"
+            >
+                <MessageSquare class="h-3.5 w-3.5" /> Inquire
+            </button>
+
             <!-- Reservation controls (cars, authenticated users) -->
             <button
-                v-if="isVehicle && isAuthed"
+                v-if="isVehicle && isAuthed && !isSold"
                 type="button"
                 :disabled="isReserving"
                 :class="[
@@ -348,6 +370,12 @@ const toggleReservation = () => {
             </button>
         </div>
 
+        <InquiryModal
+            v-if="isVehicle"
+            :open="showInquiry"
+            :product="{ id: product.product_id, name: title }"
+            @close="showInquiry = false"
+        />
         <QuoteRequestModal v-if="isConstruction" :open="showQuote" :product="quoteTarget" @close="showQuote = false" />
     </div>
 </template>

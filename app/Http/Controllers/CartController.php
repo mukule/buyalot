@@ -259,6 +259,11 @@ public function store(Request $request, CartReservationService $cartService)
         return redirect()->back()->with('success', "{$variant->product->name} removed from cart!");
     }
 
+    // Vehicles aren't bought through the cart — buyers inquire with the seller.
+    if ($variant->product?->isVehicleListing()) {
+        return redirect()->back()->with('error', 'Vehicles can\'t be added to the cart. Use "Inquire" to contact the seller.');
+    }
+
     // Only check stock availability when the customer is requesting MORE than they already have in cart.
     // Reducing or keeping the same quantity should always be allowed — stock was already "consumed"
     // from the customer's perspective when they originally added items.

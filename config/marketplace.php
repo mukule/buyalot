@@ -51,6 +51,7 @@ return [
                 ['key' => 'availability', 'label' => 'Availability', 'type' => 'select', 'options' => [
                     ['value' => 'available', 'label' => 'Available'],
                     ['value' => 'reserved',  'label' => 'Reserved'],
+                    ['value' => 'sold',      'label' => 'Sold'],
                 ]],
                 ['key' => 'make',         'label' => 'Make',         'type' => 'select'],
                 ['key' => 'model',        'label' => 'Model',        'type' => 'select'],
@@ -61,6 +62,9 @@ return [
                 ['key' => 'steering',     'label' => 'Steering',     'type' => 'select', 'for' => 'vehicle'],
                 ['key' => 'color',        'label' => 'Colour',       'type' => 'select', 'for' => 'vehicle'],
                 ['key' => 'condition',    'label' => 'Condition',    'type' => 'select'],
+                ['key' => 'registered',   'label' => 'Registered car', 'type' => 'select', 'for' => 'vehicle'],
+                ['key' => 'exchange_possible', 'label' => 'Exchange possible', 'type' => 'select', 'for' => 'vehicle'],
+                ['key' => 'negotiable',   'label' => 'Negotiable',   'type' => 'select'],
                 ['key' => 'year',         'label' => 'Year',         'type' => 'range', 'min' => 'year_min',      'max' => 'year_max', 'ui' => 'year', 'for' => 'vehicle'],
                 ['key' => 'mileage',      'label' => 'Mileage (km)', 'type' => 'range', 'min' => 'mileage_min',   'max' => 'mileage_max', 'for' => 'vehicle'],
                 ['key' => 'engine_cc',    'label' => 'Engine (cc)',  'type' => 'range', 'min' => 'engine_cc_min', 'max' => 'engine_cc_max', 'for' => 'vehicle'],
@@ -72,6 +76,9 @@ return [
             ],
             'quick_tags' => [
                 ['label' => 'Available only', 'params' => ['availability' => 'available'], 'for' => 'vehicle'],
+                ['label' => 'Foreign used',   'params' => ['condition' => 'Foreign Used'], 'for' => 'vehicle'],
+                ['label' => 'Locally used',   'params' => ['condition' => 'Locally Used'], 'for' => 'vehicle'],
+                ['label' => 'Brand new',      'params' => ['condition' => 'Brand New'], 'for' => 'vehicle'],
                 ['label' => 'Hybrid',         'params' => ['fuel' => 'Hybrid'], 'for' => 'vehicle'],
                 ['label' => 'Automatic',      'params' => ['transmission' => 'Automatic'], 'for' => 'vehicle'],
                 ['label' => '4WD / AWD',      'params' => ['drive_type' => 'AWD'], 'for' => 'vehicle'],
@@ -114,7 +121,7 @@ return [
                 ['key' => 'model',        'label' => 'Fits model',       'type' => 'model',  'for' => 'spare_part'],
                 ['key' => 'year_from',    'label' => 'Fits year from',   'type' => 'number', 'for' => 'spare_part'],
                 ['key' => 'year_to',      'label' => 'Fits year to',     'type' => 'number', 'for' => 'spare_part'],
-                ['key' => 'condition',    'label' => 'Condition',        'type' => 'select', 'options' => ['New', 'Used', 'Refurbished'], 'for' => 'spare_part'],
+                ['key' => 'condition',    'label' => 'Condition',        'type' => 'select', 'options' => ['Brand New', 'Refurbished', 'Used'], 'required' => true, 'for' => 'spare_part'],
                 ['key' => 'part_manufacturer', 'label' => 'Manufacturer (e.g. Bosch, Denso)', 'type' => 'text', 'advanced' => true, 'for' => 'spare_part'],
                 ['key' => 'warranty',     'label' => 'Warranty',         'type' => 'text',   'advanced' => true, 'for' => 'spare_part'],
 
@@ -130,8 +137,16 @@ return [
                 ['key' => 'drive_type',   'label' => 'Drive',        'type' => 'select', 'options' => ['2WD', '4WD', 'AWD'], 'for' => 'vehicle'],
                 ['key' => 'steering',     'label' => 'Steering',     'type' => 'select', 'options' => ['Right', 'Left'], 'for' => 'vehicle'],
                 ['key' => 'color',        'label' => 'Colour',       'type' => 'text', 'for' => 'vehicle'],
-                ['key' => 'condition',    'label' => 'Condition',    'type' => 'select', 'options' => ['New', 'Used', 'Certified'], 'for' => 'vehicle'],
+                ['key' => 'condition',    'label' => 'Condition',    'type' => 'select', 'options' => ['Brand New', 'Foreign Used', 'Locally Used'], 'required' => true, 'for' => 'vehicle'],
+                ['key' => 'registered',   'label' => 'Registered car', 'type' => 'select', 'options' => ['Yes', 'No'], 'for' => 'vehicle'],
+                ['key' => 'exchange_possible', 'label' => 'Exchange possible', 'type' => 'select', 'options' => ['Yes', 'No'], 'for' => 'vehicle'],
                 ['key' => 'location',     'label' => 'Location',     'type' => 'text'],
+                ['key' => 'negotiable',   'label' => 'Price negotiable', 'type' => 'select', 'options' => ['Yes', 'No']],
+                // Known history / state of the vehicle (multi-select).
+                ['key' => 'second_condition', 'label' => 'Vehicle history & state', 'type' => 'checklist', 'for' => 'vehicle', 'options' => [
+                    'First owner', 'No faults', 'Original parts', 'Unpainted', 'Service history',
+                    'After crash', 'Engine issue', 'Gear issue', 'Need body repair', 'Need repainting', 'Suspension issue',
+                ]],
                 // Buyers contact the seller directly on this number (call button on the card).
                 ['key' => 'phone',        'label' => 'Contact phone', 'type' => 'text', 'required' => true],
 

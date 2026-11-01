@@ -249,9 +249,13 @@ public function productDetails(string $slug)
         'features'           => $product->features,
         'description'        => $product->description,
         'specifications'     => $product->specifications,
-        'whats_in_the_box'   => $product->whats_in_the_box,
+        'whats_in_the_box'   => $product->isVehicleListing() ? null : $product->whats_in_the_box,
         'attributes'         => $product->attributes ?? [],
         'marketplaces'       => $product->marketplaces ?? [],
+        // Vehicles: no stock / cart — a listing status and an inquiry instead.
+        'is_vehicle'         => $product->isVehicleListing(),
+        'listing_status'     => $product->listingStatus(),
+        'seller'             => !empty($product->marketplaces) ? $this->marketplaceSellerCard($product) : null,
         'images'             => $product->image_urls,
         'variants'           => $variants,
         'variant_attributes' => $variantAttributes,
@@ -318,6 +322,31 @@ public function productDetails(string $slug)
         'googleMapsApiKey' => $googleMapsApiKey,
         'title'            => $product->name,
     ]);
+}
+
+
+/**
+ * Seller card for marketplace listings (cars, construction): who is selling,
+ * whether they're verified, how long they've been on the platform and how
+ * many live listings they have.
+ */
+protected function marketplaceSellerCard(Product $product): array
+{
+    $isStore = $product->owner_type === 'admin' || ! $product->owner_id;
+    $owner   = $isStore ? null : $product->owner()->with('sellerApplication')->first();
+
+    return [
+        // Same store label as ProductVariant::getOwnerInfo().
+        'name'          => $isStore ? 'Bianlina Store' : ($owner?->sellerApplication?->company_legal_name ?? $owner?->name ?? 'Seller'),
+        'is_store'      => $isStore,
+        'verified'      => $isStore || (bool) $owner?->sellerApplication?->isApproved(),
+        'member_since'  => $owner?->created_at?->toIso8601String(),
+        'listings_count'=> $isStore ? null : Product::withoutGlobalScopes()
+            ->where('owner_id', $owner?->id)
+            ->where('owner_type', $product->owner_type)
+            ->where('status_id', Product::STATUS_APPROVED)
+            ->count(),
+    ];
 }
 
 

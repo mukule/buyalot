@@ -3,10 +3,11 @@ import MainLayout from '@/layouts/MainLayout.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
-import endToEnd from '@/assets/images/banners/hfl.jpeg';
+// Brand-correct (Bianlina purple/orange) artwork; the old photos carried another brand.
+import endToEnd from '@/assets/images/banners/end-to-end-solutions.svg';
 import optimiseGrowth from '@/assets/images/banners/optimize.jpg';
 import securePayments from '@/assets/images/banners/safe.jpg';
-import sell_on_buyalot from '@/assets/images/banners/sell-on-buyalot.png';
+import sellHero from '@/assets/images/banners/sell-hero.svg';
 import hassleFree from '@/assets/images/banners/tools.png';
 
 import start_selling_bg from '@/assets/images/bg/start-selling.jpg';
@@ -81,7 +82,7 @@ const steps = [
     <MainLayout>
         <template #full>
             <!-- Hero Section -->
-            <section class="relative h-[400px] w-full bg-cover bg-center" :style="{ backgroundImage: `url(${sell_on_buyalot})` }">
+            <section class="relative h-[400px] w-full bg-cover bg-center" :style="{ backgroundImage: `url(${sellHero})` }">
                 <div class="absolute inset-0 bg-black/10"></div>
 
                 <div class="relative container mx-auto h-full px-4 sm:px-6 lg:px-8">

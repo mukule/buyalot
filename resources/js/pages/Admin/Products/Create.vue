@@ -50,6 +50,7 @@ interface ProductFormBase {
     package_size: string;
     marketplaces: string[];
     attributes: Record<string, any>;
+    listing_status: 'available' | 'reserved' | 'sold';
 }
 
 interface ProductFormEditorFields {
@@ -80,6 +81,15 @@ const brandOptions: OptionItem[] = brands.map((b: any) => ({ id: b.id, name: b.n
 const isAutomotive = computed(() =>
     availableMarketplaces.some((m: any) => m.type === 'automotive' && form.marketplaces.includes(m.key)),
 );
+// A whole vehicle (not a spare part): no stock and no "what's in the box" —
+// availability is the listing status instead.
+const isVehicle = computed(() => isAutomotive.value && (form.attributes.listing_type ?? 'vehicle') === 'vehicle');
+
+const listingStatusOptions = [
+    { value: 'available', label: 'Available' },
+    { value: 'reserved', label: 'Reserved' },
+    { value: 'sold', label: 'Sold' },
+];
 const unitOptions: OptionItem[] = units.map((u: any) => ({ id: u.id, name: u.name }));
 
 // Steps
@@ -149,8 +159,10 @@ const form = useForm<ProductForm>({
     package_size: product?.package_size ?? 'small',
     video_url: product?.video_url ?? null,
     variant_images: [],
-    marketplaces: product?.marketplaces ?? [],
-    attributes: product?.attributes ?? {},
+    marketplaces: [...(product?.marketplaces ?? [])],
+    // Must be a plain object: keys set on an array are dropped on submit.
+    attributes: product?.attributes && !Array.isArray(product.attributes) ? { ...product.attributes } : {},
+    listing_status: product?.listing_status ?? 'available',
 });
 
 // ------------------ Video Preview ------------------
@@ -168,12 +180,21 @@ const videoPreview = computed(() => {
     }
 });
 
-const editorFields: (keyof ProductFormEditorFields)[] = ['description', 'features', 'specifications', 'whats_in_the_box'];
+const editorFields = computed<(keyof ProductFormEditorFields)[]>(() =>
+    isVehicle.value ? ['description', 'features', 'specifications'] : ['description', 'features', 'specifications', 'whats_in_the_box'],
+);
 
 // ------------------ Submit & Navigation ------------------
 const isSubmitting = reactive({ value: false });
 
 const initializeFromProduct = () => {
+    // Editing an existing product: open on Basic Info with every tab reachable,
+    // instead of jumping to the last wizard step (Variant Images).
+    if (product?.is_edit) {
+        currentStep.value = 0;
+        steps.forEach((_, i) => completedSteps.push(i));
+        return;
+    }
     if (product?.current_step) {
         const stepIndex = product.current_step - 1;
         currentStep.value = stepIndex;
@@ -516,6 +537,26 @@ function handleSuccess(pageResponse: any) {
                             :marketplaces="form.marketplaces"
                             :attributes="form.attributes"
                         />
+
+                        <!-- Vehicles have a listing status instead of stock -->
+                        <div v-if="isVehicle" class="rounded-lg border border-gray-200 p-4">
+                            <label class="block text-sm font-medium text-gray-700">Status*</label>
+                            <p class="mb-2 text-xs text-gray-500">Vehicles don't track stock — set whether this one is available, reserved or sold.</p>
+                            <div class="inline-flex rounded-lg border border-gray-200 p-1">
+                                <button
+                                    v-for="s in listingStatusOptions"
+                                    :key="s.value"
+                                    type="button"
+                                    :class="[
+                                        'rounded-md px-4 py-1.5 text-sm font-medium transition',
+                                        form.listing_status === s.value ? 'bg-primary text-white' : 'text-gray-600 hover:bg-gray-50',
+                                    ]"
+                                    @click="form.listing_status = s.value as ProductForm['listing_status']"
+                                >
+                                    {{ s.label }}
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Step 2: Content -->
@@ -552,7 +593,7 @@ function handleSuccess(pageResponse: any) {
 
                     <!-- Step 3: Variants -->
                     <div v-show="currentStep.value === 2">
-                        <ProductVariantCreator v-model:variantRows="variantRows" :variantCategories="variantCategories" />
+                        <ProductVariantCreator v-model:variantRows="variantRows" :variantCategories="variantCategories" :hide-stock="isVehicle" />
                     </div>
 
                     <!-- Step 4: Images -->
