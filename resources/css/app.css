@@ -129,6 +129,30 @@
     body {
         @apply bg-background text-foreground;
     }
+
+    /*
+     * Form controls inherit `color` (Tailwind preflight). Storefront pages sit in
+     * <main class="text-primary-foreground"> (white), so un-styled inputs showed
+     * white text on white fields. Give controls a readable default; any explicit
+     * utility (e.g. text-white on a dark search bar) still wins over this layer.
+     */
+    input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+    textarea,
+    select,
+    [contenteditable='true'] {
+        color: var(--color-gray-900, #111827);
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+        color: var(--color-gray-400, #9ca3af);
+        opacity: 1;
+    }
+
+    select option {
+        color: var(--color-gray-900, #111827);
+        background-color: #fff;
+    }
 }
 
 .fade-enter-active,
