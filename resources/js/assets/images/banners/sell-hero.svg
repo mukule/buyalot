@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 470" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Parcels moving through a fulfilment centre">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3a1d66"/>
+      <stop offset=".55" stop-color="#6C3BAA"/>
+      <stop offset="1" stop-color="#8f63c9"/>
+    </linearGradient>
+    <pattern id="dots" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#ffffff" opacity=".12"/>
+    </pattern>
+    <linearGradient id="belt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2d1a4a"/>
+      <stop offset="1" stop-color="#1c0f30"/>
+    </linearGradient>
+    <linearGradient id="box" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e8cfa6"/>
+      <stop offset="1" stop-color="#c9a370"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1440" height="470" fill="url(#sky)"/>
+  <rect width="1440" height="470" fill="url(#dots)"/>
+
+  <!-- soft brand glows -->
+  <circle cx="1180" cy="90" r="220" fill="#FF4500" opacity=".16"/>
+  <circle cx="980" cy="420" r="260" fill="#ffffff" opacity=".05"/>
+  <!-- orange ring echoing the logo mark -->
+  <circle cx="1290" cy="120" r="70" fill="none" stroke="#FF4500" stroke-width="14" opacity=".85"/>
+
+  <!-- conveyor -->
+  <path d="M560 360 H1440 V410 H560 Z" fill="url(#belt)"/>
+  <rect x="560" y="352" width="880" height="10" fill="#4a2580"/>
+  <g fill="#6C3BAA" opacity=".9">
+    <circle cx="600" cy="385" r="12"/><circle cx="700" cy="385" r="12"/><circle cx="800" cy="385" r="12"/>
+    <circle cx="900" cy="385" r="12"/><circle cx="1000" cy="385" r="12"/><circle cx="1100" cy="385" r="12"/>
+    <circle cx="1200" cy="385" r="12"/><circle cx="1300" cy="385" r="12"/><circle cx="1400" cy="385" r="12"/>
+  </g>
+  <rect x="560" y="410" width="880" height="60" fill="#1c0f30" opacity=".55"/>
+
+  <!-- parcels on the belt -->
+  <g transform="translate(700 262)">
+    <rect width="120" height="90" rx="6" fill="url(#box)"/>
+    <rect x="52" width="16" height="90" fill="#6C3BAA"/>
+    <rect x="14" y="16" width="30" height="18" rx="2" fill="#ffffff" opacity=".9"/>
+  </g>
+  <g transform="translate(880 212)">
+    <rect width="170" height="140" rx="8" fill="url(#box)"/>
+    <rect x="74" width="22" height="140" fill="#FF4500"/>
+    <rect x="18" y="22" width="40" height="24" rx="3" fill="#ffffff" opacity=".9"/>
+    <circle cx="130" cy="104" r="18" fill="none" stroke="#6C3BAA" stroke-width="6"/>
+  </g>
+  <g transform="translate(1110 250)">
+    <rect width="140" height="102" rx="6" fill="url(#box)"/>
+    <rect x="62" width="16" height="102" fill="#6C3BAA"/>
+    <rect x="96" y="16" width="30" height="18" rx="2" fill="#ffffff" opacity=".9"/>
+  </g>
+  <g transform="translate(1300 286)">
+    <rect width="96" height="66" rx="5" fill="url(#box)"/>
+    <rect x="40" width="14" height="66" fill="#FF4500"/>
+  </g>
+
+  <!-- motion lines -->
+  <g stroke="#ffffff" stroke-width="4" stroke-linecap="round" opacity=".35">
+    <line x1="610" y1="292" x2="670" y2="292"/>
+    <line x1="590" y1="314" x2="660" y2="314"/>
+    <line x1="820" y1="250" x2="860" y2="250"/>
+  </g>
+</svg>
