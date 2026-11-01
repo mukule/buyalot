@@ -48,6 +48,7 @@ class HandleInertiaRequests extends Middleware
                     'id'             => $user->id,
                     'name'           => $user->name,
                     'email'          => $user->email,
+                    'phone'          => $user->phone,
                     'secondary_role' => $user->secondary_role,
                     'user_type'      => $user->user_type,
                     // Set when the user sent an abusive vehicle inquiry; hides the inquiry form.

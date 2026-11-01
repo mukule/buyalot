@@ -197,10 +197,10 @@ class MarketplaceController extends Controller
         $validated = $request->validate([
             'type'         => ['nullable', 'in:' . implode(',', VehicleInquiry::TYPES)],
             'product_id'   => ['required', 'integer', 'exists:products,id'],
-            'name'         => ['required', 'string', 'max:255'],
+            // Contact details are optional: they default to the buyer's account.
+            'name'         => ['nullable', 'string', 'max:255'],
             'email'        => ['nullable', 'email', 'max:255'],
-            // A call-back needs a number to call.
-            'phone'        => [$type === VehicleInquiry::TYPE_CALLBACK ? 'required' : 'nullable', 'string', 'max:50'],
+            'phone'        => ['nullable', 'string', 'max:50'],
             // A plain inquiry needs a message; call-backs and offers may add a note.
             'message'      => [$type === VehicleInquiry::TYPE_MESSAGE ? 'required' : 'nullable', 'string', 'min:2', 'max:2000'],
             'offer_amount' => [$type === VehicleInquiry::TYPE_OFFER ? 'required' : 'nullable', 'numeric', 'min:1', 'max:9999999999'],
@@ -211,8 +211,13 @@ class MarketplaceController extends Controller
             $validated['offer_amount'] = null;
         }
 
-        if (empty($validated['email']) && empty($validated['phone'])) {
-            return back(303)->withErrors(['phone' => 'Provide a phone number or email so the seller can reach you.']);
+        $validated['name']  = trim((string) ($validated['name'] ?? '')) ?: ($user->name ?: 'Buyer');
+        $validated['email'] = ($validated['email'] ?? null) ?: $user->email;
+        $validated['phone'] = ($validated['phone'] ?? null) ?: $user->phone;
+
+        // Only a call-back strictly needs a number to call.
+        if ($type === VehicleInquiry::TYPE_CALLBACK && empty($validated['phone'])) {
+            return back(303)->withErrors(['phone' => 'Enter a phone number so the seller can call you back.']);
         }
 
         $product = Product::withoutGlobalScopes()->findOrFail($validated['product_id']);
@@ -312,30 +317,6 @@ class MarketplaceController extends Controller
             'enabled' => true,
             'boxes'   => $detector->detect($request->file('image')),
         ]);
-    }
-
-    /**
-     * Mark a car as reserved.
-     */
-    public function reserve(Request $request, Product $product)
-    {
-        if ($product->sold_at !== null) {
-            return back(303)->with('error', 'This vehicle has already been sold.');
-        }
-
-        $product->forceFill(['reserved_at' => now()])->saveQuietly();
-
-        return back(303)->with('success', 'Listing reserved.');
-    }
-
-    /**
-     * Remove a reservation (make the car available again).
-     */
-    public function unreserve(Request $request, Product $product)
-    {
-        $product->forceFill(['reserved_at' => null])->saveQuietly();
-
-        return back(303)->with('success', 'Reservation removed.');
     }
 
     /**

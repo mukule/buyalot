@@ -502,14 +502,13 @@ Route::prefix('marketplace')->name('marketplace.')->group(function () {
     // Bulk quote / inquiry (RFQ) — open to guests (throttled).
     Route::post('/quote', [MarketplaceController::class, 'quote'])->middleware('throttle:20,1')->name('quote');
 
-    // Reservation management (view/remove reserved cars). Auth-gated.
+    // Buyer actions (auth). Reserving a car is NOT a buyer action — the seller marks
+    // it Reserved/Sold from the product list (admin.products.listingStatus).
     Route::middleware('auth')->group(function () {
-        Route::post('/reserve/{product}', [MarketplaceController::class, 'reserve'])->name('reserve');
         // Vehicle inquiry (message the seller) — screened for abusive language.
         Route::post('/inquire', [MarketplaceController::class, 'inquire'])->middleware('throttle:10,1')->name('inquire');
         // Report a listing (scam, wrong info, ...) for admin review.
         Route::post('/report', [MarketplaceController::class, 'report'])->middleware('throttle:10,1')->name('report');
-        Route::post('/unreserve/{product}', [MarketplaceController::class, 'unreserve'])->name('unreserve');
         // ANPR plate detection for the blur editor (used in the product form).
         Route::post('/detect-plates', [MarketplaceController::class, 'detectPlates'])
             ->middleware('throttle:30,1')->name('detect-plates');

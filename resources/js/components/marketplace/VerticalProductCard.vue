@@ -3,7 +3,6 @@ import InquiryModal from '@/components/marketplace/InquiryModal.vue';
 import QuoteRequestModal from '@/components/marketplace/QuoteRequestModal.vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import {
-    BadgeCheck,
     Car,
     Cog,
     FileText,
@@ -12,7 +11,6 @@ import {
     HardHat,
     Heart,
     Lock,
-    LockOpen,
     MessageSquare,
     MapPin,
     Palette,
@@ -45,7 +43,6 @@ const isConstruction = computed(() => props.type === 'construction');
 // Cars & Motors spare part (listings without a listing_type are vehicles).
 const isSparePart = computed(() => isAutomotive.value && attrs.value.listing_type === 'spare_part');
 const isVehicle = computed(() => isAutomotive.value && !isSparePart.value);
-const isAuthed = computed(() => !!(page.props as any).auth?.user);
 
 // Quote request (construction)
 const showQuote = ref(false);
@@ -150,18 +147,6 @@ const revealPhone = () => {
     showPhone.value = true;
 };
 
-// Reservation (cars only)
-const isReserving = ref(false);
-const toggleReservation = () => {
-    if (isReserving.value) return;
-    isReserving.value = true;
-    const name = isReserved.value ? 'marketplace.unreserve' : 'marketplace.reserve';
-    router.post(
-        route(name, props.product.product_id),
-        {},
-        { preserveScroll: true, preserveState: false, onFinish: () => (isReserving.value = false) },
-    );
-};
 </script>
 
 <template>
@@ -351,23 +336,6 @@ const toggleReservation = () => {
                 <MessageSquare class="h-3.5 w-3.5" /> Inquire
             </button>
 
-            <!-- Reservation controls (cars, authenticated users) -->
-            <button
-                v-if="isVehicle && isAuthed && !isSold"
-                type="button"
-                :disabled="isReserving"
-                :class="[
-                    'mt-1 flex w-full items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-xs font-medium transition',
-                    isReserving ? 'cursor-wait opacity-60' : '',
-                    isReserved
-                        ? 'border-secondary/40 text-secondary hover:bg-secondary/10'
-                        : 'border-primary/40 text-primary hover:bg-primary/10',
-                ]"
-                @click.stop.prevent="toggleReservation"
-            >
-                <component :is="isReserved ? LockOpen : BadgeCheck" class="h-3.5 w-3.5" />
-                {{ isReserved ? 'Remove reservation' : 'Reserve' }}
-            </button>
         </div>
 
         <InquiryModal
